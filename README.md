@@ -97,7 +97,7 @@ xdg-desktop-portal-hyprland inotify-tools
 Clone the repository:
 
 ```bash
-git clone https://github.com/<your-username>/<repo>.git
+git clone https://github.com/pradun-oops/hyprland.git
 cd <repo>
 ```
 
