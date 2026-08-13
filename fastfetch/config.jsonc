@@ -1,0 +1,223 @@
+{
+  "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+  "logo": {
+  "type": "kitty-direct",
+  "source": "~/.config/fastfetch/logos/loq.png",
+  "width": 25,
+  "height": 35,
+  "padding": {
+    "top": 3,
+    "left": 3,
+    "right": 3,
+    "bottom": 3
+  }
+},
+  "display": {
+    "separator": " : ",
+    "color": {
+      "keys": "yellow",
+      "title": "yellow"
+    },
+    "size": {
+      "binaryPrefix": "iec",
+      "ndigits": 2
+    },
+    "freq": {
+      "ndigits": 2
+    }
+  },
+  "modules": [
+    {
+      "type": "custom",
+      "format": "\u001b[38;5;111m╭─   System Information ─────────────────────────────╮\u001b[0m"
+    },
+    {
+      "type": "title",
+      "key": "User       ",
+      "format": "{user-name}@{host-name}"
+    },
+    {
+      "type": "host",
+      "key": "Machine    "
+    },
+    {
+      "type": "command",
+      "key": "OS         ",
+      "text": "grep '^PRETTY_NAME=' /etc/os-release | cut -d= -f2- | tr -d '\"' | sed 's/ (Workstation Edition)//'"
+    },
+    {
+      "type": "kernel",
+      "key": "Kernel     ",
+      "format": "{release}"
+    },
+    {
+      "type": "uptime",
+      "key": "Uptime     "
+    },
+    {
+      "type": "shell",
+      "key": "Shell      "
+    },
+    {
+      "type": "terminal",
+      "key": "Terminal   "
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[38;5;111m╰─────────────────────────────────────────────────────╯\u001b[0m"
+    },
+    {
+      "type": "custom",
+      "format": ""
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[38;5;213m╭─   Desktop ────────────────────────────────────────╮\u001b[0m"
+    },
+    {
+      "type": "wm",
+      "key": "WM         "
+    },
+    {
+      "type": "de",
+      "key": "Session    "
+    },
+    {
+      "type": "command",
+      "key": "Monitor 1  ",
+      "text": "hyprctl monitors -j | jq -r '.[0] | \"\\(.name): \\(.width)x\\(.height) @ \\(.refreshRate | round)Hz\"'"
+    },
+    {
+      "type": "command",
+      "key": "Monitor 2  ",
+      "text": "hyprctl monitors -j | jq -r 'if length > 1 then .[1] | \"\\(.name): \\(.width)x\\(.height) @ \\(.refreshRate | round)Hz\" else empty end'"
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[38;5;213m╰─────────────────────────────────────────────────────╯\u001b[0m"
+    },
+    {
+      "type": "custom",
+      "format": ""
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[38;5;221m╭─ 󰻠  Hardware ───────────────────────────────────────╮\u001b[0m"
+    },
+    {
+      "type": "command",
+      "key": "CPU        ",
+      "text": "model=$(lscpu | awk -F: '/Model name/ {gsub(/^[ \\t]+/, \"\", $2); print $2; exit}' | sed -E 's/.*(i5-[0-9A-Z]+).*/\\1/'); freq=$(lscpu | awk -F: '/CPU max MHz/ {printf \"%.2f GHz\", $2/1000; found=1} END {if (!found) print \"4.60 GHz\"}'); temp=$(sensors 2>/dev/null | awk '/Package id 0|Tctl|CPU/ {gsub(/\\+/, \"\", $4); print $4; exit}'); echo \"$model (12+4) @ $freq${temp:+ - $temp}\""
+    },
+    {
+      "type": "command",
+      "key": "GPU        ",
+      "text": "lspci | grep -Ei 'vga|3d|display' | grep -i nvidia | head -n 1 | sed -E 's/.*\\[([^]]+)\\].*/\\1/; s/.*NVIDIA Corporation //' | cut -c1-48"
+    },
+    {
+      "type": "memory",
+      "key": "RAM        ",
+      "format": "{used} / {total}"
+    },
+    {
+      "type": "swap",
+      "key": "Swap       "
+    },
+    {
+      "type": "disk",
+      "key": "Root Disk  ",
+      "folders": "/"
+    },
+    {
+      "type": "battery",
+      "key": "Battery    "
+    },
+    {
+      "type": "poweradapter",
+      "key": "Power      "
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[38;5;221m╰─────────────────────────────────────────────────────╯\u001b[0m"
+    },
+    {
+      "type": "custom",
+      "format": ""
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[38;5;114m╭─ 󰋊  Storage ────────────────────────────────────────╮\u001b[0m"
+    },
+    {
+      "type": "disk",
+      "key": "Fedora     ",
+      "folders": "/"
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[38;5;114m╰─────────────────────────────────────────────────────╯\u001b[0m"
+    },
+    {
+      "type": "custom",
+      "format": ""
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[38;5;215m╭─   Network ────────────────────────────────────────╮\u001b[0m"
+    },
+    {
+      "type": "localip",
+      "key": "Local IP   ",
+      "showIpv4": true,
+      "showIpv6": false
+    },
+    {
+      "type": "command",
+      "key": "Network    ",
+      "text": "nmcli -t -f NAME,TYPE connection show --active | head -n 1 | sed 's/:/ (/; s/$/)/' | cut -c1-48"
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[38;5;215m╰─────────────────────────────────────────────────────╯\u001b[0m"
+    },
+    {
+      "type": "custom",
+      "format": ""
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[38;5;210m╭─ 󰃭  Session ────────────────────────────────────────╮\u001b[0m"
+    },
+    {
+      "type": "command",
+      "key": "Date       ",
+      "text": "date '+%A, %d %B %Y'"
+    },
+    {
+      "type": "command",
+      "key": "Time       ",
+      "text": "date '+%I:%M %p'"
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[38;5;210m╰─────────────────────────────────────────────────────╯\u001b[0m"
+    },
+    {
+      "type": "custom",
+      "format": ""
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[38;5;175m╭─ 󰏘  Palette ────────────────────────────────────────╮\u001b[0m"
+    },
+    {
+      "type": "colors",
+      "key": "Colors     ",
+      "symbol": "circle"
+    },
+    {
+      "type": "custom",
+      "format": "\u001b[38;5;175m╰─────────────────────────────────────────────────────╯\u001b[0m"
+    }
+  ]
+}
