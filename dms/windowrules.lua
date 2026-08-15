@@ -141,6 +141,21 @@ hl.window_rule({
     float = true, size = "1300 850", center = true 
 })
 
+hl.window_rule({ 
+    match = { class = "^(com.github.wwmm.easyeffects)$" }, 
+    float = true, size = "1300 850", center = true 
+})
+
+hl.window_rule({ 
+    match = { class = "^(org.gnome.Software)$" }, 
+    float = true, size = "1300 850", center = true 
+})
+
+hl.window_rule({ 
+    match = { class = "^(org.gnome.baobab)$" }, 
+    float = true, size = "1300 850", center = true 
+})
+
 hl.window_rule({
     match = {
         class = "^zen$",
