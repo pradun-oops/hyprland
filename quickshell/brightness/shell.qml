@@ -1,16 +1,16 @@
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
+import Quickshell.Hyprland
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Window
 
 Scope {
     id: root
 
     // ============================================================
-    // ADAPTIVE THEME PROPERTIES (Matched with general.lua)
+    // ADAPTIVE THEME PROPERTIES
     // ============================================================
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
@@ -19,9 +19,9 @@ Scope {
     
     property int themeRounding: 12
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.85
+    property real themeBgAlpha: 1.0
     
-    property color themeBackground: Qt.rgba(0.08, 0.08, 0.09, themeBgAlpha) 
+    property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
 
     // ============================================================
@@ -29,66 +29,23 @@ Scope {
     // ============================================================
     property int brightnessPct: 0
     property bool showOSD: false
-    property string osdTargetMonitor: ""
+    property string lockedMon: ""
 
-    // Smooth animated value for real-time fluid transitions
+    // Lock monitor on startup to prevent cursor-tracking monitor jumps
+    Component.onCompleted: {
+        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+            root.lockedMon = Hyprland.focusedMonitor.name
+        } else if (Quickshell.screens.length > 0) {
+            root.lockedMon = Quickshell.screens[0].name
+        }
+    }
+
     property real animatedBrightness: 0
     Behavior on animatedBrightness { 
-        NumberAnimation { duration: 150; easing.type: Easing.OutCubic } 
+        NumberAnimation { duration: 120; easing.type: Easing.OutCubic } 
     }
 
     property int lastBrightness: -1
-
-    // ============================================================
-    // ACTIVE MONITOR DETECTOR (TRACKS CURSOR / FOCUS SCREEN)
-    // ============================================================
-    property string activeMonitorName: ""
-
-    Process {
-        id: monitorDetectProcess
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let name = text.trim()
-                if (name !== "") {
-                    root.activeMonitorName = name
-                }
-            }
-        }
-    }
-
-    Timer {
-        id: monitorDetectTimer
-        interval: 300
-        running: true
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: {
-            if (!monitorDetectProcess.running) {
-                let pyScript = `
-import json, subprocess
-try:
-    cursor = json.loads(subprocess.check_output(["hyprctl", "cursorpos", "-j"], text=True))
-    cx, cy = cursor.get("x", 0), cursor.get("y", 0)
-    mons = json.loads(subprocess.check_output(["hyprctl", "monitors", "-j"], text=True))
-    focused_mon = None
-    found_mon = None
-    for m in mons:
-        if m.get("focused"):
-            focused_mon = m.get("name")
-        mx, my = m.get("x", 0), m.get("y", 0)
-        mw = m.get("width", 0) / m.get("scale", 1.0)
-        mh = m.get("height", 0) / m.get("scale", 1.0)
-        if mx <= cx <= mx + mw and my <= cy <= my + mh:
-            found_mon = m.get("name")
-    print(found_mon or focused_mon or (mons[0]["name"] if mons else ""))
-except Exception:
-    print("")
-`
-                monitorDetectProcess.command = ["python3", "-c", pyScript]
-                monitorDetectProcess.running = true
-            }
-        }
-    }
 
     // ============================================================
     // THEME PARSERS
@@ -97,13 +54,18 @@ except Exception:
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let match = this.text().match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
-                if (match && match[1]) { 
-                    root.themeBorder = "#" + match[1]
-                    root.themePrimary = "#" + match[1] 
+                let content = text()
+                let borderMatch = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                if (borderMatch && borderMatch[1]) { 
+                    root.themeBorder = "#" + borderMatch[1]
+                    root.themePrimary = "#" + borderMatch[1] 
+                }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) {
+                    root.themeBackground = "#" + bgMatch[1]
                 }
             } catch (e) {}
         }
@@ -113,25 +75,14 @@ except Exception:
         id: generalFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/general.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let textContent = this.text()
+                let textContent = text()
                 let roundingMatch = textContent.match(/rounding\s*=\s*(\d+)/)
-                if (roundingMatch && roundingMatch[1]) {
-                    root.themeRounding = parseInt(roundingMatch[1])
-                }
-                let opacityMatch = textContent.match(/active_opacity\s*=\s*([0-9.]+)/)
-                if (opacityMatch && opacityMatch[1]) {
-                    root.themeBgAlpha = parseFloat(opacityMatch[1])
-                }
+                if (roundingMatch && roundingMatch[1]) root.themeRounding = parseInt(roundingMatch[1])
             } catch (e) {}
         }
-    }
-
-    Component.onCompleted: {
-        colorFile.reload()
-        generalFile.reload()
     }
 
     // ============================================================
@@ -145,7 +96,7 @@ except Exception:
     }
 
     // ============================================================
-    // LAPTOP BRIGHTNESS POLLING
+    // ZERO-PROCESS EVENT-DRIVEN BRIGHTNESS POLLING
     // ============================================================
     Timer {
         id: autoHideTimer
@@ -155,58 +106,39 @@ except Exception:
     }
 
     Process {
-        id: stateProcess
+        id: fetchBriProcess
+        command: ["brightnessctl", "-m"]
         stdout: StdioCollector {
             onStreamFinished: {
-                try {
-                    let data = JSON.parse(text.trim())
-                    let newBri = data.bri
-
-                    if (root.lastBrightness !== -1 && newBri !== root.lastBrightness) {
-                        // Lock OSD to current active monitor when triggered
-                        if (!root.showOSD) {
-                            root.osdTargetMonitor = root.activeMonitorName
+                let out = text.trim()
+                if (!out) return
+                
+                let parts = out.split(",")
+                if (parts.length >= 4) {
+                    let newBri = parseInt(parts[3].replace("%", ""))
+                    if (!isNaN(newBri)) {
+                        if (root.lastBrightness !== -1 && newBri !== root.lastBrightness) {
+                            root.showOSD = true
+                            autoHideTimer.restart()
                         }
-                        root.showOSD = true
-                        autoHideTimer.restart()
+                        root.lastBrightness = newBri
+                        root.brightnessPct = newBri
+                        root.animatedBrightness = newBri
                     }
-
-                    root.lastBrightness = newBri
-                    root.brightnessPct = newBri
-                    root.animatedBrightness = newBri
-                } catch(e) {}
+                }
             }
         }
     }
 
     Timer {
-        interval: 100
+        interval: 150
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: {
-            let py = `
-import subprocess, json
-
-def cmd(c):
-    try: return subprocess.check_output(c, shell=True, text=True, timeout=0.2).strip()
-    except: return ""
-
-bri = 0
-try:
-    bri_out = cmd("brightnessctl -m 2>/dev/null")
-    if bri_out:
-        bri = min(100, max(0, int(bri_out.split(',')[3].replace('%', ''))))
-    else:
-        cur = int(cmd("brightnessctl get"))
-        max_b = int(cmd("brightnessctl max"))
-        bri = min(100, max(0, int((cur / max_b) * 100)))
-except: pass
-
-print(json.dumps({"bri": bri}))
-`
-            stateProcess.command = ["python3", "-c", py]
-            stateProcess.running = true
+            if (!fetchBriProcess.running) {
+                fetchBriProcess.running = true
+            }
         }
     }
 
@@ -220,17 +152,20 @@ print(json.dumps({"bri": bri}))
             required property var modelData
             screen: modelData
 
-            property string screenName: win.screen ? win.screen.name : ""
-            property bool isTargetMonitor: win.screenName === root.osdTargetMonitor || (root.osdTargetMonitor === "" && win.screenName === root.activeMonitorName)
+            // Dynamic monitor target resolution
+            property bool isTargetMonitor: {
+                if (root.lockedMon !== "") return modelData.name === root.lockedMon
+                if (Hyprland.focusedMonitor) return modelData.name === Hyprland.focusedMonitor.name
+                return Quickshell.screens.length > 0 ? modelData.name === Quickshell.screens[0].name : true
+            }
 
-            visible: isTargetMonitor && (root.showOSD || osdContainer.opacity > 0)
+            visible: (root.showOSD || osdContainer.opacity > 0) && isTargetMonitor
 
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-brightness-osd"
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            // Fixed positioning: Right edge, vertically centered, 10px margin
             anchors { right: true }
             margins { right: 10 }
 
@@ -255,34 +190,29 @@ print(json.dumps({"bri": bri}))
                 Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
-                // ============================================================
-                // MOUSE CLICK & WHEEL ACTIONS
-                // ============================================================
                 MouseArea {
                     id: mainArea
                     anchors.fill: parent
                     hoverEnabled: true
-                    acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                     cursorShape: containsMouse ? Qt.PointingHandCursor : Qt.ArrowCursor
 
                     onClicked: (mouse) => {
                         if (mouse.button === Qt.LeftButton) {
+                            root.brightnessPct = 0
+                            root.animatedBrightness = 0
                             root.exec("brightnessctl set 0%")
                         }
                     }
 
                     onWheel: (wheel) => {
-                        if (wheel.angleDelta.y > 0) {
-                            root.exec("brightnessctl set +2%")
-                        } else if (wheel.angleDelta.y < 0) {
-                            root.exec("brightnessctl set 2%-")
-                        }
+                        let step = wheel.angleDelta.y > 0 ? 2 : -2
+                        root.brightnessPct = Math.max(0, Math.min(100, root.brightnessPct + step))
+                        root.animatedBrightness = root.brightnessPct
+                        root.exec(`brightnessctl set ${Math.abs(step)}%${step > 0 ? "+" : "-"}`)
                     }
                 }
 
-                // Hover keeps OSD alive
                 HoverHandler {
-                    id: hoverHandler
                     onHoveredChanged: {
                         if (hovered) {
                             autoHideTimer.stop()
@@ -297,7 +227,6 @@ print(json.dumps({"bri": bri}))
                     anchors.margins: 12
                     spacing: 8
 
-                    // Brightness Icon Indicator
                     Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: 32
@@ -311,7 +240,6 @@ print(json.dumps({"bri": bri}))
                         }
                     }
 
-                    // Vertical Slider Track (Display-only)
                     Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: 8
@@ -332,7 +260,6 @@ print(json.dumps({"bri": bri}))
                         }
                     }
 
-                    // Smooth Percentage Text
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: Math.round(Math.min(100, root.animatedBrightness)) + "%"

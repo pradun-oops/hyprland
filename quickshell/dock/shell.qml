@@ -20,11 +20,11 @@ Scope {
     
     property int themeRounding: 20
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.85
+    property real themeBgAlpha: 1.0
     property bool animEnabled: true
     property int animDuration: 220 
     
-    property color themeBackground: Qt.rgba(0.08, 0.08, 0.09, themeBgAlpha) 
+    property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
 
     // ============================================================
@@ -42,7 +42,7 @@ Scope {
         watchChanges: false
         onLoaded: {
             try {
-                let apps = JSON.parse(this.text())
+                let apps = JSON.parse(text())
                 if (apps && apps.length > 0) {
                     pinnedAppsModel.clear()
                     for (let i = 0; i < apps.length; i++) {
@@ -94,13 +94,18 @@ Scope {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let match = this.text().match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                let content = text()
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
                 if (match && match[1]) { 
                     root.themeBorder = "#" + match[1]
                     root.themePrimary = "#" + match[1] 
+                }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) {
+                    root.themeBackground = "#" + bgMatch[1]
                 }
             } catch (e) {}
         }
@@ -110,16 +115,14 @@ Scope {
         id: generalFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/general.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = Math.min(parseInt(rMatch[1]) + 4, 28)
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
-                let opacityMatch = content.match(/active_opacity\s*=\s*([0-9.]+)/)
-                if (opacityMatch && opacityMatch[1]) root.themeBgAlpha = parseFloat(opacityMatch[1])
             } catch (e) {}
         }
     }
@@ -128,10 +131,10 @@ Scope {
         id: animConfigFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
                 let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)

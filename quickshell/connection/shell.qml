@@ -29,57 +29,22 @@ Scope {
     // Geometry & Animation Defaults (overridden by .lua files)
     property int themeRounding: 22
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.65
+    property real themeBgAlpha: 1.0
     property bool animEnabled: true
     property int animDuration: 220
     
-    property color themeBackground: Qt.rgba(0.08, 0.08, 0.09, themeBgAlpha) 
+    property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.07) 
     property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.12)
 
     // ============================================================
-    // MONITOR LOCK VIA CURSOR POSITION
+    // STATIC DISPLAY BINDING (CURSOR & FOCUS FREE)
+    // Always prefers external output (HDMI/DP/Type-C); defaults to screen 0.
     // ============================================================
-    property string lockedMonitor: ""
-
-    Process {
-        id: monitorDetector
-        command: [
-            "python3", "-c",
-            "import json, subprocess\n" +
-            "try:\n" +
-            "    monitors = json.loads(subprocess.check_output(['hyprctl', 'monitors', '-j']))\n" +
-            "    cursor = json.loads(subprocess.check_output(['hyprctl', 'cursorpos', '-j']))\n" +
-            "    cx, cy = cursor['x'], cursor['y']\n" +
-            "    sel = None\n" +
-            "    for m in monitors:\n" +
-            "        scale = m.get('scale', 1.0)\n" +
-            "        w = m['width'] / scale if scale > 0 else m['width']\n" +
-            "        h = m['height'] / scale if scale > 0 else m['height']\n" +
-            "        if m['x'] <= cx < m['x'] + w and m['y'] <= cy < m['y'] + h:\n" +
-            "            sel = m['name']\n" +
-            "            break\n" +
-            "    if not sel:\n" +
-            "        for m in monitors:\n" +
-            "            if m.get('focused'): sel = m['name']; break\n" +
-            "    print(sel or (monitors[0]['name'] if monitors else ''))\n" +
-            "except Exception:\n" +
-            "    pass"
-        ]
-        stdout: SplitParser {
-            onRead: data => {
-                let mName = data.trim()
-                if (mName !== "") {
-                    root.lockedMonitor = mName
-                } else {
-                    if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
-                        root.lockedMonitor = String(Hyprland.focusedMonitor.name)
-                    } else if (Quickshell.screens.length > 0) {
-                        root.lockedMonitor = String(Quickshell.screens[0].name)
-                    }
-                }
-            }
-        }
+    property var targetDisplay: {
+        if (Quickshell.screens.length === 0) return null
+        let external = Quickshell.screens.find(s => !s.name.startsWith("eDP") && !s.name.startsWith("LVDS"))
+        return external ? external : Quickshell.screens[0]
     }
 
     // ============================================================
@@ -121,13 +86,18 @@ Scope {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let match = this.text().match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                let content = text()
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
                 if (match && match[1]) { 
                     root.themeBorder = "#" + match[1]
                     root.themePrimary = "#" + match[1] 
+                }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) {
+                    root.themeBackground = "#" + bgMatch[1]
                 }
             } catch (e) {}
         }
@@ -137,20 +107,15 @@ Scope {
         id: generalConfigFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/general.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
-
-                let blurMatch = content.match(/blur\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
-                if (blurMatch && blurMatch[1]) {
-                    root.themeBgAlpha = (blurMatch[1] === "true") ? 0.65 : 0.90
-                }
             } catch (e) {}
         }
     }
@@ -159,10 +124,10 @@ Scope {
         id: animConfigFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
 
@@ -173,7 +138,6 @@ Scope {
     }
 
     Component.onCompleted: {
-        monitorDetector.running = true
         colorFile.reload()
         generalConfigFile.reload()
         animConfigFile.reload()
@@ -412,570 +376,563 @@ print(json.dumps(get_net()))
 
     // ============================================================
     // CENTERED MODAL NETWORK DIALOG
+    // Direct binding to targetDisplay eliminates cursor-tracking.
     // ============================================================
-    Variants {
-        model: Quickshell.screens
+    PanelWindow {
+        id: win
+        screen: root.targetDisplay
+        visible: !root.isFullscreen && root.targetDisplay !== null
 
-        delegate: PanelWindow {
-            id: win
-            required property var modelData
-            screen: modelData
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.namespace: "dms:network-center"
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+        exclusiveZone: -1
 
-            // Stay hidden until lockedMonitor is set, then display only on cursor monitor
-            visible: !root.isFullscreen && root.lockedMonitor !== "" && modelData.name === root.lockedMonitor
+        anchors {
+            top: true
+            bottom: true
+            left: true
+            right: true
+        }
+        color: "transparent"
 
-            WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.namespace: "dms:network-center"
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
-            exclusiveZone: -1
+        MouseArea {
+            anchors.fill: parent
+            onClicked: Qt.quit()
+        }
 
-            // Wayland Surface Blur Effect
-            BackgroundEffect.blurRegion: Region { item: container }
+        // Centered Outer Wrapper with Smooth Edge Anti-Aliasing Layer
+        Item {
+            anchors.centerIn: parent
+            implicitWidth: 430
+            implicitHeight: 640
+            focus: true
 
-            anchors {
-                top: true
-                bottom: true
-                left: true
-                right: true
-            }
-            color: "transparent"
+            Component.onCompleted: forceActiveFocus()
+            Keys.onEscapePressed: Qt.quit()
 
-            // Click outside to close
             MouseArea {
                 anchors.fill: parent
-                onClicked: Qt.quit()
+                onClicked: (mouse) => mouse.accepted = true
             }
 
-            // Centered Modal Container
-            Item {
-                anchors.centerIn: parent
-                implicitWidth: 430
-                implicitHeight: 640
-                focus: true
+            Rectangle {
+                id: container
+                anchors.fill: parent
 
-                Component.onCompleted: forceActiveFocus()
-                Keys.onEscapePressed: Qt.quit()
+                radius: root.themeRounding
+                color: root.themeBackground
+                border.width: root.themeBorderSize
+                border.color: Qt.alpha(root.themeBorder, 0.45)
+                clip: true
 
-                MouseArea {
+                layer.enabled: true
+                layer.samples: 8
+
+                ColumnLayout {
                     anchors.fill: parent
-                    onClicked: (mouse) => mouse.accepted = true
-                }
+                    anchors.margins: 18
+                    spacing: 14
 
-                Rectangle {
-                    id: container
-                    anchors.fill: parent
+                    // Header
+                    RowLayout {
+                        Layout.fillWidth: true
 
-                    radius: root.themeRounding
-                    color: root.themeBackground
-                    border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themeBorder, 0.45)
-                    clip: true
-
-                    ColumnLayout {
-                        anchors.fill: parent
-                        anchors.margins: 18
-                        spacing: 14
-
-                        // Header
                         RowLayout {
-                            Layout.fillWidth: true
+                            spacing: 10
+                            Text {
+                                text: "Networks"
+                                color: root.themeText
+                                font.pixelSize: 18
+                                font.weight: Font.Bold
+                            }
 
-                            RowLayout {
-                                spacing: 10
+                            Rectangle {
+                                visible: wifiModel.count > 0
+                                Layout.preferredWidth: badgeText.implicitWidth + 14
+                                Layout.preferredHeight: 22
+                                radius: 11
+                                color: Qt.alpha(root.themePrimary, 0.25)
+                                border.width: 1
+                                border.color: Qt.alpha(root.themePrimary, 0.5)
+
                                 Text {
-                                    text: "Networks"
-                                    color: root.themeText
-                                    font.pixelSize: 18
+                                    id: badgeText
+                                    anchors.centerIn: parent
+                                    text: wifiModel.count + " available"
+                                    color: root.themePrimary
+                                    font.pixelSize: 11
                                     font.weight: Font.Bold
                                 }
-
-                                Rectangle {
-                                    visible: wifiModel.count > 0
-                                    Layout.preferredWidth: badgeText.implicitWidth + 14
-                                    Layout.preferredHeight: 22
-                                    radius: 11
-                                    color: Qt.alpha(root.themePrimary, 0.25)
-                                    border.width: 1
-                                    border.color: Qt.alpha(root.themePrimary, 0.5)
-
-                                    Text {
-                                        id: badgeText
-                                        anchors.centerIn: parent
-                                        text: wifiModel.count + " available"
-                                        color: root.themePrimary
-                                        font.pixelSize: 11
-                                        font.weight: Font.Bold
-                                    }
-                                }
-                            }
-
-                            Item { Layout.fillWidth: true }
-
-                            // Rescan Button
-                            Rectangle {
-                                Layout.preferredWidth: scanRow.implicitWidth + 18
-                                Layout.preferredHeight: 32
-                                radius: Math.max(4, root.themeRounding - 4)
-                                color: scanBtnArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                border.width: 1
-                                border.color: Qt.rgba(1, 1, 1, 0.08)
-
-                                Behavior on color { ColorAnimation { duration: 150 } }
-
-                                RowLayout {
-                                    id: scanRow
-                                    anchors.centerIn: parent
-                                    spacing: 6
-
-                                    Text {
-                                        text: "󰑐"
-                                        color: root.themePrimary
-                                        font.pixelSize: 13
-                                        RotationAnimation on rotation {
-                                            running: root.isScanning
-                                            from: 0; to: 360
-                                            loops: Animation.Infinite
-                                            duration: 1000
-                                        }
-                                    }
-
-                                    Text {
-                                        text: root.isScanning ? "Scanning" : "Rescan"
-                                        color: root.themeText
-                                        font.pixelSize: 12
-                                        font.weight: Font.Medium
-                                    }
-                                }
-
-                                MouseArea {
-                                    id: scanBtnArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.fetchNetworkStatus()
-                                }
                             }
                         }
 
-                        // Quick Switches
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 12
+                        Item { Layout.fillWidth: true }
 
-                            // Wi-Fi Toggle Card
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 52
-                                radius: Math.max(4, root.themeRounding - 6)
-                                color: root.wifiEnabled ? Qt.alpha(root.themePrimary, 0.16) : root.themeSurface
-                                border.width: root.themeBorderSize
-                                border.color: root.wifiEnabled ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.08)
-
-                                Behavior on color { ColorAnimation { duration: 180 } }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.toggleWifi()
-                                }
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 12
-                                    anchors.rightMargin: 12
-                                    spacing: 10
-
-                                    Text {
-                                        text: root.wifiEnabled ? "󰤨" : "󰤭"
-                                        color: root.wifiEnabled ? root.themePrimary : root.themeTextMuted
-                                        font.pixelSize: 18
-                                    }
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 0
-                                        Text {
-                                            text: "Wi-Fi"
-                                            color: root.themeText
-                                            font.pixelSize: 12
-                                            font.weight: Font.Bold
-                                        }
-                                        Text {
-                                            text: root.wifiEnabled ? "Enabled" : "Disabled"
-                                            color: root.themeTextMuted
-                                            font.pixelSize: 10
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        width: 38; height: 22; radius: 11
-                                        color: root.wifiEnabled ? root.themePrimary : Qt.rgba(1, 1, 1, 0.15)
-                                        Behavior on color { ColorAnimation { duration: 180 } }
-
-                                        Rectangle {
-                                            width: 16; height: 16; radius: 8
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            x: root.wifiEnabled ? 19 : 3
-                                            color: root.wifiEnabled ? "#000000" : root.themeText
-                                            Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Ethernet Toggle Card
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 52
-                                radius: Math.max(4, root.themeRounding - 6)
-                                color: (root.ethConnected || root.ethEnabled) ? Qt.alpha(root.themePrimary, 0.16) : root.themeSurface
-                                border.width: root.themeBorderSize
-                                border.color: (root.ethConnected || root.ethEnabled) ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.08)
-
-                                Behavior on color { ColorAnimation { duration: 180 } }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.toggleEthernet()
-                                }
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 12
-                                    anchors.rightMargin: 12
-                                    spacing: 10
-
-                                    Text {
-                                        text: root.ethConnected ? "󰈀" : "󰈂"
-                                        color: (root.ethConnected || root.ethEnabled) ? root.themePrimary : root.themeTextMuted
-                                        font.pixelSize: 18
-                                    }
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 0
-                                        Text {
-                                            text: "Ethernet"
-                                            color: root.themeText
-                                            font.pixelSize: 12
-                                            font.weight: Font.Bold
-                                        }
-                                        Text {
-                                            text: root.ethConnected ? "Connected" : (root.ethEnabled ? "Disconnected" : "Disabled")
-                                            color: root.themeTextMuted
-                                            font.pixelSize: 10
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        width: 38; height: 22; radius: 11
-                                        color: (root.ethConnected || root.ethEnabled) ? root.themePrimary : Qt.rgba(1, 1, 1, 0.15)
-                                        Behavior on color { ColorAnimation { duration: 180 } }
-
-                                        Rectangle {
-                                            width: 16; height: 16; radius: 8
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            x: (root.ethConnected || root.ethEnabled) ? 19 : 3
-                                            color: (root.ethConnected || root.ethEnabled) ? "#000000" : root.themeText
-                                            Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
+                        // Rescan Button
                         Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 1
-                            color: Qt.rgba(1, 1, 1, 0.08)
-                        }
+                            Layout.preferredWidth: scanRow.implicitWidth + 18
+                            Layout.preferredHeight: 32
+                            radius: Math.max(4, root.themeRounding - 4)
+                            color: scanBtnArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                            border.width: 1
+                            border.color: Qt.rgba(1, 1, 1, 0.08)
 
-                        // Available Wi-Fi List Section
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
+                            Behavior on color { ColorAnimation { duration: 150 } }
 
-                            ColumnLayout {
+                            RowLayout {
+                                id: scanRow
                                 anchors.centerIn: parent
-                                visible: !root.wifiEnabled || wifiModel.count === 0
-                                spacing: 12
+                                spacing: 6
 
                                 Text {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    text: !root.wifiEnabled ? "󰤭" : "󰤫"
-                                    color: Qt.rgba(1, 1, 1, 0.22)
-                                    font.pixelSize: 48
+                                    text: "󰑐"
+                                    color: root.themePrimary
+                                    font.pixelSize: 13
+                                    RotationAnimation on rotation {
+                                        running: root.isScanning
+                                        from: 0; to: 360
+                                        loops: Animation.Infinite
+                                        duration: 1000
+                                    }
                                 }
 
                                 Text {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    text: !root.wifiEnabled ? "Wi-Fi is turned off" : "No Networks Available"
-                                    color: root.themeTextMuted
-                                    font.pixelSize: 13
+                                    text: root.isScanning ? "Scanning" : "Rescan"
+                                    color: root.themeText
+                                    font.pixelSize: 12
                                     font.weight: Font.Medium
                                 }
                             }
 
-                            ListView {
-                                id: wifiList
-                                visible: root.wifiEnabled && wifiModel.count > 0
+                            MouseArea {
+                                id: scanBtnArea
                                 anchors.fill: parent
-                                model: wifiModel
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.fetchNetworkStatus()
+                            }
+                        }
+                    }
+
+                    // Quick Switches
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 12
+
+                        // Wi-Fi Toggle Card
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 52
+                            radius: Math.max(4, root.themeRounding - 6)
+                            color: root.wifiEnabled ? Qt.alpha(root.themePrimary, 0.16) : root.themeSurface
+                            border.width: root.themeBorderSize
+                            border.color: root.wifiEnabled ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.08)
+
+                            Behavior on color { ColorAnimation { duration: 180 } }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.toggleWifi()
+                            }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 12
+                                anchors.rightMargin: 12
                                 spacing: 10
-                                clip: true
 
-                                delegate: Rectangle {
-                                    id: card
-                                    width: wifiList.width
+                                Text {
+                                    text: root.wifiEnabled ? "󰤨" : "󰤭"
+                                    color: root.wifiEnabled ? root.themePrimary : root.themeTextMuted
+                                    font.pixelSize: 18
+                                }
 
-                                    property bool isConnected: model.in_use
-                                    property bool isConnecting: root.connectingSsid === model.ssid
-                                    property bool hasError: root.errorSsid === model.ssid && root.connectErrorMsg !== ""
-                                    property bool isProtected: model.security !== "Open" && model.security !== "--"
-                                    property bool isExpanded: root.expandedSsid === model.ssid
-                                    property bool isSaved: model.saved !== undefined ? model.saved : false
-                                    property bool showPassword: false
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 0
+                                    Text {
+                                        text: "Wi-Fi"
+                                        color: root.themeText
+                                        font.pixelSize: 12
+                                        font.weight: Font.Bold
+                                    }
+                                    Text {
+                                        text: root.wifiEnabled ? "Enabled" : "Disabled"
+                                        color: root.themeTextMuted
+                                        font.pixelSize: 10
+                                    }
+                                }
 
-                                    implicitHeight: cardCol.implicitHeight + 24
-                                    height: implicitHeight
+                                Rectangle {
+                                    width: 38; height: 22; radius: 11
+                                    color: root.wifiEnabled ? root.themePrimary : Qt.rgba(1, 1, 1, 0.15)
+                                    Behavior on color { ColorAnimation { duration: 180 } }
 
-                                    Behavior on height {
-                                        NumberAnimation { 
-                                            duration: root.animEnabled ? root.animDuration : 0
-                                            easing.type: Easing.OutCubic 
+                                    Rectangle {
+                                        width: 16; height: 16; radius: 8
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        x: root.wifiEnabled ? 19 : 3
+                                        color: root.wifiEnabled ? "#000000" : root.themeText
+                                        Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Ethernet Toggle Card
+                        Rectangle {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: 52
+                            radius: Math.max(4, root.themeRounding - 6)
+                            color: (root.ethConnected || root.ethEnabled) ? Qt.alpha(root.themePrimary, 0.16) : root.themeSurface
+                            border.width: root.themeBorderSize
+                            border.color: (root.ethConnected || root.ethEnabled) ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.08)
+
+                            Behavior on color { ColorAnimation { duration: 180 } }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.toggleEthernet()
+                            }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 12
+                                anchors.rightMargin: 12
+                                spacing: 10
+
+                                Text {
+                                    text: root.ethConnected ? "󰈀" : "󰈂"
+                                    color: (root.ethConnected || root.ethEnabled) ? root.themePrimary : root.themeTextMuted
+                                    font.pixelSize: 18
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 0
+                                    Text {
+                                        text: "Ethernet"
+                                        color: root.themeText
+                                        font.pixelSize: 12
+                                        font.weight: Font.Bold
+                                    }
+                                    Text {
+                                        text: root.ethConnected ? "Connected" : (root.ethEnabled ? "Disconnected" : "Disabled")
+                                        color: root.themeTextMuted
+                                        font.pixelSize: 10
+                                    }
+                                }
+
+                                Rectangle {
+                                    width: 38; height: 22; radius: 11
+                                    color: (root.ethConnected || root.ethEnabled) ? root.themePrimary : Qt.rgba(1, 1, 1, 0.15)
+                                    Behavior on color { ColorAnimation { duration: 180 } }
+
+                                    Rectangle {
+                                        width: 16; height: 16; radius: 8
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        x: (root.ethConnected || root.ethEnabled) ? 19 : 3
+                                        color: (root.ethConnected || root.ethEnabled) ? "#000000" : root.themeText
+                                        Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 1
+                        color: Qt.rgba(1, 1, 1, 0.08)
+                    }
+
+                    // Available Wi-Fi List Section
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            visible: !root.wifiEnabled || wifiModel.count === 0
+                            spacing: 12
+
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: !root.wifiEnabled ? "󰤭" : "󰤫"
+                                color: Qt.rgba(1, 1, 1, 0.22)
+                                font.pixelSize: 48
+                            }
+
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: !root.wifiEnabled ? "Wi-Fi is turned off" : "No Networks Available"
+                                color: root.themeTextMuted
+                                font.pixelSize: 13
+                                font.weight: Font.Medium
+                            }
+                        }
+
+                        ListView {
+                            id: wifiList
+                            visible: root.wifiEnabled && wifiModel.count > 0
+                            anchors.fill: parent
+                            model: wifiModel
+                            spacing: 10
+                            clip: true
+
+                            delegate: Rectangle {
+                                id: card
+                                width: wifiList.width
+
+                                property bool isConnected: model.in_use
+                                property bool isConnecting: root.connectingSsid === model.ssid
+                                property bool hasError: root.errorSsid === model.ssid && root.connectErrorMsg !== ""
+                                property bool isProtected: model.security !== "Open" && model.security !== "--"
+                                property bool isExpanded: root.expandedSsid === model.ssid
+                                property bool isSaved: model.saved !== undefined ? model.saved : false
+                                property bool showPassword: false
+
+                                implicitHeight: cardCol.implicitHeight + 24
+                                height: implicitHeight
+
+                                Behavior on height {
+                                    NumberAnimation { 
+                                        duration: root.animEnabled ? root.animDuration : 0
+                                        easing.type: Easing.OutCubic 
+                                    }
+                                }
+
+                                radius: Math.max(4, root.themeRounding - 6)
+                                color: headerMouseArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                                border.width: root.themeBorderSize
+                                border.color: card.hasError ? "#ff4b6e" : (card.isConnected ? Qt.alpha(root.themePrimary, 0.6) : (card.isExpanded ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1, 1, 1, 0.08)))
+
+                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                                Behavior on color { ColorAnimation { duration: 150 } }
+
+                                ColumnLayout {
+                                    id: cardCol
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.top: parent.top
+                                    anchors.margins: 12
+                                    spacing: 10
+
+                                    // Top Header Row
+                                    Item {
+                                        Layout.fillWidth: true
+                                        implicitHeight: headerRow.implicitHeight
+
+                                        RowLayout {
+                                            id: headerRow
+                                            anchors.fill: parent
+                                            spacing: 12
+
+                                            Text {
+                                                text: root.getSignalIcon(model.signal, card.isConnected)
+                                                color: card.isConnected ? root.themePrimary : root.themeText
+                                                font.pixelSize: 18
+                                            }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 2
+
+                                                Text {
+                                                    text: model.ssid
+                                                    color: root.themeText
+                                                    font.pixelSize: 13
+                                                    font.weight: card.isConnected ? Font.Bold : Font.Medium
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+
+                                                RowLayout {
+                                                    spacing: 6
+                                                    Text {
+                                                        text: model.security
+                                                        color: root.themeTextMuted
+                                                        font.pixelSize: 10
+                                                    }
+                                                    Text {
+                                                        text: "• " + model.signal + "%"
+                                                        color: root.themeTextMuted
+                                                        font.pixelSize: 10
+                                                    }
+                                                }
+                                            }
+
+                                            // Connection Status Badge
+                                            Rectangle {
+                                                Layout.preferredWidth: statusText.implicitWidth + 16
+                                                Layout.preferredHeight: 26
+                                                radius: 13
+                                                color: card.hasError ? Qt.alpha("#ff4b6e", 0.22) : (card.isConnected ? Qt.alpha(root.themePrimary, 0.22) : (card.isSaved ? Qt.alpha("#38bdf8", 0.18) : Qt.rgba(1, 1, 1, 0.06)))
+                                                border.width: 1
+                                                border.color: card.hasError ? Qt.alpha("#ff4b6e", 0.6) : (card.isConnected ? Qt.alpha(root.themePrimary, 0.5) : (card.isSaved ? Qt.alpha("#38bdf8", 0.4) : Qt.rgba(1, 1, 1, 0.1)))
+
+                                                Text {
+                                                    id: statusText
+                                                    anchors.centerIn: parent
+                                                    text: card.isConnecting ? "Connecting..." : (card.hasError ? "Failed" : (card.isConnected ? "Connected" : (card.isSaved ? "Saved" : (card.isProtected ? "Locked" : "Connect"))))
+                                                    color: card.hasError ? "#ff4b6e" : (card.isConnected ? root.themePrimary : (card.isSaved ? "#38bdf8" : root.themeText))
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Bold
+                                                }
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: headerMouseArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                if (card.isConnected) {
+                                                    root.expandedSsid = (root.expandedSsid === model.ssid) ? "" : model.ssid
+                                                } else if (card.isSaved && !card.hasError) {
+                                                    root.connectWifi(model.ssid, "", true)
+                                                } else if (!card.isProtected && !card.hasError) {
+                                                    root.connectWifi(model.ssid, "", false)
+                                                } else {
+                                                    root.expandedSsid = (root.expandedSsid === model.ssid) ? "" : model.ssid
+                                                }
+                                            }
                                         }
                                     }
 
-                                    radius: Math.max(4, root.themeRounding - 6)
-                                    color: headerMouseArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                    border.width: root.themeBorderSize
-                                    border.color: card.hasError ? "#ff4b6e" : (card.isConnected ? Qt.alpha(root.themePrimary, 0.6) : (card.isExpanded ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1, 1, 1, 0.08)))
-
-                                    Behavior on border.color { ColorAnimation { duration: 150 } }
-                                    Behavior on color { ColorAnimation { duration: 150 } }
-
+                                    // Interactive Inline Drawer
                                     ColumnLayout {
-                                        id: cardCol
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-                                        anchors.top: parent.top
-                                        anchors.margins: 12
+                                        Layout.fillWidth: true
+                                        visible: card.isExpanded
                                         spacing: 10
 
-                                        // Top Header Row
-                                        Item {
+                                        Rectangle {
                                             Layout.fillWidth: true
-                                            implicitHeight: headerRow.implicitHeight
+                                            Layout.preferredHeight: 1
+                                            color: Qt.rgba(1, 1, 1, 0.08)
+                                        }
 
-                                            RowLayout {
-                                                id: headerRow
-                                                anchors.fill: parent
-                                                spacing: 12
+                                        // Disconnect Button
+                                        RowLayout {
+                                            visible: card.isConnected
+                                            Layout.fillWidth: true
+
+                                            Item { Layout.fillWidth: true }
+
+                                            Rectangle {
+                                                Layout.preferredWidth: 110
+                                                Layout.preferredHeight: 32
+                                                radius: 8
+                                                color: "#e11d48"
 
                                                 Text {
-                                                    text: root.getSignalIcon(model.signal, card.isConnected)
-                                                    color: card.isConnected ? root.themePrimary : root.themeText
-                                                    font.pixelSize: 18
+                                                    anchors.centerIn: parent
+                                                    text: "Disconnect"
+                                                    color: "#ffffff"
+                                                    font.pixelSize: 11
+                                                    font.weight: Font.Bold
                                                 }
 
-                                                ColumnLayout {
-                                                    Layout.fillWidth: true
-                                                    spacing: 2
-
-                                                    Text {
-                                                        text: model.ssid
-                                                        color: root.themeText
-                                                        font.pixelSize: 13
-                                                        font.weight: card.isConnected ? Font.Bold : Font.Medium
-                                                        elide: Text.ElideRight
-                                                        Layout.fillWidth: true
-                                                    }
-
-                                                    RowLayout {
-                                                        spacing: 6
-                                                        Text {
-                                                            text: model.security
-                                                            color: root.themeTextMuted
-                                                            font.pixelSize: 10
-                                                        }
-                                                        Text {
-                                                            text: "• " + model.signal + "%"
-                                                            color: root.themeTextMuted
-                                                            font.pixelSize: 10
-                                                        }
-                                                    }
-                                                }
-
-                                                // Connection Status Badge
-                                                Rectangle {
-                                                    Layout.preferredWidth: statusText.implicitWidth + 16
-                                                    Layout.preferredHeight: 26
-                                                    radius: 13
-                                                    color: card.hasError ? Qt.alpha("#ff4b6e", 0.22) : (card.isConnected ? Qt.alpha(root.themePrimary, 0.22) : (card.isSaved ? Qt.alpha("#38bdf8", 0.18) : Qt.rgba(1, 1, 1, 0.06)))
-                                                    border.width: 1
-                                                    border.color: card.hasError ? Qt.alpha("#ff4b6e", 0.6) : (card.isConnected ? Qt.alpha(root.themePrimary, 0.5) : (card.isSaved ? Qt.alpha("#38bdf8", 0.4) : Qt.rgba(1, 1, 1, 0.1)))
-
-                                                    Text {
-                                                        id: statusText
-                                                        anchors.centerIn: parent
-                                                        text: card.isConnecting ? "Connecting..." : (card.hasError ? "Failed" : (card.isConnected ? "Connected" : (card.isSaved ? "Saved" : (card.isProtected ? "Locked" : "Connect"))))
-                                                        color: card.hasError ? "#ff4b6e" : (card.isConnected ? root.themePrimary : (card.isSaved ? "#38bdf8" : root.themeText))
-                                                        font.pixelSize: 10
-                                                        font.weight: Font.Bold
-                                                    }
-                                                }
-                                            }
-
-                                            MouseArea {
-                                                id: headerMouseArea
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    if (card.isConnected) {
-                                                        root.expandedSsid = (root.expandedSsid === model.ssid) ? "" : model.ssid
-                                                    } else if (card.isSaved && !card.hasError) {
-                                                        root.connectWifi(model.ssid, "", true)
-                                                    } else if (!card.isProtected && !card.hasError) {
-                                                        root.connectWifi(model.ssid, "", false)
-                                                    } else {
-                                                        root.expandedSsid = (root.expandedSsid === model.ssid) ? "" : model.ssid
-                                                    }
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: root.disconnectWifi(model.ssid)
                                                 }
                                             }
                                         }
 
-                                        // Interactive Inline Drawer
+                                        // Inline Password Input
                                         ColumnLayout {
+                                            visible: !card.isConnected && card.isProtected
                                             Layout.fillWidth: true
-                                            visible: card.isExpanded
-                                            spacing: 10
+                                            spacing: 6
 
-                                            Rectangle {
-                                                Layout.fillWidth: true
-                                                Layout.preferredHeight: 1
-                                                color: Qt.rgba(1, 1, 1, 0.08)
-                                            }
-
-                                            // Disconnect Button
                                             RowLayout {
-                                                visible: card.isConnected
                                                 Layout.fillWidth: true
-
-                                                Item { Layout.fillWidth: true }
+                                                spacing: 8
 
                                                 Rectangle {
-                                                    Layout.preferredWidth: 110
-                                                    Layout.preferredHeight: 32
+                                                    Layout.fillWidth: true
+                                                    Layout.preferredHeight: 36
                                                     radius: 8
-                                                    color: "#e11d48"
+                                                    color: root.themeBackground
+                                                    border.width: 1
+                                                    border.color: card.hasError ? "#ff4b6e" : (passInput.activeFocus ? Qt.alpha(root.themePrimary, 0.6) : Qt.rgba(1, 1, 1, 0.15))
+
+                                                    RowLayout {
+                                                        anchors.fill: parent
+                                                        anchors.leftMargin: 10
+                                                        anchors.rightMargin: 10
+                                                        spacing: 6
+
+                                                        TextField {
+                                                            id: passInput
+                                                            Layout.fillWidth: true
+                                                            placeholderText: card.isSaved ? "Re-enter password to update..." : "Password..."
+                                                            placeholderTextColor: Qt.rgba(1, 1, 1, 0.35)
+                                                            color: root.themeText
+                                                            font.pixelSize: 12
+                                                            echoMode: card.showPassword ? TextInput.Normal : TextInput.Password
+                                                            selectByMouse: true
+                                                            focus: true
+                                                            background: Item {}
+                                                            onAccepted: {
+                                                                root.connectWifi(model.ssid, passInput.text, false)
+                                                            }
+                                                        }
+
+                                                        Text {
+                                                            text: card.showPassword ? "󰈈" : "󰈉"
+                                                            color: root.themeTextMuted
+                                                            font.pixelSize: 13
+                                                            MouseArea {
+                                                                anchors.fill: parent
+                                                                cursorShape: Qt.PointingHandCursor
+                                                                onClicked: card.showPassword = !card.showPassword
+                                                            }
+                                                        }
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    Layout.preferredWidth: card.isConnecting ? 100 : 84
+                                                    Layout.preferredHeight: 36
+                                                    radius: 8
+                                                    color: card.isConnecting ? Qt.rgba(1, 1, 1, 0.2) : root.themePrimary
 
                                                     Text {
                                                         anchors.centerIn: parent
-                                                        text: "Disconnect"
-                                                        color: "#ffffff"
+                                                        text: card.isConnecting ? "Connecting..." : "Connect"
+                                                        color: card.isConnecting ? root.themeText : "#000000"
                                                         font.pixelSize: 11
                                                         font.weight: Font.Bold
                                                     }
 
                                                     MouseArea {
                                                         anchors.fill: parent
+                                                        enabled: !card.isConnecting
                                                         cursorShape: Qt.PointingHandCursor
-                                                        onClicked: root.disconnectWifi(model.ssid)
+                                                        onClicked: {
+                                                            root.connectWifi(model.ssid, passInput.text, false)
+                                                        }
                                                     }
                                                 }
                                             }
 
-                                            // Inline Password Input
-                                            ColumnLayout {
-                                                visible: !card.isConnected && card.isProtected
+                                            // Explicit Error Display Banner
+                                            Text {
+                                                visible: card.hasError
+                                                text: "󰅙 " + root.connectErrorMsg
+                                                color: "#ff4b6e"
+                                                font.pixelSize: 11
+                                                font.weight: Font.Medium
                                                 Layout.fillWidth: true
-                                                spacing: 6
-
-                                                RowLayout {
-                                                    Layout.fillWidth: true
-                                                    spacing: 8
-
-                                                    Rectangle {
-                                                        Layout.fillWidth: true
-                                                        Layout.preferredHeight: 36
-                                                        radius: 8
-                                                        color: root.themeBackground
-                                                        border.width: 1
-                                                        border.color: card.hasError ? "#ff4b6e" : (passInput.activeFocus ? Qt.alpha(root.themePrimary, 0.6) : Qt.rgba(1, 1, 1, 0.15))
-
-                                                        RowLayout {
-                                                            anchors.fill: parent
-                                                            anchors.leftMargin: 10
-                                                            anchors.rightMargin: 10
-                                                            spacing: 6
-
-                                                            TextField {
-                                                                id: passInput
-                                                                Layout.fillWidth: true
-                                                                placeholderText: card.isSaved ? "Re-enter password to update..." : "Password..."
-                                                                placeholderTextColor: Qt.rgba(1, 1, 1, 0.35)
-                                                                color: root.themeText
-                                                                font.pixelSize: 12
-                                                                echoMode: card.showPassword ? TextInput.Normal : TextInput.Password
-                                                                selectByMouse: true
-                                                                focus: true
-                                                                background: Item {}
-                                                                onAccepted: {
-                                                                    root.connectWifi(model.ssid, passInput.text, false)
-                                                                }
-                                                            }
-
-                                                            Text {
-                                                                text: card.showPassword ? "󰈈" : "󰈉"
-                                                                color: root.themeTextMuted
-                                                                font.pixelSize: 13
-                                                                MouseArea {
-                                                                    anchors.fill: parent
-                                                                    cursorShape: Qt.PointingHandCursor
-                                                                    onClicked: card.showPassword = !card.showPassword
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-
-                                                    Rectangle {
-                                                        Layout.preferredWidth: card.isConnecting ? 100 : 84
-                                                        Layout.preferredHeight: 36
-                                                        radius: 8
-                                                        color: card.isConnecting ? Qt.rgba(1, 1, 1, 0.2) : root.themePrimary
-
-                                                        Text {
-                                                            anchors.centerIn: parent
-                                                            text: card.isConnecting ? "Connecting..." : "Connect"
-                                                            color: card.isConnecting ? root.themeText : "#000000"
-                                                            font.pixelSize: 11
-                                                            font.weight: Font.Bold
-                                                        }
-
-                                                        MouseArea {
-                                                            anchors.fill: parent
-                                                            enabled: !card.isConnecting
-                                                            cursorShape: Qt.PointingHandCursor
-                                                            onClicked: {
-                                                                root.connectWifi(model.ssid, passInput.text, false)
-                                                            }
-                                                        }
-                                                    }
-                                                }
-
-                                                // Explicit Error Display Banner
-                                                Text {
-                                                    visible: card.hasError
-                                                    text: "󰅙 " + root.connectErrorMsg
-                                                    color: "#ff4b6e"
-                                                    font.pixelSize: 11
-                                                    font.weight: Font.Medium
-                                                    Layout.fillWidth: true
-                                                    wrapMode: Text.Wrap
-                                                    Layout.topMargin: 2
-                                                }
+                                                wrapMode: Text.Wrap
+                                                Layout.topMargin: 2
                                             }
                                         }
                                     }

@@ -95,3 +95,13 @@ hl.layer_rule({
     xray = false,
     ignore_alpha = 0.01,
 })
+
+hl.layer_rule({
+    name = "qs-power-menu-blur",
+    match = {
+        namespace = "^(qs-power-menu)$",
+    },
+    blur = true,
+    xray = false,
+    ignore_alpha = 0.02,
+})

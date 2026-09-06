@@ -10,52 +10,52 @@ import QtQuick.Window
 Scope {
     id: root
 
-    // Lock window strictly to active monitor at startup using cursor detection
+    // Target monitor property
     property string lockedMonitor: ""
 
-    Process {
-        id: cursorProc
-        command: ["hyprctl", "cursorpos"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                if (root.lockedMonitor !== "") return
+    // --- STRICT MONITOR PINNING LOGIC ---
+    // 1. External Monitor (HDMI, DisplayPort, Type-C) if connected
+    // 2. Hyprland Focused Monitor if no external monitor exists
+    // 3. Fallback to Primary Screen
+    function updateTargetMonitor() {
+        if (Quickshell.screens.length === 0) return
 
-                try {
-                    let parts = text.trim().split(",")
-                    if (parts.length === 2) {
-                        let cx = parseInt(parts[0].trim())
-                        let cy = parseInt(parts[1].trim())
+        // Search for connected external monitors (ignoring internal laptop screens like eDP or LVDS)
+        let external = Quickshell.screens.find(s => !s.name.startsWith("eDP") && !s.name.startsWith("LVDS"))
+        
+        if (external) {
+            root.lockedMonitor = external.name
+        } else if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+            root.lockedMonitor = Hyprland.focusedMonitor.name
+        } else {
+            root.lockedMonitor = Quickshell.screens[0].name
+        }
+    }
 
-                        for (let i = 0; i < Quickshell.screens.length; i++) {
-                            let s = Quickshell.screens[i]
-                            if (cx >= s.x && cx < (s.x + s.width) && cy >= s.y && cy < (s.y + s.height)) {
-                                root.lockedMonitor = s.name
-                                return
-                            }
-                        }
-                    }
-                } catch (e) {}
+    // Automatically react to display plugin/unplug events
+    Connections {
+        target: Quickshell
+        function onScreensChanged() {
+            root.updateTargetMonitor()
+        }
+    }
 
-                if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
-                    root.lockedMonitor = Hyprland.focusedMonitor.name
-                } else if (Quickshell.screens.length > 0) {
-                    root.lockedMonitor = Quickshell.screens[0].name
-                }
-            }
+    // React if Hyprland updates focused monitor (only takes effect if no external screen is present)
+    Connections {
+        target: Hyprland
+        function onFocusedMonitorChanged() {
+            root.updateTargetMonitor()
         }
     }
 
     // --- DYNAMIC ADAPTIVE PROPERTIES ---
     property int themeRounding: 14
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.85
+    property real themeBgAlpha: 1.0
     property bool animEnabled: true
-    property int animDuration: 220       // Adapted from windowsIn speed
-    property int animMoveDuration: 200   // Adapted from windowsMove speed
-    property int slideOffset: -24        // Adapted from slide/slidefadevert style
-    
-    property color themeBackground: Qt.rgba(0.08, 0.08, 0.10, themeBgAlpha) 
+    property int animDuration: 250       
+
+    property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08)    
     property color themeBorder: "#ffb3af"
     property color themeText: "#FFFFFF"          
@@ -69,14 +69,19 @@ Scope {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let match = this.text().match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                let content = text()
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
                 if (match && match[1]) {
                     let hex = "#" + match[1]
                     root.themeBorder = hex
                     root.themePrimary = hex
+                }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) {
+                    root.themeBackground = "#" + bgMatch[1]
                 }
             } catch (e) {}
         }
@@ -86,20 +91,15 @@ Scope {
         id: generalConfigFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/general.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
-
-                let blurMatch = content.match(/blur\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
-                if (blurMatch && blurMatch[1]) {
-                    root.themeBgAlpha = (blurMatch[1] === "true") ? 0.65 : 0.95
-                }
             } catch (e) {}
         }
     }
@@ -108,23 +108,16 @@ Scope {
         id: animConfigFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let enabledMatch = content.match(/enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
 
-                // Parse windowsIn speed (e.g. speed = 5 -> ~225ms)
                 let winInMatch = content.match(/leaf\s*=\s*"windowsIn"[\s\S]*?speed\s*=\s*([0-9.]+)/)
                 if (winInMatch && winInMatch[1]) {
                     root.animDuration = Math.round(parseFloat(winInMatch[1]) * 45)
-                }
-
-                // Parse windowsMove speed (e.g. speed = 6 -> ~210ms)
-                let winMoveMatch = content.match(/leaf\s*=\s*"windowsMove"[\s\S]*?speed\s*=\s*([0-9.]+)/)
-                if (winMoveMatch && winMoveMatch[1]) {
-                    root.animMoveDuration = Math.round(parseFloat(winMoveMatch[1]) * 35)
                 }
             } catch (e) {}
         }
@@ -140,10 +133,10 @@ Scope {
         id: appCacheFile
         path: Quickshell.env("HOME") + "/.config/quickshell/json/app_cache.json"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text().trim()
+                let content = text().trim()
                 if (content !== "") {
                     root.allApps = JSON.parse(content)
                     performSearch("") 
@@ -191,6 +184,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
     }
 
     Component.onCompleted: {
+        root.updateTargetMonitor()
         colorFile.reload()
         generalConfigFile.reload()
         animConfigFile.reload()
@@ -234,7 +228,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         id: fileSearchProcess
         stdout: StdioCollector {
             onStreamFinished: {
-                let lines = this.text.split('\n')
+                let lines = text.split('\n')
                 for (let i = 0; i < lines.length; i++) {
                     let line = lines[i].trim()
                     if (line !== "") {
@@ -268,7 +262,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         let q = query ? query.trim().toLowerCase() : ""
         searchResultsModel.clear()
         
-        // 1. Search cached apps (Instant)
         let count = 0
         let maxApps = (q === "") ? root.allApps.length : 12;
         
@@ -281,7 +274,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
             }
         }
 
-        // 2. Search local files (Asynchronous)
         if (q.length > 0) {
             if (fileSearchProcess.running) {
                 fileSearchProcess.running = false
@@ -351,42 +343,29 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                 id: searchContainer
                 width: Math.min(720, parent.width - 40)
                 implicitHeight: mainLayout.implicitHeight + 24
-                
-                // Centered with vertical slide translation matching "windowsIn" / "slide" style
                 anchors.centerIn: parent
-                anchors.verticalCenterOffset: root.isLoaded ? 0 : root.slideOffset
 
                 radius: root.themeRounding
                 border.width: root.themeBorderSize
                 border.color: Qt.alpha(root.themeBorder, 0.35)
                 color: root.themeBackground
 
+                scale: root.isLoaded ? 1.0 : 0.95
                 opacity: root.isLoaded ? 1.0 : 0.0
 
-                // Slide animation behavior matching Hyprland's windowsIn / specialWorkspaceIn (slide / slidefadevert)
-                Behavior on anchors.verticalCenterOffset {
+                Behavior on scale {
                     enabled: root.animEnabled
                     NumberAnimation {
                         duration: root.animDuration
-                        easing.type: Easing.OutCubic
+                        easing.type: Easing.OutExpo
                     }
                 }
 
-                // Fade animation behavior
                 Behavior on opacity {
                     enabled: root.animEnabled
                     NumberAnimation { 
-                        duration: Math.round(root.animDuration * 0.85)
-                        easing.type: Easing.OutCubic 
-                    }
-                }
-
-                // Dynamic height resize behavior matching Hyprland's windowsMove
-                Behavior on implicitHeight {
-                    enabled: root.animEnabled
-                    NumberAnimation {
-                        duration: root.animMoveDuration
-                        easing.type: Easing.OutCubic
+                        duration: Math.round(root.animDuration * 0.7)
+                        easing.type: Easing.OutQuad 
                     }
                 }
 
@@ -511,14 +490,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         spacing: 4
                         boundsBehavior: Flickable.StopAtBounds
 
-                        Behavior on Layout.preferredHeight {
-                            enabled: root.animEnabled
-                            NumberAnimation {
-                                duration: root.animMoveDuration
-                                easing.type: Easing.OutCubic
-                            }
-                        }
-
                         onCountChanged: {
                             if (count > 0) currentIndex = 0
                         }
@@ -540,10 +511,12 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             
                             Behavior on color {
                                 enabled: root.animEnabled
-                                ColorAnimation { duration: 110; easing.type: Easing.OutCubic }
+                                ColorAnimation { 
+                                    duration: 120 
+                                    easing.type: Easing.OutQuad 
+                                }
                             }
 
-                            // Accent bar indicator on active item
                             Rectangle {
                                 width: 3
                                 height: itemCard.isSelected ? 20 : 0
@@ -556,11 +529,14 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 
                                 Behavior on height {
                                     enabled: root.animEnabled
-                                    NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
+                                    NumberAnimation { 
+                                        duration: 180 
+                                        easing.type: Easing.OutBack
+                                    }
                                 }
                                 Behavior on opacity {
                                     enabled: root.animEnabled
-                                    NumberAnimation { duration: 100 }
+                                    NumberAnimation { duration: 120 }
                                 }
                             }
 
@@ -615,7 +591,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                                     Behavior on opacity {
                                         enabled: root.animEnabled
-                                        NumberAnimation { duration: 90 }
+                                        NumberAnimation { duration: 120 }
                                     }
 
                                     Text {

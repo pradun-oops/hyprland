@@ -5,91 +5,34 @@ import Quickshell.Hyprland
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Window
 
 Scope {
     id: root
 
+    // Screen locked static property (Prevents cursor/focus tracking across monitors)
     property string lockedMonitor: ""
 
-    // Detect cursor position and lock window to active monitor at startup
-    Process {
-        id: cursorProc
-        command: ["hyprctl", "cursorpos"]
-        running: true
-        stdout: StdioCollector {
-            onStreamFinished: {
-                if (root.lockedMonitor !== "") return
-
-                try {
-                    let parts = text.trim().split(",")
-                    if (parts.length === 2) {
-                        let cx = parseInt(parts[0].trim())
-                        let cy = parseInt(parts[1].trim())
-
-                        for (let i = 0; i < Quickshell.screens.length; i++) {
-                            let s = Quickshell.screens[i]
-                            if (cx >= s.x && cx < (s.x + s.width) && cy >= s.y && cy < (s.y + s.height)) {
-                                root.lockedMonitor = s.name
-                                return
-                            }
-                        }
-                    }
-                } catch (e) {}
-
-                if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
-                    root.lockedMonitor = Hyprland.focusedMonitor.name
-                } else if (Quickshell.screens.length > 0) {
-                    root.lockedMonitor = Quickshell.screens[0].name
-                }
-            }
+    Component.onCompleted: {
+        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+            root.lockedMonitor = Hyprland.focusedMonitor.name
+        } else if (Quickshell.screens.length > 0) {
+            root.lockedMonitor = Quickshell.screens[0].name
         }
     }
 
-    // Dynamic adaptive properties
+    // Adaptive Theme Properties (Solid Background & Real-time updates)
     property int themeRounding: 14
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.65
+    property real themeBgAlpha: 1.0
     
-    property color themeBackground: Qt.rgba(0.08, 0.08, 0.10, themeBgAlpha) 
+    property color themeBackground: "#141416" 
     property color themeBorder: "#ffb3af"
     property color themeText: "#FFFFFF"          
     property color themeTextMuted: "#A1A1AA"
     property color themePrimary: "#ffb3af"        
 
-    FileView {
-        id: colorFile
-        path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
-        watchChanges: true
-        onLoaded: {
-            try {
-                let match = text.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
-                if (match && match[1]) {
-                    let hex = "#" + match[1]
-                    root.themeBorder = hex
-                    root.themePrimary = hex
-                }
-            } catch (e) {}
-        }
-    }
-
-    FileView {
-        id: generalConfigFile
-        path: Quickshell.env("HOME") + "/.config/hypr/configs/general.lua"
-        watchChanges: true
-        onLoaded: {
-            try {
-                let content = text
-                let rMatch = content.match(/rounding\s*=\s*(\d+)/)
-                if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
-                
-                let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
-            } catch (e) {}
-        }
-    }
-
-    property var rawKeybinds: [
+    // Full Complete Shortcuts List
+    property var fullKeybindsList: [
         { category: "Launchers & Widgets", keys: "SUPER + K", desc: "Keybinds Cheatsheet" },
         { category: "Launchers & Widgets", keys: "SUPER + Space", desc: "Spotlight Search" },
         { category: "Launchers & Widgets", keys: "SUPER + Return", desc: "Terminal (Kitty)" },
@@ -128,23 +71,113 @@ Scope {
         { category: "Media & Utilities", keys: "SUPER + ALT + R", desc: "Reload Hyprland" }
     ]
 
-    ListModel {
-        id: filteredModel
+    property var activeKeybinds: []
+
+    // Dynamic Theme File Parsing with Real-time Reloading
+    FileView {
+        id: colorFile
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                if (match && match[1]) {
+                    let hex = "#" + match[1]
+                    root.themeBorder = hex
+                    root.themePrimary = hex
+                }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) {
+                    root.themeBackground = "#" + bgMatch[1]
+                }
+            } catch (e) {}
+        }
     }
+
+    FileView {
+        id: generalConfigFile
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/general.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let rMatch = content.match(/rounding\s*=\s*(\d+)/)
+                if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
+                
+                let bMatch = content.match(/border_size\s*=\s*(\d+)/)
+                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+            } catch (e) {}
+        }
+    }
+
+    FileView {
+        id: bindsFile
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/binds.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let parsed = []
+
+                let regexTable = /\{\s*(?:keys|key|bind)\s*=\s*["']([^"']+)["']\s*,\s*(?:desc|description)\s*=\s*["']([^"']+)["'](?:\s*,\s*(?:category|cat)\s*=\s*["']([^"']+)["'])?\s*\}/gi
+                let match
+
+                while ((match = regexTable.exec(content)) !== null) {
+                    parsed.push({
+                        keys: match[1],
+                        desc: match[2],
+                        category: match[3] ? match[3] : "General"
+                    })
+                }
+
+                if (parsed.length === 0) {
+                    let regexFunc = /bind\s*\(\s*["']([^"']+)["']\s*,\s*["']([^"']+)["'](?:\s*,\s*["']([^"']+)["'])?\s*\)/gi
+                    while ((match = regexFunc.exec(content)) !== null) {
+                        parsed.push({
+                            keys: match[1],
+                            desc: match[2],
+                            category: match[3] ? match[3] : "General"
+                        })
+                    }
+                }
+
+                if (parsed.length > 0) {
+                    root.activeKeybinds = parsed
+                } else {
+                    root.activeKeybinds = root.fullKeybindsList
+                }
+            } catch (e) {
+                root.activeKeybinds = root.fullKeybindsList
+            }
+            root.filterKeybinds(searchInput ? searchInput.text : "")
+        }
+    }
+
+    ListModel { id: filteredModel }
 
     function filterKeybinds(query) {
         filteredModel.clear()
         let q = query.trim().toLowerCase()
-        for (let i = 0; i < rawKeybinds.length; i++) {
-            let item = rawKeybinds[i]
-            if (q === "" || item.desc.toLowerCase().includes(q) || item.keys.toLowerCase().includes(q) || item.category.toLowerCase().includes(q)) {
-                filteredModel.append(item)
+        let sourceList = (root.activeKeybinds && root.activeKeybinds.length > 0) ? root.activeKeybinds : root.fullKeybindsList
+
+        for (let i = 0; i < sourceList.length; i++) {
+            let item = sourceList[i]
+            let itemDesc = String(item.desc || "")
+            let itemKeys = String(item.keys || "")
+            let itemCat = String(item.category || "General")
+
+            if (q === "" || itemDesc.toLowerCase().indexOf(q) !== -1 || itemKeys.toLowerCase().indexOf(q) !== -1 || itemCat.toLowerCase().indexOf(q) !== -1) {
+                filteredModel.append({
+                    itemDesc: itemDesc,
+                    itemKeys: itemKeys,
+                    itemCategory: itemCat
+                })
             }
         }
-    }
-
-    Component.onCompleted: {
-        filterKeybinds("")
     }
 
     Variants {
@@ -176,21 +209,15 @@ Scope {
 
             color: "transparent"
 
-            Rectangle {
+            MouseArea {
                 anchors.fill: parent
-                color: "transparent"
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: Qt.quit()
-                }
+                onClicked: Qt.quit()
             }
 
             Rectangle {
                 id: mainCard
                 width: Math.min(820, parent.width - 40)
                 height: Math.min(620, parent.height - 80)
-                
                 anchors.centerIn: parent
 
                 radius: root.themeRounding
@@ -198,25 +225,17 @@ Scope {
                 border.color: Qt.alpha(root.themeBorder, 0.40)
                 color: root.themeBackground
 
-                Rectangle {
-                    anchors.fill: parent
-                    radius: parent.radius
-                    color: "transparent"
-                    border.width: 1
-                    border.color: Qt.rgba(1, 1, 1, 0.08)
-                    z: 10
-                }
-
                 MouseArea {
                     anchors.fill: parent
-                    onClicked: function(mouse) { mouse.accepted = true; }
+                    onClicked: (mouse) => mouse.accepted = true
                 }
 
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 18
-                    spacing: 14
+                    spacing: 12
 
+                    // Header
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 12
@@ -225,7 +244,6 @@ Scope {
                             text: "⌨"
                             font.pixelSize: 22
                             color: root.themePrimary
-                            Layout.alignment: Qt.AlignVCenter
                         }
 
                         Text {
@@ -233,7 +251,6 @@ Scope {
                             font.pixelSize: 18
                             font.weight: Font.Bold
                             color: root.themeText
-                            Layout.alignment: Qt.AlignVCenter
                         }
 
                         Item { Layout.fillWidth: true }
@@ -256,7 +273,6 @@ Scope {
                                     text: ""
                                     font.pixelSize: 13
                                     color: root.themeTextMuted
-                                    Layout.alignment: Qt.AlignVCenter
                                 }
 
                                 TextField {
@@ -270,18 +286,16 @@ Scope {
                                     verticalAlignment: TextInput.AlignVCenter
                                     background: Item {}
 
-                                    Component.onCompleted: forceActiveFocus()
-
-                                    onTextChanged: {
-                                        filterKeybinds(text)
+                                    Component.onCompleted: {
+                                        forceActiveFocus()
+                                        root.activeKeybinds = root.fullKeybindsList
+                                        root.filterKeybinds("")
                                     }
 
-                                    Keys.onPressed: (event) => {
-                                        if (event.key === Qt.Key_Escape) {
-                                            Qt.quit()
-                                            event.accepted = true
-                                        }
-                                    }
+                                    onTextChanged: root.filterKeybinds(text)
+
+                                    Keys.onDownPressed: keybindsList.incrementCurrentIndex()
+                                    Keys.onUpPressed: keybindsList.decrementCurrentIndex()
                                 }
                             }
                         }
@@ -293,6 +307,7 @@ Scope {
                         color: Qt.alpha(root.themeBorder, 0.20)
                     }
 
+                    // Keybind List
                     ListView {
                         id: keybindsList
                         Layout.fillWidth: true
@@ -300,6 +315,7 @@ Scope {
                         model: filteredModel
                         clip: true
                         spacing: 6
+                        highlightFollowsCurrentItem: true
 
                         ScrollBar.vertical: ScrollBar {
                             active: keybindsList.moving || keybindsList.flicking
@@ -307,10 +323,14 @@ Scope {
                         }
 
                         delegate: Rectangle {
+                            id: delegateItem
                             width: keybindsList.width
-                            height: 44
+                            height: 42
                             radius: Math.max(4, root.themeRounding - 6)
-                            color: Qt.rgba(1, 1, 1, 0.04)
+                            color: ListView.isCurrentItem ? Qt.alpha(root.themePrimary, 0.15) : Qt.rgba(1, 1, 1, 0.04)
+
+                            // Explicit role binding to prevent scoping loss
+                            property string rawKeys: model.itemKeys || ""
 
                             RowLayout {
                                 anchors.fill: parent
@@ -319,57 +339,64 @@ Scope {
                                 spacing: 12
 
                                 Text {
-                                    text: model.desc
+                                    text: model.itemDesc
                                     color: root.themeText
-                                    font.pixelSize: 14
+                                    font.pixelSize: 13
                                     font.weight: Font.Medium
                                     Layout.fillWidth: true
-                                    Layout.alignment: Qt.AlignVCenter
                                     elide: Text.ElideRight
                                 }
 
-                                Rectangle {
-                                    Layout.preferredHeight: 22
-                                    Layout.preferredWidth: catText.implicitWidth + 12
-                                    radius: 4
-                                    color: Qt.alpha(root.themePrimary, 0.15)
+                                // Key Badges Combo (Placed before Category tag)
+                                Row {
+                                    spacing: 4
                                     Layout.alignment: Qt.AlignVCenter
 
-                                    Text {
-                                        id: catText
-                                        anchors.centerIn: parent
-                                        text: model.category
-                                        font.pixelSize: 10
-                                        font.weight: Font.Bold
-                                        color: root.themePrimary
+                                    Repeater {
+                                        model: delegateItem.rawKeys ? delegateItem.rawKeys.split("+") : []
+                                        delegate: Rectangle {
+                                            height: 24
+                                            width: keyText.implicitWidth + 12
+                                            radius: 5
+                                            color: Qt.rgba(0, 0, 0, 0.55)
+                                            border.width: 1
+                                            border.color: Qt.alpha(root.themePrimary, 0.4)
+
+                                            Text {
+                                                id: keyText
+                                                anchors.centerIn: parent
+                                                text: modelData.trim()
+                                                font.pixelSize: 11
+                                                font.weight: Font.Bold
+                                                color: root.themeText
+                                            }
+                                        }
                                     }
                                 }
 
                                 Rectangle {
-                                    Layout.preferredHeight: 26
-                                    Layout.preferredWidth: keyCapText.implicitWidth + 16
-                                    radius: 6
-                                    color: Qt.rgba(0, 0, 0, 0.35)
-                                    border.width: 1
-                                    border.color: Qt.alpha(root.themePrimary, 0.35)
-                                    Layout.alignment: Qt.AlignVCenter
+                                    Layout.preferredHeight: 20
+                                    Layout.preferredWidth: catText.implicitWidth + 10
+                                    radius: 4
+                                    color: Qt.alpha(root.themePrimary, 0.12)
 
                                     Text {
-                                        id: keyCapText
+                                        id: catText
                                         anchors.centerIn: parent
-                                        text: model.keys
-                                        font.pixelSize: 11
+                                        text: model.itemCategory
+                                        font.pixelSize: 10
                                         font.weight: Font.Bold
-                                        color: root.themeText
+                                        color: root.themePrimary
                                     }
                                 }
                             }
                         }
                     }
 
+                    // Footer Bar
                     Rectangle {
                         Layout.fillWidth: true
-                        height: 32
+                        height: 30
                         color: Qt.rgba(0, 0, 0, 0.18)
                         radius: Math.max(4, root.themeRounding - 6)
 
@@ -379,7 +406,7 @@ Scope {
                             anchors.rightMargin: 12
 
                             Text {
-                                text: filteredModel.count + " shortcuts available"
+                                text: filteredModel.count + " shortcuts loaded"
                                 font.pixelSize: 11
                                 color: root.themeTextMuted
                             }

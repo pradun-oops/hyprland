@@ -6,17 +6,20 @@ hl.bind("CTRL + Print", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scri
 hl.bind("ALT + Print", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/screenshot.sh all"))
 
 hl.bind("SUPER + SHIFT + R", hl.dsp.exec_cmd("~/.config/hypr/scripts/screenrecord.sh full"))
-hl.bind("SUPER + SHIFT + C", hl.dsp.exec_cmd("~/.config/hypr/scripts/screenrecord.sh area"))
+-- FIXED: Moved area recording to SUPER + CTRL + R to avoid conflict with the calendar
+hl.bind("SUPER + CTRL + R", hl.dsp.exec_cmd("~/.config/hypr/scripts/screenrecord.sh area"))
 
 -- ============================================================
 -- DMS IPC / WIDGET TOGGLES
 -- ============================================================
 hl.bind("SUPER + space", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh spotlight open"))
-hl.bind("SUPER + K", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh keybinds open"))
+-- FIXED: Moved keybinds widget to SUPER + Slash to free up SUPER + K for window navigation
+hl.bind("SUPER + Slash", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh keybinds open"))
 hl.bind("SUPER + V", hl.dsp.exec_cmd("dms ipc call clipboard toggle"))
 hl.bind("SUPER + X", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh powermenu open"))
 hl.bind("SUPER + N", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh notification-history open"))
 hl.bind("SUPER + I", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh connection open"))
+hl.bind("SUPER + SHIFT + C", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh calendar open"))
 hl.bind("SUPER + SHIFT + N", hl.dsp.exec_cmd("dms ipc call notepad toggle"))
 hl.bind("SUPER + M", hl.dsp.exec_cmd("dms ipc call processlist focusOrToggle"))
 hl.bind("CTRL + ALT + Delete", hl.dsp.exec_cmd("dms ipc call processlist focusOrToggle"))
@@ -85,6 +88,8 @@ hl.bind("SUPER + SHIFT + T", hl.dsp.exec_cmd("~/.config/hypr/scripts/toggle_floa
 -- Focus Direction
 hl.bind("SUPER + H", hl.dsp.focus({ direction = "l" }))
 hl.bind("SUPER + L", hl.dsp.focus({ direction = "r" }))
+-- FIXED: Added SUPER + K for moving focus UP
+hl.bind("SUPER + K", hl.dsp.focus({ direction = "u" }))
 hl.bind("SUPER + J", hl.dsp.focus({ direction = "d" }))
 
 hl.bind("ALT + TAB", hl.dsp.focus({ window = "next" }))

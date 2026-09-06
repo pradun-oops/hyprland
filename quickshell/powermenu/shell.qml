@@ -20,11 +20,11 @@ Scope {
     
     property int themeRounding: 24
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.65
+    property real themeBgAlpha: 1.0
     property bool animEnabled: true
     property int animDuration: 220 
     
-    property color themeBackground: Qt.rgba(0.08, 0.08, 0.09, themeBgAlpha) 
+    property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
 
     // ANIMATION & STATE TRACKING
@@ -40,11 +40,19 @@ Scope {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let match = this.text().match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
-                if (match && match[1]) { root.themeBorder = "#" + match[1]; root.themePrimary = "#" + match[1]; }
+                let content = text()
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                if (match && match[1]) { 
+                    root.themeBorder = "#" + match[1]
+                    root.themePrimary = "#" + match[1] 
+                }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) {
+                    root.themeBackground = "#" + bgMatch[1]
+                }
             } catch (e) {}
         }
     }
@@ -53,16 +61,14 @@ Scope {
         id: generalFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/general.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = Math.min(parseInt(rMatch[1]) + 8, 28)
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
-                let blurMatch = content.match(/blur\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
-                if (blurMatch && blurMatch[1]) root.themeBgAlpha = (blurMatch[1] === "true") ? 0.65 : 0.95
             } catch (e) {}
         }
     }
@@ -71,10 +77,10 @@ Scope {
         id: animConfigFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
                 let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
@@ -90,10 +96,10 @@ Scope {
             root.lockedMonitor = Quickshell.screens[0].name
         }
 
-        colorFile.reload(); 
-        generalFile.reload(); 
-        animConfigFile.reload(); 
-        root.isOpened = true; 
+        colorFile.reload()
+        generalFile.reload()
+        animConfigFile.reload()
+        root.isOpened = true
     }
 
     // ============================================================
@@ -108,20 +114,20 @@ Scope {
     }
 
     function executeCommand(cmd) {
-        if (root.isClosing) return;
-        root.pendingCommand = cmd;
-        root.isClosing = true;
+        if (root.isClosing) return
+        root.pendingCommand = cmd
+        root.isClosing = true
         if (cmd !== "") {
             powerProcess.command = ["bash", "-c", "nohup " + cmd + " >/dev/null 2>&1 &"]
             powerProcess.running = true
         }
-        closeTimer.start();
+        closeTimer.start()
     }
 
     function dismissMenu() {
-        if (root.isClosing) return;
-        root.isClosing = true;
-        Qt.quit();
+        if (root.isClosing) return
+        root.isClosing = true
+        Qt.quit()
     }
 
     // ============================================================
@@ -137,7 +143,7 @@ Scope {
         width: 100; height: 110
 
         scale: btnMouse.containsMouse && !root.isClosing ? 1.08 : 1.0
-        Behavior on scale { NumberAnimation { duration: root.animEnabled ? 150 : 0; easing.type: Easing.OutBack } }
+        Behavior on scale { NumberAnimation { duration: root.animEnabled ? root.animDuration : 0; easing.type: Easing.OutBack } }
 
         Rectangle {
             anchors.fill: parent
@@ -192,7 +198,7 @@ Scope {
             screen: modelData
 
             WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.namespace: "dms:power-menu"
+            WlrLayershell.namespace: "qs-power-menu"
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
 
             visible: !root.isClosing && (root.lockedMonitor !== "" ? (modelData.name === root.lockedMonitor) : true)
@@ -204,6 +210,8 @@ Scope {
                 left: true
                 right: true
             }
+            
+            // Set to transparent so Hyprland ignore_alpha ignores the backdrop
             color: "transparent"
 
             // Mouse click outside card closes dialog

@@ -29,11 +29,11 @@ Scope {
     // Geometry & Animation Defaults (overridden by .lua files)
     property int themeRounding: 22
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.65
+    property real themeBgAlpha: 1.0
     property bool animEnabled: true
     property int animDuration: 220
     
-    property color themeBackground: Qt.rgba(0.08, 0.08, 0.09, themeBgAlpha) 
+    property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.07) 
     property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.12)
 
@@ -89,13 +89,18 @@ Scope {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let match = this.text().match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                let content = text()
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
                 if (match && match[1]) { 
                     root.themeBorder = "#" + match[1]
                     root.themePrimary = "#" + match[1] 
+                }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) {
+                    root.themeBackground = "#" + bgMatch[1]
                 }
             } catch (e) {}
         }
@@ -105,20 +110,15 @@ Scope {
         id: generalConfigFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/general.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
-
-                let blurMatch = content.match(/blur\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
-                if (blurMatch && blurMatch[1]) {
-                    root.themeBgAlpha = (blurMatch[1] === "true") ? 0.65 : 0.90
-                }
             } catch (e) {}
         }
     }
@@ -127,10 +127,10 @@ Scope {
         id: animConfigFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
 
@@ -166,10 +166,10 @@ Scope {
         id: historyFile
         path: Quickshell.env("HOME") + "/.config/quickshell/notification_history.json"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let data = JSON.parse(this.text())
+                let data = JSON.parse(text())
                 historyModel.clear()
                 for (let i = 0; i < data.length; i++) {
                     historyModel.append(data[i])
@@ -211,9 +211,6 @@ Scope {
             WlrLayershell.namespace: "dms:notification-center"
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
             exclusiveZone: -1
-
-            // Wayland Surface Blur Effect
-            BackgroundEffect.blurRegion: Region { item: container }
 
             // Fullscreen backdrop layer
             anchors {

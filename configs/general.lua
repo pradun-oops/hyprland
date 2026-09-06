@@ -7,13 +7,13 @@ hl.config({
         allow_tearing = false,
     },
     decoration = {
-        rounding = 12,
+        rounding = 15,
         active_opacity = 0.85,
         inactive_opacity = 0.85,
         fullscreen_opacity = 1.0,
         blur = {
             enabled = true,
-            size = 6,
+            size = 5,
             passes = 3,
             ignore_opacity = true,
             new_optimizations = true,

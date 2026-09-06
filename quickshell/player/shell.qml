@@ -10,38 +10,49 @@ import Qt5Compat.GraphicalEffects
 Scope {
     id: root
 
+    // ============================================================
+    // THEME PROPERTIES (Parsed from Hyprland configs)
+    // ============================================================
     property color themeBorder: "#ffb3af"
     property color themePrimary: "#ffb3af"
     property color themeText: "#FFFFFF"
-    property color themeTextMuted: "#C5C5C5"
-    property color themeOnPrimary: "#000000"
+    property color themeTextMuted: "#A1A1AA"
+    property color themeBackground: "#141416"
     
     property int themeRounding: 16
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.85
-    
-    property color themeBackground: Qt.rgba(0.05, 0.05, 0.06, themeBgAlpha) 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.06) 
-    property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.12)
 
+    // ============================================================
+    // MEDIA & VOLUME STATE
+    // ============================================================
     property string mediaTitle: "No media playing"
     property string mediaArtist: "Unknown Artist"
     property string mediaAlbum: "Unknown Album"
     property string mediaArtUrl: ""
-    property string playerName: "firefox"
+    property string playerName: ""
+    property var activePlayerList: []
     property string mediaStatus: "Stopped"
     property bool isPlaying: false
-    property bool hasActivePlayer: false
     property real trackPosition: 0
     property real trackLength: 0
+
+    // Audio State
+    property var audioSinks: []
+    property int currentVolume: 50
 
     // Desktop Widget Position
     property int windowX: 100
     property int windowY: 420
+    property string targetMonitorName: ""
 
+    // ============================================================
+    // POSITION PERSISTENCE
+    // ============================================================
     FileView {
         id: posFile
         path: Quickshell.env("HOME") + "/.config/quickshell/json/player_pos.json"
+        watchChanges: true
+        onFileChanged: reload()
         onLoaded: {
             try {
                 let d = JSON.parse(text())
@@ -58,19 +69,26 @@ Scope {
         savePosProcess.running = true
     }
 
+    // ============================================================
+    // LUA CONFIG PARSERS
+    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
-                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
-                if (match && match[1]) {
-                    let hex = "#" + match[1]
+                let content = text()
+                let borderMatch = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (borderMatch && borderMatch[1]) {
+                    let hex = "#" + borderMatch[1]
                     root.themeBorder = hex
                     root.themePrimary = hex
+                }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) {
+                    root.themeBackground = "#" + bgMatch[1]
                 }
             } catch (e) {}
         }
@@ -80,28 +98,24 @@ Scope {
         id: generalConfigFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/general.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
-                
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
-
-                let blurMatch = content.match(/blur\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
-                if (blurMatch && blurMatch[1]) {
-                    root.themeBgAlpha = (blurMatch[1] === "true") ? 0.65 : 0.95
-                }
             } catch (e) {}
         }
     }
 
     Component.onCompleted: {
-        colorFile.reload();
-        generalConfigFile.reload();
-        posFile.reload();
+        colorFile.reload()
+        generalConfigFile.reload()
+        posFile.reload()
+        monitorDetectionProcess.running = true
+        audioPollProcess.running = true
     }
 
     Process { id: execProcess }
@@ -118,6 +132,71 @@ Scope {
         return m + ":" + (s < 10 ? "0" : "") + s
     }
 
+    function getPlayerArg() {
+        return root.playerName !== "" ? (" -p " + root.playerName) : ""
+    }
+
+    // Switch MPRIS Media Player Source (Browser <-> VLC <-> Spotify)
+    function switchMediaPlayer() {
+        if (!root.activePlayerList || root.activePlayerList.length <= 1) return;
+        let currIdx = root.activePlayerList.indexOf(root.playerName);
+        let nextIdx = (currIdx + 1) % root.activePlayerList.length;
+        let nextPlayer = root.activePlayerList[nextIdx];
+        root.playerName = nextPlayer;
+        exec("playerctl -p " + nextPlayer + " play 2>/dev/null && notify-send -a 'Media Switcher' 'Switched Player' '" + nextPlayer + "'");
+    }
+
+    // Switch Audio Output Device (Laptop Speakers <-> Headphones)
+    function switchAudioSink() {
+        if (!root.audioSinks || root.audioSinks.length <= 1) return;
+        let currIdx = root.audioSinks.findIndex(d => d.is_def);
+        let nextIdx = (currIdx + 1) % root.audioSinks.length;
+        let nextDev = root.audioSinks[nextIdx];
+        exec("pactl set-default-sink " + nextDev.name + " && notify-send -a 'Audio Switcher' 'Output Changed' '" + nextDev.desc + "'");
+        audioPollProcess.running = true;
+    }
+
+    // Adjust System Audio Volume
+    function adjustVolume(percent) {
+        exec("pactl set-sink-volume @DEFAULT_SINK@ " + percent)
+        audioPollTimer.restart()
+    }
+
+    Timer {
+        id: audioPollTimer
+        interval: 100
+        repeat: false
+        onTriggered: audioPollProcess.running = true
+    }
+
+    // ============================================================
+    // MONITOR DETECTION
+    // ============================================================
+    Process {
+        id: monitorDetectionProcess
+        command: ["bash", "-c", "hyprctl monitors -j 2>/dev/null || echo '[]'"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    let monitors = JSON.parse(text.trim())
+                    if (monitors && monitors.length > 0) {
+                        let builtInPattern = /^eDP|^LVDS|^dsi/i
+                        let externalMon = monitors.find(m => !builtInPattern.test(m.name))
+                        root.targetMonitorName = externalMon ? externalMon.name : monitors[0].name
+                    }
+                } catch(e) {}
+            }
+        }
+    }
+
+    Timer {
+        interval: 5000; running: true; repeat: true
+        onTriggered: monitorDetectionProcess.running = true
+    }
+
+    // ============================================================
+    // MEDIA & AUDIO POLLING
+    // ============================================================
     Process {
         id: mediaStateProcess
         stdout: StdioCollector {
@@ -128,12 +207,21 @@ Scope {
                     
                     root.mediaTitle = data.title || "No media playing"
                     root.mediaArtist = data.artist || "Unknown Artist"
-                    root.mediaAlbum = data.album || "Unknown Album"
-                    root.mediaArtUrl = data.artUrl || ""
-                    root.playerName = data.playerName || "firefox"
+                    root.mediaAlbum = data.album || ""
+                    
+                    let art = data.artUrl || ""
+                    if (art.startsWith("file://") || art.startsWith("http://") || art.startsWith("https://")) {
+                        root.mediaArtUrl = art
+                    } else if (art.length > 0) {
+                        root.mediaArtUrl = "file://" + art
+                    } else {
+                        root.mediaArtUrl = ""
+                    }
+                    
+                    root.playerName = data.playerName || ""
+                    root.activePlayerList = data.allPlayers || []
                     root.mediaStatus = data.status || "Stopped"
                     root.isPlaying = data.status.toLowerCase() === "playing"
-                    root.hasActivePlayer = data.active === true
                     root.trackPosition = data.position || 0
                     root.trackLength = data.length || 0
                 } catch(e) {}
@@ -142,10 +230,7 @@ Scope {
     }
 
     Timer {
-        interval: 500
-        running: true
-        repeat: true
-        triggeredOnStart: true
+        interval: 500; running: true; repeat: true; triggeredOnStart: true
         onTriggered: {
             let py = `
 import subprocess, json
@@ -153,36 +238,21 @@ def cmd(c):
     try: return subprocess.check_output(c, shell=True, text=True).strip()
     except: return ""
 
-players_raw = cmd("playerctl -l 2>/dev/null")
-players = [p.strip() for p in players_raw.splitlines() if p.strip()]
+players = [p.strip() for p in cmd("playerctl -l 2>/dev/null").splitlines() if p.strip()]
 active_player = ""
 
-# 1. Priority: Find a player that is currently PLAYING
 for p in players:
-    st = cmd(f"playerctl -p {p} status 2>/dev/null")
-    if st.lower() == "playing":
-        active_player = p
-        break
-
-# 2. Secondary Priority: Find a player that is PAUSED
+    if cmd(f"playerctl -p {p} status 2>/dev/null").lower() == "playing":
+        active_player = p; break
 if not active_player:
     for p in players:
-        st = cmd(f"playerctl -p {p} status 2>/dev/null")
-        if st.lower() == "paused":
-            active_player = p
-            break
-
-# 3. Fallback: Take the first available player
-if not active_player and players:
-    active_player = players[0]
+        if cmd(f"playerctl -p {p} status 2>/dev/null").lower() == "paused":
+            active_player = p; break
+if not active_player and players: active_player = players[0]
 
 title = "No media playing"
-artist = "Unknown Artist"
-album = ""
-art_url = ""
-status = "Stopped"
-position = 0.0
-length = 0.0
+artist, album, art_url, status = "Unknown Artist", "", "", "Stopped"
+position, length = 0.0, 0.0
 
 if active_player:
     title = cmd(f"playerctl -p {active_player} metadata xesam:title 2>/dev/null") or "No media playing"
@@ -194,30 +264,20 @@ if active_player:
     try:
         pos_str = cmd(f"playerctl -p {active_player} position 2>/dev/null")
         if pos_str: position = float(pos_str)
-    except: pass
-
-    try:
         len_str = cmd(f"playerctl -p {active_player} metadata mpris:length 2>/dev/null")
-        if len_str:
-            length = float(len_str) / 1000000.0
-        else:
-            dur_str = cmd(f"playerctl -p {active_player} metadata xesam:duration 2>/dev/null")
-            if dur_str:
-                length = float(dur_str) / 1000000.0
+        length = float(len_str)/1000000.0 if len_str else float(cmd(f"playerctl -p {active_player} metadata xesam:duration 2>/dev/null") or 0) / 1000000.0
     except: pass
-
-active = bool(title != "No media playing" and status.lower() in ["playing", "paused"])
 
 print(json.dumps({
-    "title": title,
-    "artist": artist,
-    "album": album,
-    "artUrl": art_url,
-    "playerName": active_player or "firefox",
-    "status": status,
-    "position": position,
-    "length": length,
-    "active": active
+    "title": title, 
+    "artist": artist, 
+    "album": album, 
+    "artUrl": art_url, 
+    "playerName": active_player, 
+    "allPlayers": players,
+    "status": status, 
+    "position": position, 
+    "length": length
 }))
 `
             mediaStateProcess.command = ["python3", "-c", py]
@@ -225,12 +285,63 @@ print(json.dumps({
         }
     }
 
+    Process {
+        id: audioPollProcess
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    let d = JSON.parse(text.trim())
+                    root.audioSinks = d.sinks || []
+                    if (d.volume !== undefined) root.currentVolume = d.volume
+                } catch(e) {}
+            }
+        }
+    }
+
+    Timer {
+        interval: 1500; running: true; repeat: true
+        onTriggered: {
+            let py = `
+import subprocess, json, re
+def get_list(typ):
+    try:
+        default = subprocess.check_output(f"pactl get-default-{typ}", shell=True, text=True).strip()
+        lines = subprocess.check_output(f"pactl list {typ}s", shell=True, text=True).splitlines()
+        res = []
+        cur_name = ""
+        for l in lines:
+            if "Name:" in l: cur_name = l.split("Name:")[1].strip()
+            elif "Description:" in l:
+                desc = l.split("Description:")[1].strip()
+                res.append({"name": cur_name, "desc": desc, "is_def": cur_name == default})
+        return res
+    except: return []
+
+def get_vol():
+    try:
+        out = subprocess.check_output("pactl get-sink-volume @DEFAULT_SINK@", shell=True, text=True)
+        m = re.search(r'(\\d+)%', out)
+        return int(m.group(1)) if m else 50
+    except: return 50
+
+print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
+`
+            audioPollProcess.command = ["python3", "-c", py]
+            audioPollProcess.running = true
+        }
+    }
+
+    // ============================================================
+    // WIDGET UI
+    // ============================================================
     Variants {
         model: Quickshell.screens
         delegate: PanelWindow {
-            id: playerWidget
+            id: playerWindow
             required property var modelData
             screen: modelData
+
+            visible: modelData && (root.targetMonitorName === "" || modelData.name === root.targetMonitorName)
 
             WlrLayershell.layer: WlrLayer.Bottom
             WlrLayershell.namespace: "dms:desktop-widget:player"
@@ -243,267 +354,476 @@ print(json.dumps({
                 left: root.windowX
             }
 
-            implicitWidth: 440
-            implicitHeight: 200
+            implicitWidth: 420
+            implicitHeight: 320
             color: "transparent"
 
-            Rectangle {
-                id: mainContainer
+            Item {
                 anchors.fill: parent
-                radius: root.themeRounding
-                color: root.themeBackground
-                border.width: root.themeBorderSize
-                border.color: Qt.alpha(root.themePrimary, 0.3)
-                clip: true
 
-                // Beautiful Soft Background Glow
-                RadialGradient {
-                    width: parent.width * 1.5
-                    height: parent.height * 1.5
-                    anchors.right: parent.right
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.rightMargin: -width * 0.25
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: Qt.alpha(root.themePrimary, 0.25) }
-                        GradientStop { position: 0.5; color: "transparent" }
-                    }
+                // 1. Solid Background Base
+                Rectangle {
+                    anchors.fill: parent
+                    radius: root.themeRounding
+                    color: root.themeBackground
+                    antialiasing: true
                 }
 
-                // Global Desktop Widget Dragging (Handles all clicks now)
+                // 2. Container Background Album Art Cover
+                Image {
+                    id: bgArt
+                    anchors.fill: parent
+                    source: root.mediaArtUrl
+                    fillMode: Image.PreserveAspectCrop
+                    visible: false 
+                }
+
+                Rectangle {
+                    id: maskRect
+                    anchors.fill: parent
+                    radius: root.themeRounding
+                    color: "black"
+                    visible: false
+                    antialiasing: true
+                }
+
+                OpacityMask {
+                    anchors.fill: parent
+                    source: bgArt
+                    maskSource: maskRect
+                    visible: root.mediaArtUrl !== "" && bgArt.status === Image.Ready
+                    antialiasing: true
+                }
+
+                // 3. Dark Backdrop Tint
+                Rectangle {
+                    anchors.fill: parent
+                    radius: root.themeRounding
+                    color: root.mediaArtUrl !== "" ? Qt.rgba(0, 0, 0, 0.75) : "transparent"
+                    Behavior on color { ColorAnimation { duration: 300 } }
+                    antialiasing: true
+                }
+
+                // 4. Accent Border Overlay
+                Rectangle {
+                    anchors.fill: parent
+                    radius: root.themeRounding
+                    color: "transparent"
+                    border.width: root.themeBorderSize
+                    border.color: Qt.alpha(root.themePrimary, 0.5)
+                    antialiasing: true
+                }
+
+                // 5. Drag Mouse Area
                 MouseArea {
                     anchors.fill: parent
-                    cursorShape: Qt.OpenHandCursor
-                    z: 5
+                    cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                    z: 1 
 
                     property real startX: 0
                     property real startY: 0
-                    property bool isDragging: false
 
                     onPressed: (mouse) => {
                         startX = mouse.x
                         startY = mouse.y
-                        isDragging = true
-                        cursorShape = Qt.ClosedHandCursor
                     }
                     onPositionChanged: (mouse) => {
-                        if (isDragging) {
-                            root.windowX += (mouse.x - startX)
-                            root.windowY += (mouse.y - startY)
-                        }
+                        root.windowX += (mouse.x - startX)
+                        root.windowY += (mouse.y - startY)
                     }
-                    onReleased: {
-                        isDragging = false
-                        cursorShape = Qt.OpenHandCursor
-                        root.saveWindowPos()
-                    }
+                    onReleased: root.saveWindowPos()
                 }
 
-                // Bottom Bouncing Audio Visualizer Wave
-                Row {
-                    id: bottomWave
-                    anchors.bottom: parent.bottom
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.bottomMargin: 8
-                    spacing: 5
-                    z: 1
-                    opacity: root.isPlaying ? 0.6 : 0.1
-
-                    Repeater {
-                        model: 32
-                        Rectangle {
-                            width: 6
-                            height: 12
-                            radius: 3
-                            color: Qt.alpha(root.themePrimary, 0.8)
-
-                            transform: [
-                                Scale {
-                                    id: barScale
-                                    origin.x: 3
-                                    origin.y: 6
-                                    yScale: 1.0
-                                }
-                            ]
-
-                            SequentialAnimation {
-                                running: root.isPlaying
-                                loops: Animation.Infinite
-
-                                NumberAnimation {
-                                    target: barScale
-                                    property: "yScale"
-                                    to: 1.8 + ((index * 0.05) % 0.8)
-                                    duration: 180 + (index * 20)
-                                    easing.type: Easing.InOutSine
-                                }
-                                NumberAnimation {
-                                    target: barScale
-                                    property: "yScale"
-                                    to: 0.4
-                                    duration: 220 + (index * 15)
-                                    easing.type: Easing.InOutSine
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Item {
+                // 6. Content Container
+                ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 24
-                    z: 2
+                    anchors.margins: 22
+                    spacing: 12
+                    z: 10
 
-                    ColumnLayout {
-                        anchors.fill: parent
-                        spacing: 20
+                    // Header Row (App & Output Switchers)
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 36
+                        
+                        Text {
+                            text: "Now Playing"
+                            color: root.themePrimary
+                            font.pixelSize: 14
+                            font.weight: Font.Bold
+                            font.letterSpacing: 1.0
+                        }
 
-                        // Top Row: Circular Album Art + Track Meta
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 20
+                        Item { Layout.fillWidth: true }
 
-                            Rectangle {
-                                Layout.preferredWidth: 84
-                                Layout.preferredHeight: 84
-                                radius: 42
-                                color: root.themeSurface
-                                border.width: 1
-                                border.color: Qt.alpha(root.themeText, 0.1)
+                        // Button 1: Switch Media App (Perfect Circle)
+                        Rectangle {
+                            Layout.preferredWidth: 36; Layout.preferredHeight: 36
+                            radius: 18
+                            color: playerMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.3) : Qt.alpha(root.themeText, 0.12)
+                            border.width: 1; border.color: Qt.alpha(root.themePrimary, 0.4)
+                            Behavior on color { ColorAnimation { duration: 150 } }
 
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "󰎆"
-                                    color: root.themePrimary
-                                    font.pixelSize: 36
-                                    visible: artImage.status !== Image.Ready
-                                    opacity: 0.8
-                                }
+                            Text { anchors.centerIn: parent; text: "🎵"; font.pixelSize: 14 }
 
-                                Image {
-                                    id: artImage
-                                    anchors.fill: parent
-                                    source: root.mediaArtUrl
-                                    fillMode: Image.PreserveAspectCrop
-                                    visible: false
-                                }
-
-                                Rectangle {
-                                    id: artMask
-                                    anchors.fill: parent
-                                    radius: 42
-                                    visible: false
-                                }
-
-                                OpacityMask {
-                                    anchors.fill: parent
-                                    source: artImage
-                                    maskSource: artMask
-                                    visible: artImage.status === Image.Ready
-                                }
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                spacing: 4
-
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: root.mediaTitle
-                                    color: root.themeText
-                                    font.pixelSize: 18
-                                    font.weight: Font.Bold
-                                    elide: Text.ElideRight
-                                    maximumLineCount: 1
-                                }
-
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: root.mediaArtist
-                                    color: root.themeTextMuted
-                                    font.pixelSize: 14
-                                    font.weight: Font.DemiBold
-                                    elide: Text.ElideRight
-                                    maximumLineCount: 1
-                                    opacity: 0.9
-                                }
-
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: root.mediaAlbum !== "" ? root.mediaAlbum : "Digital Stream"
-                                    color: root.themeTextMuted
-                                    font.pixelSize: 12
-                                    font.weight: Font.Medium
-                                    elide: Text.ElideRight
-                                    maximumLineCount: 1
-                                    opacity: 0.6
-                                }
+                            MouseArea {
+                                id: playerMouse
+                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: root.switchMediaPlayer()
                             }
                         }
 
-                        // Middle: Progress Bar & Timestamps
-                        ColumnLayout {
+                        // Button 2: Switch Audio Output Device (Perfect Circle)
+                        Rectangle {
+                            Layout.preferredWidth: 36; Layout.preferredHeight: 36
+                            radius: 18
+                            color: sinkMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.3) : Qt.alpha(root.themeText, 0.12)
+                            border.width: 1; border.color: Qt.alpha(root.themePrimary, 0.4)
+                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            Text { anchors.centerIn: parent; text: "🔊"; font.pixelSize: 14 }
+
+                            MouseArea {
+                                id: sinkMouse
+                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: root.switchAudioSink()
+                            }
+                        }
+                    }
+
+                    // Metadata Section (Song Name & Artist Only)
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+
+                        Text {
                             Layout.fillWidth: true
+                            text: root.mediaTitle
+                            color: root.themeText
+                            font.pixelSize: 20
+                            font.weight: Font.Bold
+                            elide: Text.ElideRight
+                            maximumLineCount: 1
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            text: root.mediaArtist
+                            color: root.themeTextMuted
+                            font.pixelSize: 14
+                            font.weight: Font.DemiBold
+                            elide: Text.ElideRight
+                            maximumLineCount: 1
+                        }
+                    }
+
+                    // 20 Left + Moving Vinyl CD Disc + 20 Right Rhythm Visualizer Container
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 38
+
+                        Row {
+                            anchors.centerIn: parent
                             spacing: 8
+                            height: 36
 
-                            Item {
-                                Layout.fillWidth: true
-                                height: 18
+                            // Left Rhythm Bars (20 Bars)
+                            Row {
+                                spacing: 2.5
+                                anchors.verticalCenter: parent.verticalCenter
+                                height: 24
 
-                                Rectangle {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: parent.width
-                                    height: 6
-                                    radius: 3
-                                    color: Qt.rgba(1.0, 1.0, 1.0, 0.1) // Better contrast for track background
-
-                                    Rectangle {
-                                        id: progressFill
-                                        // Fixed seekbar logic to strictly respect track lengths and percentages
-                                        width: root.trackLength > 0 ? parent.width * Math.max(0, Math.min(1, root.trackPosition / root.trackLength)) : 0
-                                        height: parent.height
-                                        radius: parent.radius
+                                Repeater {
+                                    model: 20
+                                    delegate: Rectangle {
+                                        id: barLeft
+                                        width: 2.5
+                                        radius: 1.25
                                         color: root.themePrimary
+                                        anchors.bottom: parent.bottom
 
-                                        Behavior on width {
-                                            NumberAnimation { duration: 350; easing.type: Easing.OutCubic }
+                                        property real targetHeight: 4
+                                        height: root.isPlaying ? targetHeight : 4
+
+                                        Behavior on height {
+                                            NumberAnimation { duration: 110; easing.type: Easing.InOutQuad }
+                                        }
+
+                                        Timer {
+                                            interval: 60 + ((index % 7) * 25)
+                                            running: root.isPlaying
+                                            repeat: true
+                                            triggeredOnStart: true
+                                            onTriggered: {
+                                                barLeft.targetHeight = Math.floor(Math.random() * 18) + 4
+                                            }
                                         }
                                     }
-                                    
-                                    DropShadow {
-                                        anchors.fill: progressFill
-                                        source: progressFill
-                                        color: root.themePrimary
-                                        transparentBorder: true
-                                        radius: 16
-                                        samples: 25
-                                        opacity: 0.5
-                                    }
                                 }
-                                // Removed the interior MouseArea so the global drag controller always triggers on click
                             }
 
-                            RowLayout {
-                                Layout.fillWidth: true
+                            // Moving Spinning CD Disc with Album Art
+                            Item {
+                                width: 36
+                                height: 36
+                                anchors.verticalCenter: parent.verticalCenter
 
-                                Text {
-                                    text: formatTime(root.trackPosition)
-                                    color: root.themeTextMuted
-                                    font.pixelSize: 12
-                                    font.weight: Font.DemiBold
-                                    opacity: 0.8
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: width / 2
+                                    color: "#18181c"
+                                    border.color: Qt.alpha(root.themePrimary, 0.6)
+                                    border.width: 1
+                                    antialiasing: true
+
+                                    Item {
+                                        id: cdRotator
+                                        anchors.fill: parent
+
+                                        RotationAnimation on rotation {
+                                            from: 0
+                                            to: 360
+                                            duration: 3500
+                                            loops: Animation.Infinite
+                                            running: root.isPlaying
+                                        }
+
+                                        // Spinning CD Album Art Image
+                                        Image {
+                                            id: cdArtImg
+                                            anchors.fill: parent
+                                            source: root.mediaArtUrl
+                                            fillMode: Image.PreserveAspectCrop
+                                            visible: false
+                                        }
+
+                                        Rectangle {
+                                            id: cdMaskRect
+                                            anchors.fill: parent
+                                            radius: width / 2
+                                            visible: false
+                                        }
+
+                                        OpacityMask {
+                                            anchors.fill: parent
+                                            source: cdArtImg
+                                            maskSource: cdMaskRect
+                                            visible: root.mediaArtUrl !== "" && cdArtImg.status === Image.Ready
+                                            antialiasing: true
+                                        }
+
+                                        // Vinyl Grooves Overlay Ring
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: parent.width * 0.65
+                                            height: width
+                                            radius: width / 2
+                                            color: "transparent"
+                                            border.color: Qt.rgba(1, 1, 1, 0.25)
+                                            border.width: 1
+                                        }
+
+                                        // Center Spindle Hole
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: 8
+                                            height: 8
+                                            radius: 4
+                                            color: root.themeBackground
+                                            border.color: Qt.alpha(root.themePrimary, 0.8)
+                                            border.width: 1.5
+                                        }
+                                    }
                                 }
+                            }
 
-                                Item { Layout.fillWidth: true }
+                            // Right Rhythm Bars (20 Bars)
+                            Row {
+                                spacing: 2.5
+                                anchors.verticalCenter: parent.verticalCenter
+                                height: 24
 
-                                Text {
-                                    text: formatTime(root.trackLength)
-                                    color: root.themeTextMuted
-                                    font.pixelSize: 12
-                                    font.weight: Font.DemiBold
-                                    opacity: 0.8
+                                Repeater {
+                                    model: 20
+                                    delegate: Rectangle {
+                                        id: barRight
+                                        width: 2.5
+                                        radius: 1.25
+                                        color: root.themePrimary
+                                        anchors.bottom: parent.bottom
+
+                                        property real targetHeight: 4
+                                        height: root.isPlaying ? targetHeight : 4
+
+                                        Behavior on height {
+                                            NumberAnimation { duration: 110; easing.type: Easing.InOutQuad }
+                                        }
+
+                                        Timer {
+                                            interval: 70 + (((19 - index) % 7) * 25)
+                                            running: root.isPlaying
+                                            repeat: true
+                                            triggeredOnStart: true
+                                            onTriggered: {
+                                                barRight.targetHeight = Math.floor(Math.random() * 18) + 4
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
+                    }
+
+                    // Progress Bar & Time Stamps
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 20
+                        spacing: 12
+
+                        Text {
+                            text: formatTime(root.trackPosition)
+                            color: root.themeTextMuted
+                            font.pixelSize: 12; font.weight: Font.DemiBold
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 6
+                            radius: 3
+                            color: Qt.rgba(1.0, 1.0, 1.0, 0.2)
+
+                            Rectangle {
+                                width: root.trackLength > 0 ? parent.width * Math.max(0, Math.min(1, root.trackPosition / root.trackLength)) : 0
+                                height: parent.height
+                                radius: parent.radius
+                                color: root.themePrimary
+                                Behavior on width { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
+                            }
+                        }
+
+                        Text {
+                            text: formatTime(root.trackLength)
+                            color: root.themeTextMuted
+                            font.pixelSize: 12; font.weight: Font.DemiBold
+                        }
+                    }
+
+                    // Transport Controls + Dynamic Volume Buttons (Turns red at 0% / 100%)
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 52
+                        Layout.alignment: Qt.AlignHCenter
+                        spacing: 16
+
+                        Item { Layout.fillWidth: true }
+
+                        // Volume Down Button (Turns Red at 0%)
+                        Rectangle {
+                            property bool isMinVol: root.currentVolume <= 0
+
+                            Layout.preferredWidth: 38; Layout.preferredHeight: 38
+                            radius: 19
+                            color: isMinVol ? Qt.alpha("#ef4444", 0.3) : (volDownMouse.containsMouse ? Qt.alpha(root.themeText, 0.18) : Qt.alpha(root.themeText, 0.08))
+                            border.width: isMinVol ? 1 : 0
+                            border.color: "#ef4444"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            Text { 
+                                anchors.centerIn: parent
+                                text: "󰕿"
+                                font.family: "Nerd Font, Symbols Nerd Font, sans-serif"
+                                font.pixelSize: 18
+                                color: parent.isMinVol ? "#ef4444" : root.themeText
+                            }
+
+                            MouseArea {
+                                id: volDownMouse
+                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: root.adjustVolume("-5%")
+                            }
+                        }
+
+                        // Backward Button
+                        Rectangle {
+                            Layout.preferredWidth: 38; Layout.preferredHeight: 38
+                            radius: 19
+                            color: prevMouse.containsMouse ? Qt.alpha(root.themeText, 0.18) : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            Text { anchors.centerIn: parent; text: "⏮"; color: root.themeText; font.pixelSize: 20 }
+
+                            MouseArea {
+                                id: prevMouse
+                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: root.exec("playerctl " + root.getPlayerArg() + " previous")
+                            }
+                        }
+
+                        // Play / Pause Button (Circle Container)
+                        Rectangle {
+                            Layout.preferredWidth: 52; Layout.preferredHeight: 52
+                            radius: 26
+                            color: playMouse.containsMouse ? Qt.darker(root.themePrimary, 1.15) : root.themePrimary
+                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: root.isPlaying ? "⏸" : "▶"
+                                color: root.themeBackground
+                                font.pixelSize: 22
+                                anchors.horizontalCenterOffset: root.isPlaying ? 0 : 2
+                            }
+
+                            MouseArea {
+                                id: playMouse
+                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: root.exec("playerctl " + root.getPlayerArg() + " play-pause")
+                            }
+                        }
+
+                        // Forward Button
+                        Rectangle {
+                            Layout.preferredWidth: 38; Layout.preferredHeight: 38
+                            radius: 19
+                            color: nextMouse.containsMouse ? Qt.alpha(root.themeText, 0.18) : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            Text { anchors.centerIn: parent; text: "⏭"; color: root.themeText; font.pixelSize: 20 }
+
+                            MouseArea {
+                                id: nextMouse
+                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: root.exec("playerctl " + root.getPlayerArg() + " next")
+                            }
+                        }
+
+                        // Volume Up Button (Turns Red at 100%)
+                        Rectangle {
+                            property bool isMaxVol: root.currentVolume >= 100
+
+                            Layout.preferredWidth: 38; Layout.preferredHeight: 38
+                            radius: 19
+                            color: isMaxVol ? Qt.alpha("#ef4444", 0.3) : (volUpMouse.containsMouse ? Qt.alpha(root.themeText, 0.18) : Qt.alpha(root.themeText, 0.08))
+                            border.width: isMaxVol ? 1 : 0
+                            border.color: "#ef4444"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            Text { 
+                                anchors.centerIn: parent
+                                text: "󰕾"
+                                font.family: "Nerd Font, Symbols Nerd Font, sans-serif"
+                                font.pixelSize: 18
+                                color: parent.isMaxVol ? "#ef4444" : root.themeText
+                            }
+
+                            MouseArea {
+                                id: volUpMouse
+                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: root.adjustVolume("+5%")
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
                     }
                 }
             }

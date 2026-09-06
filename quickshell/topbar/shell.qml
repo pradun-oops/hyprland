@@ -18,9 +18,9 @@ Scope {
     
     property int themeRounding: 12
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.85
+    property real themeBgAlpha: 1.0
     
-    property color themeBackground: Qt.rgba(0.08, 0.08, 0.09, themeBgAlpha) 
+    property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
 
     // ============================================================
@@ -51,6 +51,7 @@ Scope {
     property bool isMuted: false
     property string batCap: "100"
     property bool isCharging: false
+    property bool isPlaying: false
     
     property int activeWs: 1
     property var activeWorkspaces: [1, 2, 3, 4, 5]
@@ -65,13 +66,18 @@ Scope {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let match = this.text().match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                let content = text()
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
                 if (match && match[1]) { 
                     root.themeBorder = "#" + match[1]
                     root.themePrimary = "#" + match[1] 
+                }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) {
+                    root.themeBackground = "#" + bgMatch[1]
                 }
             } catch (e) {}
         }
@@ -81,16 +87,14 @@ Scope {
         id: generalFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/general.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
-                let opacityMatch = content.match(/active_opacity\s*=\s*([0-9.]+)/)
-                if (opacityMatch && opacityMatch[1]) root.themeBgAlpha = parseFloat(opacityMatch[1])
             } catch (e) {}
         }
     }
@@ -122,6 +126,32 @@ Scope {
         execProcess.running = false
         execProcess.command = ["bash", "-c", "(" + cmd + ") >/dev/null 2>&1 & disown"]
         execProcess.running = true
+    }
+
+    // ============================================================
+    // MEDIA PLAYER STATUS POLLING
+    // ============================================================
+    Process {
+        id: mediaProcess
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let status = text.trim()
+                root.isPlaying = (status === "Playing")
+            }
+        }
+    }
+
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: {
+            if (!mediaProcess.running) {
+                mediaProcess.command = ["bash", "-c", "playerctl status 2>/dev/null || echo 'Stopped'"]
+                mediaProcess.running = true
+            }
+        }
     }
 
     // ============================================================
@@ -332,16 +362,40 @@ print(json.dumps({
                         onDoubleClicked: barIsland.isPinned = !barIsland.isPinned
                     }
 
-                    // 1. COLLAPSED CONTENT (TIME ONLY)
+                    // 1. COLLAPSED CONTENT (MUSIC RHYTHM + TIME)
                     Row {
                         id: collapsedRow
                         height: root.islandHeight
                         anchors.centerIn: parent
-                        spacing: 6
+                        spacing: 8
                         opacity: barIsland.isExpanded ? 0.0 : 1.0
                         visible: opacity > 0.01
 
                         Behavior on opacity { NumberAnimation { duration: style.animDuration; easing.type: Easing.InOutQuad } }
+
+                        // Collapsed 5-Bar Rhythm Visualizer (Moved to the left)
+                        Row {
+                            spacing: 2.5
+                            visible: root.isPlaying
+                            anchors.verticalCenter: parent.verticalCenter
+                            Repeater {
+                                model: 5
+                                delegate: Rectangle {
+                                    width: 2.5
+                                    height: 10
+                                    radius: 1
+                                    color: root.themePrimary
+                                    anchors.verticalCenter: parent.verticalCenter
+
+                                    SequentialAnimation on height {
+                                        running: root.isPlaying
+                                        loops: Animation.Infinite
+                                        NumberAnimation { to: 4 + ((index * 3) % 8); duration: 220 + index * 40; easing.type: Easing.InOutSine }
+                                        NumberAnimation { to: 13 - ((index * 2) % 6); duration: 280 - index * 30; easing.type: Easing.InOutSine }
+                                    }
+                                }
+                            }
+                        }
 
                         Text {
                             text: root.currentTime !== "" ? root.currentTime : "12:00 PM"
@@ -449,28 +503,56 @@ print(json.dumps({
                         }
 
                         // ==========================================
-                        // CENTER: Time & Date
+                        // CENTER: Time & Date + Music Visualizer
                         // ==========================================
                         Item {
                             id: centerBlock
                             height: parent.height
-                            implicitWidth: timeText.implicitWidth + 8
+                            implicitWidth: centerRow.implicitWidth + 8
 
-                            Text {
-                                id: timeText
-                                text: (root.currentTime !== "" ? root.currentTime : "12:00 PM") + "  •  " + (root.currentDate !== "" ? root.currentDate : "Sat, 05 Sep")
-                                color: root.themeText
-                                font.pixelSize: 13
-                                font.weight: Font.Bold
+                            Row {
+                                id: centerRow
                                 anchors.centerIn: parent
+                                spacing: 8
+
+                                // Expanded 5-Bar Rhythm Visualizer
+                                Row {
+                                    spacing: 2.5
+                                    visible: root.isPlaying
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    Repeater {
+                                        model: 5
+                                        delegate: Rectangle {
+                                            width: 3
+                                            height: 12
+                                            radius: 1.5
+                                            color: root.themePrimary
+                                            anchors.verticalCenter: parent.verticalCenter
+
+                                            SequentialAnimation on height {
+                                                running: root.isPlaying
+                                                loops: Animation.Infinite
+                                                NumberAnimation { to: 4 + ((index * 4) % 10); duration: 250 + index * 50; easing.type: Easing.InOutSine }
+                                                NumberAnimation { to: 15 - ((index * 3) % 8); duration: 300 - index * 40; easing.type: Easing.InOutSine }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    id: timeText
+                                    text: (root.currentTime !== "" ? root.currentTime : "12:00 PM") + "  •  " + (root.currentDate !== "" ? root.currentDate : "Sat, 05 Sep")
+                                    color: root.themeText
+                                    font.pixelSize: 13
+                                    font.weight: Font.Bold
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
                             }
 
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: (mouse) => {
-                                    if (mouse.button === Qt.LeftButton) root.exec("gnome-calendar")
-                                }
+                                // Removed onClicked entirely, calendar logic is gone
                                 onDoubleClicked: (mouse) => {
                                     if (mouse.button === Qt.LeftButton) barIsland.isPinned = !barIsland.isPinned
                                 }

@@ -6,15 +6,20 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("/usr/libexec/polkit-gnome-authentication-agent-1 &")
     hl.exec_cmd("awww-daemon &")
     hl.exec_cmd("waypaper --restore &")
+    
+    -- GTK and Icon Theme Settings
     hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme prefer-dark")
     hl.exec_cmd("gsettings set org.gnome.desktop.interface gtk-theme WhiteSur-Dark")
+    hl.exec_cmd("gsettings set org.gnome.desktop.interface icon-theme WhiteSur") -- < Added this line
     hl.exec_cmd("gsettings set org.gnome.desktop.wm.preferences button-layout ':,,close'")
+    
     hl.exec_cmd([[sh -c 'echo "$HOME/.config/hypr/dms/colors.lua" | entr -n "$HOME/.config/hypr/scripts/apply_preset.sh" 0 &' ]])
     
-    -- Autostart Quickshell Top Bar Widget
+    -- Autostart Quickshell Widgets
     hl.exec_cmd("quickshell -c ~/.config/hypr/quickshell/topbar/ &")
     hl.exec_cmd("quickshell -c ~/.config/hypr/quickshell/dock/ &")
     hl.exec_cmd("quickshell -c ~/.config/hypr/quickshell/desktop/ &")
+    hl.exec_cmd("quickshell -c ~/.config/hypr/quickshell/player/ &")
     hl.exec_cmd("quickshell -c ~/.config/hypr/quickshell/brightness/ &")
     hl.exec_cmd("quickshell -c ~/.config/hypr/quickshell/volume/ &")
     hl.exec_cmd("quickshell -c ~/.config/hypr/quickshell/notification/ &")

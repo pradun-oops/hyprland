@@ -5,13 +5,12 @@ import Quickshell.Hyprland
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Window
 
 Scope {
     id: root
 
     // ============================================================
-    // ADAPTIVE THEME PROPERTIES (Matched with general.lua)
+    // ADAPTIVE THEME PROPERTIES
     // ============================================================
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
@@ -20,9 +19,9 @@ Scope {
     
     property int themeRounding: 12
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.85
+    property real themeBgAlpha: 1.0
     
-    property color themeBackground: Qt.rgba(0.08, 0.08, 0.09, themeBgAlpha) 
+    property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
 
     // ============================================================
@@ -33,17 +32,19 @@ Scope {
     property bool showOSD: false
     property string lockedMon: ""
 
-    // Lock screen display to initial focused monitor on trigger (prevents cursor tracking)
-    onShowOSDChanged: {
-        if (showOSD && Hyprland.focusedMonitor) {
-            lockedMon = Hyprland.focusedMonitor.name
+    // Lock monitor once on startup to prevent cross-monitor drift
+    Component.onCompleted: {
+        root.updateAudioState()
+        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+            root.lockedMon = Hyprland.focusedMonitor.name
+        } else if (Quickshell.screens.length > 0) {
+            root.lockedMon = Quickshell.screens[0].name
         }
     }
 
-    // Smooth animated value for real-time fluid transitions
     property real animatedVolume: 0
     Behavior on animatedVolume { 
-        NumberAnimation { duration: 150; easing.type: Easing.OutCubic } 
+        NumberAnimation { duration: 120; easing.type: Easing.OutCubic } 
     }
 
     property int lastVolume: -1
@@ -56,13 +57,18 @@ Scope {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let match = this.text().match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
-                if (match && match[1]) { 
-                    root.themeBorder = "#" + match[1]
-                    root.themePrimary = "#" + match[1] 
+                let content = text()
+                let borderMatch = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                if (borderMatch && borderMatch[1]) { 
+                    root.themeBorder = "#" + borderMatch[1]
+                    root.themePrimary = "#" + borderMatch[1] 
+                }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) {
+                    root.themeBackground = "#" + bgMatch[1]
                 }
             } catch (e) {}
         }
@@ -72,25 +78,14 @@ Scope {
         id: generalFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/general.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let textContent = this.text()
+                let textContent = text()
                 let roundingMatch = textContent.match(/rounding\s*=\s*(\d+)/)
-                if (roundingMatch && roundingMatch[1]) {
-                    root.themeRounding = parseInt(roundingMatch[1])
-                }
-                let opacityMatch = textContent.match(/active_opacity\s*=\s*([0-9.]+)/)
-                if (opacityMatch && opacityMatch[1]) {
-                    root.themeBgAlpha = parseFloat(opacityMatch[1])
-                }
+                if (roundingMatch && roundingMatch[1]) root.themeRounding = parseInt(roundingMatch[1])
             } catch (e) {}
         }
-    }
-
-    Component.onCompleted: {
-        colorFile.reload();
-        generalFile.reload();
     }
 
     // ============================================================
@@ -98,13 +93,13 @@ Scope {
     // ============================================================
     Process { id: execProcess }
     function exec(cmd) {
-        execProcess.running = false;
+        execProcess.running = false
         execProcess.command = ["bash", "-c", cmd + " >/dev/null 2>&1 & disown"]
         execProcess.running = true
     }
 
     // ============================================================
-    // LIGHTWEIGHT STATE POLLING & AUTO-SHOW TRIGGER
+    // EVENT-DRIVEN AUDIO STATE MONITORING
     // ============================================================
     Timer {
         id: autoHideTimer
@@ -113,53 +108,53 @@ Scope {
         onTriggered: root.showOSD = false
     }
 
+    function updateAudioState() {
+        fetchStateProcess.running = true
+    }
+
     Process {
-        id: stateProcess
+        id: fetchStateProcess
+        command: ["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"]
         stdout: StdioCollector {
             onStreamFinished: {
-                try {
-                    let data = JSON.parse(text.trim())
-                    let newVol = data.vol
-                    let newMute = data.muted
+                let out = text.trim()
+                if (!out) return
 
-                    if (root.lastVolume !== -1 && (newVol !== root.lastVolume || newMute !== root.lastMute)) {
-                        root.showOSD = true
-                        autoHideTimer.restart()
+                let muted = out.indexOf("MUTED") !== -1
+                let vol = 0
+                let parts = out.split(/\s+/)
+                for (let i = 0; i < parts.length; i++) {
+                    if (parts[i].indexOf(".") !== -1) {
+                        vol = Math.min(100, Math.max(0, Math.round(parseFloat(parts[i]) * 100)))
+                        break
                     }
+                }
 
-                    root.lastVolume = newVol
-                    root.lastMute = newMute
-                    root.volumePct = newVol
-                    root.animatedVolume = newVol
-                    root.isMuted = newMute
-                } catch(e) {}
+                if (root.lastVolume !== -1 && (vol !== root.lastVolume || muted !== root.lastMute)) {
+                    root.showOSD = true
+                    autoHideTimer.restart()
+                }
+
+                root.lastVolume = vol
+                root.lastMute = muted
+                root.volumePct = vol
+                root.animatedVolume = vol
+                root.isMuted = muted
             }
         }
     }
 
-    Timer {
-        interval: 120
+    // PipeWire event listener replacing Python 120ms interval polling
+    Process {
+        id: pipewireEvents
+        command: ["pactl", "subscribe"]
         running: true
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: {
-            let py = `
-import subprocess, json
-try:
-    res = subprocess.run(["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"], capture_output=True, text=True, timeout=0.2)
-    out = res.stdout
-    muted = "MUTED" in out
-    vol = 0
-    for p in out.split():
-        if "." in p:
-            vol = min(100, max(0, int(float(p) * 100)))
-            break
-except:
-    vol, muted = 0, False
-print(json.dumps({"vol": vol, "muted": muted}))
-`
-            stateProcess.command = ["python3", "-c", py]
-            stateProcess.running = true
+        stdout: SplitParser {
+            onRead: data => {
+                if (data.indexOf("sink") !== -1) {
+                    root.updateAudioState()
+                }
+            }
         }
     }
 
@@ -173,15 +168,13 @@ print(json.dumps({"vol": vol, "muted": muted}))
             required property var modelData
             screen: modelData
 
-            // Lock screen display to initial trigger monitor (No active cursor tracking)
+            // Dynamic monitor lookup fallback logic
             property bool isTargetMonitor: {
-                if (root.lockedMon !== "") {
-                    return modelData.name === root.lockedMon
-                }
-                return Hyprland.focusedMonitor ? (modelData.name === Hyprland.focusedMonitor.name) : true
+                if (root.lockedMon !== "") return modelData.name === root.lockedMon
+                if (Hyprland.focusedMonitor) return modelData.name === Hyprland.focusedMonitor.name
+                return Quickshell.screens.length > 0 ? modelData.name === Quickshell.screens[0].name : true
             }
 
-            // Controls layer surface visibility to allow Hyprland blur
             visible: (root.showOSD || osdContainer.opacity > 0) && isTargetMonitor
 
             WlrLayershell.layer: WlrLayer.Overlay
@@ -189,9 +182,8 @@ print(json.dumps({"vol": vol, "muted": muted}))
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            // Fixed positioning: Right side, vertically centered by default, 30px edge distance
             anchors { right: true }
-            margins { right: 10 }
+            margins { right: 12 }
 
             implicitWidth: 72
             implicitHeight: 220
@@ -214,41 +206,31 @@ print(json.dumps({"vol": vol, "muted": muted}))
                 Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
 
-                // ============================================================
-                // MUTE TOGGLE & SCROLL VOLUME CONTROL
-                // ============================================================
                 MouseArea {
                     id: mainArea
                     anchors.fill: parent
                     hoverEnabled: true
-                    acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
                     cursorShape: containsMouse ? Qt.PointingHandCursor : Qt.ArrowCursor
 
                     onClicked: (mouse) => {
                         if (mouse.button === Qt.LeftButton) {
+                            root.isMuted = !root.isMuted
                             root.exec("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle")
                         }
-                        // Right and Middle clicks perform no action
                     }
 
                     onWheel: (wheel) => {
-                        if (wheel.angleDelta.y > 0) {
-                            root.exec("wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%+")
-                        } else if (wheel.angleDelta.y < 0) {
-                            root.exec("wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-")
-                        }
+                        let delta = wheel.angleDelta.y > 0 ? 2 : -2
+                        root.volumePct = Math.max(0, Math.min(100, root.volumePct + delta))
+                        root.animatedVolume = root.volumePct
+                        root.exec(`wpctl set-volume @DEFAULT_AUDIO_SINK@ ${Math.abs(delta)}%${delta > 0 ? "+" : "-"}`)
                     }
                 }
 
-                // Hover keeps OSD alive
                 HoverHandler {
-                    id: hoverHandler
                     onHoveredChanged: {
-                        if (hovered) {
-                            autoHideTimer.stop()
-                        } else if (root.showOSD) {
-                            autoHideTimer.restart()
-                        }
+                        if (hovered) autoHideTimer.stop()
+                        else if (root.showOSD) autoHideTimer.restart()
                     }
                 }
 
@@ -257,7 +239,6 @@ print(json.dumps({"vol": vol, "muted": muted}))
                     anchors.margins: 12
                     spacing: 8
 
-                    // Speaker Icon
                     Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: 32
@@ -271,7 +252,6 @@ print(json.dumps({"vol": vol, "muted": muted}))
                         }
                     }
 
-                    // Vertical Slider Track (Display-only)
                     Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: 8
@@ -292,7 +272,6 @@ print(json.dumps({"vol": vol, "muted": muted}))
                         }
                     }
 
-                    // Smooth Percentage Text
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: root.isMuted ? "Mute" : Math.round(Math.min(100, root.animatedVolume)) + "%"

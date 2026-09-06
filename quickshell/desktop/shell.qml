@@ -4,6 +4,7 @@ import Quickshell.Io
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 import Qt5Compat.GraphicalEffects
 
 Scope {
@@ -18,25 +19,46 @@ Scope {
 
     FileView {
         id: posConfigFile
-        path: Quickshell.env("HOME") + "/.config/quickshell/dashboard_pos.json"
+        path: Quickshell.env("HOME") + "/.config/quickshell/json/dashboard_pos.json"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let data = JSON.parse(this.text())
-                if (data.screenName !== undefined) root.savedScreenName = data.screenName
-                if (data.marginTop !== undefined) root.savedMarginTop = data.marginTop
-                if (data.marginRight !== undefined) root.savedMarginRight = data.marginRight
+                let raw = text().trim()
+                if (!raw) return
+                let data = JSON.parse(raw)
+                if (data.marginTop !== undefined && !isNaN(data.marginTop)) {
+                    root.savedMarginTop = Math.max(0, parseInt(data.marginTop))
+                }
+                if (data.marginRight !== undefined && !isNaN(data.marginRight)) {
+                    root.savedMarginRight = Math.max(0, parseInt(data.marginRight))
+                }
             } catch(e) {}
         }
     }
 
-    function savePosition(scrName, top, right) {
-        root.savedScreenName = scrName
-        root.savedMarginTop = top
-        root.savedMarginRight = right
-        let jsonStr = JSON.stringify({ screenName: scrName, marginTop: top, marginRight: right })
-        exec("mkdir -p ~/.config/quickshell && echo '" + jsonStr + "' > ~/.config/quickshell/dashboard_pos.json")
+    Process {
+        id: savePosProcess
+    }
+
+    function savePosition(top, right) {
+        let validTop = Math.max(0, Math.round(top))
+        let validRight = Math.max(0, Math.round(right))
+
+        root.savedMarginTop = validTop
+        root.savedMarginRight = validRight
+
+        let jsonDir = Quickshell.env("HOME") + "/.config/quickshell/json"
+        let jsonFile = jsonDir + "/dashboard_pos.json"
+        let jsonTmp = jsonFile + ".tmp"
+        let jsonStr = JSON.stringify({ marginTop: validTop, marginRight: validRight })
+
+        // Atomic write: Write to .tmp first, then atomically move to target file
+        let cmd = "mkdir -p '" + jsonDir + "' && echo '" + jsonStr + "' > '" + jsonTmp + "' && mv '" + jsonTmp + "' '" + jsonFile + "'"
+
+        savePosProcess.running = false
+        savePosProcess.command = ["bash", "-c", cmd]
+        savePosProcess.running = true
     }
 
     // ============================================================
@@ -47,15 +69,15 @@ Scope {
     property color themeText: "#FFFFFF"
     property color themeTextMuted: "#C5C5C5" 
     
-    // Geometry & Animation Defaults (overridden by .lua files)
+    // Geometry & Animation Defaults
     property int themeRounding: 12
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.65
+    property real themeBgAlpha: 1.0
     property bool animEnabled: true
     property int animDuration: 500
 
-    // Dynamic Colors based on blur settings
-    property color themeBackground: Qt.rgba(0.08, 0.08, 0.09, themeBgAlpha) 
+    // Dynamic Solid Colors
+    property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08) 
 
     // --- STATE PROPERTIES ---
@@ -67,7 +89,7 @@ Scope {
     property string currentTimeExact: "00:00"
 
     // --- WEATHER CONFIG & STATE ---
-    property string weatherLat: "23.3441" // Ranchi, Jharkhand
+    property string weatherLat: "23.3441" 
     property string weatherLon: "85.3096"
     
     property string currentWeatherIcon: "☁️"
@@ -85,12 +107,42 @@ Scope {
     property int diskPercent: 0
     property int gpuPercent: 0
 
-    // --- MUSIC PLAYER TELEMETRY ---
-    property string mprisTitle: "No Media Playing"
-    property string mprisArtist: ""
-    property string mprisArtUrl: ""
-    property bool mprisIsPlaying: false
-    
+    // --- TARGET MONITOR SELECTION ---
+    property string targetMonitorName: ""
+
+    // ============================================================
+    // EXTERNAL MONITOR DETECTION (HYPRLAND)
+    // ============================================================
+    Process {
+        id: monitorDetectionProcess
+        command: ["bash", "-c", "hyprctl monitors -j 2>/dev/null || echo '[]'"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    let monitors = JSON.parse(text.trim())
+                    if (monitors && monitors.length > 0) {
+                        let builtInPattern = /^eDP|^LVDS|^dsi/i
+                        let externalMon = monitors.find(m => !builtInPattern.test(m.name))
+                        
+                        if (externalMon) {
+                            root.targetMonitorName = externalMon.name
+                        } else {
+                            root.targetMonitorName = monitors[0].name
+                        }
+                    }
+                } catch(e) {}
+            }
+        }
+    }
+
+    Timer {
+        interval: 5000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: monitorDetectionProcess.running = true
+    }
+
     // ============================================================
     // CONFIG PARSERS
     // ============================================================
@@ -98,17 +150,21 @@ Scope {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
                 if (match && match[1]) {
                     let hex = "#" + match[1]
                     root.themeBorder = hex
                     root.themePrimary = hex
                 }
-            } catch (e) { console.log("Error loading theme colors: " + e) }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) {
+                    root.themeBackground = "#" + bgMatch[1]
+                }
+            } catch (e) {}
         }
     }
 
@@ -116,20 +172,15 @@ Scope {
         id: generalConfigFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/general.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
-
-                let blurMatch = content.match(/blur\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
-                if (blurMatch && blurMatch[1]) {
-                    root.themeBgAlpha = (blurMatch[1] === "true") ? 0.65 : 0.90
-                }
             } catch (e) {}
         }
     }
@@ -138,10 +189,10 @@ Scope {
         id: animConfigFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
         watchChanges: true
-        onFileChanged: this.reload()
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let content = this.text()
+                let content = text()
                 let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
 
@@ -155,7 +206,7 @@ Scope {
         colorFile.reload()
         generalConfigFile.reload()
         animConfigFile.reload()
-        posConfigFile.reload()
+        posConfigFile.reload() 
     }
 
     Process { id: execProcess }
@@ -168,45 +219,6 @@ Scope {
     // ============================================================
     // BACKGROUND PROCESSES
     // ============================================================
-    
-    Timer {
-        interval: 1500
-        running: true
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: {
-            let cmd = "playerctl metadata --format '{{title}}|{{artist}}|{{mpris:artUrl}}|{{status}}' 2>/dev/null || echo ''"
-            musicProcess.command = ["bash", "-c", cmd]
-            musicProcess.running = true
-        }
-    }
-
-    Process {
-        id: musicProcess
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let out = this.text.trim()
-                if (out === "") {
-                    root.mprisTitle = "No Media Playing"
-                    root.mprisArtist = ""
-                    root.mprisArtUrl = ""
-                    root.mprisIsPlaying = false
-                } else {
-                    let parts = out.split('|')
-                    root.mprisTitle = parts[0] || "Unknown Title"
-                    root.mprisArtist = parts[1] || "Unknown Artist"
-                    
-                    let art = parts[2] || ""
-                    if (art.startsWith("file://")) root.mprisArtUrl = art
-                    else if (art.length > 0) root.mprisArtUrl = "file://" + art
-                    else root.mprisArtUrl = ""
-                    
-                    root.mprisIsPlaying = (parts[3] === "Playing")
-                }
-            }
-        }
-    }
-
     Timer {
         interval: 1000
         running: true
@@ -234,7 +246,7 @@ Scope {
         id: statProcess
         stdout: StdioCollector {
             onStreamFinished: {
-                let parts = this.text.trim().split('|')
+                let parts = text.trim().split('|')
                 if (parts.length >= 5) {
                     root.cpuPercent = parseInt(parts[0]) || 0;
                     root.ramUsedTotal = parts[1] + " GB";
@@ -281,7 +293,7 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
     }
 
     Timer {
-        interval: 1800000 // 30 mins
+        interval: 1800000 
         running: true
         repeat: true
         triggeredOnStart: true
@@ -311,7 +323,7 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                         
                         root.currentWeatherDesc = desc;
                         root.currentWeatherIcon = icon;
-                    } catch(e) { console.log("Weather error: " + e) }
+                    } catch(e) {}
                 }
             }
             xhr.send();
@@ -328,7 +340,6 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
         
         property real animatedPercent: 0
         onPercentChanged: animatedPercent = percent
-
         onAnimatedPercentChanged: canvas.requestPaint()
 
         Behavior on animatedPercent {
@@ -387,27 +398,6 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
         }
     }
 
-    component AudioBar : Rectangle {
-        id: barItem
-        property int minH: 6
-        property int maxH: 32
-        property int dur: 300
-        
-        width: 8
-        height: minH
-        radius: 4
-        color: root.themePrimary
-        anchors.verticalCenter: parent.verticalCenter
-        
-        SequentialAnimation {
-            running: root.mprisIsPlaying
-            loops: Animation.Infinite
-            NumberAnimation { target: barItem; property: "height"; to: barItem.maxH; duration: barItem.dur; easing.type: Easing.InOutQuad }
-            NumberAnimation { target: barItem; property: "height"; to: barItem.minH; duration: barItem.dur; easing.type: Easing.InOutQuad }
-        }
-        Behavior on height { enabled: !root.mprisIsPlaying; NumberAnimation { duration: 200 } }
-    }
-
     // ============================================================
     // UI LAYOUT
     // ============================================================
@@ -419,28 +409,24 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
             required property var modelData
             screen: modelData
 
+            visible: modelData && (root.targetMonitorName === "" || modelData.name === root.targetMonitorName)
+
             WlrLayershell.layer: WlrLayer.Bottom
             WlrLayershell.namespace: "dms:desktop-widget:dashboard"
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            // WAYLAND BACKGROUND BLUR EFFECT
-            BackgroundEffect.blurRegion: Region { item: bgCard }
-
             anchors { top: true; right: true }
             margins { top: root.savedMarginTop; right: root.savedMarginRight }
 
             implicitWidth: 440
-            implicitHeight: cardLayout.implicitHeight + 40
+            implicitHeight: cardLayout.implicitHeight + 48
+            
             color: "transparent"
 
-            Rectangle {
+            Item {
                 id: bgCard
                 anchors.fill: parent
-                radius: root.themeRounding 
-                border.color: Qt.alpha(root.themePrimary, 0.4)
-                border.width: root.themeBorderSize
-                color: root.themeBackground
 
                 opacity: 0
                 Component.onCompleted: opacity = 1
@@ -448,10 +434,22 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                     NumberAnimation { duration: root.animEnabled ? root.animDuration : 0 }
                 }
 
+                // Background Shape
+                Rectangle {
+                    id: bgCardShape
+                    anchors.fill: parent
+                    radius: root.themeRounding 
+                    color: root.themeBackground
+                    border.width: root.themeBorderSize
+                    border.color: Qt.alpha(root.themePrimary, 0.4)
+                    antialiasing: true 
+                }
+
                 MouseArea {
                     anchors.fill: parent
-                    acceptedButtons: Qt.LeftButton | Qt.RightButton 
-                    cursorShape: isDragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                    acceptedButtons: Qt.LeftButton
+                    cursorShape: isDragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
+                    pressAndHoldInterval: 150 
                     
                     property real startX: 0
                     property real startY: 0
@@ -460,22 +458,29 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                     onPressed: (mouse) => {
                         startX = mouse.x
                         startY = mouse.y
-                        isDragging = true
                     }
+                    
+                    onPressAndHold: (mouse) => {
+                        isDragging = true
+                        startX = mouse.x
+                        startY = mouse.y
+                    }
+
                     onPositionChanged: (mouse) => {
                         if (isDragging) {
-                            root.savedMarginRight -= (mouse.x - startX)
-                            root.savedMarginTop += (mouse.y - startY)
+                            let dx = mouse.x - startX
+                            let dy = mouse.y - startY
+                            if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
+                                root.savedMarginRight = Math.max(0, root.savedMarginRight - dx)
+                                root.savedMarginTop = Math.max(0, root.savedMarginTop + dy)
+                            }
                         }
                     }
+                    
                     onReleased: {
                         if (isDragging) {
                             isDragging = false
-                            root.savePosition(
-                                desktopDashboard.screen ? desktopDashboard.screen.name : "default",
-                                root.savedMarginTop,
-                                root.savedMarginRight
-                            )
+                            root.savePosition(root.savedMarginTop, root.savedMarginRight)
                         }
                     }
                 }
@@ -500,6 +505,7 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                             color: root.themeSurface
                             border.color: root.themePrimary
                             border.width: root.themeBorderSize
+                            antialiasing: true
                             
                             Image {
                                 id: profilePic
@@ -527,6 +533,7 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                                 id: avatarCanvas
                                 anchors.fill: parent
                                 anchors.margins: root.themeBorderSize 
+                                antialiasing: true
                                 
                                 onImageLoaded: requestPaint()
                                 onPaint: {
@@ -570,6 +577,8 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                                 font.weight: Font.DemiBold
                             }
                         }
+                        
+                        Item { Layout.fillWidth: true } 
                     }
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: root.themeSurface }
@@ -577,6 +586,7 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                     // --- 2. CLOCK & MAIN WEATHER ---
                     RowLayout {
                         Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignTop
                         spacing: 16
 
                         ColumnLayout {
@@ -584,20 +594,22 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                             spacing: 0
                             
                             RowLayout {
+                                Layout.alignment: Qt.AlignTop
                                 spacing: 4
                                 Text {
                                     text: root.currentTimeExact
                                     color: root.themeText
                                     font.pixelSize: 48
                                     font.weight: Font.Bold
+                                    lineHeight: 0.9
                                 }
                                 Text {
                                     text: root.currentPeriod
                                     color: root.themePrimary
                                     font.pixelSize: 16
                                     font.weight: Font.Black
-                                    Layout.alignment: Qt.AlignBottom
-                                    Layout.bottomMargin: 8
+                                    Layout.alignment: Qt.AlignTop
+                                    Layout.topMargin: 8
                                 }
                             }
                             Text {
@@ -612,22 +624,26 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                         Item { Layout.fillWidth: true } 
 
                         ColumnLayout {
-                            Layout.alignment: Qt.AlignTop | Qt.AlignRight
-                            spacing: -2
+                            Layout.alignment: Qt.AlignTop
+                            spacing: 0
                             
                             RowLayout {
+                                Layout.alignment: Qt.AlignTop | Qt.AlignRight
                                 spacing: 8
                                 Text {
                                     text: root.currentWeatherIcon
                                     font.pixelSize: 32
+                                    Layout.alignment: Qt.AlignTop
                                 }
                                 ColumnLayout {
+                                    Layout.alignment: Qt.AlignTop
                                     spacing: 0
                                     Text {
                                         text: root.currentWeatherTemp + "°C"
                                         color: root.themeText
                                         font.pixelSize: 22
                                         font.weight: Font.Bold
+                                        lineHeight: 0.9
                                     }
                                     Text {
                                         text: root.currentWeatherDesc
@@ -650,208 +666,38 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                     // --- 3. WEATHER DETAILS GRID ---
                     Rectangle {
                         Layout.fillWidth: true
-                        height: 50
-                        radius: Math.max(4, root.themeRounding - 4) 
+                        implicitHeight: weatherGrid.implicitHeight + 24 
+                        radius: Math.max(6, root.themeRounding - 4) 
                         color: root.themeSurface
+                        antialiasing: true
                         
                         RowLayout {
+                            id: weatherGrid
                             anchors.fill: parent
-                            anchors.margins: 8
+                            anchors.margins: 12 
                             
                             ColumnLayout {
                                 Layout.fillWidth: true
-                                spacing: 2
-                                Text { text: "💧 Humidity"; color: root.themeTextMuted; font.pixelSize: 10; font.weight: Font.Bold; Layout.alignment: Qt.AlignHCenter }
-                                Text { text: root.currentWeatherHumidity; color: root.themeText; font.pixelSize: 12; font.weight: Font.DemiBold; Layout.alignment: Qt.AlignHCenter }
+                                spacing: 6
+                                Text { text: "💧 Humidity"; color: root.themeTextMuted; font.pixelSize: 11; font.weight: Font.Bold; Layout.alignment: Qt.AlignHCenter }
+                                Text { text: root.currentWeatherHumidity; color: root.themeText; font.pixelSize: 13; font.weight: Font.DemiBold; Layout.alignment: Qt.AlignHCenter }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true
-                                spacing: 2
-                                Text { text: "💨 Wind"; color: root.themeTextMuted; font.pixelSize: 10; font.weight: Font.Bold; Layout.alignment: Qt.AlignHCenter }
-                                Text { text: root.currentWeatherWind; color: root.themeText; font.pixelSize: 12; font.weight: Font.DemiBold; Layout.alignment: Qt.AlignHCenter }
+                                spacing: 6
+                                Text { text: "💨 Wind"; color: root.themeTextMuted; font.pixelSize: 11; font.weight: Font.Bold; Layout.alignment: Qt.AlignHCenter }
+                                Text { text: root.currentWeatherWind; color: root.themeText; font.pixelSize: 13; font.weight: Font.DemiBold; Layout.alignment: Qt.AlignHCenter }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true
-                                spacing: 2
-                                Text { text: "⏲️ Pressure"; color: root.themeTextMuted; font.pixelSize: 10; font.weight: Font.Bold; Layout.alignment: Qt.AlignHCenter }
-                                Text { text: root.currentWeatherPressure; color: root.themeText; font.pixelSize: 12; font.weight: Font.DemiBold; Layout.alignment: Qt.AlignHCenter }
+                                spacing: 6
+                                Text { text: "⏲️ Pressure"; color: root.themeTextMuted; font.pixelSize: 11; font.weight: Font.Bold; Layout.alignment: Qt.AlignHCenter }
+                                Text { text: root.currentWeatherPressure; color: root.themeText; font.pixelSize: 13; font.weight: Font.DemiBold; Layout.alignment: Qt.AlignHCenter }
                             }
                         }
                     }
 
-                    // --- 4. MUSIC PLAYER ---
-                    Rectangle {
-                        id: musicContainer
-                        Layout.fillWidth: true
-                        implicitHeight: musicLayout.implicitHeight + 24 
-                        radius: root.themeRounding - 2
-                        color: root.themeSurface
-                        border.color: Qt.alpha(root.themePrimary, 0.1)
-                        border.width: 1
-
-                        // Smooth Circular Mask Layer
-                        Rectangle {
-                            id: maskRect
-                            anchors.fill: parent
-                            radius: parent.radius
-                            color: "black"
-                            visible: false
-                        }
-
-                        // Background Album Art
-                        Image {
-                            id: bgAlbumArt
-                            anchors.fill: parent
-                            source: root.mprisArtUrl
-                            fillMode: Image.PreserveAspectCrop
-                            visible: false
-                            asynchronous: true
-                        }
-
-                        // Fast Blur Effect for Album Art
-                        FastBlur {
-                            id: albumArtBlur
-                            anchors.fill: bgAlbumArt
-                            source: bgAlbumArt
-                            radius: 32
-                            visible: false
-                        }
-
-                        // High-quality clipping for smooth rounded corners
-                        OpacityMask {
-                            anchors.fill: bgAlbumArt
-                            source: albumArtBlur
-                            maskSource: maskRect
-                            visible: root.mprisArtUrl !== ""
-                        }
-
-                        // Dark overlay to maintain readability of text and controls
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: parent.radius
-                            color: "black"
-                            opacity: root.mprisArtUrl !== "" ? 0.6 : 0.0
-                            Behavior on opacity { NumberAnimation { duration: 300 } }
-                        }
-
-                        ColumnLayout {
-                            id: musicLayout
-                            anchors.fill: parent
-                            anchors.margins: 12
-                            spacing: 16
-
-                            // TOP ROW: Centered Song Info Only
-                            RowLayout {
-                                Layout.fillWidth: true
-
-                                Item { Layout.fillWidth: true } // Left Spacer
-
-                                ColumnLayout {
-                                    spacing: 4
-                                    Layout.maximumWidth: 300 
-                                    Layout.alignment: Qt.AlignHCenter
-                                    
-                                    Text {
-                                        Layout.fillWidth: true
-                                        horizontalAlignment: Text.AlignHCenter
-                                        text: root.mprisTitle
-                                        color: root.themeText
-                                        font.pixelSize: 16
-                                        font.weight: Font.Bold
-                                        elide: Text.ElideRight
-                                    }
-                                    Text {
-                                        Layout.fillWidth: true
-                                        horizontalAlignment: Text.AlignHCenter
-                                        text: root.mprisArtist || "Unknown Artist"
-                                        color: root.themeTextMuted
-                                        font.pixelSize: 13
-                                        font.weight: Font.Medium
-                                        elide: Text.ElideRight
-                                        visible: root.mprisTitle !== "No Media Playing"
-                                    }
-                                }
-
-                                Item { Layout.fillWidth: true } // Right Spacer
-                            }
-
-                            // BOTTOM ROW: Mirrored 5-bar Rhythm & Centered Controls
-                            RowLayout {
-                                Layout.fillWidth: true
-
-                                // Left Rhythm
-                                Row {
-                                    spacing: 6
-                                    Layout.alignment: Qt.AlignVCenter
-                                    visible: root.mprisTitle !== "No Media Playing"
-                                    
-                                    AudioBar { maxH: 16; dur: 450 }
-                                    AudioBar { maxH: 24; dur: 380 }
-                                    AudioBar { maxH: 32; dur: 300 }
-                                    AudioBar { maxH: 40; dur: 250 }
-                                    AudioBar { maxH: 20; dur: 400 }
-                                }
-
-                                Item { Layout.fillWidth: true } // Left spacer
-
-                                // Centered Controls
-                                RowLayout {
-                                    spacing: 12
-                                    Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
-                                    
-                                    Rectangle {
-                                        width: 36; height: 36; radius: 18; color: "transparent"
-                                        Text { anchors.centerIn: parent; text: "⏮"; color: root.themeText; font.pixelSize: 16 }
-                                        MouseArea {
-                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.exec("playerctl previous")
-                                        }
-                                    }
-                                    
-                                    Rectangle {
-                                        width: 44; height: 44; radius: 22; color: root.themePrimary
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: root.mprisIsPlaying ? "⏸" : "▶"
-                                            color: root.themeBackground
-                                            font.pixelSize: 18
-                                            anchors.horizontalCenterOffset: root.mprisIsPlaying ? 0 : 2
-                                        }
-                                        MouseArea {
-                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.exec("playerctl play-pause")
-                                        }
-                                    }
-                                    
-                                    Rectangle {
-                                        width: 36; height: 36; radius: 18; color: "transparent"
-                                        Text { anchors.centerIn: parent; text: "⏭"; color: root.themeText; font.pixelSize: 16 }
-                                        MouseArea {
-                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.exec("playerctl next")
-                                        }
-                                    }
-                                }
-
-                                Item { Layout.fillWidth: true } // Right spacer
-
-                                // Right Rhythm (Mirrored)
-                                Row {
-                                    spacing: 6
-                                    Layout.alignment: Qt.AlignVCenter
-                                    visible: root.mprisTitle !== "No Media Playing"
-                                    
-                                    AudioBar { maxH: 20; dur: 400 }
-                                    AudioBar { maxH: 40; dur: 250 }
-                                    AudioBar { maxH: 32; dur: 300 }
-                                    AudioBar { maxH: 24; dur: 380 }
-                                    AudioBar { maxH: 16; dur: 450 }
-                                }
-                            }
-                        }
-                    }
-
-                    // --- 5. HARDWARE TELEMETRY ---
+                    // --- 4. HARDWARE TELEMETRY ---
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.topMargin: 4
