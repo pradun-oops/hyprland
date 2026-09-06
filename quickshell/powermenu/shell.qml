@@ -33,6 +33,9 @@ Scope {
     property string pendingCommand: ""
     property string lockedMonitor: ""
 
+    // Script manager path
+    property string scriptPath: Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh"
+
     // ============================================================
     // CONFIG PARSERS
     // ============================================================
@@ -105,8 +108,6 @@ Scope {
     // ============================================================
     // COMMAND EXECUTION LOGIC
     // ============================================================
-    Process { id: powerProcess }
-    
     Timer { 
         id: closeTimer
         interval: 50 
@@ -118,8 +119,12 @@ Scope {
         root.pendingCommand = cmd
         root.isClosing = true
         if (cmd !== "") {
-            powerProcess.command = ["bash", "-c", "nohup " + cmd + " >/dev/null 2>&1 &"]
-            powerProcess.running = true
+            // Environment-aware detached process spawn
+            let envPrefix = "export HYPRLAND_INSTANCE_SIGNATURE='" + (Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") || "") + "'; " +
+                             "export WAYLAND_DISPLAY='" + (Quickshell.env("WAYLAND_DISPLAY") || "") + "'; " +
+                             "export XDG_RUNTIME_DIR='" + (Quickshell.env("XDG_RUNTIME_DIR") || "") + "'; ";
+            
+            Quickshell.execDetached(["bash", "-c", envPrefix + "nohup " + cmd + " >/dev/null 2>&1 &"])
         }
         closeTimer.start()
     }
@@ -197,20 +202,16 @@ Scope {
             required property var modelData
             screen: modelData
 
-            // Determine if this specific screen is the active one
             property bool isTargetMonitor: root.lockedMonitor !== "" ? (modelData.name === root.lockedMonitor) : true
 
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-power-menu"
             
-            // FIX 1: Only request Exclusive keyboard focus on the target monitor to prevent Wayland conflicts
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            // FIX 2: Window must be visible on ALL monitors to dim them both
             visible: !root.isClosing
 
-            // Anchor to all edges to completely cover the screen (including the top bar area)
             anchors {
                 top: true
                 bottom: true
@@ -220,7 +221,7 @@ Scope {
             
             color: "transparent"
 
-            // Fullscreen Dim Overlay (Spawns on every monitor)
+            // Fullscreen Dim Overlay
             Rectangle {
                 anchors.fill: parent
                 color: "black"
@@ -236,13 +237,12 @@ Scope {
                 }
             }
 
-            // Centered Modal Container (Buttons)
+            // Centered Modal Container
             Item {
                 anchors.centerIn: parent
                 implicitWidth: powerLayout.implicitWidth + 48
                 implicitHeight: powerLayout.implicitHeight + 48
                 
-                // FIX 3: Restrict visibility of the actual buttons to ONLY the target monitor
                 visible: isTargetMonitor
                 focus: isTargetMonitor
 
@@ -270,7 +270,6 @@ Scope {
                         NumberAnimation { duration: root.animEnabled ? root.animDuration : 0; easing.type: Easing.OutBack } 
                     }
 
-                    // Prevent clicks inside card from closing menu
                     MouseArea {
                         anchors.fill: parent
                         onClicked: (mouse) => mouse.accepted = true
@@ -281,8 +280,12 @@ Scope {
                         anchors.centerIn: parent
                         spacing: 12
 
-                        PowerBtn { iconText: "󰌾"; labelText: "Lock"; cmd: "loginctl lock-session || hyprlock" }
-                        PowerBtn { iconText: "󰤄"; labelText: "Suspend"; cmd: "systemctl suspend" }
+                        // Delegates lock action to qs_dialog.sh
+                        PowerBtn { 
+                            iconText: "󰌾" 
+                            labelText: "Lock" 
+                            cmd: root.scriptPath + " lockscreen open"
+                        }
                         PowerBtn { iconText: "󰍃"; labelText: "Logout"; cmd: "loginctl terminate-user $USER" }
 
                         Rectangle { 

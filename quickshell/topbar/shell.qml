@@ -162,7 +162,6 @@ app_defs = [
     {"process": "easyeffects", "icon_names": ["easyeffects", "audio-adjust", "com.github.wwmm.easyeffects"]},
     {"process": "discord", "icon_names": ["discord", "com.discordapp.Discord"]},
     {"process": "spotify", "icon_names": ["spotify", "spotify-client", "spotify-desktop"]},
-    {"process": "blueman-applet", "icon_names": ["blueman", "bluetooth", "preferences-system-bluetooth"]},
     {"process": "telegram-desktop", "icon_names": ["telegram", "telegram-desktop", "org.telegram.desktop"]},
     {"process": "steam", "icon_names": ["steam", "com.valvesoftware.Steam"]}
 ]

@@ -3,10 +3,17 @@
 # Dynamic Quickshell Dialog Manager Script
 # Usage: ./qs_dialog.sh <dialog_name_or_path> [action: open|toggle|close]
 # Example: ./qs_dialog.sh notification open
-# Example: ./qs_dialog.sh notification-history toggle
+# Example: ./qs_dialog.sh lockscreen open
 
 DIALOG_NAME="${1:-spotlight}"
 ACTION="${2:-open}"
+
+# Ensure environment variables required by Hyprland IPC and Wayland are present
+if [ -z "$HYPRLAND_INSTANCE_SIGNATURE" ]; then
+    export HYPRLAND_INSTANCE_SIGNATURE=$(ls -t /tmp/hypr/ 2>/dev/null | head -n 1)
+fi
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
 # Base directory for all Quickshell widgets
 BASE_DIR="$HOME/.config/hypr/quickshell"
@@ -36,11 +43,20 @@ if [ -z "$PID" ]; then
     PID=$(pgrep -u "$USER" -f "quickshell.*$SHORT_PATH" | grep -v "^$$$" | grep -v "^$PPID$" | head -n 1)
 fi
 
+# Function to spawn quickshell safely completely detached
+spawn_dialog() {
+    if [ -d "$CONFIG_PATH" ]; then
+        nohup quickshell -c "$CONFIG_PATH" >/dev/null 2>&1 &
+    else
+        nohup quickshell -p "$CONFIG_PATH" >/dev/null 2>&1 &
+    fi
+}
+
 # 3. Handle Actions
 case "$ACTION" in
     open)
         if [ -z "$PID" ]; then
-            quickshell -c "$CONFIG_PATH" &
+            spawn_dialog
         fi
         ;;
     close)
@@ -52,7 +68,7 @@ case "$ACTION" in
         if [ -n "$PID" ]; then
             kill "$PID"
         else
-            quickshell -c "$CONFIG_PATH" &
+            spawn_dialog
         fi
         ;;
     *)

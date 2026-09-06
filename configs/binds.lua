@@ -18,6 +18,8 @@ hl.bind("SUPER + ALT + C", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/s
 hl.bind("SUPER + SHIFT + C", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh calendar open"))
 hl.bind("SUPER + N", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh notification-history open"))
 hl.bind("SUPER + K", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh keybinds open"))
+hl.bind("SUPER + tab", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh overview open"))
+hl.bind("SUPER + L", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh lockscreen open"))
 
 -- ============================================================
 -- AUDIO / VOLUME CONTROLS (USING WPCTL)

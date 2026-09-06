@@ -18,35 +18,84 @@ ShellRoot {
     property bool showPassword: false
     property string greetingText: "Welcome Back"
     property real shakeOffset: 0
+    property string wallpaperPath: ""
 
-    // Dynamic Theme initialized with defaults matching your Lua files
-    QtObject {
-        id: theme
-        property color activeBorder: "#a2d398"
-        property color inactiveBorder: "#42493f"
-        property real rounding: 15
-        property real activeOpacity: 0.85
+    // Clock properties
+    property string timeText: ""
+    property string dateText: ""
 
-        function parseColors(content) {
-            if (!content) return;
-            let activeMatch = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]+)\)"/);
-            if (activeMatch) activeBorder = "#" + activeMatch[1];
+    // Dynamic Theme Properties matching colors.lua & general.lua
+    property color themeBorder: "#a2d398"
+    property color themePrimary: "#a2d398"
+    property color themeBackground: "#141416"
+    property color themeText: "#ffffff"
+    property color themeTextMuted: "#a1a1aa"
+    property int themeRounding: 16
+    property int themeBorderSize: 2
 
-            let inactiveMatch = content.match(/inactive_border\s*=\s*"rgb\(([a-fA-F0-9]+)\)"/);
-            if (inactiveMatch) inactiveBorder = "#" + inactiveMatch[1];
-        }
-
-        function parseGeneral(content) {
-            if (!content) return;
-            let roundingMatch = content.match(/rounding\s*=\s*(\d+)/);
-            if (roundingMatch) rounding = parseInt(roundingMatch[1]);
-
-            let opacityMatch = content.match(/active_opacity\s*=\s*([\d.]+)/);
-            if (opacityMatch) activeOpacity = parseFloat(opacityMatch[1]);
+    // Real-time Clock Timer (AM/PM Format)
+    Timer {
+        id: clockTimer
+        interval: 1000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: {
+            let now = new Date()
+            root.timeText = Qt.formatDateTime(now, "hh:mm A")
+            root.dateText = Qt.formatDateTime(now, "dddd, MMMM d")
         }
     }
 
-    // Pick random greeting on startup
+    // Dynamic File Watchers (Live Reloading from Hyprland Lua configs)
+    FileView {
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let borderMatch = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (borderMatch && borderMatch[1]) { 
+                    root.themeBorder = "#" + borderMatch[1]
+                    root.themePrimary = "#" + borderMatch[1] 
+                }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) {
+                    root.themeBackground = "#" + bgMatch[1]
+                }
+            } catch (e) {}
+        }
+    }
+
+    FileView {
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/general.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let rMatch = content.match(/rounding\s*=\s*(\d+)/)
+                if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
+                let bMatch = content.match(/border_size\s*=\s*(\d+)/)
+                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+            } catch (e) {}
+        }
+    }
+
+    // Dynamic Wallpaper Fetcher
+    Process {
+        id: fetchWpProcess
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let res = text.trim()
+                if (res && res.length > 0) {
+                    root.wallpaperPath = res
+                }
+            }
+        }
+    }
+
     Component.onCompleted: {
         let greetings = [
             "Welcome back, Pradun!",
@@ -56,21 +105,57 @@ ShellRoot {
             "System Locked — Standing By"
         ];
         greetingText = greetings[Math.floor(Math.random() * greetings.length)];
-    }
 
-    // Dynamic File Watchers (Live Reloading from your Lua config files)
-    FileView {
-        path: "/home/pradun/.config/hypr/configs/colors.lua"
-        watchChanges: true
-        onFileChanged: reload()
-        onLoaded: theme.parseColors(text())
-    }
+        let pyScript = `
+import subprocess, os
 
-    FileView {
-        path: "/home/pradun/.config/hypr/configs/general.lua"
-        watchChanges: true
-        onFileChanged: reload()
-        onLoaded: theme.parseGeneral(text())
+def get_wallpaper():
+    try:
+        out = subprocess.check_output("swww query 2>/dev/null", shell=True, text=True)
+        for line in out.splitlines():
+            for chunk in line.split():
+                clean = chunk.strip(",'\\"")
+                if clean.startswith("/") and os.path.isfile(clean):
+                    return clean
+    except Exception: pass
+
+    try:
+        out = subprocess.check_output("hyprctl hyprpaper listactive 2>/dev/null", shell=True, text=True)
+        for line in out.splitlines():
+            if "=" in line:
+                p = line.split("=")[1].strip()
+                if os.path.isfile(p): return p
+            elif "/" in line and os.path.isfile(line.strip()):
+                return line.strip()
+    except Exception: pass
+
+    try:
+        wp_cfg = os.path.expanduser("~/.config/waypaper/config.ini")
+        if os.path.isfile(wp_cfg):
+            with open(wp_cfg, "r") as f:
+                for line in f:
+                    if line.startswith("wallpaper"):
+                        p = line.split("=")[1].strip().replace("~", os.path.expanduser("~"))
+                        if os.path.isfile(p): return p
+    except Exception: pass
+
+    home = os.path.expanduser("~")
+    for p in [
+        os.path.join(home, ".cache", "current_wallpaper"),
+        os.path.join(home, ".config", "hypr", "wallpaper"),
+        os.path.join(home, "Pictures", "wallpaper.jpg"),
+        os.path.join(home, "Pictures", "wallpaper.png")
+    ]:
+        if os.path.exists(p):
+            real_p = os.path.realpath(p)
+            if os.path.isfile(real_p): return real_p
+
+    return ""
+
+print(get_wallpaper())
+`
+        fetchWpProcess.command = ["python3", "-c", pyScript]
+        fetchWpProcess.running = true
     }
 
     // Shake animation for failed authentication
@@ -87,8 +172,8 @@ ShellRoot {
     // Success animation before exiting lockscreen
     ParallelAnimation {
         id: successAnimation
-        NumberAnimation { target: cardContainer; property: "scale"; to: 1.08; duration: 280; easing.type: Easing.OutBack }
-        NumberAnimation { target: cardContainer; property: "opacity"; to: 0; duration: 250; easing.type: Easing.OutCubic }
+        NumberAnimation { target: authSection; property: "scale"; to: 1.08; duration: 280; easing.type: Easing.OutBack }
+        NumberAnimation { target: authSection; property: "opacity"; to: 0; duration: 250; easing.type: Easing.OutCubic }
         onFinished: root.unlockAndQuit()
     }
 
@@ -102,7 +187,7 @@ ShellRoot {
         if (!pwd || pwd.length === 0) return;
         root.pendingPassword = pwd
         root.authStatus = "Authenticating..."
-        root.authStatusColor = theme.activeBorder
+        root.authStatusColor = root.themeBorder
 
         if (pam.active) {
             pam.abort()
@@ -114,12 +199,6 @@ ShellRoot {
             root.authStatusColor = "#ff6b6b"
             shakeAnimation.start()
         }
-    }
-
-    // Global Emergency Exit Shortcut (Esc Key)
-    Shortcut {
-        sequences: ["Esc", "Escape"]
-        onActivated: root.unlockAndQuit()
     }
 
     // Wayland Session Lock
@@ -135,85 +214,110 @@ ShellRoot {
                 Image {
                     id: bgWallpaper
                     anchors.fill: parent
-                    source: "file:///home/pradun/Pictures/wallpaper.jpg"
+                    source: root.wallpaperPath !== "" ? "file://" + root.wallpaperPath : ""
                     fillMode: Image.PreserveAspectCrop
-                    visible: true
-
-                    onStatusChanged: {
-                        if (status === Image.Error) {
-                            if (source.toString() === "file:///home/pradun/Pictures/wallpaper.jpg") {
-                                source = "file:///home/pradun/Pictures/wallpaper.png"
-                            } else if (source.toString() === "file:///home/pradun/Pictures/wallpaper.png") {
-                                source = "file:///home/pradun/.config/hypr/wallpaper"
-                            }
-                        }
-                    }
+                    asynchronous: true
+                    cache: false
+                    visible: status === Image.Ready
                 }
 
-                // Blur Effect applied to Wallpaper
+                // Blur & Contrast Effect on Wallpaper
                 MultiEffect {
-                    anchors.fill: bgWallpaper
+                    anchors.fill: parent
                     source: bgWallpaper
                     blurEnabled: true
-                    blur: 1.0
-                    blurMax: 48
-                    brightness: -0.12
-                    saturation: 0.15
+                    blur: 0.5
+                    blurMax: 32
+                    brightness: -0.05
+                    saturation: 0.1
+                    visible: bgWallpaper.status === Image.Ready
                 }
 
-                // Dark Glass Overlay
+                // Fallback background if wallpaper loading fails
                 Rectangle {
                     anchors.fill: parent
-                    color: Qt.rgba(0.05, 0.07, 0.08, 0.55)
+                    color: root.themeBackground
+                    visible: bgWallpaper.status !== Image.Ready
                 }
 
-                // Card Center Container
-                Item {
-                    id: cardWrapper
+                // Dark Dim Overlay
+                Rectangle {
+                    anchors.fill: parent
+                    color: "black"
+                    opacity: 0.55
+                }
+
+                // Main Centered Content Stack
+                ColumnLayout {
                     anchors.centerIn: parent
-                    width: 350
-                    height: 440
+                    spacing: 20
 
-                    Rectangle {
-                        id: cardContainer
-                        anchors.fill: parent
+                    // ELEGANT CLOCK & DATE DISPLAY (AM/PM Format)
+                    ColumnLayout {
+                        Layout.alignment: Qt.AlignHCenter
+                        spacing: 2
+
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: root.timeText
+                            color: root.themeText
+                            font.pixelSize: 76
+                            font.bold: true
+                            style: Text.Outline
+                            styleColor: Qt.rgba(0, 0, 0, 0.4)
+                        }
+
+                        Text {
+                            Layout.alignment: Qt.AlignHCenter
+                            text: root.dateText
+                            color: root.themeBorder
+                            font.pixelSize: 17
+                            font.weight: Font.DemiBold
+                            style: Text.Outline
+                            styleColor: Qt.rgba(0, 0, 0, 0.4)
+                        }
+                    }
+
+                    Item { Layout.preferredHeight: 8 }
+
+                    // Outer Greeting Text
+                    Text {
+                        Layout.alignment: Qt.AlignHCenter
+                        text: root.greetingText
+                        color: Qt.alpha(root.themeText, 0.9)
+                        font.pixelSize: 22
+                        font.weight: Font.Medium
+                        style: Text.Outline
+                        styleColor: Qt.rgba(0, 0, 0, 0.5)
+                    }
+
+                    // Seamless User Auth Section (No outer card container)
+                    Item {
+                        id: authSection
+                        Layout.alignment: Qt.AlignHCenter
+                        width: 320
+                        implicitHeight: authLayout.implicitHeight
                         x: root.shakeOffset
-                        radius: theme.rounding
-                        color: Qt.rgba(0.08, 0.1, 0.09, theme.activeOpacity)
-                        border.color: theme.activeBorder
-                        border.width: 2
-
-                        Behavior on radius { NumberAnimation { duration: 200 } }
-                        Behavior on border.color { ColorAnimation { duration: 200 } }
 
                         ColumnLayout {
+                            id: authLayout
                             anchors.fill: parent
-                            anchors.margins: 28
                             spacing: 16
 
-                            // Greeting Text Header
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: root.greetingText
-                                color: Qt.rgba(1, 1, 1, 0.75)
-                                font.pixelSize: 13
-                                font.weight: Font.Medium
-                            }
-
-                            // Circular Profile Picture Container
+                            // Circular Profile Picture
                             ClippingRectangle {
                                 Layout.alignment: Qt.AlignHCenter
                                 width: 96
                                 height: 96
                                 radius: width / 2
                                 color: Qt.rgba(1, 1, 1, 0.05)
-                                border.color: theme.activeBorder
-                                border.width: 2
+                                border.color: root.themeBorder
+                                border.width: root.themeBorderSize
 
                                 Text {
                                     anchors.centerIn: parent
                                     text: "P"
-                                    color: theme.activeBorder
+                                    color: root.themeBorder
                                     font.pixelSize: 40
                                     font.bold: true
                                     visible: userAvatar.status !== Image.Ready
@@ -222,16 +326,17 @@ ShellRoot {
                                 Image {
                                     id: userAvatar
                                     anchors.fill: parent
-                                    source: "file:///home/pradun/.face"
+                                    source: "file://" + Quickshell.env("HOME") + "/.face"
                                     fillMode: Image.PreserveAspectCrop
                                     smooth: true
                                     visible: status === Image.Ready
 
                                     onStatusChanged: {
                                         if (status === Image.Error) {
-                                            if (source.toString() === "file:///home/pradun/.face") {
-                                                source = "file:///home/pradun/.face.icon"
-                                            } else if (source.toString() === "file:///home/pradun/.face.icon") {
+                                            let home = Quickshell.env("HOME");
+                                            if (source.toString() === "file://" + home + "/.face") {
+                                                source = "file://" + home + "/.face.icon"
+                                            } else if (source.toString() === "file://" + home + "/.face.icon") {
                                                 source = "file:///var/lib/AccountsService/icons/pradun"
                                             }
                                         }
@@ -243,21 +348,23 @@ ShellRoot {
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
                                 text: "pradun"
-                                color: "#ffffff"
+                                color: root.themeText
                                 font.pixelSize: 22
                                 font.bold: true
+                                style: Text.Outline
+                                styleColor: Qt.rgba(0, 0, 0, 0.4)
                             }
 
-                            Item { Layout.preferredHeight: 4 }
+                            Item { Layout.preferredHeight: 2 }
 
-                            // Password Input Container
+                            // Password Input Field
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 46
-                                radius: theme.rounding
-                                color: Qt.rgba(0, 0, 0, 0.45)
-                                border.color: passwordField.activeFocus ? theme.activeBorder : theme.inactiveBorder
-                                border.width: 2
+                                radius: Math.max(8, root.themeRounding - 6)
+                                color: Qt.rgba(0, 0, 0, 0.5)
+                                border.color: passwordField.activeFocus ? root.themeBorder : Qt.alpha(root.themeBorder, 0.3)
+                                border.width: root.themeBorderSize
 
                                 Behavior on border.color { ColorAnimation { duration: 150 } }
                                 Behavior on radius { NumberAnimation { duration: 200 } }
@@ -265,25 +372,18 @@ ShellRoot {
                                 TextField {
                                     id: passwordField
                                     anchors.fill: parent
-                                    anchors.leftMargin: 12
+                                    anchors.leftMargin: 14
                                     anchors.rightMargin: 42
                                     echoMode: root.showPassword ? TextInput.Normal : TextInput.Password
                                     placeholderText: "Enter password..."
-                                    placeholderTextColor: "#70ffffff"
-                                    color: "#ffffff"
+                                    placeholderTextColor: Qt.alpha(root.themeTextMuted, 0.7)
+                                    color: root.themeText
                                     font.pixelSize: 14
                                     verticalAlignment: Text.AlignVCenter
                                     focus: true
                                     background: null
 
                                     onAccepted: root.attemptAuth(passwordField.text)
-
-                                    Keys.onPressed: (event) => {
-                                        if (event.key === Qt.Key_Escape) {
-                                            root.unlockAndQuit()
-                                            event.accepted = true
-                                        }
-                                    }
                                 }
 
                                 // Password Eye Show/Hide Toggle
@@ -298,7 +398,7 @@ ShellRoot {
                                         anchors.centerIn: parent
                                         text: root.showPassword ? "👁" : "🔒"
                                         font.pixelSize: 15
-                                        color: eyeMouseArea.containsMouse ? theme.activeBorder : "#90ffffff"
+                                        color: eyeMouseArea.containsMouse ? root.themeBorder : Qt.alpha(root.themeText, 0.6)
 
                                         Behavior on color { ColorAnimation { duration: 150 } }
                                     }
@@ -320,6 +420,8 @@ ShellRoot {
                                 color: root.authStatusColor
                                 font.pixelSize: 12
                                 opacity: text.length > 0 ? 1 : 0
+                                style: Text.Outline
+                                styleColor: Qt.rgba(0, 0, 0, 0.4)
 
                                 Behavior on opacity { NumberAnimation { duration: 150 } }
                             }
@@ -344,7 +446,7 @@ ShellRoot {
         onCompleted: (result) => {
             if (result === PamResult.Success) {
                 root.authStatus = "Success"
-                root.authStatusColor = theme.activeBorder
+                root.authStatusColor = root.themeBorder
                 successAnimation.start()
             } else {
                 root.pendingPassword = ""
