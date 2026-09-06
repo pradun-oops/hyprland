@@ -342,6 +342,13 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
         onPercentChanged: animatedPercent = percent
         onAnimatedPercentChanged: canvas.requestPaint()
 
+        // TLP Traffic Light Protocol Color Logic
+        function getTlpColor(val) {
+            if (val < 60) return "#4ade80"       // Green (Low usage: < 60%)
+            if (val < 85) return "#facc15"       // Yellow (Medium usage: 60% - 84%)
+            return "#f87171"                     // Red (High usage: >= 85%)
+        }
+
         Behavior on animatedPercent {
             NumberAnimation {
                 duration: root.animEnabled ? root.animDuration : 0
@@ -363,16 +370,18 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                 var centerY = height / 2;
                 var radius = Math.min(width, height) / 2 - 5;
                 
+                // Track / Background Ring
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
                 ctx.lineWidth = 6;
                 ctx.strokeStyle = root.themeSurface;
                 ctx.stroke();
                 
+                // Active Fill Ring with TLP Color
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, radius, -Math.PI / 2, -Math.PI / 2 + (2 * Math.PI * Math.min(Math.max(gaugeRoot.animatedPercent / 100, 0), 1)));
                 ctx.lineWidth = 6;
-                ctx.strokeStyle = root.themePrimary;
+                ctx.strokeStyle = gaugeRoot.getTlpColor(gaugeRoot.animatedPercent);
                 ctx.lineCap = "round";
                 ctx.stroke();
             }

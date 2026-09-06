@@ -6,6 +6,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
+import QtQuick.Effects
 
 Scope {
     id: root
@@ -601,7 +602,6 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
 
                                     // Same border radius as the main modal container
                                     radius: root.themeRounding
-                                    clip: true
 
                                     property bool isSelected: index === root.selectedIndex
                                     property bool isActiveWs: modelData.isActive
@@ -618,21 +618,43 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
 
                                     color: root.themeBackground
 
-                                    // Background Wallpaper
-                                    Image {
+                                    // 1. Wallpaper & Dimming Overlay Source Container
+                                    Item {
+                                        id: cardBgSource
                                         anchors.fill: parent
-                                        source: root.wallpaperPath !== "" ? "file://" + root.wallpaperPath : ""
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                        cache: true
-                                        visible: status === Image.Ready
+                                        visible: false
+
+                                        Image {
+                                            anchors.fill: parent
+                                            source: root.wallpaperPath !== "" ? "file://" + root.wallpaperPath : ""
+                                            fillMode: Image.PreserveAspectCrop
+                                            asynchronous: true
+                                            cache: true
+                                        }
+
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            color: "#000000"
+                                            opacity: 0.25
+                                        }
                                     }
 
-                                    // Subtle dark overlay to improve text legibility
+                                    // 2. Rounded Mask with matching themeRounding
                                     Rectangle {
+                                        id: cardBgMask
                                         anchors.fill: parent
-                                        color: "#000000"
-                                        opacity: 0.25
+                                        radius: root.themeRounding
+                                        color: "black"
+                                        visible: false
+                                        layer.enabled: true
+                                    }
+
+                                    // 3. MultiEffect applying the rounded corner mask
+                                    MultiEffect {
+                                        anchors.fill: parent
+                                        source: cardBgSource
+                                        maskEnabled: true
+                                        maskSource: cardBgMask
                                     }
 
                                     // Card Content (Title, Active Tag, Window Icons)
