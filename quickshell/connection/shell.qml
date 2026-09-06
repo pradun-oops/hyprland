@@ -1,7 +1,6 @@
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
-import Quickshell.Hyprland
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -375,7 +374,7 @@ print(json.dumps(get_net()))
     }
 
     // ============================================================
-    // CENTERED MODAL NETWORK DIALOG
+    // TOP RIGHT NETWORK DIALOG
     // Direct binding to targetDisplay eliminates cursor-tracking.
     // ============================================================
     PanelWindow {
@@ -401,9 +400,12 @@ print(json.dumps(get_net()))
             onClicked: Qt.quit()
         }
 
-        // Centered Outer Wrapper with Smooth Edge Anti-Aliasing Layer
+        // Top-Right Positioned Container
         Item {
-            anchors.centerIn: parent
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.topMargin: 60
+            anchors.rightMargin: 20
             implicitWidth: 430
             implicitHeight: 640
             focus: true

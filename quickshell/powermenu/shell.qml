@@ -90,7 +90,7 @@ Scope {
     }
 
     Component.onCompleted: { 
-        if (Hyprland.focusedMonitor) {
+        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
             root.lockedMonitor = Hyprland.focusedMonitor.name
         } else if (Quickshell.screens.length > 0) {
             root.lockedMonitor = Quickshell.screens[0].name
@@ -197,13 +197,20 @@ Scope {
             required property var modelData
             screen: modelData
 
+            // Determine if this specific screen is the active one
+            property bool isTargetMonitor: root.lockedMonitor !== "" ? (modelData.name === root.lockedMonitor) : true
+
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-power-menu"
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+            
+            // FIX 1: Only request Exclusive keyboard focus on the target monitor to prevent Wayland conflicts
+            WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            exclusiveZone: -1
 
-            visible: !root.isClosing && (root.lockedMonitor !== "" ? (modelData.name === root.lockedMonitor) : true)
+            // FIX 2: Window must be visible on ALL monitors to dim them both
+            visible: !root.isClosing
 
-            // Fullscreen backdrop to catch outside clicks
+            // Anchor to all edges to completely cover the screen (including the top bar area)
             anchors {
                 top: true
                 bottom: true
@@ -211,23 +218,37 @@ Scope {
                 right: true
             }
             
-            // Set to transparent so Hyprland ignore_alpha ignores the backdrop
             color: "transparent"
 
-            // Mouse click outside card closes dialog
-            MouseArea {
+            // Fullscreen Dim Overlay (Spawns on every monitor)
+            Rectangle {
                 anchors.fill: parent
-                onClicked: root.dismissMenu()
+                color: "black"
+                opacity: root.isClosing ? 0 : (root.isOpened ? 0.6 : 0.0)
+
+                Behavior on opacity { 
+                    NumberAnimation { duration: root.animEnabled ? root.animDuration : 0; easing.type: Easing.OutCubic } 
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: root.dismissMenu()
+                }
             }
 
-            // Centered Modal Container
+            // Centered Modal Container (Buttons)
             Item {
                 anchors.centerIn: parent
                 implicitWidth: powerLayout.implicitWidth + 48
                 implicitHeight: powerLayout.implicitHeight + 48
-                focus: true
+                
+                // FIX 3: Restrict visibility of the actual buttons to ONLY the target monitor
+                visible: isTargetMonitor
+                focus: isTargetMonitor
 
-                Component.onCompleted: forceActiveFocus()
+                Component.onCompleted: {
+                    if (isTargetMonitor) forceActiveFocus()
+                }
                 Keys.onEscapePressed: root.dismissMenu()
 
                 Rectangle {

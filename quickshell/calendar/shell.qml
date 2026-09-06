@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
+import Quickshell.Hyprland
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls
@@ -17,7 +18,7 @@ Scope {
     property color themeBorder: "#a2d398"
     property color themeText: "#FFFFFF"
     property color themeTextMuted: "#8E8E93"
-    property color themeAccent: "#f5a97f" // New color for personal tasks/todos
+    property color themeAccent: "#f5a97f" // Color for personal tasks/todos
     property int themeRounding: 15
     property int themeBorderSize: 2
 
@@ -64,6 +65,7 @@ Scope {
 
     property var userEvents: ({})
     property var apiEvents: ({})
+    property string targetMonitorName: ""
 
     // Built-in Static Map for Major Indian National Holidays & Festivals
     property var indianStaticHolidays: ({
@@ -127,6 +129,23 @@ Scope {
 
     Component.onCompleted: {
         fetchIndianHolidays(displayedDate.getFullYear())
+        
+        // Monitor selection logic: Prefer external monitor, else focused, else first available
+        let externalMon = ""
+        for (let i = 0; i < Quickshell.screens.length; i++) {
+            if (Quickshell.screens[i].name !== "eDP-1" && Quickshell.screens[i].name.indexOf("eDP") === -1) {
+                externalMon = Quickshell.screens[i].name
+                break
+            }
+        }
+        
+        if (externalMon !== "") {
+            root.targetMonitorName = externalMon
+        } else if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+            root.targetMonitorName = Hyprland.focusedMonitor.name
+        } else if (Quickshell.screens.length > 0) {
+            root.targetMonitorName = Quickshell.screens[0].name
+        }
     }
 
     // Load custom user todos
@@ -219,10 +238,18 @@ Scope {
             required property var modelData
             screen: modelData
 
+            // Identify if this instance is running on the target monitor
+            property bool isTargetMonitor: modelData.name === root.targetMonitorName
+
+            // Only make it visible on the correct monitor
+            visible: isTargetMonitor
+
             // Render on top of other applications
             WlrLayershell.layer: WlrLayer.Top
             WlrLayershell.namespace: "dms:desktop-widget:calendar"
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.OnDemand
+            
+            // Only capture keyboard focus if it's the target monitor
+            WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
             exclusiveZone: -1
 
             // Layer-shell anchors: snap to the top, automatically center horizontally
@@ -234,7 +261,6 @@ Scope {
                 top: 50
             }
 
-            // FIXED: Using implicit properties removes the warnings and prevents the white tint!
             implicitWidth: mainCard.width
             implicitHeight: mainCard.height
             color: "transparent"
@@ -438,7 +464,7 @@ Scope {
                         Repeater {
                             model: 42
                             delegate: Rectangle {
-                                id: dayCell // FIXED: Added ID to make references easier
+                                id: dayCell
                                 width: 48
                                 height: 48
                                 radius: 12
@@ -466,7 +492,6 @@ Scope {
                                                : (dayCell.dayInfo.isCurrent ? root.themeText : Qt.rgba(1.0, 1.0, 1.0, 0.25))
                                     }
 
-                                    // FIXED: Differentiate between Holiday and Task dots
                                     Row {
                                         Layout.alignment: Qt.AlignHCenter
                                         spacing: 3
@@ -545,7 +570,6 @@ Scope {
 
                                         Text {
                                             text: modelData.type === "holiday" ? ("🇮🇳 " + modelData.text) : ("• " + modelData.text)
-                                            // Make the text color of tasks match the new accent dot
                                             color: modelData.type === "holiday" ? root.themePrimary : root.themeText
                                             font.pixelSize: 12
                                             font.weight: modelData.type === "holiday" ? Font.Bold : Font.Normal

@@ -31,44 +31,82 @@ Scope {
     property color themeTextMuted: "#A1A1AA"
     property color themePrimary: "#ffb3af"        
 
-    // Full Complete Shortcuts List
+    // Full Complete Shortcuts List synchronized with binds.lua
     property var fullKeybindsList: [
-        { category: "Launchers & Widgets", keys: "SUPER + K", desc: "Keybinds Cheatsheet" },
-        { category: "Launchers & Widgets", keys: "SUPER + Space", desc: "Spotlight Search" },
-        { category: "Launchers & Widgets", keys: "SUPER + Return", desc: "Terminal (Kitty)" },
-        { category: "Launchers & Widgets", keys: "SUPER + B", desc: "Zen Browser" },
-        { category: "Launchers & Widgets", keys: "SUPER + E", desc: "File Manager" },
-        { category: "Launchers & Widgets", keys: "SUPER + C", desc: "VSCodium" },
-        { category: "Launchers & Widgets", keys: "SUPER + V", desc: "Clipboard History" },
-        { category: "Launchers & Widgets", keys: "SUPER + X", desc: "Power Menu" },
-        { category: "Launchers & Widgets", keys: "SUPER + N", desc: "Notification Center" },
-        { category: "Launchers & Widgets", keys: "SUPER + I", desc: "Connections" },
-        { category: "Launchers & Widgets", keys: "SUPER + ,", desc: "System Settings" },
-        { category: "Launchers & Widgets", keys: "SUPER + TAB", desc: "Overview" },
+        // Screenshots & Recording
+        { category: "Screenshots & Recording", keys: "Print", desc: "Screenshot Active Window" },
+        { category: "Screenshots & Recording", keys: "CTRL + Print", desc: "Screenshot Selected Area" },
+        { category: "Screenshots & Recording", keys: "ALT + Print", desc: "Screenshot Fullscreen" },
+        { category: "Screenshots & Recording", keys: "SUPER + SHIFT + R", desc: "Record Screen (Full)" },
+        { category: "Screenshots & Recording", keys: "SUPER + CTRL + R", desc: "Record Screen (Area)" },
 
-        { category: "Window Management", keys: "SUPER + Q", desc: "Close Active Window" },
-        { category: "Window Management", keys: "SUPER + F", desc: "Toggle Maximize" },
+        // Widget Toggles & Launchers
+        { category: "Widgets & Launchers", keys: "SUPER + Space", desc: "Spotlight Search" },
+        { category: "Widgets & Launchers", keys: "SUPER + X", desc: "Power Menu" },
+        { category: "Widgets & Launchers", keys: "SUPER + I", desc: "Connections" },
+        { category: "Widgets & Launchers", keys: "SUPER + ALT + C", desc: "Toggle Control Center" },
+        { category: "Widgets & Launchers", keys: "SUPER + SHIFT + C", desc: "Calendar Widget" },
+        { category: "Widgets & Launchers", keys: "SUPER + N", desc: "Notification History" },
+        { category: "Widgets & Launchers", keys: "SUPER + K", desc: "Keybinds Cheatsheet" },
+
+        // Audio & Media Controls
+        { category: "Audio & Media", keys: "XF86AudioRaiseVolume", desc: "Raise Volume" },
+        { category: "Audio & Media", keys: "XF86AudioLowerVolume", desc: "Lower Volume" },
+        { category: "Audio & Media", keys: "XF86AudioMute", desc: "Toggle Audio Mute" },
+        { category: "Audio & Media", keys: "XF86AudioMicMute", desc: "Toggle Mic Mute" },
+        { category: "Audio & Media", keys: "XF86AudioPlay", desc: "Play / Pause Media" },
+        { category: "Audio & Media", keys: "XF86AudioNext", desc: "Next Track" },
+        { category: "Audio & Media", keys: "XF86AudioPrev", desc: "Previous Track" },
+
+        // Brightness Controls
+        { category: "Brightness", keys: "XF86MonBrightnessUp", desc: "Laptop Brightness Up" },
+        { category: "Brightness", keys: "XF86MonBrightnessDown", desc: "Laptop Brightness Down" },
+        { category: "Brightness", keys: "ALT + XF86MonBrightnessUp", desc: "External Monitor Brightness Up" },
+        { category: "Brightness", keys: "ALT + XF86MonBrightnessDown", desc: "External Monitor Brightness Down" },
+        { category: "Brightness", keys: "SUPER + ALT + space", desc: "Toggle Backlight" },
+
+        // Application Launchers
+        { category: "Application Launchers", keys: "SUPER + Return", desc: "Terminal (Kitty)" },
+        { category: "Application Launchers", keys: "SUPER + B", desc: "Zen Browser" },
+        { category: "Application Launchers", keys: "SUPER + E", desc: "File Manager (Nautilus)" },
+        { category: "Application Launchers", keys: "SUPER + C", desc: "VSCodium" },
+        { category: "Application Launchers", keys: "SUPER + O", desc: "VirtualBox Manager" },
+        { category: "Application Launchers", keys: "SUPER + W", desc: "Waypaper" },
+        { category: "Application Launchers", keys: "SUPER + A", desc: "EasyEffects" },
+        { category: "Application Launchers", keys: "SUPER + T", desc: "Floating Terminal" },
+
+        // System & Session Commands
+        { category: "System & Session", keys: "SUPER + Q", desc: "Close Active Window" },
+        { category: "System & Session", keys: "SUPER + SHIFT + E", desc: "Exit Hyprland Session" },
+        { category: "System & Session", keys: "SUPER + SHIFT + P", desc: "Toggle DPMS (Screen Sleep)" },
+        { category: "System & Session", keys: "SUPER + ALT + R", desc: "Reload Hyprland" },
+
+        // Window Management & Layouts
+        { category: "Window Management", keys: "SUPER + F", desc: "Toggle Maximized" },
         { category: "Window Management", keys: "SUPER + SHIFT + F", desc: "Toggle Fullscreen" },
-        { category: "Window Management", keys: "SUPER + SHIFT + T", desc: "Toggle Floating" },
         { category: "Window Management", keys: "SUPER + R", desc: "Toggle Split Direction" },
-        { category: "Window Management", keys: "SUPER + H / J / L", desc: "Focus Left / Down / Right" },
+        { category: "Window Management", keys: "SUPER + SHIFT + T", desc: "Toggle Floating" },
+        { category: "Window Management", keys: "SUPER + H / J / K / L", desc: "Focus Direction (Left/Down/Up/Right)" },
+        { category: "Window Management", keys: "ALT + TAB", desc: "Cycle Next Window" },
         { category: "Window Management", keys: "SUPER + SHIFT + H / J / K / L", desc: "Move Window Directionally" },
         { category: "Window Management", keys: "SUPER + - / =", desc: "Resize Horizontal" },
         { category: "Window Management", keys: "SUPER + SHIFT + - / =", desc: "Resize Vertical" },
+        { category: "Window Management", keys: "SUPER + Mouse Click (272)", desc: "Move Window (Mouse)" },
+        { category: "Window Management", keys: "SUPER + Mouse Click (273)", desc: "Resize Window (Mouse)" },
 
-        { category: "Workspaces & Navigation", keys: "SUPER + 1..0", desc: "Switch Workspace 1 to 10" },
-        { category: "Workspaces & Navigation", keys: "SUPER + SHIFT + 1..0", desc: "Move Window to Workspace" },
-        { category: "Workspaces & Navigation", keys: "SUPER + S", desc: "Toggle Special Workspace" },
-        { category: "Workspaces & Navigation", keys: "SUPER + CTRL + H / L", desc: "Focus Left / Right Monitor" },
-        { category: "Workspaces & Navigation", keys: "SUPER + CTRL + SHIFT + H / L", desc: "Move Window to Monitor" },
+        // Multi-Monitor Controls
+        { category: "Multi-Monitor", keys: "SUPER + CTRL + H / L", desc: "Focus Left / Right Monitor" },
+        { category: "Multi-Monitor", keys: "SUPER + CTRL + SHIFT + H / L", desc: "Move Window to Monitor" },
 
-        { category: "Media & Utilities", keys: "Print", desc: "Screenshot Active Window" },
-        { category: "Media & Utilities", keys: "CTRL + Print", desc: "Screenshot Selected Area" },
-        { category: "Media & Utilities", keys: "ALT + Print", desc: "Screenshot Fullscreen" },
-        { category: "Media & Utilities", keys: "SUPER + SHIFT + R", desc: "Record Screen (Full)" },
-        { category: "Media & Utilities", keys: "SUPER + SHIFT + C", desc: "Record Screen (Area)" },
-        { category: "Media & Utilities", keys: "SUPER + ALT + L", desc: "Lock Screen" },
-        { category: "Media & Utilities", keys: "SUPER + ALT + R", desc: "Reload Hyprland" }
+        // Workspace Navigation
+        { category: "Workspaces", keys: "SUPER + CTRL + J / K", desc: "Switch Workspace Next / Prev" },
+        { category: "Workspaces", keys: "SUPER + Mouse Scroll", desc: "Cycle Workspaces (Mouse Wheel)" },
+        { category: "Workspaces", keys: "SUPER + S", desc: "Toggle Special Workspace ('super')" },
+        { category: "Workspaces", keys: "SUPER + SHIFT + S", desc: "Move Window to Special Workspace" },
+        { category: "Workspaces", keys: "SUPER + 1..10", desc: "Switch to Workspace 1 to 10" },
+        { category: "Workspaces", keys: "SUPER + SHIFT + 1..10", desc: "Move Window to Workspace 1 to 10" },
+        { category: "Workspaces", keys: "SUPER + SHIFT + G", desc: "Update GDM Script" },
+        { category: "Workspaces", keys: "SUPER + ALT + 1..9", desc: "Apply Preset 1 to 9" }
     ]
 
     property var activeKeybinds: []

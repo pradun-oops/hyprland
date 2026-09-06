@@ -341,7 +341,8 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
             required property var modelData
             screen: modelData
 
-            visible: modelData && (root.targetMonitorName === "" || modelData.name === root.targetMonitorName)
+            // FIXED: Stays visible when paused (not stopped), hides only when completely stopped or no media player is active
+            visible: root.mediaStatus.toLowerCase() !== "stopped" && root.mediaTitle !== "No media playing" && modelData && (root.targetMonitorName === "" || modelData.name === root.targetMonitorName)
 
             WlrLayershell.layer: WlrLayer.Bottom
             WlrLayershell.namespace: "dms:desktop-widget:player"
@@ -354,7 +355,7 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                 left: root.windowX
             }
 
-            implicitWidth: 420
+            implicitWidth: 437
             implicitHeight: 320
             color: "transparent"
 

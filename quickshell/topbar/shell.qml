@@ -56,6 +56,9 @@ Scope {
     property int activeWs: 1
     property var activeWorkspaces: [1, 2, 3, 4, 5]
 
+    // Running background apps list
+    property var runningAppsList: []
+
     property int barY: 5 
     property int islandHeight: 36
 
@@ -126,6 +129,76 @@ Scope {
         execProcess.running = false
         execProcess.command = ["bash", "-c", "(" + cmd + ") >/dev/null 2>&1 & disown"]
         execProcess.running = true
+    }
+
+    // ============================================================
+    // ROBUST BACKGROUND APP ICON RESOLVER & POLLING
+    // ============================================================
+    Process {
+        id: runningAppsProcess
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    let data = JSON.parse(text.trim())
+                    if (Array.isArray(data)) {
+                        root.runningAppsList = data
+                    }
+                } catch(e) {}
+            }
+        }
+    }
+
+    Timer {
+        interval: 1500
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: {
+            if (!runningAppsProcess.running) {
+                let py = `
+import subprocess, json, os, glob
+
+app_defs = [
+    {"process": "easyeffects", "icon_names": ["easyeffects", "audio-adjust", "com.github.wwmm.easyeffects"]},
+    {"process": "discord", "icon_names": ["discord", "com.discordapp.Discord"]},
+    {"process": "spotify", "icon_names": ["spotify", "spotify-client", "spotify-desktop"]},
+    {"process": "blueman-applet", "icon_names": ["blueman", "bluetooth", "preferences-system-bluetooth"]},
+    {"process": "telegram-desktop", "icon_names": ["telegram", "telegram-desktop", "org.telegram.desktop"]},
+    {"process": "steam", "icon_names": ["steam", "com.valvesoftware.Steam"]}
+]
+
+def get_icon_path(icon_names):
+    for name in icon_names:
+        for ext in ['.png', '.svg', '.xpm']:
+            p = f"/usr/share/pixmaps/{name}{ext}"
+            if os.path.exists(p):
+                return "file://" + p
+        for root_dir in ["/usr/share/icons/hicolor", "/usr/share/icons/Adwaita", "/usr/share/icons/Papirus", "/usr/share/icons/breeze"]:
+            for ext in ['png', 'svg']:
+                found = glob.glob(f"{root_dir}/**/{name}.{ext}", recursive=True)
+                if found:
+                    return "file://" + found[0]
+        for ext in ['png', 'svg']:
+            found = glob.glob(f"/usr/share/icons/*/*/*/*/{name}.{ext}", recursive=True)
+            if found:
+                return "file://" + found[0]
+    return ""
+
+running = []
+for app in app_defs:
+    try:
+        res = subprocess.run(["pgrep", "-x", app["process"]], stdout=subprocess.PIPE)
+        if res.returncode == 0:
+            ipath = get_icon_path(app["icon_names"])
+            running.append({"process": app["process"], "icon": ipath})
+    except:
+        pass
+print(json.dumps(running))
+`
+                runningAppsProcess.command = ["python3", "-c", py]
+                runningAppsProcess.running = true
+            }
+        }
     }
 
     // ============================================================
@@ -373,7 +446,7 @@ print(json.dumps({
 
                         Behavior on opacity { NumberAnimation { duration: style.animDuration; easing.type: Easing.InOutQuad } }
 
-                        // Collapsed 5-Bar Rhythm Visualizer (Moved to the left)
+                        // Collapsed 5-Bar Rhythm Visualizer
                         Row {
                             spacing: 2.5
                             visible: root.isPlaying
@@ -425,7 +498,7 @@ print(json.dumps({
                             height: parent.height
                             spacing: style.moduleSpacing
 
-                            // Workspaces
+                            // Workspaces (Display Only - No Click/Switch Logic)
                             Row {
                                 height: root.islandHeight
                                 spacing: 4
@@ -449,12 +522,6 @@ print(json.dumps({
                                             font.pixelSize: 11
                                             font.weight: Font.Bold
                                             anchors.centerIn: parent
-                                        }
-
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.exec("hyprctl dispatch workspace " + modelData)
                                         }
                                     }
                                 }
@@ -552,7 +619,11 @@ print(json.dumps({
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                // Removed onClicked entirely, calendar logic is gone
+                                onClicked: (mouse) => {
+                                    if (mouse.button === Qt.LeftButton) {
+                                        root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh calendar open")
+                                    }
+                                }
                                 onDoubleClicked: (mouse) => {
                                     if (mouse.button === Qt.LeftButton) barIsland.isPinned = !barIsland.isPinned
                                 }
@@ -568,7 +639,7 @@ print(json.dumps({
                         }
 
                         // ==========================================
-                        // RIGHT SIDE: Temp, Volume, Battery
+                        // RIGHT SIDE: Temp, Volume, Battery + Background Apps Drawer + Action Buttons
                         // ==========================================
                         Row {
                             id: rightRow
@@ -608,7 +679,7 @@ print(json.dumps({
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
-                            // Volume Container (Fixed width reserved)
+                            // Volume Container (Scroll wheel capped at 100% max)
                             Item {
                                 height: root.islandHeight
                                 width: 56
@@ -628,6 +699,15 @@ print(json.dumps({
                                         if (mouse.button === Qt.RightButton) root.exec("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle")
                                         else root.exec("pavucontrol")
                                     }
+                                    onWheel: (wheel) => {
+                                        if (wheel.angleDelta.y > 0) {
+                                            if (root.volumePct < 100) {
+                                                root.exec("wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+")
+                                            }
+                                        } else {
+                                            root.exec("wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%-")
+                                        }
+                                    }
                                 }
                             }
 
@@ -636,7 +716,7 @@ print(json.dumps({
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
-                            // Battery Container (Fixed width reserved)
+                            // Battery Container (Fixed power profile cycle logic with string cleanup)
                             Item {
                                 height: root.islandHeight
                                 width: 56
@@ -650,8 +730,152 @@ print(json.dumps({
 
                                 MouseArea {
                                     anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.exec("gnome-power-statistics")
+                                    onClicked: (mouse) => {
+                                        if (mouse.button === Qt.LeftButton) {
+                                            root.exec("gnome-power-statistics")
+                                        }
+                                    }
+                                    onDoubleClicked: (mouse) => {
+                                        if (mouse.button === Qt.RightButton) {
+                                            let profileCmd = "curr=$(powerprofilesctl get 2>/dev/null | tr -d '[:space:]' || echo 'balanced'); " +
+                                                             "if [ \"$curr\" = \"balanced\" ]; then next='performance'; " +
+                                                             "elif [ \"$curr\" = \"performance\" ]; then next='power-saver'; " +
+                                                             "else next='balanced'; fi; " +
+                                                             "powerprofilesctl set $next && notify-send 'Power Profile' \"Switched to $next\" -t 2000"
+                                            root.exec(profileCmd)
+                                        }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                width: 1; height: 14; color: style.separatorColor
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: root.runningAppsList.length > 0
+                            }
+
+                            // ==========================================
+                            // RUNNING BACKGROUND APPS DRAWER (HOVER TO EXPAND)
+                            // ==========================================
+                            Item {
+                                id: appsDrawer
+                                height: root.islandHeight
+                                width: root.runningAppsList.length > 0 ? (appsHover.hovered ? appsRow.implicitWidth + 32 : 24) : 0
+                                visible: root.runningAppsList.length > 0
+                                anchors.verticalCenter: parent.verticalCenter
+
+                                Behavior on width {
+                                    NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                                }
+
+                                HoverHandler { id: appsHover }
+
+                                Row {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 6
+                                    x: 4
+
+                                    // Expand Arrow Indicator
+                                    Text {
+                                        text: appsHover.hovered ? "󰁔" : "󰁍"
+                                        color: root.themePrimary
+                                        font.pixelSize: 13
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+
+                                    // App Icons Row (Revealed on hover)
+                                    Row {
+                                        id: appsRow
+                                        spacing: 6
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        opacity: appsHover.hovered ? 1.0 : 0.0
+                                        visible: opacity > 0.01
+
+                                        Behavior on opacity { NumberAnimation { duration: 180 } }
+
+                                        Repeater {
+                                            model: root.runningAppsList
+                                            delegate: Item {
+                                                width: 20; height: 20
+                                                anchors.verticalCenter: parent.verticalCenter
+
+                                                Image {
+                                                    anchors.centerIn: parent
+                                                    width: 16; height: 16
+                                                    source: modelData.icon
+                                                    fillMode: Image.PreserveAspectFit
+                                                    smooth: true
+                                                }
+
+                                                MouseArea {
+                                                    anchors.fill: parent
+                                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: (mouse) => {
+                                                        if (mouse.button === Qt.RightButton) {
+                                                            root.exec("pkill -x " + modelData.process)
+                                                        } else {
+                                                            root.exec(modelData.process)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                width: 1; height: 14; color: style.separatorColor
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+
+                            // ==========================================
+                            // EXTRA ACTION BUTTONS (Network & Power)
+                            // ==========================================
+                            Row {
+                                height: root.islandHeight
+                                spacing: 8
+                                anchors.verticalCenter: parent.verticalCenter
+
+                                // 1. Network Button
+                                Item {
+                                    width: 24; height: 24
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰖩"
+                                        color: root.themePrimary
+                                        font.pixelSize: 15
+                                    }
+                                    MouseArea {
+                                        id: netMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh connection open")
+                                    }
+                                }
+
+                                // 2. Power Button
+                                Item {
+                                    width: 24; height: 24
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰐥"
+                                        color: pwrBarMouse.containsMouse ? "#FF453A" : root.themePrimary
+                                        font.pixelSize: 15
+                                    }
+                                    MouseArea {
+                                        id: pwrBarMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh powermenu open")
+                                    }
                                 }
                             }
                         }

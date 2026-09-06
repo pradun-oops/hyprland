@@ -14,13 +14,9 @@ Scope {
     property string lockedMonitor: ""
 
     // --- STRICT MONITOR PINNING LOGIC ---
-    // 1. External Monitor (HDMI, DisplayPort, Type-C) if connected
-    // 2. Hyprland Focused Monitor if no external monitor exists
-    // 3. Fallback to Primary Screen
     function updateTargetMonitor() {
         if (Quickshell.screens.length === 0) return
 
-        // Search for connected external monitors (ignoring internal laptop screens like eDP or LVDS)
         let external = Quickshell.screens.find(s => !s.name.startsWith("eDP") && !s.name.startsWith("LVDS"))
         
         if (external) {
@@ -32,7 +28,6 @@ Scope {
         }
     }
 
-    // Automatically react to display plugin/unplug events
     Connections {
         target: Quickshell
         function onScreensChanged() {
@@ -40,7 +35,6 @@ Scope {
         }
     }
 
-    // React if Hyprland updates focused monitor (only takes effect if no external screen is present)
     Connections {
         target: Hyprland
         function onFocusedMonitorChanged() {
@@ -53,7 +47,7 @@ Scope {
     property int themeBorderSize: 2
     property real themeBgAlpha: 1.0
     property bool animEnabled: true
-    property int animDuration: 250       
+    property int animDuration: 220       
 
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08)    
@@ -117,7 +111,7 @@ Scope {
 
                 let winInMatch = content.match(/leaf\s*=\s*"windowsIn"[\s\S]*?speed\s*=\s*([0-9.]+)/)
                 if (winInMatch && winInMatch[1]) {
-                    root.animDuration = Math.round(parseFloat(winInMatch[1]) * 45)
+                    root.animDuration = Math.round(parseFloat(winInMatch[1]) * 40)
                 }
             } catch (e) {}
         }
@@ -350,22 +344,22 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                 border.color: Qt.alpha(root.themeBorder, 0.35)
                 color: root.themeBackground
 
-                scale: root.isLoaded ? 1.0 : 0.95
+                scale: root.isLoaded ? 1.0 : 0.96
                 opacity: root.isLoaded ? 1.0 : 0.0
 
                 Behavior on scale {
                     enabled: root.animEnabled
                     NumberAnimation {
                         duration: root.animDuration
-                        easing.type: Easing.OutExpo
+                        easing.type: Easing.OutCubic
                     }
                 }
 
                 Behavior on opacity {
                     enabled: root.animEnabled
                     NumberAnimation { 
-                        duration: Math.round(root.animDuration * 0.7)
-                        easing.type: Easing.OutQuad 
+                        duration: root.animDuration
+                        easing.type: Easing.OutCubic
                     }
                 }
 
@@ -417,7 +411,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                             Keys.onDownPressed: (event) => {
                                 if (resultsList.count > 0) {
-                                    resultsList.currentIndex = (resultsList.currentIndex + 1) % resultsList.count
+                                    resultsList.currentIndex = Math.min(resultsList.currentIndex + 1, resultsList.count - 1)
                                     resultsList.positionViewAtIndex(resultsList.currentIndex, ListView.Contain)
                                 }
                                 event.accepted = true
@@ -425,7 +419,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                             Keys.onUpPressed: (event) => {
                                 if (resultsList.count > 0) {
-                                    resultsList.currentIndex = (resultsList.currentIndex - 1 + resultsList.count) % resultsList.count
+                                    resultsList.currentIndex = Math.max(resultsList.currentIndex - 1, 0)
                                     resultsList.positionViewAtIndex(resultsList.currentIndex, ListView.Contain)
                                 }
                                 event.accepted = true
@@ -476,7 +470,32 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         Layout.fillWidth: true
                         height: 1
                         color: Qt.alpha(root.themeBorder, 0.20)
-                        visible: searchResultsModel.count > 0
+                        visible: searchResultsModel.count > 0 || searchInput.text.trim() !== ""
+                    }
+
+                    // 3. NO RESULTS ALERT VIEW
+                    Item {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 56
+                        visible: searchResultsModel.count === 0 && searchInput.text.trim() !== ""
+
+                        RowLayout {
+                            anchors.centerIn: parent
+                            spacing: 8
+
+                            Text {
+                                text: "󰅚"
+                                color: root.themeTextMuted
+                                font.pixelSize: 16
+                            }
+
+                            Text {
+                                text: "No results found for \"" + searchInput.text + "\""
+                                color: root.themeTextMuted
+                                font.pixelSize: 13
+                                font.weight: Font.Medium
+                            }
+                        }
                     }
 
                     // 2. RESULTS LISTVIEW
@@ -531,7 +550,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                     enabled: root.animEnabled
                                     NumberAnimation { 
                                         duration: 180 
-                                        easing.type: Easing.OutBack
+                                        easing.type: Easing.OutCubic
                                     }
                                 }
                                 Behavior on opacity {

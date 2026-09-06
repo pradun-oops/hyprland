@@ -22,10 +22,17 @@ Scope {
     property int themeBorderSize: 1
     property real themeBgAlpha: 1.0
     property bool animEnabled: true
-    property int animDuration: 220 
+    property int animDuration: 120 
     
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
+
+    Process { id: rootExecProcess }
+    function exec(cmd) {
+        rootExecProcess.running = false
+        rootExecProcess.command = ["bash", "-c", cmd + " >/dev/null 2>&1 & disown"]
+        rootExecProcess.running = true
+    }
 
     // ============================================================
     // PERSISTENCE & PINNED APPS MODEL (FILE-BASED)
@@ -137,8 +144,6 @@ Scope {
                 let content = text()
                 let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
-                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
-                if (speedMatch && speedMatch[1]) root.animDuration = parseFloat(speedMatch[1]) * 80
             } catch (e) {}
         }
     }
@@ -207,7 +212,7 @@ Scope {
             
             Timer {
                 id: dockHideTimer
-                interval: 1000 
+                interval: 800 
                 repeat: false
                 onTriggered: {
                     if (!dockWindow.anyHovered) {
@@ -429,7 +434,7 @@ except Exception:
                     Behavior on anchors.bottomMargin { 
                         NumberAnimation { 
                             duration: root.animEnabled ? root.animDuration : 0
-                            easing.type: Easing.OutCubic 
+                            easing.type: Easing.OutCubic // Smooth non-springy movement
                         } 
                     }
                     
@@ -471,6 +476,65 @@ except Exception:
                         anchors.centerIn: parent
                         spacing: 8
                         z: 10
+
+                        // 0. APP LAUNCHER GRID ICON (LEFTMOST - 3x3 DOT GRID STYLE)
+                        Item {
+                            width: 52
+                            height: 52
+
+                            scale: launcherMouse.containsMouse ? 1.15 : 1.0
+                            Behavior on scale { 
+                                NumberAnimation { 
+                                    duration: root.animEnabled ? 120 : 0
+                                    easing.type: Easing.OutCubic // Completely non-springy smooth scale
+                                } 
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 16
+                                color: "#27272a"
+                                border.width: 1
+                                border.color: Qt.alpha("#ffffff", 0.15)
+
+                                // 3x3 App Drawer Grid Dots
+                                Grid {
+                                    anchors.centerIn: parent
+                                    columns: 3
+                                    rows: 3
+                                    spacing: 5
+                                    Repeater {
+                                        model: 9
+                                        delegate: Rectangle {
+                                            width: 5
+                                            height: 5
+                                            radius: 2.5
+                                            color: root.themePrimary
+                                        }
+                                    }
+                                }
+                            }
+
+                            MouseArea {
+                                id: launcherMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh spotlight open")
+                                }
+                            }
+                        }
+
+                        // GLASS SEPARATOR AFTER LAUNCHER
+                        Rectangle {
+                            Layout.preferredWidth: 2
+                            Layout.preferredHeight: 40
+                            radius: 1
+                            color: Qt.alpha(root.themeBorder, 0.25)
+                            Layout.leftMargin: 2
+                            Layout.rightMargin: 2
+                        }
 
                         // 1. PINNED APPS
                         ListView {
@@ -518,11 +582,11 @@ except Exception:
                                             return count
                                         }
 
-                                        scale: itemMouse.containsMouse && !Drag.active ? 1.25 : (Drag.active ? 1.10 : 1.0)
+                                        scale: itemMouse.containsMouse && !Drag.active ? 1.15 : (Drag.active ? 1.05 : 1.0)
                                         Behavior on scale { 
                                             NumberAnimation { 
-                                                duration: root.animEnabled ? 170 : 0
-                                                easing.type: Easing.OutBack 
+                                                duration: root.animEnabled ? 120 : 0
+                                                easing.type: Easing.OutCubic // Non-springy scale
                                             } 
                                         }
 
@@ -587,7 +651,7 @@ except Exception:
                                                 }
                                             }
 
-                                            // SINGLE LEFT CLICK -> LAUNCH APP (RIGHT CLICK DOES NOTHING)
+                                            // SINGLE LEFT CLICK -> LAUNCH APP
                                             onClicked: (mouse) => {
                                                 if (mouse.button === Qt.LeftButton && !itemMouse.dragActive) {
                                                     dockWindow.launchApp(model)
@@ -636,11 +700,11 @@ except Exception:
                                     width: 64
                                     height: 64
                                     
-                                    scale: unpinnedMouse.containsMouse ? 1.25 : 1.0
+                                    scale: unpinnedMouse.containsMouse ? 1.15 : 1.0
                                     Behavior on scale { 
                                         NumberAnimation { 
-                                            duration: root.animEnabled ? 170 : 0
-                                            easing.type: Easing.OutBack 
+                                            duration: root.animEnabled ? 120 : 0
+                                            easing.type: Easing.OutCubic // Non-springy scale
                                         } 
                                     }
 
@@ -678,7 +742,7 @@ except Exception:
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         
-                                        // SINGLE LEFT CLICK -> LAUNCH APP (RIGHT CLICK DOES NOTHING)
+                                        // SINGLE LEFT CLICK -> LAUNCH APP
                                         onClicked: (mouse) => {
                                             if (mouse.button === Qt.LeftButton) {
                                                 dockWindow.launchApp(modelData)

@@ -195,7 +195,7 @@ Scope {
     }
 
     // ============================================================
-    // CENTERED MODAL NOTIFICATION CENTER DIALOG
+    // TOP RIGHT NOTIFICATION CENTER DIALOG
     // ============================================================
     Variants {
         model: Quickshell.screens
@@ -227,9 +227,12 @@ Scope {
                 onClicked: Qt.quit()
             }
 
-            // Centered Modal Container
+            // Top-Right Positioned Container
             Item {
-                anchors.centerIn: parent
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.topMargin: 60
+                anchors.rightMargin: 20
                 implicitWidth: 430
                 implicitHeight: 640
                 focus: true

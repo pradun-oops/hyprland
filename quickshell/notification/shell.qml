@@ -261,6 +261,11 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
             implicitHeight: popupList.contentHeight
             color: "transparent"
 
+            // Smoothly animate the total window height so Hyprland's blur doesn't jitter
+            Behavior on implicitHeight {
+                NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+            }
+
             ListView {
                 id: popupList
                 anchors.fill: parent
@@ -268,129 +273,146 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                 spacing: 10
                 interactive: false
 
+                // FIXED: Removed the Y overlap animation. Now scales and fades in cleanly.
                 add: Transition {
-                    NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 220; easing.type: Easing.OutCubic }
-                    NumberAnimation { property: "y"; from: -20; to: 0; duration: 250; easing.type: Easing.OutBack }
-                }
-                remove: Transition {
-                    NumberAnimation { property: "opacity"; to: 0; duration: 180; easing.type: Easing.OutQuad }
-                    NumberAnimation { property: "scale"; to: 0.92; duration: 180; easing.type: Easing.OutQuad }
-                }
-
-                delegate: Rectangle {
-                    id: card
-                    width: popupList.width
-                    height: cardContent.implicitHeight + 20
-                    radius: root.themeRounding
-                    color: root.themeBackground
-                    border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themeBorder, 0.45)
-                    clip: true
-
-                    // Auto-dismissal timer (4 seconds)
-                    Timer {
-                        interval: 4000
-                        running: true
-                        onTriggered: root.closePopup(localPopupModel, model.notifId)
+                    ParallelAnimation {
+                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 250; easing.type: Easing.OutCubic }
+                        NumberAnimation { property: "scale"; from: 0.85; to: 1; duration: 250; easing.type: Easing.OutBack }
                     }
+                }
+                
+                remove: Transition {
+                    ParallelAnimation {
+                        NumberAnimation { property: "opacity"; to: 0; duration: 200; easing.type: Easing.OutQuad }
+                        NumberAnimation { property: "scale"; to: 0.85; duration: 200; easing.type: Easing.OutQuad }
+                    }
+                }
+                
+                // FIXED: Automatically slides existing notifications down smoothly without overlapping
+                displaced: Transition {
+                    NumberAnimation { properties: "x,y"; duration: 250; easing.type: Easing.OutCubic }
+                }
 
-                    RowLayout {
-                        id: cardContent
-                        anchors {
-                            left: parent.left
-                            right: parent.right
-                            top: parent.top
-                            margins: 10
+                delegate: Item {
+                    // Wrapper to keep the ListView spacing intact during scale animations
+                    width: popupList.width
+                    height: card.height
+
+                    Rectangle {
+                        id: card
+                        width: parent.width
+                        height: cardContent.implicitHeight + 20
+                        radius: root.themeRounding
+                        color: root.themeBackground
+                        border.width: root.themeBorderSize
+                        border.color: Qt.alpha(root.themeBorder, 0.45)
+                        clip: true
+
+                        // Auto-dismissal timer (4 seconds)
+                        Timer {
+                            interval: 4000
+                            running: true
+                            onTriggered: root.closePopup(localPopupModel, model.notifId)
                         }
-                        spacing: 12
 
-                        // Modern Accent Icon Badge
-                        Rectangle {
-                            Layout.preferredWidth: 38
-                            Layout.preferredHeight: 38
-                            Layout.alignment: Qt.AlignVCenter
-                            radius: 12
-                            color: Qt.alpha(root.themePrimary, 0.12)
-                            border.width: 1
-                            border.color: Qt.alpha(root.themePrimary, 0.25)
+                        RowLayout {
+                            id: cardContent
+                            anchors {
+                                left: parent.left
+                                right: parent.right
+                                top: parent.top
+                                margins: 10
+                            }
+                            spacing: 12
 
-                            Text {
-                                anchors.centerIn: parent
-                                text: {
-                                    let app = model.appName.toLowerCase()
-                                    let sum = model.summary.toLowerCase()
-                                    if (app.includes("grim") || sum.includes("screenshot")) return "󰄄"
-                                    if (app.includes("discord") || app.includes("vesktop")) return "󰙯"
-                                    if (app.includes("spotify") || app.includes("music")) return "󰓇"
-                                    if (app.includes("terminal") || app.includes("foot") || app.includes("kitty")) return "󰞷"
-                                    return "󰂚"
+                            // Modern Accent Icon Badge
+                            Rectangle {
+                                Layout.preferredWidth: 38
+                                Layout.preferredHeight: 38
+                                Layout.alignment: Qt.AlignVCenter
+                                radius: 12
+                                color: Qt.alpha(root.themePrimary, 0.12)
+                                border.width: 1
+                                border.color: Qt.alpha(root.themePrimary, 0.25)
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: {
+                                        let app = model.appName.toLowerCase()
+                                        let sum = model.summary.toLowerCase()
+                                        if (app.includes("grim") || sum.includes("screenshot")) return "󰄄"
+                                        if (app.includes("discord") || app.includes("vesktop")) return "󰙯"
+                                        if (app.includes("spotify") || app.includes("music")) return "󰓇"
+                                        if (app.includes("terminal") || app.includes("foot") || app.includes("kitty")) return "󰞷"
+                                        return "󰂚"
+                                    }
+                                    color: root.themePrimary
+                                    font.pixelSize: 18
                                 }
-                                color: root.themePrimary
-                                font.pixelSize: 18
                             }
-                        }
 
-                        // Compact Info Layout
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            Layout.alignment: Qt.AlignVCenter
-                            spacing: 2
-
-                            Text {
-                                text: model.appName.toUpperCase()
-                                color: root.themePrimary
-                                font.pixelSize: 9
-                                font.weight: Font.Bold
-                                font.letterSpacing: 0.8
+                            // Compact Info Layout
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                elide: Text.ElideRight
+                                Layout.alignment: Qt.AlignVCenter
+                                spacing: 2
+
+                                Text {
+                                    text: model.appName.toUpperCase()
+                                    color: root.themePrimary
+                                    font.pixelSize: 9
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 0.8
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                }
+
+                                Text {
+                                    text: model.summary
+                                    color: root.themeText
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                }
+
+                                Text {
+                                    visible: model.body !== ""
+                                    text: model.body
+                                    color: root.themeTextMuted
+                                    font.pixelSize: 11
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 2
+                                }
                             }
 
-                            Text {
-                                text: model.summary
-                                color: root.themeText
-                                font.pixelSize: 13
-                                font.weight: Font.DemiBold
-                                Layout.fillWidth: true
-                                elide: Text.ElideRight
-                                maximumLineCount: 1
-                            }
+                            // Close Button
+                            Rectangle {
+                                id: closeBtn
+                                Layout.preferredWidth: 24
+                                Layout.preferredHeight: 24
+                                Layout.alignment: Qt.AlignTop
+                                radius: 12
+                                color: closeMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
 
-                            Text {
-                                visible: model.body !== ""
-                                text: model.body
-                                color: root.themeTextMuted
-                                font.pixelSize: 11
-                                Layout.fillWidth: true
-                                elide: Text.ElideRight
-                                maximumLineCount: 2
-                            }
-                        }
+                                Behavior on color { ColorAnimation { duration: 150 } }
 
-                        // Close Button
-                        Rectangle {
-                            id: closeBtn
-                            Layout.preferredWidth: 24
-                            Layout.preferredHeight: 24
-                            Layout.alignment: Qt.AlignTop
-                            radius: 12
-                            color: closeMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰅖"
+                                    color: closeMouse.containsMouse ? root.themeText : root.themeTextMuted
+                                    font.pixelSize: 12
+                                }
 
-                            Behavior on color { ColorAnimation { duration: 150 } }
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: "󰅖"
-                                color: closeMouse.containsMouse ? root.themeText : root.themeTextMuted
-                                font.pixelSize: 12
-                            }
-
-                            MouseArea {
-                                id: closeMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: root.closePopup(localPopupModel, model.notifId)
+                                MouseArea {
+                                    id: closeMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.closePopup(localPopupModel, model.notifId)
+                                }
                             }
                         }
                     }
