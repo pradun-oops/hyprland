@@ -14,6 +14,8 @@ case "$1" in
         ;;
     "area")
         # Selected region
+        # The sleep command prevents the Wayland grab lock issue with the compositor
+        sleep 0.2 
         GEOM=$(slurp)
         [ -z "$GEOM" ] && exit 0
         grim -g "$GEOM" "$FILENAME"

@@ -41,9 +41,13 @@ Scope {
         }
     }
 
+    // Relaxed, ultra-smooth volume interpolation curve
     property real animatedVolume: 0
     Behavior on animatedVolume { 
-        NumberAnimation { duration: 120; easing.type: Easing.OutCubic } 
+        NumberAnimation { 
+            duration: 380
+            easing.type: Easing.OutQuint 
+        } 
     }
 
     property int lastVolume: -1
@@ -131,7 +135,6 @@ Scope {
 
                 if (root.lastVolume !== -1 && (vol !== root.lastVolume || muted !== root.lastMute)) {
                     root.showOSD = true
-                    // Capture the monitor where the cursor/focus is right when the OSD triggers
                     if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
                         root.lockedMon = Hyprland.focusedMonitor.name
                     } else if (Quickshell.screens.length > 0) {
@@ -172,7 +175,6 @@ Scope {
             required property var modelData
             screen: modelData
 
-            // Dynamic lookup with fallback logic: if lockedMon is invalid/disconnected, fallback gracefully
             property bool isTargetMonitor: {
                 let target = root.lockedMon;
                 let activeScreen = Quickshell.screens.find(s => s.name === target);
@@ -207,11 +209,30 @@ Scope {
                 clip: true
 
                 opacity: root.showOSD ? 1.0 : 0.0
-                scale: root.showOSD ? 1.0 : 0.95
+                scale: root.showOSD ? 1.0 : 0.90
                 enabled: root.showOSD
 
-                Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                // Smooth slide offset transition
+                transform: Translate {
+                    x: root.showOSD ? 0 : 16
+                    Behavior on x { 
+                        NumberAnimation { duration: 380; easing.type: Easing.OutQuint } 
+                    }
+                }
+
+                // Smooth Container Entry / Exit Animations
+                Behavior on opacity { 
+                    NumberAnimation { duration: 320; easing.type: Easing.OutCubic } 
+                }
+                Behavior on scale { 
+                    NumberAnimation { duration: 380; easing.type: Easing.OutQuint } 
+                }
+                Behavior on color { 
+                    ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                }
+                Behavior on border.color { 
+                    ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                }
 
                 MouseArea {
                     id: mainArea
@@ -246,19 +267,32 @@ Scope {
                     anchors.margins: 12
                     spacing: 8
 
+                    // ICON CONTAINER
                     Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: 32
                         Layout.preferredHeight: 32
                         
                         Text {
+                            id: iconText
                             anchors.centerIn: parent
                             text: root.isMuted ? "󰖁" : (root.volumePct > 50 ? "󰕾" : (root.volumePct > 0 ? "󰖀" : "󰝟"))
                             color: root.isMuted ? "#FF453A" : root.themePrimary
                             font.pixelSize: 22
+
+                            // Dynamic pulse effect on mute / state changes
+                            scale: root.isMuted ? 0.92 : (mainArea.containsMouse ? 1.08 : 1.0)
+
+                            Behavior on color { 
+                                ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                            }
+                            Behavior on scale { 
+                                NumberAnimation { duration: 350; easing.type: Easing.OutQuint } 
+                            }
                         }
                     }
 
+                    // SLIDER TRACK & FILL
                     Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: 8
@@ -269,22 +303,38 @@ Scope {
                             radius: 4
                             color: root.themeSurface
 
+                            Behavior on color { 
+                                ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                            }
+
                             Rectangle {
+                                id: fillBar
                                 width: parent.width
                                 height: parent.height * (root.isMuted ? 0 : Math.min(100, root.animatedVolume) / 100)
                                 anchors.bottom: parent.bottom
                                 radius: parent.radius
                                 color: root.isMuted ? "#FF453A" : root.themePrimary
+
+                                // Smooth color shift when switching mute states
+                                Behavior on color { 
+                                    ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                                }
                             }
                         }
                     }
 
+                    // PERCENTAGE / STATUS TEXT
                     Text {
+                        id: labelText
                         Layout.alignment: Qt.AlignHCenter
                         text: root.isMuted ? "Mute" : Math.round(Math.min(100, root.animatedVolume)) + "%"
-                        color: root.themeText
+                        color: root.isMuted ? "#FF453A" : root.themeText
                         font.pixelSize: 12
                         font.weight: Font.Bold
+
+                        Behavior on color { 
+                            ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                        }
                     }
                 }
             }

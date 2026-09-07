@@ -39,9 +39,13 @@ Scope {
         }
     }
 
+    // Relaxed, ultra-smooth brightness interpolation curve
     property real animatedBrightness: 0
     Behavior on animatedBrightness { 
-        NumberAnimation { duration: 120; easing.type: Easing.OutCubic } 
+        NumberAnimation { 
+            duration: 380
+            easing.type: Easing.OutQuint 
+        } 
     }
 
     property int lastBrightness: -1
@@ -118,7 +122,6 @@ Scope {
                     if (!isNaN(newBri)) {
                         if (root.lastBrightness !== -1 && newBri !== root.lastBrightness) {
                             root.showOSD = true
-                            // Capture the monitor where the cursor/focus is right when the OSD triggers
                             if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
                                 root.lockedMon = Hyprland.focusedMonitor.name
                             } else if (Quickshell.screens.length > 0) {
@@ -157,7 +160,6 @@ Scope {
             required property var modelData
             screen: modelData
 
-            // Dynamic lookup with fallback logic: if lockedMon is invalid/disconnected, fallback gracefully
             property bool isTargetMonitor: {
                 let target = root.lockedMon;
                 let activeScreen = Quickshell.screens.find(s => s.name === target);
@@ -192,11 +194,30 @@ Scope {
                 clip: true
 
                 opacity: root.showOSD ? 1.0 : 0.0
-                scale: root.showOSD ? 1.0 : 0.95
+                scale: root.showOSD ? 1.0 : 0.90
                 enabled: root.showOSD
 
-                Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
-                Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                // Smooth slide offset transition
+                transform: Translate {
+                    x: root.showOSD ? 0 : 16
+                    Behavior on x { 
+                        NumberAnimation { duration: 380; easing.type: Easing.OutQuint } 
+                    }
+                }
+
+                // Smooth Container Entry / Exit Animations
+                Behavior on opacity { 
+                    NumberAnimation { duration: 320; easing.type: Easing.OutCubic } 
+                }
+                Behavior on scale { 
+                    NumberAnimation { duration: 380; easing.type: Easing.OutQuint } 
+                }
+                Behavior on color { 
+                    ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                }
+                Behavior on border.color { 
+                    ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                }
 
                 MouseArea {
                     id: mainArea
@@ -235,19 +256,32 @@ Scope {
                     anchors.margins: 12
                     spacing: 8
 
+                    // ICON CONTAINER
                     Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: 32
                         Layout.preferredHeight: 32
 
                         Text {
+                            id: iconText
                             anchors.centerIn: parent
                             text: root.brightnessPct > 66 ? "󰃠" : (root.brightnessPct > 33 ? "󰃟" : "󰃞")
                             color: root.themePrimary
                             font.pixelSize: 22
+
+                            // Subtle hover scale reaction
+                            scale: mainArea.containsMouse ? 1.08 : 1.0
+
+                            Behavior on color { 
+                                ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                            }
+                            Behavior on scale { 
+                                NumberAnimation { duration: 350; easing.type: Easing.OutQuint } 
+                            }
                         }
                     }
 
+                    // SLIDER TRACK & FILL
                     Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: 8
@@ -258,22 +292,35 @@ Scope {
                             radius: 4
                             color: root.themeSurface
 
+                            Behavior on color { 
+                                ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                            }
+
                             Rectangle {
                                 width: parent.width
                                 height: parent.height * (Math.min(100, root.animatedBrightness) / 100)
                                 anchors.bottom: parent.bottom
                                 radius: parent.radius
                                 color: root.themePrimary
+
+                                Behavior on color { 
+                                    ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                                }
                             }
                         }
                     }
 
+                    // PERCENTAGE TEXT
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: Math.round(Math.min(100, root.animatedBrightness)) + "%"
                         color: root.themeText
                         font.pixelSize: 12
                         font.weight: Font.Bold
+
+                        Behavior on color { 
+                            ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                        }
                     }
                 }
             }

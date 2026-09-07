@@ -10,11 +10,8 @@ import QtQuick.Window
 Scope {
     id: root
 
-    // Target monitor property
     property string lockedMonitor: ""
 
-    // --- STRICT FOCUSED MONITOR LOCK LOGIC ---
-    // Detects the active monitor under the cursor on launch and locks it
     function updateTargetMonitor() {
         if (root.lockedMonitor !== "") return
 
@@ -23,7 +20,6 @@ Scope {
         }
     }
 
-    // Fallback timer only used if Hyprland target monitor is not immediately ready
     Timer {
         id: fallbackMonitorTimer
         interval: 150
@@ -42,12 +38,14 @@ Scope {
         }
     }
 
-    // --- DYNAMIC ADAPTIVE PROPERTIES ---
+    // ============================================================
+    // THEME & RELAXED ANIMATION PROPERTIES
+    // ============================================================
     property int themeRounding: 14
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.7
     property bool animEnabled: true
-    property int animDuration: 220       
+    property int animDuration: 500       // Smooth & relaxed duration (ms)
 
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08)    
@@ -56,9 +54,6 @@ Scope {
     property color themeTextMuted: "#A1A1AA"
     property color themePrimary: "#ffb3af"        
 
-    // ============================================================
-    // DYNAMIC CONFIG PARSERS
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -111,15 +106,12 @@ Scope {
 
                 let winInMatch = content.match(/leaf\s*=\s*"windowsIn"[\s\S]*?speed\s*=\s*([0-9.]+)/)
                 if (winInMatch && winInMatch[1]) {
-                    root.animDuration = Math.round(parseFloat(winInMatch[1]) * 40)
+                    root.animDuration = Math.round(parseFloat(winInMatch[1]) * 50)
                 }
             } catch (e) {}
         }
     }
 
-    // ============================================================
-    // APP CACHING ENGINE
-    // ============================================================
     property var allApps: []
     property bool isLoaded: false 
 
@@ -147,17 +139,32 @@ Scope {
         id: cacheBuilder
         command: ["python3", "-c", `
 import os, glob, json
+
+def find_icon(icon_name):
+    if icon_name.startswith('/'): return icon_name
+    exts = ['.svg', '.png', '.xpm']
+    dirs = [
+        os.path.expanduser('~/.local/share/icons/WhiteSur/apps/scalable'),
+        os.path.expanduser('~/.local/share/icons/WhiteSur/apps/48'),
+        os.path.expanduser('~/.local/share/icons/WhiteSur/devices/scalable'),
+        '/usr/share/icons/hicolor/scalable/apps',
+        '/usr/share/icons/hicolor/48x48/apps',
+        '/usr/share/icons/hicolor/128x128/apps',
+        '/usr/share/icons/hicolor/256x256/apps',
+        '/usr/share/icons/hicolor/scalable/devices',
+        '/usr/share/pixmaps'
+    ]
+    for d in dirs:
+        for ext in exts:
+            p = os.path.join(d, icon_name + ext)
+            if os.path.exists(p): return p
+    return icon_name
+
 apps = []
 seen = set()
+app_dirs = ['/usr/share/applications', os.path.expanduser('~/.local/share/applications'), '/var/lib/flatpak/exports/share/applications', os.path.expanduser('~/.local/share/flatpak/exports/share/applications')]
 
-dirs = [
-    '/usr/share/applications',
-    os.path.expanduser('~/.local/share/applications'),
-    '/var/lib/flatpak/exports/share/applications',
-    os.path.expanduser('~/.local/share/flatpak/exports/share/applications')
-]
-
-for d in dirs:
+for d in app_dirs:
     if not os.path.exists(d): continue
     for f in glob.glob(d + '/*.desktop'):
         try:
@@ -166,9 +173,21 @@ for d in dirs:
                 if 'NoDisplay=true' in content or 'Hidden=true' in content: continue
                 name = next((l.split('=',1)[1].strip() for l in content.split('\\n') if l.startswith('Name=')), '')
                 icon = next((l.split('=',1)[1].strip() for l in content.split('\\n') if l.startswith('Icon=')), 'application-x-executable')
+                
+                # Strip extension safely
+                if not icon.startswith('/'):
+                    if icon.lower().endswith(('.png', '.svg', '.xpm')): icon = icon.rsplit('.', 1)[0]
+                
+                # Fallbacks for specific missing items
+                if 'blueman' in icon.lower(): icon = 'blueman'
+                elif 'bluetooth' in icon.lower(): icon = 'bluetooth'
+                
+                # Resolve to absolute path to guarantee rendering in QML
+                final_icon = find_icon(icon)
+                
                 if name and name.lower() not in seen:
                     seen.add(name.lower())
-                    apps.append({'itemType': 'app', 'filePath': f, 'displayName': name, 'fileName': os.path.basename(f), 'iconName': icon})
+                    apps.append({'itemType': 'app', 'filePath': f, 'displayName': name, 'fileName': os.path.basename(f), 'iconName': final_icon})
         except: pass
 apps.sort(key=lambda x: x['displayName'].lower())
 os.makedirs(os.path.expanduser('~/.config/quickshell/json'), exist_ok=True)
@@ -202,9 +221,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         id: searchResultsModel
     }
 
-    // ============================================================
-    // SEARCH & EXECUTION LOGIC
-    // ============================================================
     Process { id: launchProcess }
 
     function escapeShell(arg) {
@@ -267,13 +283,20 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         root.activeSearchQuery = q
         searchResultsModel.clear()
         
+        if (q === "") {
+            if (fileSearchProcess.running) {
+                fileSearchProcess.running = false
+            }
+            return
+        }
+
         let count = 0
-        let maxApps = (q === "") ? root.allApps.length : 12;
+        let maxApps = 12
         
         for (let i = 0; i < root.allApps.length; i++) {
             if (count >= maxApps) break; 
             let app = root.allApps[i]
-            if (q === "" || app.displayName.toLowerCase().includes(q) || app.fileName.toLowerCase().includes(q)) {
+            if (app.displayName.toLowerCase().includes(q) || app.fileName.toLowerCase().includes(q)) {
                 searchResultsModel.append(app)
                 count++
             }
@@ -307,9 +330,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         }
     }
 
-    // ============================================================
-    // PANEL WINDOW PER SCREEN
-    // ============================================================
     Variants {
         model: Quickshell.screens
 
@@ -348,30 +368,59 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                 id: searchContainer
                 width: Math.min(720, parent.width - 40)
                 implicitHeight: mainLayout.implicitHeight + 24
-                anchors.centerIn: parent
+                
+                // Positioned 200px from top
+                anchors.top: parent.top
+                anchors.topMargin: 200
+                anchors.horizontalCenter: parent.horizontalCenter
 
                 radius: root.themeRounding
                 border.width: root.themeBorderSize
                 border.color: Qt.alpha(root.themeBorder, 0.35)
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
 
-                scale: root.isLoaded ? 1.0 : 0.96
+                scale: root.isLoaded ? 1.0 : 0.92
                 opacity: root.isLoaded ? 1.0 : 0.0
+
+                transform: Translate {
+                    y: root.isLoaded ? 0 : 16
+                    Behavior on y {
+                        enabled: root.animEnabled
+                        NumberAnimation { duration: root.animDuration; easing.type: Easing.OutQuint }
+                    }
+                }
+
+                // Smooth Relaxed Dialog Height Expansion / Shrink Transition
+                Behavior on implicitHeight {
+                    enabled: root.animEnabled
+                    NumberAnimation {
+                        duration: root.animDuration
+                        easing.type: Easing.OutQuint
+                    }
+                }
 
                 Behavior on scale {
                     enabled: root.animEnabled
                     NumberAnimation {
                         duration: root.animDuration
-                        easing.type: Easing.OutCubic
+                        easing.type: Easing.OutQuint
                     }
                 }
 
                 Behavior on opacity {
                     enabled: root.animEnabled
                     NumberAnimation { 
-                        duration: root.animDuration
+                        duration: 380
                         easing.type: Easing.OutCubic
                     }
+                }
+
+                Behavior on color {
+                    ColorAnimation { duration: 380; easing.type: Easing.OutCubic }
+                }
+
+                Behavior on border.color {
+                    ColorAnimation { duration: 380; easing.type: Easing.OutCubic }
                 }
 
                 MouseArea {
@@ -387,7 +436,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                     anchors.margins: 14
                     spacing: 10
 
-                    // 1. SEARCH BAR
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 46
@@ -399,6 +447,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             color: root.themePrimary
                             Layout.leftMargin: 8
                             Layout.alignment: Qt.AlignVCenter
+
+                            Behavior on color {
+                                ColorAnimation { duration: 380; easing.type: Easing.OutCubic }
+                            }
                         }
 
                         TextField {
@@ -482,9 +534,12 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         height: 1
                         color: Qt.alpha(root.themeBorder, 0.20)
                         visible: searchResultsModel.count > 0 || searchInput.text.trim() !== ""
+
+                        Behavior on color {
+                            ColorAnimation { duration: 380; easing.type: Easing.OutCubic }
+                        }
                     }
 
-                    // 2. NO RESULTS ALERT VIEW
                     Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 56
@@ -509,7 +564,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         }
                     }
 
-                    // 3. RESULTS LISTVIEW
                     ListView {
                         id: resultsList
                         Layout.fillWidth: true
@@ -519,6 +573,35 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         clip: true
                         spacing: 4
                         boundsBehavior: Flickable.StopAtBounds
+
+                        // Smooth & Relaxed ListView Expansion Transition
+                        Behavior on Layout.preferredHeight {
+                            enabled: root.animEnabled
+                            NumberAnimation {
+                                duration: root.animDuration
+                                easing.type: Easing.OutQuint
+                            }
+                        }
+
+                        // Relaxed Entrance & Displaced Transitions for Search Results
+                        add: Transition {
+                            ParallelAnimation {
+                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 420; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "scale"; from: 0.94; to: 1.0; duration: 420; easing.type: Easing.OutQuint }
+                                NumberAnimation { property: "y"; duration: 450; easing.type: Easing.OutQuint }
+                            }
+                        }
+                        
+                        remove: Transition {
+                            ParallelAnimation {
+                                NumberAnimation { property: "opacity"; to: 0; duration: 250; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "scale"; to: 0.92; duration: 250; easing.type: Easing.OutCubic }
+                            }
+                        }
+
+                        displaced: Transition {
+                            NumberAnimation { properties: "y,x"; duration: 450; easing.type: Easing.OutQuint }
+                        }
 
                         onCountChanged: {
                             if (count > 0) currentIndex = 0
@@ -539,14 +622,16 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                             color: isSelected ? Qt.alpha(root.themePrimary, 0.16) : "transparent"
                             
+                            // Relaxed Card Highlight Fade
                             Behavior on color {
                                 enabled: root.animEnabled
                                 ColorAnimation { 
-                                    duration: 120 
-                                    easing.type: Easing.OutQuad 
+                                    duration: 280 
+                                    easing.type: Easing.OutCubic 
                                 }
                             }
 
+                            // Left Accent Indicator
                             Rectangle {
                                 width: 3
                                 height: itemCard.isSelected ? 20 : 0
@@ -560,13 +645,19 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 Behavior on height {
                                     enabled: root.animEnabled
                                     NumberAnimation { 
-                                        duration: 180 
-                                        easing.type: Easing.OutCubic
+                                        duration: 400 
+                                        easing.type: Easing.OutQuint
                                     }
                                 }
                                 Behavior on opacity {
                                     enabled: root.animEnabled
-                                    NumberAnimation { duration: 120 }
+                                    NumberAnimation { 
+                                        duration: 280 
+                                        easing.type: Easing.OutCubic
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation { duration: 380; easing.type: Easing.OutCubic }
                                 }
                             }
 
@@ -577,14 +668,21 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 spacing: 12
 
                                 ToolButton {
-                                    icon.name: model.iconName
+                                    Layout.preferredWidth: 24
+                                    Layout.preferredHeight: 24
+                                    Layout.alignment: Qt.AlignVCenter
+                                    
+                                    icon.name: model.iconName.indexOf("/") === 0 ? "" : model.iconName
+                                    icon.source: model.iconName.indexOf("/") === 0 ? "file://" + model.iconName : ""
+                                    
                                     icon.width: 24
                                     icon.height: 24
                                     icon.color: "transparent"
+                                    
                                     background: Item {}
                                     hoverEnabled: false
                                     down: false
-                                    Layout.alignment: Qt.AlignVCenter
+                                    padding: 0
                                 }
 
                                 Text {
@@ -595,6 +693,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                     elide: Text.ElideRight
                                     Layout.fillWidth: true
                                     Layout.alignment: Qt.AlignVCenter
+
+                                    Behavior on color {
+                                        ColorAnimation { duration: 280; easing.type: Easing.OutCubic }
+                                    }
                                 }
 
                                 Rectangle {
@@ -611,6 +713,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                         font.pixelSize: 9
                                         font.weight: Font.Bold
                                         color: model.itemType === "app" ? root.themePrimary : root.themeTextMuted
+
+                                        Behavior on color {
+                                            ColorAnimation { duration: 380; easing.type: Easing.OutCubic }
+                                        }
                                     }
                                 }
 
@@ -621,7 +727,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                                     Behavior on opacity {
                                         enabled: root.animEnabled
-                                        NumberAnimation { duration: 120 }
+                                        NumberAnimation { 
+                                            duration: 280 
+                                            easing.type: Easing.OutCubic
+                                        }
                                     }
 
                                     Text {
@@ -629,6 +738,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                         color: root.themePrimary
                                         font.pixelSize: 13
                                         font.weight: Font.Bold
+
+                                        Behavior on color {
+                                            ColorAnimation { duration: 380; easing.type: Easing.OutCubic }
+                                        }
                                     }
                                 }
                             }

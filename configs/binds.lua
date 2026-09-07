@@ -21,7 +21,6 @@ hl.bind("SUPER + K",         hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr
 hl.bind("SUPER + tab",       hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh overview open"))
 hl.bind("SUPER + L",         hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh lockscreen open"))
 hl.bind("SUPER + W",         hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh wallpaper open"))
-hl.bind("SUPER + SHIFT + B", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh bluetooth open"))
 hl.bind("SUPER + M",         hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh system-monitor open"))
 hl.bind("SUPER + SHIFT + W", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh weather open"))
 hl.bind("SUPER + P", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh setting open"))
@@ -61,6 +60,7 @@ hl.bind("SUPER + E",      hl.dsp.exec_cmd("nautilus --new-window"))
 hl.bind("SUPER + C",      hl.dsp.exec_cmd("codium"))
 hl.bind("SUPER + O",      hl.dsp.exec_cmd("VirtualBox Manager"))
 hl.bind("SUPER + A",      hl.dsp.exec_cmd("easyeffects"))
+hl.bind("SUPER + SHIFT + B", hl.dsp.exec_cmd("blueman-manager"))
 
 hl.bind("SUPER + T", hl.dsp.exec_cmd("kitty --title \"float_term\""))
 

@@ -20,7 +20,7 @@ apply_blur({
     "qs-brightness-osd", "qs-volume-osd", "qs-bar", "qs-dock",
     "qs-notifications", "qs-desktop-dashboard", "notification-center",
     "qs-keybinds", "keybinds", "qs-spotlight", "spotlight",
-    "qs-calendar", "qs-network-center", "qs-control-center", "qs-notification-center", "qs-bluetooth-center", "qs-sysmon", "qs-weather", "qs-config"
+    "qs-calendar", "qs-network-center", "qs-control-center", "qs-notification-center", "qs-bluetooth-center", "qs-sysmon", "qs-weather", "qs-config", "qs-wallselect","qs-drawer"
 }, 0.01)
 
 apply_blur({ "qs-power-menu" }, 0.02)

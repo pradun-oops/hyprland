@@ -24,12 +24,15 @@ Scope {
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
 
     // ============================================================
-    // DESIGN SYSTEM
+    // DESIGN SYSTEM & RELAXED ANIMATION SYSTEM
     // ============================================================
     QtObject {
         id: style
         property int moduleSpacing: 8
-        property int animDuration: 220
+        property int animDuration: 480         // Relaxed smooth expansion/shrink duration
+        property int fadeDuration: 380         // Relaxed fade-in/out duration
+        property var defaultEasing: Easing.OutQuint
+        property var fadeEasing: Easing.OutCubic
         property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.08)
         property color separatorColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.18)
     }
@@ -399,7 +402,7 @@ print(json.dumps({
             Item {
                 anchors.fill: parent
 
-                // DYNAMIC ISLAND CONTAINER
+                // DYNAMIC ISLAND CONTAINER (RELAXED ANIMATION ENHANCED)
                 Rectangle {
                     id: barIsland
                     
@@ -416,11 +419,20 @@ print(json.dumps({
                     
                     width: isExpanded ? expandedWidth : collapsedWidth
                     
+                    // Relaxed Smooth Island Expansion / Shrinking
                     Behavior on width { 
                         NumberAnimation { 
-                            duration: 220
-                            easing.type: Easing.OutCubic 
+                            duration: style.animDuration
+                            easing.type: style.defaultEasing 
                         } 
+                    }
+
+                    Behavior on color {
+                        ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing }
+                    }
+
+                    Behavior on border.color {
+                        ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing }
                     }
                     
                     radius: root.themeRounding
@@ -443,7 +455,12 @@ print(json.dumps({
                         opacity: barIsland.isExpanded ? 0.0 : 1.0
                         visible: opacity > 0.01
 
-                        Behavior on opacity { NumberAnimation { duration: style.animDuration; easing.type: Easing.InOutQuad } }
+                        Behavior on opacity { 
+                            NumberAnimation { 
+                                duration: style.fadeDuration
+                                easing.type: style.fadeEasing 
+                            } 
+                        }
 
                         // Collapsed 5-Bar Rhythm Visualizer
                         Row {
@@ -462,8 +479,8 @@ print(json.dumps({
                                     SequentialAnimation on height {
                                         running: root.isPlaying
                                         loops: Animation.Infinite
-                                        NumberAnimation { to: 4 + ((index * 3) % 8); duration: 220 + index * 40; easing.type: Easing.InOutSine }
-                                        NumberAnimation { to: 13 - ((index * 2) % 6); duration: 280 - index * 30; easing.type: Easing.InOutSine }
+                                        NumberAnimation { to: 4 + ((index * 3) % 8); duration: 320 + index * 50; easing.type: Easing.InOutSine }
+                                        NumberAnimation { to: 13 - ((index * 2) % 6); duration: 380 - index * 40; easing.type: Easing.InOutSine }
                                     }
                                 }
                             }
@@ -475,6 +492,10 @@ print(json.dumps({
                             font.pixelSize: 13
                             font.weight: Font.Bold
                             anchors.verticalCenter: parent.verticalCenter
+
+                            Behavior on color {
+                                ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing }
+                            }
                         }
                     }
 
@@ -487,7 +508,12 @@ print(json.dumps({
                         opacity: barIsland.isExpanded ? 1.0 : 0.0
                         visible: opacity > 0.01
 
-                        Behavior on opacity { NumberAnimation { duration: style.animDuration; easing.type: Easing.InOutQuad } }
+                        Behavior on opacity { 
+                            NumberAnimation { 
+                                duration: style.fadeDuration
+                                easing.type: style.fadeEasing 
+                            } 
+                        }
 
                         // ==========================================
                         // LEFT SIDE: Workspaces & Network
@@ -512,8 +538,19 @@ print(json.dumps({
                                         anchors.verticalCenter: parent.verticalCenter
                                         color: modelData === root.activeWs ? root.themePrimary : Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.15)
 
-                                        Behavior on width { NumberAnimation { duration: 150 } }
-                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                        // Relaxed Workspace Indicator Morphing
+                                        Behavior on width { 
+                                            NumberAnimation { 
+                                                duration: 380
+                                                easing.type: Easing.OutQuint 
+                                            } 
+                                        }
+                                        Behavior on color { 
+                                            ColorAnimation { 
+                                                duration: 320
+                                                easing.type: Easing.OutCubic 
+                                            } 
+                                        }
 
                                         Text {
                                             text: modelData
@@ -521,6 +558,10 @@ print(json.dumps({
                                             font.pixelSize: 11
                                             font.weight: Font.Bold
                                             anchors.centerIn: parent
+
+                                            Behavior on color { 
+                                                ColorAnimation { duration: 280; easing.type: Easing.OutCubic } 
+                                            }
                                         }
                                     }
                                 }
@@ -598,8 +639,8 @@ print(json.dumps({
                                             SequentialAnimation on height {
                                                 running: root.isPlaying
                                                 loops: Animation.Infinite
-                                                NumberAnimation { to: 4 + ((index * 4) % 10); duration: 250 + index * 50; easing.type: Easing.InOutSine }
-                                                NumberAnimation { to: 15 - ((index * 3) % 8); duration: 300 - index * 40; easing.type: Easing.InOutSine }
+                                                NumberAnimation { to: 4 + ((index * 4) % 10); duration: 320 + index * 50; easing.type: Easing.InOutSine }
+                                                NumberAnimation { to: 15 - ((index * 3) % 8); duration: 380 - index * 40; easing.type: Easing.InOutSine }
                                             }
                                         }
                                     }
@@ -686,7 +727,14 @@ print(json.dumps({
                                 Row {
                                     anchors.centerIn: parent
                                     spacing: 4
-                                    Text { text: root.isMuted ? "󰖁" : ""; color: root.isMuted ? "#FF453A" : root.themePrimary; font.pixelSize: 14; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { 
+                                        text: root.isMuted ? "󰖁" : ""
+                                        color: root.isMuted ? "#FF453A" : root.themePrimary
+                                        font.pixelSize: 14
+                                        anchors.verticalCenter: parent.verticalCenter
+
+                                        Behavior on color { ColorAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                                    }
                                     Text { text: root.volumePct + "%"; color: root.themeText; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                                 }
 
@@ -723,7 +771,14 @@ print(json.dumps({
                                 Row {
                                     anchors.centerIn: parent
                                     spacing: 4
-                                    Text { text: root.isCharging ? "󰂄" : "󰁹"; color: root.isCharging ? "#32D74B" : root.themePrimary; font.pixelSize: 14; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { 
+                                        text: root.isCharging ? "󰂄" : "󰁹"
+                                        color: root.isCharging ? "#32D74B" : root.themePrimary
+                                        font.pixelSize: 14
+                                        anchors.verticalCenter: parent.verticalCenter
+
+                                        Behavior on color { ColorAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                                    }
                                     Text { text: root.batCap + "%"; color: root.themeText; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                                 }
 
@@ -756,7 +811,7 @@ print(json.dumps({
                             }
 
                             // ==========================================
-                            // RUNNING BACKGROUND APPS DRAWER (HOVER TO EXPAND)
+                            // RUNNING BACKGROUND APPS DRAWER (RELAXED EXPANSION)
                             // ==========================================
                             Item {
                                 id: appsDrawer
@@ -765,8 +820,12 @@ print(json.dumps({
                                 visible: root.runningAppsList.length > 0
                                 anchors.verticalCenter: parent.verticalCenter
 
+                                // Relaxed Drawer Width Transition
                                 Behavior on width {
-                                    NumberAnimation { duration: 200; easing.type: Easing.OutCubic }
+                                    NumberAnimation { 
+                                        duration: style.animDuration
+                                        easing.type: style.defaultEasing 
+                                    }
                                 }
 
                                 HoverHandler { id: appsHover }
@@ -782,9 +841,11 @@ print(json.dumps({
                                         color: root.themePrimary
                                         font.pixelSize: 13
                                         anchors.verticalCenter: parent.verticalCenter
+
+                                        Behavior on color { ColorAnimation { duration: 250; easing.type: Easing.OutCubic } }
                                     }
 
-                                    // App Icons Row (Revealed on hover)
+                                    // App Icons Row (Revealed on hover with relaxed fade)
                                     Row {
                                         id: appsRow
                                         spacing: 6
@@ -792,7 +853,12 @@ print(json.dumps({
                                         opacity: appsHover.hovered ? 1.0 : 0.0
                                         visible: opacity > 0.01
 
-                                        Behavior on opacity { NumberAnimation { duration: 180 } }
+                                        Behavior on opacity { 
+                                            NumberAnimation { 
+                                                duration: style.fadeDuration
+                                                easing.type: style.fadeEasing 
+                                            } 
+                                        }
 
                                         Repeater {
                                             model: root.runningAppsList
@@ -848,6 +914,8 @@ print(json.dumps({
                                         text: "󰖩"
                                         color: root.themePrimary
                                         font.pixelSize: 15
+
+                                        Behavior on color { ColorAnimation { duration: 250; easing.type: Easing.OutCubic } }
                                     }
                                     MouseArea {
                                         id: netMouse
@@ -867,6 +935,8 @@ print(json.dumps({
                                         text: "󰐥"
                                         color: pwrBarMouse.containsMouse ? "#FF453A" : root.themePrimary
                                         font.pixelSize: 15
+
+                                        Behavior on color { ColorAnimation { duration: 280; easing.type: Easing.OutCubic } }
                                     }
                                     MouseArea {
                                         id: pwrBarMouse

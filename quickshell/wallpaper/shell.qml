@@ -7,6 +7,18 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Qt.labs.folderlistmodel
 
+/*
+ * ============================================================
+ * HYPRLAND LAYER RULE REQUIREMENT
+ * ============================================================
+ * Add this to your hyprland.conf to make the background see-through
+ * and apply a blur effect to the layershell:
+ *
+ * layerrule = blur, qs-wallselect
+ * layerrule = ignorealpha 0.2, qs-wallselect
+ * ============================================================
+ */
+
 Scope {
     id: root
 
@@ -43,14 +55,14 @@ Scope {
     }
 
     // ============================================================
-    // THEME PROPERTIES (Solid Black matching desktop widget)
+    // THEME PROPERTIES (0.7 Opacity / Translucent Setup)
     // ============================================================
     property int themeRounding: 15
     property int themeBorderSize: 2
-    property real themeBgAlpha: 1.0
+    property real themeBgAlpha: 0.7
     
-    property color themeBackground: "#111114" 
-    property color themeCardBg: "#18181d"
+    property color themeBackground: Qt.rgba(0.07, 0.07, 0.08, 0.7) 
+    property color themeCardBg: Qt.rgba(0.09, 0.09, 0.12, 0.85)
     property color themeBorder: "#d6bbfb"
     property color themeText: "#FFFFFF"          
     property color themeTextMuted: "#A1A1AA"
@@ -160,7 +172,7 @@ Scope {
     }
 
     // ============================================================
-    // FOLDER PICKER PROCESS
+    // FOLDER PICKER PROCESS (Strictly GTK via Zenity / PyGObject)
     // ============================================================
     Process {
         id: folderPickerProcess
@@ -169,10 +181,8 @@ Scope {
             "sh", "-c",
             "if command -v zenity >/dev/null 2>&1; then " +
             "    zenity --file-selection --directory --title='Select Wallpaper Folder' --filename=\"$HOME/Pictures/\" 2>/dev/null; " +
-            "elif command -v kdialog >/dev/null 2>&1; then " +
-            "    kdialog --getexistingdirectory \"$HOME/Pictures\" 2>/dev/null; " +
             "else " +
-            "    python3 -c 'import tkinter as tk, tkinter.filedialog as fd; r=tk.Tk(); r.withdraw(); d=fd.askdirectory(); print(d if d else \"\")' 2>/dev/null; " +
+            "    python3 -c \"import gi; gi.require_version('Gtk', '3.0'); from gi.repository import Gtk; d = Gtk.FileChooserNative.new('Select Folder', None, Gtk.FileChooserAction.SELECT_FOLDER, 'Open', 'Cancel'); r = d.run(); print(d.get_filename() if r == Gtk.ResponseType.ACCEPT else ''); d.destroy()\" 2>/dev/null; " +
             "fi"
         ]
         stdout: StdioCollector {
@@ -204,7 +214,7 @@ Scope {
             "ENGINE=\"$1\"\n" +
             "IMG=\"$2\"\n" +
             "ANIM=\"$3\"\n" +
-            "# 1. Apply wallpaper via chosen engine (Transition time decreased to 0.5s for speed)\n" +
+            "# 1. Apply wallpaper via chosen engine\n" +
             "if [ \"$ENGINE\" = \"awww\" ]; then\n" +
             "    if awww -h 2>&1 | grep -q -- '--transition-type'; then\n" +
             "        awww img \"$IMG\" --transition-type \"$ANIM\" --transition-pos 0.5,0.5 --transition-duration 0.5 2>/dev/null || " +
@@ -399,7 +409,7 @@ Scope {
                                 width: engineCombo.width
                                 padding: 4
                                 background: Rectangle {
-                                    color: root.themeCardBg
+                                    color: Qt.rgba(0.05, 0.05, 0.07, 0.35) // High transparency for compositor blur
                                     radius: Math.max(4, root.themeRounding - 6)
                                     border.width: 1
                                     border.color: Qt.alpha(root.themePrimary, 0.45)
@@ -430,7 +440,7 @@ Scope {
                             }
                         }
 
-                        // Styled Animation Dropdown
+                        // Styled Animation Dropdown (with Blue Accent & Blur Support)
                         ComboBox {
                             id: animCombo
                             Layout.preferredHeight: 38
@@ -447,7 +457,7 @@ Scope {
                                 color: animCombo.down ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.06)
                                 radius: Math.max(4, root.themeRounding - 4)
                                 border.width: 1
-                                border.color: animCombo.activeFocus ? root.themePrimary : Qt.rgba(1, 1, 1, 0.14)
+                                border.color: animCombo.activeFocus ? "#3b82f6" : Qt.rgba(1, 1, 1, 0.14)
                             }
 
                             contentItem: RowLayout {
@@ -461,7 +471,7 @@ Scope {
                                 Text {
                                     text: "✨"
                                     font.pixelSize: 15
-                                    color: root.themePrimary
+                                    color: "#3b82f6"
                                 }
                                 Text {
                                     text: animCombo.currentText
@@ -486,10 +496,10 @@ Scope {
                                 width: animCombo.width
                                 padding: 4
                                 background: Rectangle {
-                                    color: root.themeCardBg
+                                    color: Qt.rgba(0.05, 0.05, 0.07, 0.35) // High transparency for compositor blur
                                     radius: Math.max(4, root.themeRounding - 6)
                                     border.width: 1
-                                    border.color: Qt.alpha(root.themePrimary, 0.45)
+                                    border.color: "#3b82f6" // Blue border for animation dialog
                                 }
                                 contentItem: ListView {
                                     clip: true
@@ -504,12 +514,12 @@ Scope {
                                 height: 34
                                 highlighted: animCombo.highlightedIndex === index
                                 background: Rectangle {
-                                    color: highlighted ? Qt.alpha(root.themePrimary, 0.25) : (hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
+                                    color: highlighted ? Qt.rgba(0.23, 0.51, 0.96, 0.3) : (hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
                                     radius: 5
                                 }
                                 contentItem: Text {
                                     text: modelData
-                                    color: highlighted ? root.themePrimary : root.themeText
+                                    color: highlighted ? "#3b82f6" : root.themeText
                                     font.pixelSize: 13
                                     verticalAlignment: Text.AlignVCenter
                                     horizontalAlignment: Text.AlignHCenter

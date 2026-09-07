@@ -22,10 +22,21 @@ Scope {
     property int themeBorderSize: 1
     property real themeBgAlpha: 0.1
     property bool animEnabled: true
-    property int animDuration: 120 
     
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
+
+    // ============================================================
+    // DESIGN SYSTEM & RELAXED ANIMATION SYSTEM
+    // ============================================================
+    QtObject {
+        id: style
+        property int animDuration: 480         // Relaxed smooth expansion/movement duration
+        property int fadeDuration: 380         // Relaxed fade-in/out duration
+        property var defaultEasing: Easing.OutQuint
+        property var fadeEasing: Easing.OutCubic
+        property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.12)
+    }
 
     Process { id: rootExecProcess }
     function exec(cmd) {
@@ -46,11 +57,15 @@ Scope {
     FileView {
         id: savedAppsFile
         path: root.savedAppsFilePath
-        watchChanges: false
+        watchChanges: true
+        onFileChanged: reload()
         onLoaded: {
             try {
-                let apps = JSON.parse(text())
-                if (apps && apps.length > 0) {
+                let content = text().trim()
+                if (content === "") return
+                
+                let apps = JSON.parse(content)
+                if (apps && Array.isArray(apps)) {
                     pinnedAppsModel.clear()
                     for (let i = 0; i < apps.length; i++) {
                         pinnedAppsModel.append(apps[i])
@@ -58,10 +73,11 @@ Scope {
                     return
                 }
             } catch(e) {}
-            root.loadDefaultApps()
+            
+            if (pinnedAppsModel.count === 0) root.loadDefaultApps()
         }
         onLoadFailed: {
-            root.loadDefaultApps()
+            if (pinnedAppsModel.count === 0) root.loadDefaultApps()
         }
     }
 
@@ -69,7 +85,7 @@ Scope {
 
     function loadDefaultApps() {
         pinnedAppsModel.clear()
-        pinnedAppsModel.append({ name: "Zen Browser", iconName: "zen-browser", cmd: "zen-browser", wmClass: "zen", process: "zen" })
+        pinnedAppsModel.append({ name: "Zen Browser", iconName: "zen", cmd: "zen-browser", wmClass: "zen", process: "zen" })
         pinnedAppsModel.append({ name: "Terminal", iconName: "kitty", cmd: "kitty", wmClass: "kitty", process: "kitty" })
         pinnedAppsModel.append({ name: "Files", iconName: "org.gnome.Nautilus", cmd: "nautilus", wmClass: "org.gnome.nautilus", process: "nautilus" })
         pinnedAppsModel.append({ name: "VSCodium", iconName: "vscodium", cmd: "codium", wmClass: "codium", process: "codium" })
@@ -227,7 +243,7 @@ Scope {
 
             Timer {
                 id: hitboxShrinkTimer
-                interval: root.animDuration + 10 
+                interval: style.animDuration + 10 
                 onTriggered: {
                     if (!dockWindow.dockShouldBeVisible) {
                         dockWindow.currentHitboxHeight = 8
@@ -253,35 +269,6 @@ Scope {
                 if (!app) return
                 launchProcess.command = ["bash", "-c", app.cmd + " >/dev/null 2>&1 & disown"]
                 launchProcess.running = true
-            }
-            
-            function togglePin(app) {
-                if (!app) return
-                let targetClass = (app.wmClass || "").toLowerCase()
-                let targetCmd = (app.cmd || "").toLowerCase()
-                let foundIndex = -1
-                
-                for (let i = 0; i < pinnedAppsModel.count; i++) {
-                    let pClass = (pinnedAppsModel.get(i).wmClass || "").toLowerCase()
-                    let pCmd = (pinnedAppsModel.get(i).cmd || "").toLowerCase()
-                    if (targetClass === pClass || targetClass === pCmd || pClass.includes(targetClass) || targetClass.includes(pClass)) {
-                        foundIndex = i
-                        break
-                    }
-                }
-                
-                if (foundIndex !== -1) {
-                    pinnedAppsModel.remove(foundIndex)
-                } else {
-                    pinnedAppsModel.append({
-                        name: app.name,
-                        iconName: app.iconName,
-                        cmd: app.cmd,
-                        wmClass: app.wmClass,
-                        process: app.process
-                    })
-                }
-                root.savePinnedApps()
             }
 
             function commitDragOrder(vModel) {
@@ -433,8 +420,8 @@ except Exception:
                     anchors.bottomMargin: dockWindow.dockShouldBeVisible ? 8 : -(dockContainer.height + 20)
                     Behavior on anchors.bottomMargin { 
                         NumberAnimation { 
-                            duration: root.animEnabled ? root.animDuration : 0
-                            easing.type: Easing.OutCubic // Smooth non-springy movement
+                            duration: root.animEnabled ? style.animDuration : 0
+                            easing.type: style.defaultEasing 
                         } 
                     }
                     
@@ -448,14 +435,13 @@ except Exception:
                     opacity: dockWindow.dockShouldBeVisible ? 1.0 : 0.0
                     Behavior on opacity { 
                         NumberAnimation { 
-                            duration: root.animEnabled ? root.animDuration : 0
-                            easing.type: Easing.OutCubic 
+                            duration: root.animEnabled ? style.fadeDuration : 0
+                            easing.type: style.fadeEasing 
                         } 
                     }
 
                     HoverHandler { id: dockHoverHandler }
                     
-                    // DOUBLE LEFT CLICK ON EMPTY DOCK AREA TO TOGGLE DOCK PIN
                     MouseArea {
                         id: dockBackgroundClickArea
                         anchors.fill: parent
@@ -477,7 +463,7 @@ except Exception:
                         spacing: 8
                         z: 10
 
-                        // 0. APP LAUNCHER GRID ICON (LEFTMOST - 3x3 DOT GRID STYLE)
+                        // 0. APP LAUNCHER GRID ICON
                         Item {
                             width: 52
                             height: 52
@@ -485,8 +471,8 @@ except Exception:
                             scale: launcherMouse.containsMouse ? 1.15 : 1.0
                             Behavior on scale { 
                                 NumberAnimation { 
-                                    duration: root.animEnabled ? 120 : 0
-                                    easing.type: Easing.OutCubic // Completely non-springy smooth scale
+                                    duration: root.animEnabled ? style.animDuration : 0
+                                    easing.type: style.defaultEasing 
                                 } 
                             }
 
@@ -497,7 +483,6 @@ except Exception:
                                 border.width: 1
                                 border.color: Qt.alpha("#ffffff", 0.15)
 
-                                // 3x3 App Drawer Grid Dots
                                 Grid {
                                     anchors.centerIn: parent
                                     columns: 3
@@ -521,12 +506,11 @@ except Exception:
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh spotlight open")
+                                    root.exec("quickshell -c ~/.config/hypr/quickshell/drawer/")
                                 }
                             }
                         }
 
-                        // GLASS SEPARATOR AFTER LAUNCHER
                         Rectangle {
                             Layout.preferredWidth: 2
                             Layout.preferredHeight: 40
@@ -544,6 +528,23 @@ except Exception:
                             orientation: ListView.Horizontal
                             spacing: 8
                             interactive: false 
+
+                            // Relaxed smooth transitions
+                            add: Transition {
+                                ParallelAnimation {
+                                    NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: style.fadeDuration; easing.type: style.fadeEasing }
+                                    NumberAnimation { properties: "scale"; from: 0; to: 1; duration: style.animDuration; easing.type: style.defaultEasing }
+                                }
+                            }
+                            remove: Transition {
+                                ParallelAnimation {
+                                    NumberAnimation { properties: "opacity"; to: 0; duration: style.fadeDuration; easing.type: style.fadeEasing }
+                                    NumberAnimation { properties: "scale"; to: 0; duration: style.fadeDuration; easing.type: style.fadeEasing }
+                                }
+                            }
+                            displaced: Transition {
+                                NumberAnimation { properties: "x,y"; duration: style.animDuration; easing.type: style.defaultEasing }
+                            }
 
                             model: DelegateModel {
                                 id: visualModel
@@ -585,8 +586,8 @@ except Exception:
                                         scale: itemMouse.containsMouse && !Drag.active ? 1.15 : (Drag.active ? 1.05 : 1.0)
                                         Behavior on scale { 
                                             NumberAnimation { 
-                                                duration: root.animEnabled ? 120 : 0
-                                                easing.type: Easing.OutCubic // Non-springy scale
+                                                duration: root.animEnabled ? style.animDuration : 0
+                                                easing.type: style.defaultEasing 
                                             } 
                                         }
 
@@ -605,13 +606,23 @@ except Exception:
 
                                             ToolButton {
                                                 anchors.centerIn: parent
-                                                icon.name: model.iconName
+                                                visible: !model.iconName.startsWith("/")
+                                                icon.name: !model.iconName.startsWith("/") ? model.iconName : ""
                                                 icon.width: 52
                                                 icon.height: 52
                                                 icon.color: "transparent"
                                                 background: Item {}
                                                 hoverEnabled: false
                                                 down: false
+                                                padding: 0
+                                            }
+
+                                            Image {
+                                                anchors.centerIn: parent
+                                                visible: model.iconName.startsWith("/")
+                                                source: model.iconName.startsWith("/") ? "file://" + model.iconName : ""
+                                                sourceSize: Qt.size(52, 52)
+                                                fillMode: Image.PreserveAspectFit
                                             }
                                             
                                             Row {
@@ -635,7 +646,7 @@ except Exception:
                                         MouseArea {
                                             id: itemMouse
                                             anchors.fill: parent
-                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                            acceptedButtons: Qt.LeftButton
                                             hoverEnabled: true
                                             cursorShape: dragActive ? Qt.ClosedHandCursor : Qt.PointingHandCursor
                                             
@@ -644,24 +655,15 @@ except Exception:
                                             drag.target: dragActive ? iconContainer : null
                                             drag.axis: Drag.XAxis
                                             
-                                            // LONG LEFT CLICK -> TRIGGER POSITION REORDERING
                                             onPressAndHold: (mouse) => {
                                                 if (mouse.button === Qt.LeftButton) {
                                                     itemMouse.dragActive = true
                                                 }
                                             }
 
-                                            // SINGLE LEFT CLICK -> LAUNCH APP
                                             onClicked: (mouse) => {
                                                 if (mouse.button === Qt.LeftButton && !itemMouse.dragActive) {
                                                     dockWindow.launchApp(model)
-                                                }
-                                            }
-                                            
-                                            // DOUBLE RIGHT CLICK -> TOGGLE PIN / UNPIN
-                                            onDoubleClicked: (mouse) => {
-                                                if (mouse.button === Qt.RightButton) {
-                                                    dockWindow.togglePin(model)
                                                 }
                                             }
                                             
@@ -703,8 +705,8 @@ except Exception:
                                     scale: unpinnedMouse.containsMouse ? 1.15 : 1.0
                                     Behavior on scale { 
                                         NumberAnimation { 
-                                            duration: root.animEnabled ? 120 : 0
-                                            easing.type: Easing.OutCubic // Non-springy scale
+                                            duration: root.animEnabled ? style.animDuration : 0
+                                            easing.type: style.defaultEasing 
                                         } 
                                     }
 
@@ -715,13 +717,23 @@ except Exception:
 
                                         ToolButton {
                                             anchors.centerIn: parent
-                                            icon.name: modelData.iconName
+                                            visible: !modelData.iconName.startsWith("/")
+                                            icon.name: !modelData.iconName.startsWith("/") ? modelData.iconName : ""
                                             icon.width: 52
                                             icon.height: 52
                                             icon.color: "transparent"
                                             background: Item {}
                                             hoverEnabled: false
                                             down: false
+                                            padding: 0
+                                        }
+
+                                        Image {
+                                            anchors.centerIn: parent
+                                            visible: modelData.iconName.startsWith("/")
+                                            source: modelData.iconName.startsWith("/") ? "file://" + modelData.iconName : ""
+                                            sourceSize: Qt.size(52, 52)
+                                            fillMode: Image.PreserveAspectFit
                                         }
                                         
                                         Rectangle {
@@ -738,21 +750,13 @@ except Exception:
                                     MouseArea {
                                         id: unpinnedMouse
                                         anchors.fill: parent
-                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                        acceptedButtons: Qt.LeftButton
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         
-                                        // SINGLE LEFT CLICK -> LAUNCH APP
                                         onClicked: (mouse) => {
                                             if (mouse.button === Qt.LeftButton) {
                                                 dockWindow.launchApp(modelData)
-                                            }
-                                        }
-                                        
-                                        // DOUBLE RIGHT CLICK -> PIN APP
-                                        onDoubleClicked: (mouse) => {
-                                            if (mouse.button === Qt.RightButton) {
-                                                dockWindow.togglePin(modelData)
                                             }
                                         }
                                     }

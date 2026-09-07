@@ -27,6 +27,18 @@ Scope {
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
 
     // ============================================================
+    // DESIGN SYSTEM & RELAXED ANIMATION SYSTEM
+    // ============================================================
+    QtObject {
+        id: style
+        property int animDuration: 480         // Relaxed smooth expansion/movement duration
+        property int fadeDuration: 380         // Relaxed fade-in/out duration
+        property var defaultEasing: Easing.OutQuint
+        property var fadeEasing: Easing.OutCubic
+        property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.12)
+    }
+
+    // ============================================================
     // THEME PARSERS
     // ============================================================
     FileView {
@@ -224,9 +236,12 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
             implicitHeight: popupList.contentHeight
             color: "transparent"
 
-            // Smoothly animate the total window height so Hyprland's blur doesn't jitter
+            // Smoothly animate total window height with relaxed dynamics
             Behavior on implicitHeight {
-                NumberAnimation { duration: 250; easing.type: Easing.OutCubic }
+                NumberAnimation { 
+                    duration: style.animDuration
+                    easing.type: style.defaultEasing 
+                }
             }
 
             ListView {
@@ -236,22 +251,51 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                 spacing: 10
                 interactive: false
 
+                // Relaxed Smooth Addition Transition
                 add: Transition {
                     ParallelAnimation {
-                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 250; easing.type: Easing.OutCubic }
-                        NumberAnimation { property: "scale"; from: 0.85; to: 1; duration: 250; easing.type: Easing.OutBack }
+                        NumberAnimation { 
+                            property: "opacity"
+                            from: 0
+                            to: 1
+                            duration: style.fadeDuration
+                            easing.type: style.fadeEasing 
+                        }
+                        NumberAnimation { 
+                            property: "scale"
+                            from: 0.88
+                            to: 1
+                            duration: style.animDuration
+                            easing.type: style.defaultEasing 
+                        }
                     }
                 }
                 
+                // Relaxed Smooth Removal Transition
                 remove: Transition {
                     ParallelAnimation {
-                        NumberAnimation { property: "opacity"; to: 0; duration: 200; easing.type: Easing.OutQuad }
-                        NumberAnimation { property: "scale"; to: 0.85; duration: 200; easing.type: Easing.OutQuad }
+                        NumberAnimation { 
+                            property: "opacity"
+                            to: 0
+                            duration: style.fadeDuration
+                            easing.type: style.fadeEasing 
+                        }
+                        NumberAnimation { 
+                            property: "scale"
+                            to: 0.88
+                            duration: style.fadeDuration
+                            easing.type: style.fadeEasing 
+                        }
                     }
                 }
                 
+                // Relaxed Smooth Displacement Animation
                 displaced: Transition {
-                    NumberAnimation { properties: "x,y"; duration: 250; easing.type: Easing.OutCubic }
+                    NumberAnimation { 
+                        properties: "x,y"
+                        duration: style.animDuration
+                        easing.type: style.defaultEasing 
+                    }
                 }
 
                 delegate: Item {
@@ -267,6 +311,14 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                         border.width: root.themeBorderSize
                         border.color: Qt.alpha(root.themeBorder, 0.45)
                         clip: true
+
+                        Behavior on color {
+                            ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing }
+                        }
+
+                        Behavior on border.color {
+                            ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing }
+                        }
 
                         // Auto-dismissal timer (4 seconds)
                         Timer {
@@ -348,22 +400,34 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                                 }
                             }
 
-                            // Close Button
+                            // Close Button with Relaxed Transitions
                             Rectangle {
                                 id: closeBtn
                                 Layout.preferredWidth: 24
                                 Layout.preferredHeight: 24
                                 Layout.alignment: Qt.AlignTop
                                 radius: 12
-                                color: closeMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent"
+                                color: closeMouse.containsMouse ? style.hoverColor : "transparent"
 
-                                Behavior on color { ColorAnimation { duration: 150 } }
+                                Behavior on color { 
+                                    ColorAnimation { 
+                                        duration: style.fadeDuration
+                                        easing.type: style.fadeEasing 
+                                    } 
+                                }
 
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰅖"
                                     color: closeMouse.containsMouse ? root.themeText : root.themeTextMuted
                                     font.pixelSize: 12
+
+                                    Behavior on color { 
+                                        ColorAnimation { 
+                                            duration: style.fadeDuration
+                                            easing.type: style.fadeEasing 
+                                        } 
+                                    }
                                 }
 
                                 MouseArea {

@@ -23,7 +23,17 @@ Scope {
     property int themeRounding: 24
     property int themeBorderSize: 1
     property bool animEnabled: true
-    property int animDuration: 220 
+
+    // ============================================================
+    // DESIGN SYSTEM & ANIMATION SYSTEM
+    // ============================================================
+    QtObject {
+        id: style
+        property int animDuration: 480
+        property int fadeDuration: 380
+        property var defaultEasing: Easing.OutQuint
+        property var fadeEasing: Easing.OutCubic
+    }
 
     // ANIMATION & STATE TRACKING
     property bool isOpened: false
@@ -33,9 +43,17 @@ Scope {
     property int selectedIndex: 0
     property var workspaceList: []
     property string wallpaperPath: ""
+    property string wallpaperThumbPath: ""
+
+    // Helper for formatting file paths for QML Image sources
+    function formatFileUrl(pathStr) {
+        if (!pathStr || pathStr.length === 0) return "";
+        if (pathStr.startsWith("file://")) return pathStr;
+        return "file://" + pathStr;
+    }
 
     // ============================================================
-    // WALLPAPER FAST-CACHE FILE WATCHER
+    // LIVE WALLPAPER CACHE WATCHER
     // ============================================================
     FileView {
         id: wallpaperCacheFile
@@ -43,19 +61,7 @@ Scope {
         watchChanges: true
         onLoaded: {
             let p = text().trim()
-            if (p.length > 0) {
-                root.wallpaperPath = p
-            }
-        }
-    }
-
-    FileView {
-        id: defaultWpCache
-        path: Quickshell.env("HOME") + "/.cache/current_wallpaper"
-        watchChanges: true
-        onLoaded: {
-            let p = text().trim()
-            if (root.wallpaperPath === "" && p.length > 0) {
+            if (p.length > 0 && p !== root.wallpaperPath) {
                 root.wallpaperPath = p
             }
         }
@@ -111,8 +117,6 @@ Scope {
                 let content = text()
                 let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
-                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
-                if (speedMatch && speedMatch[1]) root.animDuration = parseFloat(speedMatch[1]) * 80
             } catch (e) {}
         }
     }
@@ -129,7 +133,6 @@ Scope {
                 if (found !== "") {
                     root.activeCursorMonitor = found;
                 } else {
-                    // Fallbacks if Python script unexpectedly fails
                     if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
                         root.activeCursorMonitor = Hyprland.focusedMonitor.name;
                     } else if (Quickshell.screens.length > 0) {
@@ -146,7 +149,6 @@ Scope {
     }
 
     Component.onCompleted: {
-        // Robust Python script to pinpoint the monitor based on layout coordinates & cursor position
         let pyScript = `
 import json, subprocess
 try:
@@ -155,19 +157,15 @@ try:
     cx, cy = c.get('x',0), c.get('y',0)
     res = ''
     
-    # 1. Fallback: find focused monitor first
     for mon in m:
         if mon.get('focused'): 
             res = mon['name']
             
-    # 2. Strict Check: find the monitor bounds exactly matching the cursor
     for mon in m:
         mx, my = mon.get('x',0), mon.get('y',0)
         scale = mon.get('scale', 1.0)
-        # Hyprland layout coordinates use logical dimensions (width/scale)
         w, h = mon.get('width', 1920)/scale, mon.get('height', 1080)/scale
         
-        # Handle portrait/rotated monitors swapping width & height
         transform = mon.get('transform', 0)
         if transform % 2 != 0:
             w, h = h, w
@@ -189,7 +187,7 @@ except Exception:
     // ============================================================
     Timer { 
         id: closeTimer
-        interval: 50 
+        interval: style.fadeDuration 
         onTriggered: Qt.quit() 
     }
 
@@ -211,14 +209,14 @@ except Exception:
 
         Quickshell.execDetached(["hyprctl", "dispatch", luaCmd]);
 
-        closeTimer.interval = 50;
+        closeTimer.interval = style.fadeDuration;
         closeTimer.start();
     }
 
     function dismissMenu() {
         if (root.isClosing) return;
         root.isClosing = true;
-        closeTimer.interval = 50;
+        closeTimer.interval = style.fadeDuration;
         closeTimer.start();
     }
 
@@ -232,8 +230,15 @@ except Exception:
                 try {
                     let parsed = JSON.parse(text.trim())
                     root.workspaceList = parsed.workspaces || []
-                    if (parsed.wallpaper) {
-                        root.wallpaperPath = parsed.wallpaper
+                    if (parsed.wallpaper && parsed.wallpaper.length > 0) {
+                        if (root.wallpaperPath !== parsed.wallpaper) {
+                            root.wallpaperPath = parsed.wallpaper
+                        }
+                    }
+                    if (parsed.thumb && parsed.thumb.length > 0) {
+                        if (root.wallpaperThumbPath !== parsed.thumb) {
+                            root.wallpaperThumbPath = parsed.thumb
+                        }
                     }
                     if (root.selectedIndex >= root.workspaceList.length) {
                         root.selectedIndex = Math.max(0, root.workspaceList.length - 1)
@@ -251,7 +256,7 @@ except Exception:
         onTriggered: {
             if (!fetchWsProcess.running && !root.isClosing) {
                 let pyScript = `
-import subprocess, json, os, re
+import subprocess, json, os, re, hashlib, glob
 
 ICON_DIRS = [
     "/usr/share/pixmaps",
@@ -330,33 +335,71 @@ def get_app_icon(wm_class, initial_class):
                     return filepath
     return ""
 
-def get_wallpaper():
-    cached_file = os.path.expanduser("~/.cache/qs_wallpaper_path")
+def make_low_quality_thumb(src_path):
+    if not os.path.isfile(src_path):
+        return ""
     
-    found_path = ""
+    cache_dir = os.path.expanduser("~/.cache")
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    try: mtime = os.path.getmtime(src_path)
+    except Exception: mtime = 0
+    
+    path_hash = hashlib.md5(f"{src_path}_{mtime}".encode("utf-8")).hexdigest()[:10]
+    thumb_path = os.path.join(cache_dir, f"qs_thumb_{path_hash}.jpg")
+
+    if os.path.exists(thumb_path) and os.path.getsize(thumb_path) > 0:
+        return thumb_path
+
     try:
-        out = subprocess.check_output("swww query 2>/dev/null", shell=True, text=True)
-        for line in out.splitlines():
-            for chunk in line.split():
-                clean = chunk.strip(",'\\"")
-                if clean.startswith("/") and os.path.isfile(clean):
-                    found_path = clean
-                    break
-            if found_path: break
+        for f in os.listdir(cache_dir):
+            if f.startswith("qs_thumb_") and f.endswith(".jpg"):
+                try: os.remove(os.path.join(cache_dir, f))
+                except Exception: pass
     except Exception: pass
+
+    generated = False
+    try:
+        from PIL import Image
+        with Image.open(src_path) as img:
+            img.thumbnail((480, 270), Image.Resampling.BILINEAR)
+            img.convert("RGB").save(thumb_path, "JPEG", quality=50, optimize=True)
+        generated = True
+    except Exception: pass
+
+    if not generated:
+        try:
+            subprocess.run(f'convert "{src_path}" -resize 480x270 "{thumb_path}"', shell=True, timeout=2)
+            generated = os.path.exists(thumb_path)
+        except Exception: pass
+
+    return thumb_path if generated else src_path
+
+def get_wallpaper():
+    found_path = ""
+    
+    for cmd in ["awww query 2>/dev/null", "swww query 2>/dev/null"]:
+        try:
+            out = subprocess.check_output(cmd, shell=True, text=True)
+            m = re.findall(r'image:\s*"?(/.*?\.(?:png|jpg|jpeg|webp|gif))"?', out, re.IGNORECASE)
+            if m:
+                for p in m:
+                    p_clean = p.strip().strip('"').strip("'").replace("~", os.path.expanduser("~"))
+                    if os.path.isfile(p_clean):
+                        found_path = p_clean
+                        break
+            if found_path: break
+        except Exception: pass
 
     if not found_path:
         try:
             out = subprocess.check_output("hyprctl hyprpaper listactive 2>/dev/null", shell=True, text=True)
             for line in out.splitlines():
                 if "=" in line:
-                    p = line.split("=")[1].strip()
+                    p = line.split("=")[1].strip().replace("~", os.path.expanduser("~"))
                     if os.path.isfile(p): 
                         found_path = p
                         break
-                elif "/" in line and os.path.isfile(line.strip()):
-                    found_path = line.strip()
-                    break
         except Exception: pass
 
     if not found_path:
@@ -374,21 +417,49 @@ def get_wallpaper():
 
     if not found_path:
         home = os.path.expanduser("~")
-        for p in [os.path.join(home, ".cache", "current_wallpaper"), os.path.join(home, ".config", "hypr", "wallpaper")]:
+        candidates = [
+            os.path.join(home, ".cache", "qs_wallpaper_path"),
+            os.path.join(home, ".cache", "current_wallpaper"),
+            os.path.join(home, ".cache", "wallpaper"),
+            os.path.join(home, ".cache", "wallust", "wallpaper"),
+            os.path.join(home, ".config", "hypr", "wallpaper")
+        ]
+        for p in candidates:
             if os.path.exists(p):
                 real_p = os.path.realpath(p)
                 if os.path.isfile(real_p): 
                     found_path = real_p
                     break
 
+    if not found_path:
+        home = os.path.expanduser("~")
+        search_dirs = [
+            os.path.join(home, "Pictures", "Wallpapers"),
+            os.path.join(home, "Pictures", "wallpaper"),
+            os.path.join(home, "Pictures")
+        ]
+        for d in search_dirs:
+            if os.path.isdir(d):
+                files = glob.glob(os.path.join(d, "*"))
+                imgs = [f for f in files if os.path.isfile(f) and f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))]
+                if imgs:
+                    imgs.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+                    found_path = imgs[0]
+                    break
+
+    thumb_path = ""
     if found_path:
+        found_path = os.path.realpath(found_path)
+        cached_file = os.path.expanduser("~/.cache/qs_wallpaper_path")
         try:
             os.makedirs(os.path.dirname(cached_file), exist_ok=True)
             with open(cached_file, "w") as f:
                 f.write(found_path)
         except Exception: pass
 
-    return found_path
+        thumb_path = make_low_quality_thumb(found_path)
+
+    return found_path, thumb_path
 
 def parse_workspace_id(ws_info):
     if isinstance(ws_info, int): return ws_info
@@ -411,7 +482,7 @@ except Exception:
     ws_data, clients_data, active_ws = [], [], {}
 
 active_id = active_ws.get("id", 1)
-wallpaper = get_wallpaper()
+wallpaper, thumb = get_wallpaper()
 
 ws_windows = {}
 for c in clients_data:
@@ -467,7 +538,7 @@ for w in special_ws:
             "windows": windows
         })
 
-print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
+print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result}))
 `
                 fetchWsProcess.command = ["python3", "-c", pyScript]
                 fetchWsProcess.running = true
@@ -495,7 +566,7 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            visible: isTargetMonitor && !root.isClosing
+            visible: root.isOpened
 
             anchors {
                 top: true
@@ -506,14 +577,50 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
 
             color: "transparent"
 
-            // Fullscreen Dim Overlay
-            Rectangle {
+            // ============================================================
+            // NON-TARGET MONITOR: DIMMED & BLURRED OVERLAY
+            // ============================================================
+            Item {
                 anchors.fill: parent
-                color: "black"
-                opacity: root.isOpened && !root.isClosing ? 0.65 : 0.0
+                visible: !isTargetMonitor
 
-                Behavior on opacity { 
-                    NumberAnimation { duration: root.animEnabled ? root.animDuration : 0; easing.type: Easing.OutCubic } 
+                Image {
+                    id: secondaryWallpaperImg
+                    anchors.fill: parent
+                    source: root.formatFileUrl(root.wallpaperThumbPath !== "" ? root.wallpaperThumbPath : root.wallpaperPath)
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    cache: false
+                    visible: status === Image.Ready && source !== ""
+                }
+
+                MultiEffect {
+                    anchors.fill: parent
+                    source: secondaryWallpaperImg
+                    blurEnabled: true
+                    blur: 1.0
+                    blurMax: 36
+                    opacity: root.isOpened && !root.isClosing ? 1.0 : 0.0
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: root.animEnabled ? style.fadeDuration : 0
+                            easing.type: style.fadeEasing
+                        }
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    color: "#000000"
+                    opacity: root.isOpened && !root.isClosing ? 0.60 : 0.0
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: root.animEnabled ? style.fadeDuration : 0
+                            easing.type: style.fadeEasing
+                        }
+                    }
                 }
 
                 MouseArea {
@@ -522,318 +629,335 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
                 }
             }
 
-            // Centered Modal Container
+            // ============================================================
+            // TARGET MONITOR: DIM BACKDROP & MAIN DIALOG
+            // ============================================================
             Item {
-                id: mainContainer
-                anchors.centerIn: parent
-                implicitWidth: cardColumn.implicitWidth + 48
-                implicitHeight: cardColumn.implicitHeight + 48
+                anchors.fill: parent
+                visible: isTargetMonitor
 
-                focus: isTargetMonitor
-
-                Component.onCompleted: {
-                    if (isTargetMonitor) forceActiveFocus()
-                }
-
-                // KEYBOARD NAVIGATION
-                Keys.onEscapePressed: root.dismissMenu()
-
-                Keys.onLeftPressed: {
-                    if (root.workspaceList.length > 0) {
-                        root.selectedIndex = (root.selectedIndex - 1 + root.workspaceList.length) % root.workspaceList.length
-                    }
-                }
-                Keys.onRightPressed: {
-                    if (root.workspaceList.length > 0) {
-                        root.selectedIndex = (root.selectedIndex + 1) % root.workspaceList.length
-                    }
-                }
-                Keys.onUpPressed: {
-                    if (root.selectedIndex - 5 >= 0) {
-                        root.selectedIndex -= 5
-                    }
-                }
-                Keys.onDownPressed: {
-                    if (root.selectedIndex + 5 < root.workspaceList.length) {
-                        root.selectedIndex += 5
-                    }
-                }
-                Keys.onReturnPressed: {
-                    if (root.workspaceList && root.workspaceList.length > root.selectedIndex) {
-                        root.switchToWorkspace(root.workspaceList[root.selectedIndex])
-                    }
-                }
-                Keys.onSpacePressed: {
-                    if (root.workspaceList && root.workspaceList.length > root.selectedIndex) {
-                        root.switchToWorkspace(root.workspaceList[root.selectedIndex])
-                    }
-                }
-
-                // MODAL CARD BOX
                 Rectangle {
-                    id: cardRect
                     anchors.fill: parent
-
-                    radius: root.themeRounding
-                    color: root.themeBackground
-                    border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themeBorder, 0.45)
-
-                    opacity: root.isClosing ? 0 : (root.isOpened ? 1.0 : 0.0)
-                    scale: root.isClosing ? 0.95 : (root.isOpened ? 1.0 : 0.95)
+                    color: "#000000"
+                    opacity: root.isOpened && !root.isClosing ? 0.65 : 0.0
 
                     Behavior on opacity { 
-                        NumberAnimation { duration: root.animEnabled ? root.animDuration : 0; easing.type: Easing.OutCubic } 
-                    }
-                    Behavior on scale { 
-                        NumberAnimation { duration: root.animEnabled ? root.animDuration : 0; easing.type: Easing.OutBack } 
+                        NumberAnimation { 
+                            duration: root.animEnabled ? style.fadeDuration : 0; 
+                            easing.type: style.fadeEasing 
+                        } 
                     }
 
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: (mouse) => mouse.accepted = true
+                        onClicked: root.dismissMenu()
+                    }
+                }
+
+                Item {
+                    id: mainContainer
+                    anchors.centerIn: parent
+                    implicitWidth: cardColumn.implicitWidth + 48
+                    implicitHeight: cardColumn.implicitHeight + 48
+
+                    focus: isTargetMonitor
+
+                    Component.onCompleted: {
+                        if (isTargetMonitor) forceActiveFocus()
                     }
 
-                    Column {
-                        id: cardColumn
-                        anchors.centerIn: parent
-                        spacing: 24
+                    Keys.onEscapePressed: root.dismissMenu()
 
-                        Row {
-                            anchors.horizontalCenter: parent.horizontalCenter
-                            spacing: 12
+                    Keys.onLeftPressed: {
+                        if (root.workspaceList.length > 0) {
+                            root.selectedIndex = (root.selectedIndex - 1 + root.workspaceList.length) % root.workspaceList.length
+                        }
+                    }
+                    Keys.onRightPressed: {
+                        if (root.workspaceList.length > 0) {
+                            root.selectedIndex = (root.selectedIndex + 1) % root.workspaceList.length
+                        }
+                    }
+                    Keys.onUpPressed: {
+                        if (root.selectedIndex - 5 >= 0) {
+                            root.selectedIndex -= 5
+                        }
+                    }
+                    Keys.onDownPressed: {
+                        if (root.selectedIndex + 5 < root.workspaceList.length) {
+                            root.selectedIndex += 5
+                        }
+                    }
+                    Keys.onReturnPressed: {
+                        if (root.workspaceList && root.workspaceList.length > root.selectedIndex) {
+                            root.switchToWorkspace(root.workspaceList[root.selectedIndex])
+                        }
+                    }
+                    Keys.onSpacePressed: {
+                        if (root.workspaceList && root.workspaceList.length > root.selectedIndex) {
+                            root.switchToWorkspace(root.workspaceList[root.selectedIndex])
+                        }
+                    }
 
-                            Text {
-                                text: "Workspace Overview"
-                                color: root.themeText
-                                font.pixelSize: 26
-                                font.weight: Font.Bold
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
+                    Rectangle {
+                        id: cardRect
+                        anchors.fill: parent
 
-                            Rectangle {
-                                width: 1
-                                height: 20
-                                color: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.3)
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
+                        radius: root.themeRounding
+                        color: root.themeBackground
+                        border.width: root.themeBorderSize
+                        border.color: Qt.alpha(root.themeBorder, 0.45)
 
-                            Text {
-                                text: "ESC to close"
-                                color: root.themeTextMuted
-                                font.pixelSize: 13
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
+                        opacity: root.isClosing ? 0 : (root.isOpened ? 1.0 : 0.0)
+                        scale: root.isClosing ? 0.94 : (root.isOpened ? 1.0 : 0.94)
+
+                        Behavior on opacity { 
+                            NumberAnimation { 
+                                duration: root.animEnabled ? style.fadeDuration : 0; 
+                                easing.type: style.fadeEasing 
+                            } 
+                        }
+                        Behavior on scale { 
+                            NumberAnimation { 
+                                duration: root.animEnabled ? style.animDuration : 0; 
+                                easing.type: style.defaultEasing 
+                            } 
                         }
 
-                        Grid {
-                            columns: 5
-                            spacing: 16
-                            anchors.horizontalCenter: parent.horizontalCenter
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: (mouse) => mouse.accepted = true
+                        }
 
-                            Repeater {
-                                model: root.workspaceList
+                        Column {
+                            id: cardColumn
+                            anchors.centerIn: parent
+                            spacing: 24
 
-                                delegate: Rectangle {
-                                    id: cardItem
-                                    required property var modelData
-                                    required property int index
+                            Row {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                spacing: 12
 
-                                    width: 220
-                                    height: 140
+                                Text {
+                                    text: "Workspace Overview"
+                                    color: root.themeText
+                                    font.pixelSize: 26
+                                    font.weight: Font.Bold
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
 
-                                    radius: root.themeRounding
+                                Rectangle {
+                                    width: 1
+                                    height: 20
+                                    color: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.3)
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
 
-                                    property bool isSelected: index === root.selectedIndex
-                                    property bool isActiveWs: modelData.isActive
+                                Text {
+                                    text: "ESC to close"
+                                    color: root.themeTextMuted
+                                    font.pixelSize: 13
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
 
-                                    z: isSelected ? 10 : 1
-                                    scale: isSelected ? 1.08 : 1.0
+                            Grid {
+                                columns: 5
+                                spacing: 16
+                                anchors.horizontalCenter: parent.horizontalCenter
 
-                                    Behavior on scale {
-                                        NumberAnimation {
-                                            duration: root.animEnabled ? 150 : 0
-                                            easing.type: Easing.OutCubic
+                                Repeater {
+                                    model: root.workspaceList
+
+                                    delegate: Rectangle {
+                                        id: cardItem
+                                        required property var modelData
+                                        required property int index
+
+                                        width: 220
+                                        height: 140
+
+                                        radius: root.themeRounding
+                                        color: root.themeBackground
+                                        clip: true
+
+                                        property bool isSelected: index === root.selectedIndex
+                                        property bool isActiveWs: modelData.isActive
+
+                                        z: isSelected ? 10 : 1
+                                        scale: isSelected ? 1.08 : 1.0
+
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? style.animDuration : 0
+                                                easing.type: style.defaultEasing
+                                            }
                                         }
-                                    }
 
-                                    color: root.themeBackground
-
-                                    Item {
-                                        id: cardBgSource
-                                        anchors.fill: parent
-                                        visible: false
-
+                                        // WALLPAPER IMAGE BACKGROUND
                                         Image {
+                                            id: cardWpImg
                                             anchors.fill: parent
-                                            source: root.wallpaperPath !== "" ? "file://" + root.wallpaperPath : ""
+                                            source: root.formatFileUrl(root.wallpaperThumbPath !== "" ? root.wallpaperThumbPath : root.wallpaperPath)
                                             fillMode: Image.PreserveAspectCrop
                                             asynchronous: true
-                                            cache: true
+                                            cache: false
+                                            visible: status === Image.Ready && source !== ""
                                         }
 
+                                        // DARK OVERLAY FOR TEXT CONTRAST
                                         Rectangle {
                                             anchors.fill: parent
                                             color: "#000000"
-                                            opacity: 0.25
+                                            opacity: cardWpImg.visible ? 0.35 : 0.0
                                         }
-                                    }
 
-                                    Rectangle {
-                                        id: cardBgMask
-                                        anchors.fill: parent
-                                        radius: root.themeRounding
-                                        color: "black"
-                                        visible: false
-                                        layer.enabled: true
-                                    }
+                                        // CONTENT LAYER
+                                        Column {
+                                            anchors.fill: parent
+                                            anchors.margins: 12
+                                            spacing: 10
+                                            z: 2
 
-                                    MultiEffect {
-                                        anchors.fill: parent
-                                        source: cardBgSource
-                                        maskEnabled: true
-                                        maskSource: cardBgMask
-                                    }
-
-                                    Column {
-                                        anchors.fill: parent
-                                        anchors.margins: 12
-                                        spacing: 10
-                                        z: 2
-
-                                        Row {
-                                            width: parent.width
-                                            spacing: 6
-
-                                            Text {
-                                                text: modelData.name
-                                                color: modelData.isSpecial ? "#facc15" : root.themeText
-                                                font.pixelSize: 14
-                                                font.weight: Font.Bold
-                                                style: Text.Outline
-                                                styleColor: Qt.rgba(0, 0, 0, 0.8)
-                                                elide: Text.ElideRight
-                                                width: parent.width - (isActiveWs ? 52 : 0)
-                                            }
-
-                                            Rectangle {
-                                                visible: isActiveWs
-                                                width: 46
-                                                height: 18
-                                                radius: 9
-                                                color: root.themePrimary
-                                                anchors.verticalCenter: parent.verticalCenter
+                                            Row {
+                                                width: parent.width
+                                                spacing: 6
 
                                                 Text {
-                                                    text: "ACTIVE"
-                                                    color: "#000000"
-                                                    font.pixelSize: 9
+                                                    text: modelData.name
+                                                    color: modelData.isSpecial ? "#facc15" : root.themeText
+                                                    font.pixelSize: 14
                                                     font.weight: Font.Bold
-                                                    anchors.centerIn: parent
+                                                    style: Text.Outline
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                                    elide: Text.ElideRight
+                                                    width: parent.width - (isActiveWs ? 52 : 0)
+                                                }
+
+                                                Rectangle {
+                                                    visible: isActiveWs
+                                                    width: 46
+                                                    height: 18
+                                                    radius: 9
+                                                    color: root.themePrimary
+                                                    anchors.verticalCenter: parent.verticalCenter
+
+                                                    Text {
+                                                        text: "ACTIVE"
+                                                        color: "#000000"
+                                                        font.pixelSize: 9
+                                                        font.weight: Font.Bold
+                                                        anchors.centerIn: parent
+                                                    }
                                                 }
                                             }
-                                        }
 
-                                        Flow {
-                                            width: parent.width
-                                            spacing: 8
-                                            visible: modelData.windows.length > 0
+                                            Flow {
+                                                width: parent.width
+                                                spacing: 8
+                                                visible: modelData.windows.length > 0
 
-                                            Repeater {
-                                                model: modelData.windows.slice(0, 7)
+                                                Repeater {
+                                                    model: modelData.windows.slice(0, 7)
 
-                                                delegate: Rectangle {
-                                                    required property var modelData
+                                                    delegate: Rectangle {
+                                                        required property var modelData
 
+                                                        width: 34
+                                                        height: 34
+                                                        radius: 8
+                                                        color: Qt.rgba(0, 0, 0, 0.65)
+                                                        border.width: 1
+                                                        border.color: Qt.rgba(255, 255, 255, 0.2)
+
+                                                        Image {
+                                                            id: imgIcon
+                                                            anchors.centerIn: parent
+                                                            width: 22
+                                                            height: 22
+                                                            source: root.formatFileUrl(modelData.icon)
+                                                            fillMode: Image.PreserveAspectFit
+                                                            asynchronous: true
+                                                            visible: modelData.icon !== "" && status === Image.Ready
+                                                        }
+
+                                                        Text {
+                                                            anchors.centerIn: parent
+                                                            visible: modelData.icon === "" || imgIcon.status !== Image.Ready
+                                                            text: modelData.class.substring(0, 2).toUpperCase()
+                                                            color: root.themeText
+                                                            font.pixelSize: 11
+                                                            font.weight: Font.Bold
+                                                        }
+
+                                                        ToolTip.visible: iconMouse.containsMouse
+                                                        ToolTip.delay: 200
+                                                        ToolTip.text: modelData.class + (modelData.title ? ": " + modelData.title : "")
+
+                                                        MouseArea {
+                                                            id: iconMouse
+                                                            anchors.fill: parent
+                                                            hoverEnabled: true
+                                                            acceptedButtons: Qt.NoButton
+                                                        }
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    visible: modelData.windows.length > 7
                                                     width: 34
                                                     height: 34
                                                     radius: 8
-                                                    color: Qt.rgba(0, 0, 0, 0.65)
+                                                    color: Qt.rgba(0, 0, 0, 0.75)
                                                     border.width: 1
-                                                    border.color: Qt.rgba(255, 255, 255, 0.2)
-
-                                                    Image {
-                                                        id: imgIcon
-                                                        anchors.centerIn: parent
-                                                        width: 22
-                                                        height: 22
-                                                        source: modelData.icon !== "" ? "file://" + modelData.icon : ""
-                                                        fillMode: Image.PreserveAspectFit
-                                                        asynchronous: true
-                                                        visible: modelData.icon !== "" && status === Image.Ready
-                                                    }
+                                                    border.color: root.themePrimary
 
                                                     Text {
                                                         anchors.centerIn: parent
-                                                        visible: modelData.icon === "" || imgIcon.status !== Image.Ready
-                                                        text: modelData.class.substring(0, 2).toUpperCase()
+                                                        text: "+" + (modelData.windows.length - 7)
                                                         color: root.themeText
                                                         font.pixelSize: 11
                                                         font.weight: Font.Bold
                                                     }
-
-                                                    ToolTip.visible: iconMouse.containsMouse
-                                                    ToolTip.delay: 200
-                                                    ToolTip.text: modelData.class + (modelData.title ? ": " + modelData.title : "")
-
-                                                    MouseArea {
-                                                        id: iconMouse
-                                                        anchors.fill: parent
-                                                        hoverEnabled: true
-                                                        acceptedButtons: Qt.NoButton
-                                                    }
-                                                }
-                                            }
-
-                                            Rectangle {
-                                                visible: modelData.windows.length > 7
-                                                width: 34
-                                                height: 34
-                                                radius: 8
-                                                color: Qt.rgba(0, 0, 0, 0.75)
-                                                border.width: 1
-                                                border.color: root.themePrimary
-
-                                                Text {
-                                                    anchors.centerIn: parent
-                                                    text: "+" + (modelData.windows.length - 7)
-                                                    color: root.themeText
-                                                    font.pixelSize: 11
-                                                    font.weight: Font.Bold
                                                 }
                                             }
                                         }
-                                    }
 
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        radius: root.themeRounding
-                                        color: "transparent"
-                                        border.width: cardItem.isSelected ? Math.max(2, root.themeBorderSize + 1) : Math.max(1, root.themeBorderSize)
-                                        border.color: cardItem.isSelected 
-                                            ? root.themePrimary 
-                                            : (cardItem.isActiveWs ? Qt.alpha(root.themeBorder, 0.9) : Qt.alpha(root.themeBorder, 0.45))
-                                        z: 100
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            radius: root.themeRounding
+                                            color: "transparent"
+                                            border.width: cardItem.isSelected ? Math.max(2, root.themeBorderSize + 1) : Math.max(1, root.themeBorderSize)
+                                            border.color: cardItem.isSelected 
+                                                ? root.themePrimary 
+                                                : (cardItem.isActiveWs ? Qt.alpha(root.themeBorder, 0.9) : Qt.alpha(root.themeBorder, 0.45))
+                                            z: 100
 
-                                        Behavior on border.color { ColorAnimation { duration: 150 } }
-                                    }
+                                            Behavior on border.color { 
+                                                ColorAnimation { 
+                                                    duration: root.animEnabled ? style.fadeDuration : 0 
+                                                    easing.type: style.fadeEasing
+                                                } 
+                                            }
+                                        }
 
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onEntered: root.selectedIndex = index
-                                        onClicked: root.switchToWorkspace(modelData)
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onEntered: root.selectedIndex = index
+                                            onClicked: root.switchToWorkspace(modelData)
+                                        }
                                     }
                                 }
                             }
-                        }
 
-                        Text {
-                            text: "Arrow Keys / Mouse to navigate  •  Enter / Click to switch  •  Esc to exit"
-                            color: root.themeTextMuted
-                            font.pixelSize: 12
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            Text {
+                                text: "Arrow Keys / Mouse to navigate  •  Enter / Click to switch  •  Esc to exit"
+                                color: root.themeTextMuted
+                                font.pixelSize: 12
+                                anchors.horizontalCenter: parent.horizontalCenter
+                            }
                         }
                     }
                 }
