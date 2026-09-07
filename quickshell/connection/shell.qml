@@ -10,17 +10,11 @@ import QtQuick.Window
 Scope {
     id: root
 
-    // ============================================================
-    // ESCAPE KEY SHORTCUT
-    // ============================================================
     Shortcut {
         sequence: "Escape"
         onActivated: Qt.quit()
     }
 
-    // ============================================================
-    // STRICT FOCUSED MONITOR LOCK LOGIC
-    // ============================================================
     property string targetMonitorName: ""
 
     function updateTargetMonitor() {
@@ -49,18 +43,14 @@ Scope {
         }
     }
 
-    // ============================================================
-    // ADAPTIVE THEME PROPERTIES
-    // ============================================================
     property color themeBorder: "#ff4b6e"
     property color themePrimary: "#ff4b6e"
     property color themeText: "#ffffff"
     property color themeTextMuted: "#a1a1aa"
     
-    // Geometry & Animation Defaults (overridden by .lua files)
     property int themeRounding: 22
     property int themeBorderSize: 1
-    property real themeBgAlpha: 1.0
+    property real themeBgAlpha: 0.7
     property bool animEnabled: true
     property int animDuration: 220
     
@@ -68,9 +58,6 @@ Scope {
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.07) 
     property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.12)
 
-    // ============================================================
-    // FULLSCREEN DETECTION
-    // ============================================================
     property bool isFullscreen: (Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.hasFullscreen) || hyprFullscreen
     property bool hyprFullscreen: false
 
@@ -92,17 +79,11 @@ Scope {
         onTriggered: fullscreenChecker.running = true
     }
 
-    // ============================================================
-    // ACTIVE STATE TRACKING
-    // ============================================================
     property string expandedSsid: ""
     property string connectingSsid: ""
     property string errorSsid: ""
     property string connectErrorMsg: ""
 
-    // ============================================================
-    // CONFIG PARSERS
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -170,9 +151,6 @@ Scope {
         fetchNetworkStatus()
     }
 
-    // ============================================================
-    // COMMAND EXECUTION LOGIC
-    // ============================================================
     Process { id: execProcess }
     function exec(cmd) {
         execProcess.running = false
@@ -286,9 +264,6 @@ print(json.dumps(get_net()))
         netFetcher.running = true
     }
 
-    // ============================================================
-    // WI-FI CONNECTION PROCESS
-    // ============================================================
     Process {
         id: wifiConnectProcess
         property string targetSsid: ""
@@ -400,9 +375,6 @@ print(json.dumps(get_net()))
         onTriggered: root.fetchNetworkStatus()
     }
 
-    // ============================================================
-    // TOP RIGHT NETWORK DIALOG (STRICT FOCUSED MONITOR LOCK)
-    // ============================================================
     Variants {
         model: Quickshell.screens
 
@@ -415,7 +387,7 @@ print(json.dumps(get_net()))
 
             visible: !root.isFullscreen && root.targetMonitorName !== "" && isTargetMonitor
 
-            WlrLayershell.namespace: "dms:network-center"
+            WlrLayershell.namespace: "qs-network-center"
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
@@ -433,7 +405,6 @@ print(json.dumps(get_net()))
                 onClicked: Qt.quit()
             }
 
-            // Top-Right Positioned Container
             Item {
                 anchors.top: parent.top
                 anchors.right: parent.right
@@ -458,7 +429,7 @@ print(json.dumps(get_net()))
                     anchors.fill: parent
 
                     radius: root.themeRounding
-                    color: root.themeBackground
+                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
                     border.color: Qt.alpha(root.themeBorder, 0.45)
                     clip: true
@@ -471,7 +442,6 @@ print(json.dumps(get_net()))
                         anchors.margins: 18
                         spacing: 14
 
-                        // Header
                         RowLayout {
                             Layout.fillWidth: true
 
@@ -506,7 +476,6 @@ print(json.dumps(get_net()))
 
                             Item { Layout.fillWidth: true }
 
-                            // Rescan Button
                             Rectangle {
                                 Layout.preferredWidth: scanRow.implicitWidth + 18
                                 Layout.preferredHeight: 32
@@ -552,12 +521,10 @@ print(json.dumps(get_net()))
                             }
                         }
 
-                        // Quick Switches
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 12
 
-                            // Wi-Fi Toggle Card
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 52
@@ -618,7 +585,6 @@ print(json.dumps(get_net()))
                                 }
                             }
 
-                            // Ethernet Toggle Card
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 52
@@ -686,7 +652,6 @@ print(json.dumps(get_net()))
                             color: Qt.rgba(1, 1, 1, 0.08)
                         }
 
-                        // Available Wi-Fi List Section
                         Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -758,7 +723,6 @@ print(json.dumps(get_net()))
                                         anchors.margins: 12
                                         spacing: 10
 
-                                        // Top Header Row
                                         Item {
                                             Layout.fillWidth: true
                                             implicitHeight: headerRow.implicitHeight
@@ -802,7 +766,6 @@ print(json.dumps(get_net()))
                                                     }
                                                 }
 
-                                                // Connection Status Badge
                                                 Rectangle {
                                                     Layout.preferredWidth: statusText.implicitWidth + 16
                                                     Layout.preferredHeight: 26
@@ -841,7 +804,6 @@ print(json.dumps(get_net()))
                                             }
                                         }
 
-                                        // Interactive Inline Drawer
                                         ColumnLayout {
                                             Layout.fillWidth: true
                                             visible: card.isExpanded
@@ -853,7 +815,6 @@ print(json.dumps(get_net()))
                                                 color: Qt.rgba(1, 1, 1, 0.08)
                                             }
 
-                                            // Disconnect Button
                                             RowLayout {
                                                 visible: card.isConnected
                                                 Layout.fillWidth: true
@@ -882,7 +843,6 @@ print(json.dumps(get_net()))
                                                 }
                                             }
 
-                                            // Inline Password Input
                                             ColumnLayout {
                                                 visible: !card.isConnected && card.isProtected
                                                 Layout.fillWidth: true
@@ -960,7 +920,6 @@ print(json.dumps(get_net()))
                                                     }
                                                 }
 
-                                                // Explicit Error Display Banner
                                                 Text {
                                                     visible: card.hasError
                                                     text: "󰅙 " + root.connectErrorMsg

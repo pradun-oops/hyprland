@@ -21,6 +21,9 @@ hl.bind("SUPER + K", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts
 hl.bind("SUPER + tab", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh overview open"))
 hl.bind("SUPER + L", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh lockscreen open"))
 hl.bind("SUPER + W", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh wallpaper open"))
+hl.bind("SUPER + SHIFT + B", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh bluetooth open"))
+hl.bind("SUPER + M", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh system-monitor open"))
+hl.bind("SUPER + SHIFT + W", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh weather open"))
 
 -- ============================================================
 -- AUDIO / VOLUME CONTROLS (USING WPCTL)

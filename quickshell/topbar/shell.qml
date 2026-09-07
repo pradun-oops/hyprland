@@ -18,7 +18,7 @@ Scope {
     
     property int themeRounding: 12
     property int themeBorderSize: 1
-    property real themeBgAlpha: 1.0
+    property real themeBgAlpha: 0.7
     
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
@@ -424,7 +424,7 @@ print(json.dumps({
                     }
                     
                     radius: root.themeRounding
-                    color: root.themeBackground
+                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
                     border.color: Qt.alpha(root.themeBorder, 0.45)
                     clip: true

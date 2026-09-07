@@ -20,7 +20,7 @@ Scope {
     
     property int themeRounding: 20
     property int themeBorderSize: 1
-    property real themeBgAlpha: 1.0
+    property real themeBgAlpha: 0.7
     property bool animEnabled: true
     property int animDuration: 120 
     
@@ -441,7 +441,7 @@ except Exception:
                     width: masterDockLayout.implicitWidth + 28
                     height: 84
                     radius: root.themeRounding
-                    color: root.themeBackground
+                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
                     border.color: Qt.alpha(root.themeBorder, 0.45)
 

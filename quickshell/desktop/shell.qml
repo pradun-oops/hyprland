@@ -69,7 +69,7 @@ Scope {
     
     property int themeRounding: 12
     property int themeBorderSize: 2
-    property real themeBgAlpha: 1.0
+    property real themeBgAlpha: 0.7
     property bool animEnabled: true
     property int animDuration: 500
 
@@ -378,7 +378,7 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
             visible: modelData !== null
 
             WlrLayershell.layer: WlrLayer.Bottom
-            WlrLayershell.namespace: "dms:desktop-widget:dashboard"
+            WlrLayershell.namespace: "qs-desktop-dashboard"
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             exclusiveZone: -1
 
@@ -404,7 +404,7 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                     id: bgCardShape
                     anchors.fill: parent
                     radius: root.themeRounding 
-                    color: root.themeBackground
+                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
                     border.color: Qt.alpha(root.themePrimary, 0.4)
                     antialiasing: true 

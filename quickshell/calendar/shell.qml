@@ -21,6 +21,7 @@ Scope {
     property color themeAccent: "#f5a97f" // Color for personal tasks/todos
     property int themeRounding: 15
     property int themeBorderSize: 2
+    property real themeBgAlpha: 0.7
 
     // Dynamic Watchers for Hyprland Lua Configs
     FileView {
@@ -261,7 +262,7 @@ Scope {
 
             // Render on top of other applications
             WlrLayershell.layer: WlrLayer.Top
-            WlrLayershell.namespace: "dms:desktop-widget:calendar"
+            WlrLayershell.namespace: "qs-calendar"
             
             // Only capture keyboard focus if it's the target monitor
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
@@ -291,7 +292,7 @@ Scope {
                 width: 440
                 height: cardLayout.implicitHeight + 48
                 radius: root.themeRounding
-                color: root.themeBackground
+                color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                 border.color: root.themeBorder
                 border.width: root.themeBorderSize
 

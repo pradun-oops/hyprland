@@ -45,7 +45,7 @@ Scope {
     // --- DYNAMIC ADAPTIVE PROPERTIES ---
     property int themeRounding: 14
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.95
+    property real themeBgAlpha: 0.7
     property bool animEnabled: true
     property int animDuration: 220       
 

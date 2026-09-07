@@ -10,9 +10,6 @@ import QtQuick.Window
 Scope {
     id: root
 
-    // ============================================================
-    // ADAPTIVE THEME PROPERTIES
-    // ============================================================
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
@@ -21,16 +18,13 @@ Scope {
     
     property int themeRounding: 24
     property int themeBorderSize: 1
-    property real themeBgAlpha: 1.0 // FIXED: Set to 1.0 for a completely solid background
+    property real themeBgAlpha: 0.7 
     
     property color themeBackground: Qt.rgba(0.08, 0.08, 0.09, themeBgAlpha) 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08) 
     property color themeSurfaceActive: Qt.rgba(1.0, 1.0, 1.0, 0.22)
     property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.14)
 
-    // ============================================================
-    // SYSTEM STATE PROPERTIES
-    // ============================================================
     property bool wifiEnabled: true
     property bool btEnabled: true
     property bool dndEnabled: false
@@ -45,13 +39,9 @@ Scope {
     property string systemInfo: "Fedora 43 • Hyprland"
     property string avatarPath: "file://" + Quickshell.env("HOME") + "/.face"
 
-    // NAVIGATION & EDIT STATE
     property bool editMode: false
     property string targetMonitorName: ""
 
-    // ============================================================
-    // WINDOW POSITION PERSISTENCE
-    // ============================================================
     property int windowMarginTop: 54
     property int windowMarginRight: 16
 
@@ -74,9 +64,6 @@ Scope {
         savePosProcess.running = true
     }
 
-    // ============================================================
-    // EDIT MODE & TOGGLE CONFIGURATION
-    // ============================================================
     property var masterMods: ["wifi", "bluetooth", "dnd", "nightLight", "micMute"]
     property var toggleMods: ["wifi", "bluetooth", "dnd", "nightLight", "micMute"]
     property var inactiveMods: []
@@ -139,9 +126,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // THEME PARSERS
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -173,9 +157,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // CURSOR MONITOR DETECTION PROCESS
-    // ============================================================
     Process {
         id: cursorMonitorProcess
         stdout: StdioCollector {
@@ -185,7 +166,6 @@ Scope {
                 if (found !== "") {
                     root.targetMonitorName = found;
                 } else {
-                    // Fallbacks if Python script unexpectedly fails
                     if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
                         root.targetMonitorName = Hyprland.focusedMonitor.name;
                     } else if (Quickshell.screens.length > 0) {
@@ -204,7 +184,6 @@ Scope {
         posFile.reload()
         root.updateInactiveMods()
 
-        // Robust Python script to pinpoint the monitor based on layout coordinates & cursor position
         let pyScript = `
 import json, subprocess
 try:
@@ -213,19 +192,15 @@ try:
     cx, cy = c.get('x',0), c.get('y',0)
     res = ''
     
-    # 1. Fallback: find focused monitor first
     for mon in m:
         if mon.get('focused'): 
             res = mon['name']
             
-    # 2. Strict Check: find the monitor bounds exactly matching the cursor
     for mon in m:
         mx, my = mon.get('x',0), mon.get('y',0)
         scale = mon.get('scale', 1.0)
-        # Hyprland layout coordinates use logical dimensions (width/scale)
         w, h = mon.get('width', 1920)/scale, mon.get('height', 1080)/scale
         
-        # Handle portrait/rotated monitors swapping width & height
         transform = mon.get('transform', 0)
         if transform % 2 != 0:
             w, h = h, w
@@ -242,9 +217,6 @@ except Exception:
         cursorMonitorProcess.running = true
     }
 
-    // ============================================================
-    // PROCESS EXECUTION & REAL-TIME POLLING
-    // ============================================================
     Process { id: execProcess }
     function exec(cmd) {
         execProcess.running = false
@@ -252,23 +224,19 @@ except Exception:
         execProcess.running = true
     }
 
-    // FAST POLLING: 200ms updates exclusively for Audio & Brightness to react instantly to keyboard shortcuts
     Process {
         id: fastUpdateProcess
         stdout: StdioCollector {
             onStreamFinished: {
                 let out = text.trim().split('|')
                 if (out.length >= 4) {
-                    // Volume
                     let volStr = out[0]
                     root.volumeMuted = volStr.indexOf("MUTED") !== -1
                     let m = volStr.match(/(\d+\.\d+)/)
                     if (m) root.volumeLevel = Math.round(parseFloat(m[1]) * 100)
 
-                    // Mic
                     root.micMuted = out[1].indexOf("MUTED") !== -1
 
-                    // Brightness
                     let bg = parseInt(out[2]) || 0
                     let bm = parseInt(out[3]) || 1
                     root.brightnessLevel = Math.round((bg / bm) * 100)
@@ -287,7 +255,6 @@ except Exception:
         }
     }
 
-    // SLOW POLLING: 2000ms for status toggles (WiFi, BT, Nightlight) to save CPU
     Process {
         id: slowUpdateProcess
         stdout: StdioCollector {
@@ -312,9 +279,6 @@ except Exception:
         }
     }
 
-    // ============================================================
-    // TOGGLE METADATA & ACTIONS
-    // ============================================================
     function getToggleName(type) {
         switch(type) {
             case "wifi": return "Internet"
@@ -353,11 +317,9 @@ except Exception:
 
         switch(type) {
             case "wifi": 
-                // Launch user's connection dialog
                 root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh connection open")
                 break
             case "bluetooth": 
-                // Open Blueman manager
                 root.exec("blueman-manager")
                 break
             case "dnd": 
@@ -373,9 +335,6 @@ except Exception:
         }
     }
 
-    // ============================================================
-    // CONTROL CENTER UI
-    // ============================================================
     Variants {
         model: Quickshell.screens
         delegate: PanelWindow {
@@ -387,7 +346,7 @@ except Exception:
             visible: isTargetMonitor
 
             WlrLayershell.layer: WlrLayer.Top
-            WlrLayershell.namespace: "dms:control_center"
+            WlrLayershell.namespace: "qs-control-center"
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
             exclusiveZone: -1
 
@@ -401,7 +360,6 @@ except Exception:
             }
 
             implicitWidth: 380
-            // FIXED: Multiplied the calculated height by 1.2 to increase the dialog height by 20%
             implicitHeight: Math.min((mainColumn.implicitHeight + 96) * 1.1, Screen.height - 80)
             Behavior on implicitHeight { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
 
@@ -421,7 +379,6 @@ except Exception:
                 border.color: Qt.alpha(root.themeBorder, 0.3)
                 clip: true
 
-                // RIGHT CLICK WINDOW DRAG AREA
                 MouseArea {
                     anchors.fill: parent
                     acceptedButtons: Qt.RightButton
@@ -452,7 +409,6 @@ except Exception:
                     }
                 }
 
-                // DYNAMIC HEADER WITH USER PROFILE
                 Column {
                     id: headerContainer
                     width: parent.width
@@ -469,7 +425,6 @@ except Exception:
                             anchors.rightMargin: 18
                             spacing: 12
 
-                            // Avatar Circle
                             Rectangle {
                                 width: 44
                                 height: 44
@@ -531,7 +486,6 @@ except Exception:
                                 }
                             }
 
-                            // User Info
                             Column {
                                 Layout.fillWidth: true
                                 Layout.alignment: Qt.AlignVCenter
@@ -551,12 +505,10 @@ except Exception:
                                 }
                             }
 
-                            // Action Controls (Edit & Power)
                             Row {
                                 spacing: 8
                                 Layout.alignment: Qt.AlignVCenter
 
-                                // Edit Button
                                 Rectangle {
                                     width: 36
                                     height: 36
@@ -579,7 +531,6 @@ except Exception:
                                     }
                                 }
 
-                                // Power Menu Button
                                 Rectangle {
                                     width: 36
                                     height: 36
@@ -599,7 +550,6 @@ except Exception:
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            // FIXED: Executes the powermenu script and closes this widget
                                             root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh powermenu open")
                                             Qt.quit() 
                                         }
@@ -617,7 +567,6 @@ except Exception:
                     }
                 }
 
-                // MAIN CONTENT PAGE
                 Item {
                     anchors.top: headerContainer.bottom
                     anchors.bottom: parent.bottom
@@ -636,7 +585,6 @@ except Exception:
                             width: parent.width
                             spacing: 14
 
-                            // QUICK SETTINGS TOGGLE GRID
                             Flow {
                                 width: parent.width
                                 spacing: 10
@@ -712,7 +660,6 @@ except Exception:
                                                 }
                                             }
 
-                                            // REMOVE BUTTON IN EDIT MODE
                                             Rectangle {
                                                 anchors.right: parent.right
                                                 anchors.top: parent.top
@@ -728,7 +675,6 @@ except Exception:
                                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.removeToggle(modelData) }
                                             }
 
-                                            // TILE CLICK HANDLER
                                             MouseArea {
                                                 id: tMouse
                                                 anchors.fill: parent
@@ -755,7 +701,6 @@ except Exception:
                                 }
                             }
 
-                            // INACTIVE TILES FOR ADDING (EDIT MODE)
                             Column {
                                 width: parent.width
                                 spacing: 8
@@ -801,13 +746,11 @@ except Exception:
                                 }
                             }
 
-                            // SLIDERS SECTION (VOLUME & BRIGHTNESS) - SLIM & BUTTERY SMOOTH
                             Column {
                                 width: parent.width
                                 spacing: 10
                                 visible: !root.editMode
 
-                                // VOLUME SLIDER
                                 Rectangle {
                                     width: parent.width
                                     height: 38
@@ -816,7 +759,6 @@ except Exception:
                                     border.width: 1
                                     border.color: Qt.alpha(root.themeBorder, 0.08)
 
-                                    // Slim Fill Track
                                     Rectangle {
                                         id: volFill
                                         anchors.left: parent.left
@@ -877,7 +819,6 @@ except Exception:
                                     }
                                 }
 
-                                // BRIGHTNESS SLIDER
                                 Rectangle {
                                     width: parent.width
                                     height: 38
@@ -886,7 +827,6 @@ except Exception:
                                     border.width: 1
                                     border.color: Qt.alpha(root.themeBorder, 0.08)
 
-                                    // Slim Fill Track
                                     Rectangle {
                                         id: brightFill
                                         anchors.left: parent.left

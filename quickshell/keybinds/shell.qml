@@ -43,7 +43,7 @@ Scope {
     // Adaptive Theme Properties (Solid Background & Real-time updates)
     property int themeRounding: 14
     property int themeBorderSize: 2
-    property real themeBgAlpha: 1.0
+    property real themeBgAlpha: 0.7
     
     property color themeBackground: "#141416" 
     property color themeBorder: "#ffb3af"
@@ -297,7 +297,7 @@ Scope {
                 radius: root.themeRounding
                 border.width: root.themeBorderSize
                 border.color: Qt.alpha(root.themeBorder, 0.40)
-                color: root.themeBackground
+                color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
 
                 MouseArea {
                     anchors.fill: parent

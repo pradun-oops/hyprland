@@ -1,107 +1,26 @@
 hl.layer_rule({
     name = "quickshell-no-anim",
-    match = {
-        namespace = "^(quickshell)$",
-    },
+    match = { namespace = "^(quickshell)$" },
     no_anim = true,
 })
 
-hl.layer_rule({
-    name = "qs-brightness-osd-blur",
-    match = {
-        namespace = "^(qs-brightness-osd)$",
-    },
-    blur = true,
-    xray = false,
-    ignore_alpha = 0.01,
-})
+local function apply_blur(namespaces, alpha)
+    for _, ns in ipairs(namespaces) do
+        hl.layer_rule({
+            name = ns .. "-blur",
+            match = { namespace = "^(" .. ns .. ")$" },
+            blur = true,
+            xray = false,
+            ignore_alpha = alpha,
+        })
+    end
+end
 
-hl.layer_rule({
-    name = "qs-volume-osd-blur",
-    match = {
-        namespace = "^(qs-volume-osd)$",
-    },
-    blur = true,
-    xray = false,
-    ignore_alpha = 0.01,
-})
+apply_blur({
+    "qs-brightness-osd", "qs-volume-osd", "qs-bar", "qs-dock",
+    "qs-notifications", "qs-desktop-dashboard", "notification-center",
+    "qs-keybinds", "keybinds", "qs-spotlight", "spotlight",
+    "qs-calendar", "qs-network-center", "qs-control-center", "qs-notification-center", "qs-bluetooth-center", "qs-sysmon", "qs-weather"
+}, 0.01)
 
-hl.layer_rule({
-    name = "qs-bar-blur",
-    match = {
-        namespace = "^(qs-bar)$",
-    },
-    blur = true,
-    xray = false,
-    ignore_alpha = 0.01,
-})
-
-hl.layer_rule({
-    name = "qs-dock-blur",
-    match = {
-        namespace = "^(qs-dock)$",
-    },
-    blur = true,
-    xray = false,
-    ignore_alpha = 0.01,
-})
-
-hl.layer_rule({
-    name = "qs-notifications-blur",
-    match = {
-        namespace = "^(qs-notifications)$",
-    },
-    blur = true,
-    xray = false,
-    ignore_alpha = 0.01,
-})
-
-hl.layer_rule({
-    name = "qs-desktop-dashboard",
-    match = {
-        namespace = "^(qs-desktop-dashboard)$",
-    },
-    blur = true,
-    xray = false,
-    ignore_alpha = 0.01,
-})
-
-hl.layer_rule({
-    name = "notification-center",
-    match = {
-        namespace = "^(notification-center)$",
-    },
-    blur = true,
-    xray = false,
-    ignore_alpha = 0.01,
-})
-
-hl.layer_rule({
-    name = "qs-keybinds-blur",
-    match = {
-        namespace = "^(qs-keybinds|keybinds)$",
-    },
-    blur = true,
-    xray = false,
-    ignore_alpha = 0.01,
-})
-
-hl.layer_rule({
-    name = "qs-spotlight-blur",
-    match = {
-        namespace = "^(qs-spotlight|spotlight)$",
-    },
-    blur = true,
-    xray = false,
-    ignore_alpha = 0.01,
-})
-
-hl.layer_rule({
-    name = "qs-power-menu-blur",
-    match = {
-        namespace = "^(qs-power-menu)$",
-    },
-    blur = true,
-    xray = false,
-    ignore_alpha = 0.02,
-})
+apply_blur({ "qs-power-menu" }, 0.02)

@@ -7,8 +7,8 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("awww-daemon &")
     
     -- GTK and Icon Theme Settings
-    hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme prefer-dark")
-    hl.exec_cmd("gsettings set org.gnome.desktop.interface gtk-theme WhiteSur-Dark")
+    --hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme prefer-dark")
+    hl.exec_cmd("gsettings set org.gnome.desktop.interface gtk-theme adw-gtk3-dark")
     hl.exec_cmd("gsettings set org.gnome.desktop.interface icon-theme WhiteSur") -- < Added this line
     hl.exec_cmd("gsettings set org.gnome.desktop.wm.preferences button-layout ':,,close'")
     

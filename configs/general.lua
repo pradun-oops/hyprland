@@ -6,6 +6,12 @@ hl.config({
         layout = "scrolling",
         allow_tearing = false,
     },
+
+    scrolling = {
+    column_width = 0.5,
+    direction = "right",
+    fullscreen_on_one_column = true,
+},
     decoration = {
         rounding = 15,
         active_opacity = 0.85,

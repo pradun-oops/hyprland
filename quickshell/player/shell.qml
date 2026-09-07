@@ -21,6 +21,7 @@ Scope {
     
     property int themeRounding: 16
     property int themeBorderSize: 1
+    property real themeBgAlpha: 0.7
 
     // ============================================================
     // MEDIA & VOLUME STATE
@@ -360,7 +361,7 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                 Rectangle {
                     anchors.fill: parent
                     radius: root.themeRounding
-                    color: root.themeBackground
+                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     antialiasing: true
                 }
 
