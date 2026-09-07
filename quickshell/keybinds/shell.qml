@@ -47,9 +47,9 @@ Scope {
     
     property color themeBackground: "#141416" 
     property color themeBorder: "#ffb3af"
-    property color themeText: "#FFFFFF"          
+    property color themeText: "#FFFFFF"         
     property color themeTextMuted: "#A1A1AA"
-    property color themePrimary: "#ffb3af"        
+    property color themePrimary: "#ffb3af"         
 
     // Full Complete Shortcuts List synchronized with binds.lua
     property var fullKeybindsList: [
@@ -68,6 +68,12 @@ Scope {
         { category: "Widgets & Launchers", keys: "SUPER + SHIFT + C", desc: "Calendar Widget" },
         { category: "Widgets & Launchers", keys: "SUPER + N", desc: "Notification History" },
         { category: "Widgets & Launchers", keys: "SUPER + K", desc: "Keybinds Cheatsheet" },
+        { category: "Widgets & Launchers", keys: "SUPER + Tab", desc: "Window Overview" },
+        { category: "Widgets & Launchers", keys: "SUPER + L", desc: "Lockscreen" },
+        { category: "Widgets & Launchers", keys: "SUPER + W", desc: "Wallpaper Picker" },
+        { category: "Widgets & Launchers", keys: "SUPER + SHIFT + B", desc: "Bluetooth Settings" },
+        { category: "Widgets & Launchers", keys: "SUPER + M", desc: "System Monitor" },
+        { category: "Widgets & Launchers", keys: "SUPER + SHIFT + W", desc: "Weather Widget" },
 
         // Audio & Media Controls
         { category: "Audio & Media", keys: "XF86AudioRaiseVolume", desc: "Raise Volume" },
@@ -91,7 +97,6 @@ Scope {
         { category: "Application Launchers", keys: "SUPER + E", desc: "File Manager (Nautilus)" },
         { category: "Application Launchers", keys: "SUPER + C", desc: "VSCodium" },
         { category: "Application Launchers", keys: "SUPER + O", desc: "VirtualBox Manager" },
-        { category: "Application Launchers", keys: "SUPER + W", desc: "Waypaper" },
         { category: "Application Launchers", keys: "SUPER + A", desc: "EasyEffects" },
         { category: "Application Launchers", keys: "SUPER + T", desc: "Floating Terminal" },
 
@@ -106,27 +111,65 @@ Scope {
         { category: "Window Management", keys: "SUPER + SHIFT + F", desc: "Toggle Fullscreen" },
         { category: "Window Management", keys: "SUPER + R", desc: "Toggle Split Direction" },
         { category: "Window Management", keys: "SUPER + SHIFT + T", desc: "Toggle Floating" },
-        { category: "Window Management", keys: "SUPER + H / J / K / L", desc: "Focus Direction (Left/Down/Up/Right)" },
+        { category: "Window Management", keys: "SUPER + H", desc: "Focus Left" },
+        { category: "Window Management", keys: "SUPER + L", desc: "Focus Right" },
+        { category: "Window Management", keys: "SUPER + K", desc: "Focus Up" },
+        { category: "Window Management", keys: "SUPER + J", desc: "Focus Down" },
         { category: "Window Management", keys: "ALT + TAB", desc: "Cycle Next Window" },
-        { category: "Window Management", keys: "SUPER + SHIFT + H / J / K / L", desc: "Move Window Directionally" },
-        { category: "Window Management", keys: "SUPER + - / =", desc: "Resize Horizontal" },
-        { category: "Window Management", keys: "SUPER + SHIFT + - / =", desc: "Resize Vertical" },
-        { category: "Window Management", keys: "SUPER + Mouse Click (272)", desc: "Move Window (Mouse)" },
-        { category: "Window Management", keys: "SUPER + Mouse Click (273)", desc: "Resize Window (Mouse)" },
+        { category: "Window Management", keys: "SUPER + SHIFT + H", desc: "Move Window Left" },
+        { category: "Window Management", keys: "SUPER + SHIFT + L", desc: "Move Window Right" },
+        { category: "Window Management", keys: "SUPER + SHIFT + K", desc: "Move Window Up" },
+        { category: "Window Management", keys: "SUPER + SHIFT + J", desc: "Move Window Down" },
+        { category: "Window Management", keys: "SUPER + -", desc: "Resize Horizontal (Shrink)" },
+        { category: "Window Management", keys: "SUPER + =", desc: "Resize Horizontal (Expand)" },
+        { category: "Window Management", keys: "SUPER + SHIFT + -", desc: "Resize Vertical (Shrink)" },
+        { category: "Window Management", keys: "SUPER + SHIFT + =", desc: "Resize Vertical (Expand)" },
+        { category: "Window Management", keys: "SUPER + Mouse:272", desc: "Move Window (Mouse)" },
+        { category: "Window Management", keys: "SUPER + Mouse:273", desc: "Resize Window (Mouse)" },
 
         // Multi-Monitor Controls
-        { category: "Multi-Monitor", keys: "SUPER + CTRL + H / L", desc: "Focus Left / Right Monitor" },
-        { category: "Multi-Monitor", keys: "SUPER + CTRL + SHIFT + H / L", desc: "Move Window to Monitor" },
+        { category: "Multi-Monitor", keys: "SUPER + CTRL + H", desc: "Focus Left Monitor" },
+        { category: "Multi-Monitor", keys: "SUPER + CTRL + L", desc: "Focus Right Monitor" },
+        { category: "Multi-Monitor", keys: "SUPER + CTRL + SHIFT + H", desc: "Move Window to Left Monitor" },
+        { category: "Multi-Monitor", keys: "SUPER + CTRL + SHIFT + L", desc: "Move Window to Right Monitor" },
 
         // Workspace Navigation
-        { category: "Workspaces", keys: "SUPER + CTRL + J / K", desc: "Switch Workspace Next / Prev" },
-        { category: "Workspaces", keys: "SUPER + Mouse Scroll", desc: "Cycle Workspaces (Mouse Wheel)" },
+        { category: "Workspaces", keys: "SUPER + CTRL + J", desc: "Switch Next Workspace" },
+        { category: "Workspaces", keys: "SUPER + CTRL + K", desc: "Switch Previous Workspace" },
+        { category: "Workspaces", keys: "SUPER + Mouse_down", desc: "Cycle Workspace Next (Mouse)" },
+        { category: "Workspaces", keys: "SUPER + Mouse_up", desc: "Cycle Workspace Prev (Mouse)" },
         { category: "Workspaces", keys: "SUPER + S", desc: "Toggle Special Workspace ('super')" },
         { category: "Workspaces", keys: "SUPER + SHIFT + S", desc: "Move Window to Special Workspace" },
-        { category: "Workspaces", keys: "SUPER + 1..10", desc: "Switch to Workspace 1 to 10" },
-        { category: "Workspaces", keys: "SUPER + SHIFT + 1..10", desc: "Move Window to Workspace 1 to 10" },
+        { category: "Workspaces", keys: "SUPER + 1", desc: "Switch to Workspace 1" },
+        { category: "Workspaces", keys: "SUPER + 2", desc: "Switch to Workspace 2" },
+        { category: "Workspaces", keys: "SUPER + 3", desc: "Switch to Workspace 3" },
+        { category: "Workspaces", keys: "SUPER + 4", desc: "Switch to Workspace 4" },
+        { category: "Workspaces", keys: "SUPER + 5", desc: "Switch to Workspace 5" },
+        { category: "Workspaces", keys: "SUPER + 6", desc: "Switch to Workspace 6" },
+        { category: "Workspaces", keys: "SUPER + 7", desc: "Switch to Workspace 7" },
+        { category: "Workspaces", keys: "SUPER + 8", desc: "Switch to Workspace 8" },
+        { category: "Workspaces", keys: "SUPER + 9", desc: "Switch to Workspace 9" },
+        { category: "Workspaces", keys: "SUPER + 0", desc: "Switch to Workspace 10" },
+        { category: "Workspaces", keys: "SUPER + SHIFT + 1", desc: "Move Window to Workspace 1" },
+        { category: "Workspaces", keys: "SUPER + SHIFT + 2", desc: "Move Window to Workspace 2" },
+        { category: "Workspaces", keys: "SUPER + SHIFT + 3", desc: "Move Window to Workspace 3" },
+        { category: "Workspaces", keys: "SUPER + SHIFT + 4", desc: "Move Window to Workspace 4" },
+        { category: "Workspaces", keys: "SUPER + SHIFT + 5", desc: "Move Window to Workspace 5" },
+        { category: "Workspaces", keys: "SUPER + SHIFT + 6", desc: "Move Window to Workspace 6" },
+        { category: "Workspaces", keys: "SUPER + SHIFT + 7", desc: "Move Window to Workspace 7" },
+        { category: "Workspaces", keys: "SUPER + SHIFT + 8", desc: "Move Window to Workspace 8" },
+        { category: "Workspaces", keys: "SUPER + SHIFT + 9", desc: "Move Window to Workspace 9" },
+        { category: "Workspaces", keys: "SUPER + SHIFT + 0", desc: "Move Window to Workspace 10" },
         { category: "Workspaces", keys: "SUPER + SHIFT + G", desc: "Update GDM Script" },
-        { category: "Workspaces", keys: "SUPER + ALT + 1..9", desc: "Apply Preset 1 to 9" }
+        { category: "Workspaces", keys: "SUPER + ALT + 1", desc: "Apply Preset 1" },
+        { category: "Workspaces", keys: "SUPER + ALT + 2", desc: "Apply Preset 2" },
+        { category: "Workspaces", keys: "SUPER + ALT + 3", desc: "Apply Preset 3" },
+        { category: "Workspaces", keys: "SUPER + ALT + 4", desc: "Apply Preset 4" },
+        { category: "Workspaces", keys: "SUPER + ALT + 5", desc: "Apply Preset 5" },
+        { category: "Workspaces", keys: "SUPER + ALT + 6", desc: "Apply Preset 6" },
+        { category: "Workspaces", keys: "SUPER + ALT + 7", desc: "Apply Preset 7" },
+        { category: "Workspaces", keys: "SUPER + ALT + 8", desc: "Apply Preset 8" },
+        { category: "Workspaces", keys: "SUPER + ALT + 9", desc: "Apply Preset 9" }
     ]
 
     property var activeKeybinds: []

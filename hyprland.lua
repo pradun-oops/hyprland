@@ -9,9 +9,5 @@ require("configs.workspaces")
 require("configs.layerrules")
 require("configs.colors")
 require("configs.outputs")
-require("configs.layout")
 require("configs.cursor")
 require("configs.binds")
-
--- HyprMod managed settings
-require("hyprland-gui")

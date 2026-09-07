@@ -20,7 +20,7 @@ Scope {
     
     property int themeRounding: 20
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.7
+    property real themeBgAlpha: 0.1
     property bool animEnabled: true
     property int animDuration: 120 
     
