@@ -61,27 +61,6 @@ Scope {
     property color themeText: "#ffffff"
     property color themeTextMuted: "#94a3b8"
 
-    property bool isFullscreen: (Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.hasFullscreen) || hyprFullscreen
-    property bool hyprFullscreen: false
-
-    Process {
-        id: fullscreenChecker
-        command: ["bash", "-c", "hyprctl activewindow -j | grep -q '\"fullscreen\": true' && echo '1' || echo '0'"]
-        running: false
-        stdout: SplitParser {
-            onRead: data => {
-                root.hyprFullscreen = (data.trim() === "1")
-            }
-        }
-    }
-
-    Timer {
-        interval: 1000
-        running: true
-        repeat: true
-        onTriggered: fullscreenChecker.running = true
-    }
-
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -368,7 +347,7 @@ except Exception as e:
             screen: modelData
 
             property bool isTargetMonitor: modelData.name === root.targetMonitorName
-            visible: !root.isFullscreen && root.targetMonitorName !== "" && isTargetMonitor
+            visible: root.targetMonitorName !== "" && isTargetMonitor
 
             WlrLayershell.namespace: "qs-weather"
             WlrLayershell.layer: WlrLayer.Overlay

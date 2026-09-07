@@ -85,16 +85,16 @@ Scope {
 
     function loadDefaultApps() {
         pinnedAppsModel.clear()
-        pinnedAppsModel.append({ name: "Zen Browser", iconName: "zen", cmd: "zen-browser", wmClass: "zen", process: "zen" })
-        pinnedAppsModel.append({ name: "Terminal", iconName: "kitty", cmd: "kitty", wmClass: "kitty", process: "kitty" })
-        pinnedAppsModel.append({ name: "Files", iconName: "org.gnome.Nautilus", cmd: "nautilus", wmClass: "org.gnome.nautilus", process: "nautilus" })
-        pinnedAppsModel.append({ name: "VSCodium", iconName: "vscodium", cmd: "codium", wmClass: "codium", process: "codium" })
-        pinnedAppsModel.append({ name: "VirtualBox", iconName: "virtualbox", cmd: "virtualbox", wmClass: "virtualbox", process: "virtualbox" })
-        pinnedAppsModel.append({ name: "Calculator", iconName: "org.gnome.Calculator", cmd: "gnome-calculator", wmClass: "org.gnome.calculator", process: "gnome-calculator" })
-        pinnedAppsModel.append({ name: "Disks", iconName: "org.gnome.DiskUtility", cmd: "gnome-disks", wmClass: "org.gnome.diskutility", process: "gnome-disks" })
-        pinnedAppsModel.append({ name: "Document Viewer", iconName: "org.gnome.Evince", cmd: "evince", wmClass: "org.gnome.evince", process: "evince" })
-        pinnedAppsModel.append({ name: "Settings", iconName: "org.gnome.Settings", cmd: "gnome-control-center", wmClass: "org.gnome.settings", process: "gnome-control-center" })
-        pinnedAppsModel.append({ name: "Easy Effects", iconName: "com.github.wwmm.easyeffects", cmd: "easyeffects", wmClass: "com.github.wwmm.easyeffects", process: "easyeffects" })
+        pinnedAppsModel.append({ name: "Zen Browser", iconName: "zen", cmd: "zen-browser", wmClass: "zen", process: "zen", filePath: "" })
+        pinnedAppsModel.append({ name: "Terminal", iconName: "kitty", cmd: "kitty", wmClass: "kitty", process: "kitty", filePath: "" })
+        pinnedAppsModel.append({ name: "Files", iconName: "org.gnome.Nautilus", cmd: "nautilus", wmClass: "org.gnome.nautilus", process: "nautilus", filePath: "" })
+        pinnedAppsModel.append({ name: "VSCodium", iconName: "vscodium", cmd: "codium", wmClass: "codium", process: "codium", filePath: "" })
+        pinnedAppsModel.append({ name: "VirtualBox", iconName: "virtualbox", cmd: "virtualbox", wmClass: "virtualbox", process: "virtualbox", filePath: "" })
+        pinnedAppsModel.append({ name: "Calculator", iconName: "org.gnome.Calculator", cmd: "gnome-calculator", wmClass: "org.gnome.calculator", process: "gnome-calculator", filePath: "" })
+        pinnedAppsModel.append({ name: "Disks", iconName: "org.gnome.DiskUtility", cmd: "gnome-disks", wmClass: "org.gnome.diskutility", process: "gnome-disks", filePath: "" })
+        pinnedAppsModel.append({ name: "Document Viewer", iconName: "org.gnome.Evince", cmd: "evince", wmClass: "org.gnome.evince", process: "evince", filePath: "" })
+        pinnedAppsModel.append({ name: "Settings", iconName: "org.gnome.Settings", cmd: "gnome-control-center", wmClass: "org.gnome.settings", process: "gnome-control-center", filePath: "" })
+        pinnedAppsModel.append({ name: "Easy Effects", iconName: "com.github.wwmm.easyeffects", cmd: "easyeffects", wmClass: "com.github.wwmm.easyeffects", process: "easyeffects", filePath: "" })
         root.savePinnedApps()
     }
 
@@ -102,12 +102,85 @@ Scope {
         let apps = []
         for (let i = 0; i < pinnedAppsModel.count; i++) {
             let item = pinnedAppsModel.get(i)
-            apps.push({ name: item.name, iconName: item.iconName, cmd: item.cmd, wmClass: item.wmClass, process: item.process })
+            apps.push({ name: item.name, iconName: item.iconName, cmd: item.cmd, wmClass: item.wmClass, process: item.process, filePath: item.filePath || "" })
         }
         let jsonStr = JSON.stringify(apps)
         
         saveProcess.command = ["bash", "-c", "mkdir -p $(dirname '" + root.savedAppsFilePath + "') && echo '" + jsonStr.replace(/'/g, "'\\''") + "' > '" + root.savedAppsFilePath + "'"]
         saveProcess.running = true
+    }
+
+    function isAppPinned(app) {
+        if (!app) return false;
+        let targetPath = app.filePath || ""
+        let targetClass = (app.wmClass || "").toLowerCase()
+        let targetCmd = (app.cmd || "").toLowerCase()
+        for (let i = 0; i < pinnedAppsModel.count; i++) {
+            let item = pinnedAppsModel.get(i)
+            let pPath = item.filePath || ""
+            let pClass = (item.wmClass || "").toLowerCase()
+            let pCmd = (item.cmd || "").toLowerCase()
+            
+            if (targetPath && pPath && targetPath === pPath) return true
+            if (targetClass && pClass && targetClass === pClass) return true
+            if (targetCmd && pCmd && targetCmd === pCmd) return true
+        }
+        return false
+    }
+
+    function togglePinApp(app) {
+        if (!app) return;
+        let targetPath = app.filePath || ""
+        let targetClass = (app.wmClass || "").toLowerCase()
+        let targetCmd = (app.cmd || "").toLowerCase()
+        let newList = []
+        let found = false
+        
+        for (let i = 0; i < pinnedAppsModel.count; i++) {
+            let item = pinnedAppsModel.get(i)
+            let pPath = item.filePath || ""
+            let pClass = (item.wmClass || "").toLowerCase()
+            let pCmd = (item.cmd || "").toLowerCase()
+            
+            let isMatch = false
+            if (targetPath && pPath && targetPath === pPath) {
+                isMatch = true
+            } else if (targetClass && pClass && targetClass === pClass) {
+                isMatch = true
+            } else if (targetCmd && pCmd && targetCmd === pCmd) {
+                isMatch = true
+            }
+            
+            if (isMatch) {
+                found = true
+            } else {
+                newList.push({
+                    name: item.name,
+                    iconName: item.iconName,
+                    cmd: item.cmd,
+                    wmClass: item.wmClass,
+                    process: item.process,
+                    filePath: item.filePath || ""
+                })
+            }
+        }
+        
+        if (!found) {
+            newList.push({
+                name: app.name,
+                iconName: app.iconName,
+                cmd: app.cmd,
+                wmClass: app.wmClass,
+                process: app.process,
+                filePath: app.filePath || ""
+            })
+        }
+        
+        pinnedAppsModel.clear()
+        for (let i = 0; i < newList.length; i++) {
+            pinnedAppsModel.append(newList[i])
+        }
+        root.savePinnedApps()
     }
 
     // ============================================================
@@ -280,7 +353,8 @@ Scope {
                         iconName: m.iconName, 
                         cmd: m.cmd, 
                         wmClass: m.wmClass, 
-                        process: m.process 
+                        process: m.process,
+                        filePath: m.filePath || ""
                     })
                 }
                 pinnedAppsModel.clear()
@@ -317,18 +391,28 @@ Scope {
                             for (let i = 0; i < info.length; i++) {
                                 let app = info[i]
                                 let isPinned = false
-                                let rClass = app.wmClass.toLowerCase()
+                                let rClass = (app.wmClass || "").toLowerCase()
+                                let rCmd = (app.cmd || "").toLowerCase()
                                 
                                 for (let j = 0; j < pinnedAppsModel.count; j++) {
-                                    let pClass = pinnedAppsModel.get(j).wmClass.toLowerCase()
-                                    let pCmd = pinnedAppsModel.get(j).cmd.toLowerCase()
+                                    let pItem = pinnedAppsModel.get(j)
+                                    let pClass = (pItem.wmClass || "").toLowerCase()
+                                    let pCmd = (pItem.cmd || "").toLowerCase()
                                     
-                                    if (rClass === pClass || rClass === pCmd || pClass.includes(rClass) || rClass.includes(pClass)) {
+                                    if (
+                                        (rClass && pClass && (rClass === pClass || rClass.includes(pClass) || pClass.includes(rClass))) ||
+                                        (rCmd && pCmd && (rCmd === pCmd || rCmd.includes(pCmd) || pCmd.includes(rCmd)))
+                                    ) {
                                         isPinned = true
                                         break
                                     }
                                 }
-                                if (!isPinned) unpinned.push(app)
+                                if (!isPinned) {
+                                    let alreadyExists = unpinned.some(item => (item.wmClass || "").toLowerCase() === rClass)
+                                    if (!alreadyExists) {
+                                        unpinned.push(app)
+                                    }
+                                }
                             }
                             dockWindow.unpinnedApps = unpinned
 
@@ -503,6 +587,7 @@ except Exception:
                             MouseArea {
                                 id: launcherMouse
                                 anchors.fill: parent
+                                acceptedButtons: Qt.LeftButton
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
@@ -646,7 +731,7 @@ except Exception:
                                         MouseArea {
                                             id: itemMouse
                                             anchors.fill: parent
-                                            acceptedButtons: Qt.LeftButton
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
                                             hoverEnabled: true
                                             cursorShape: dragActive ? Qt.ClosedHandCursor : Qt.PointingHandCursor
                                             
@@ -662,8 +747,30 @@ except Exception:
                                             }
 
                                             onClicked: (mouse) => {
-                                                if (mouse.button === Qt.LeftButton && !itemMouse.dragActive) {
-                                                    dockWindow.launchApp(model)
+                                                if (mouse.button === Qt.LeftButton) {
+                                                    if (!itemMouse.dragActive) {
+                                                        dockWindow.launchApp({
+                                                            name: model.name,
+                                                            iconName: model.iconName,
+                                                            cmd: model.cmd,
+                                                            wmClass: model.wmClass,
+                                                            process: model.process,
+                                                            filePath: model.filePath || ""
+                                                        })
+                                                    }
+                                                }
+                                            }
+
+                                            onDoubleClicked: (mouse) => {
+                                                if (mouse.button === Qt.RightButton) {
+                                                    root.togglePinApp({
+                                                        name: model.name,
+                                                        iconName: model.iconName,
+                                                        cmd: model.cmd,
+                                                        wmClass: model.wmClass,
+                                                        process: model.process,
+                                                        filePath: model.filePath || ""
+                                                    })
                                                 }
                                             }
                                             
@@ -750,13 +857,33 @@ except Exception:
                                     MouseArea {
                                         id: unpinnedMouse
                                         anchors.fill: parent
-                                        acceptedButtons: Qt.LeftButton
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         
                                         onClicked: (mouse) => {
                                             if (mouse.button === Qt.LeftButton) {
-                                                dockWindow.launchApp(modelData)
+                                                dockWindow.launchApp({
+                                                    name: modelData.name,
+                                                    iconName: modelData.iconName,
+                                                    cmd: modelData.cmd,
+                                                    wmClass: modelData.wmClass,
+                                                    process: modelData.process,
+                                                    filePath: modelData.filePath || ""
+                                                })
+                                            }
+                                        }
+
+                                        onDoubleClicked: (mouse) => {
+                                            if (mouse.button === Qt.RightButton) {
+                                                root.togglePinApp({
+                                                    name: modelData.name,
+                                                    iconName: modelData.iconName,
+                                                    cmd: modelData.cmd,
+                                                    wmClass: modelData.wmClass,
+                                                    process: modelData.process,
+                                                    filePath: modelData.filePath || ""
+                                                })
                                             }
                                         }
                                     }

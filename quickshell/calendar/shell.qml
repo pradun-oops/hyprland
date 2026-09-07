@@ -260,8 +260,8 @@ Scope {
             // Only make it visible on the correct monitor
             visible: root.targetMonitorName !== "" && isTargetMonitor
 
-            // Render on top of other applications
-            WlrLayershell.layer: WlrLayer.Top
+            // Render on top of other applications, including fullscreen apps
+            WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-calendar"
             
             // Only capture keyboard focus if it's the target monitor
@@ -488,8 +488,8 @@ Scope {
                                 property var dayInfo: mainCard.getDayInfo(index, root.displayedDate)
 
                                 color: dayInfo.isToday 
-                                       ? root.themePrimary 
-                                       : (dayInfo.isSelected ? Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.25) : (cellHover.containsMouse ? root.themeSurface : "transparent"))
+                                     ? root.themePrimary 
+                                     : (dayInfo.isSelected ? Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.25) : (cellHover.containsMouse ? root.themeSurface : "transparent"))
 
                                 border.color: dayInfo.isSelected && !dayInfo.isToday ? root.themePrimary : "transparent"
                                 border.width: 1.5
@@ -504,8 +504,8 @@ Scope {
                                         font.pixelSize: 15
                                         font.weight: dayCell.dayInfo.isToday || dayCell.dayInfo.isSelected ? Font.Bold : Font.Medium
                                         color: dayCell.dayInfo.isToday 
-                                               ? root.themeBackground 
-                                               : (dayCell.dayInfo.isCurrent ? root.themeText : Qt.rgba(1.0, 1.0, 1.0, 0.25))
+                                             ? root.themeBackground 
+                                             : (dayCell.dayInfo.isCurrent ? root.themeText : Qt.rgba(1.0, 1.0, 1.0, 0.25))
                                     }
 
                                     Row {

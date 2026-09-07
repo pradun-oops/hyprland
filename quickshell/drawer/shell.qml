@@ -190,32 +190,49 @@ Scope {
 
     function isAppPinned(app) {
         if (!app) return false;
+        let targetPath = app.filePath || ""
         let targetClass = (app.wmClass || "").toLowerCase()
         let targetCmd = (app.cmd || "").toLowerCase()
         for (let i = 0; i < root.dockedAppsList.length; i++) {
-            let pClass = (root.dockedAppsList[i].wmClass || "").toLowerCase()
-            let pCmd = (root.dockedAppsList[i].cmd || "").toLowerCase()
-            if (targetClass === pClass || targetClass === pCmd || (pClass && targetClass.includes(pClass)) || (pClass && pClass.includes(targetClass))) {
-                return true
-            }
+            let item = root.dockedAppsList[i]
+            let pPath = item.filePath || ""
+            let pClass = (item.wmClass || "").toLowerCase()
+            let pCmd = (item.cmd || "").toLowerCase()
+            
+            if (targetPath && pPath && targetPath === pPath) return true
+            if (targetClass && pClass && targetClass === pClass) return true
+            if (targetCmd && pCmd && targetCmd === pCmd) return true
         }
         return false
     }
 
     function togglePinApp(app) {
         if (!app) return;
+        let targetPath = app.filePath || ""
         let targetClass = (app.wmClass || "").toLowerCase()
         let targetCmd = (app.cmd || "").toLowerCase()
         let newList = []
         let found = false
         
         for (let i = 0; i < root.dockedAppsList.length; i++) {
-            let pClass = (root.dockedAppsList[i].wmClass || "").toLowerCase()
-            let pCmd = (root.dockedAppsList[i].cmd || "").toLowerCase()
-            if (targetClass === pClass || targetClass === pCmd || (pClass && targetClass.includes(pClass)) || (pClass && pClass.includes(targetClass))) {
+            let item = root.dockedAppsList[i]
+            let pPath = item.filePath || ""
+            let pClass = (item.wmClass || "").toLowerCase()
+            let pCmd = (item.cmd || "").toLowerCase()
+            
+            let isMatch = false
+            if (targetPath && pPath && targetPath === pPath) {
+                isMatch = true
+            } else if (targetClass && pClass && targetClass === pClass) {
+                isMatch = true
+            } else if (targetCmd && pCmd && targetCmd === pCmd) {
+                isMatch = true
+            }
+            
+            if (isMatch) {
                 found = true
             } else {
-                newList.push(root.dockedAppsList[i])
+                newList.push(item)
             }
         }
         

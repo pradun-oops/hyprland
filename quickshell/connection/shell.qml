@@ -5,16 +5,19 @@ import Quickshell.Hyprland
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Window
 
 Scope {
     id: root
 
+    // Fallback global shortcut
     Shortcut {
         sequence: "Escape"
         onActivated: Qt.quit()
     }
 
+    // ============================================================
+    // STRICT FOCUSED MONITOR LOCK LOGIC
+    // ============================================================
     property string targetMonitorName: ""
 
     function updateTargetMonitor() {
@@ -43,6 +46,9 @@ Scope {
         }
     }
 
+    // ============================================================
+    // THEME & STYLING PROPERTIES
+    // ============================================================
     property color themeBorder: "#ff4b6e"
     property color themePrimary: "#ff4b6e"
     property color themeText: "#ffffff"
@@ -57,27 +63,6 @@ Scope {
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.07) 
     property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.12)
-
-    property bool isFullscreen: (Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.hasFullscreen) || hyprFullscreen
-    property bool hyprFullscreen: false
-
-    Process {
-        id: fullscreenChecker
-        command: ["bash", "-c", "hyprctl activewindow -j | grep -q '\"fullscreen\": true' && echo '1' || echo '0'"]
-        running: false
-        stdout: SplitParser {
-            onRead: data => {
-                root.hyprFullscreen = (data.trim() === "1")
-            }
-        }
-    }
-
-    Timer {
-        interval: 1000
-        running: true
-        repeat: true
-        onTriggered: fullscreenChecker.running = true
-    }
 
     property string expandedSsid: ""
     property string connectingSsid: ""
@@ -385,7 +370,8 @@ print(json.dumps(get_net()))
 
             property bool isTargetMonitor: modelData.name === root.targetMonitorName
 
-            visible: !root.isFullscreen && root.targetMonitorName !== "" && isTargetMonitor
+            // Removed `!root.isFullscreen` to allow showing over fullscreen apps
+            visible: root.targetMonitorName !== "" && isTargetMonitor
 
             WlrLayershell.namespace: "qs-network-center"
             WlrLayershell.layer: WlrLayer.Overlay

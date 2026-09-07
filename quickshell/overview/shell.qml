@@ -378,19 +378,32 @@ def make_low_quality_thumb(src_path):
 def get_wallpaper():
     found_path = ""
     
-    for cmd in ["awww query 2>/dev/null", "swww query 2>/dev/null"]:
+    # 1. Check swww query
+    try:
+        out = subprocess.check_output("swww query 2>/dev/null", shell=True, text=True)
+        for line in out.splitlines():
+            parts = line.split(":")
+            if len(parts) >= 2:
+                p = parts[1].strip().strip('"').strip("'").replace("~", os.path.expanduser("~"))
+                if os.path.isfile(p):
+                    found_path = p
+                    break
+    except Exception: pass
+
+    # 2. Check awww query
+    if not found_path:
         try:
-            out = subprocess.check_output(cmd, shell=True, text=True)
-            m = re.findall(r'image:\s*"?(/.*?\.(?:png|jpg|jpeg|webp|gif))"?', out, re.IGNORECASE)
+            out = subprocess.check_output("awww query 2>/dev/null", shell=True, text=True)
+            m = re.findall(r'(?:image:)?\s*"?(/.*?\.(?:png|jpg|jpeg|webp|gif))"?', out, re.IGNORECASE)
             if m:
                 for p in m:
                     p_clean = p.strip().strip('"').strip("'").replace("~", os.path.expanduser("~"))
                     if os.path.isfile(p_clean):
                         found_path = p_clean
                         break
-            if found_path: break
         except Exception: pass
 
+    # 3. Check hyprpaper
     if not found_path:
         try:
             out = subprocess.check_output("hyprctl hyprpaper listactive 2>/dev/null", shell=True, text=True)
@@ -402,6 +415,7 @@ def get_wallpaper():
                         break
         except Exception: pass
 
+    # 4. Check waypaper config
     if not found_path:
         try:
             wp_cfg = os.path.expanduser("~/.config/waypaper/config.ini")
@@ -415,6 +429,7 @@ def get_wallpaper():
                                 break
         except Exception: pass
 
+    # 5. Check cache and common locations
     if not found_path:
         home = os.path.expanduser("~")
         candidates = [
@@ -431,6 +446,7 @@ def get_wallpaper():
                     found_path = real_p
                     break
 
+    # 6. Fallback to latest picture in Pictures/Wallpapers
     if not found_path:
         home = os.path.expanduser("~")
         search_dirs = [
@@ -936,7 +952,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                             Behavior on border.color { 
                                                 ColorAnimation { 
                                                     duration: root.animEnabled ? style.fadeDuration : 0 
-                                                    easing.type: style.fadeEasing
+                                                    easing.type: style.fadeEasing 
                                                 } 
                                             }
                                         }

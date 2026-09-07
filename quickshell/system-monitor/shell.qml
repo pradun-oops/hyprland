@@ -10,7 +10,6 @@ import QtQuick.Window
 Scope {
     id: root
 
-    // Fallback global shortcut
     Shortcut {
         sequence: "Escape"
         onActivated: Qt.quit()
@@ -61,27 +60,6 @@ Scope {
     property color themePrimary: "#ffb3af"
     property color themeText: "#ffffff"
     property color themeTextMuted: "#a1a1aa"
-
-    property bool isFullscreen: (Hyprland.focusedWorkspace && Hyprland.focusedWorkspace.hasFullscreen) || hyprFullscreen
-    property bool hyprFullscreen: false
-
-    Process {
-        id: fullscreenChecker
-        command: ["bash", "-c", "hyprctl activewindow -j | grep -q '\"fullscreen\": true' && echo '1' || echo '0'"]
-        running: false
-        stdout: SplitParser {
-            onRead: data => {
-                root.hyprFullscreen = (data.trim() === "1")
-            }
-        }
-    }
-
-    Timer {
-        interval: 1000
-        running: true
-        repeat: true
-        onTriggered: fullscreenChecker.running = true
-    }
 
     FileView {
         id: colorFile
@@ -423,7 +401,7 @@ while True:
             screen: modelData
 
             property bool isTargetMonitor: modelData.name === root.targetMonitorName
-            visible: !root.isFullscreen && root.targetMonitorName !== "" && isTargetMonitor
+            visible: root.targetMonitorName !== "" && isTargetMonitor
 
             WlrLayershell.namespace: "qs-sysmon"
             WlrLayershell.layer: WlrLayer.Overlay

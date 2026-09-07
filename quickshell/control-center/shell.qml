@@ -5,7 +5,6 @@ import Quickshell.Hyprland
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtQuick.Window
 
 Scope {
     id: root
@@ -345,7 +344,7 @@ except Exception:
             property bool isTargetMonitor: root.targetMonitorName !== "" && modelData.name === root.targetMonitorName
             visible: isTargetMonitor
 
-            WlrLayershell.layer: WlrLayer.Top
+            WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-control-center"
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
             exclusiveZone: -1
