@@ -1,6 +1,7 @@
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
+import Quickshell.Hyprland
 import Quickshell.Services.Notifications as Notifs
 import QtQuick
 import QtQuick.Controls
@@ -71,54 +72,16 @@ Scope {
     }
 
     // ============================================================
-    // ACTIVE MONITOR DETECTOR (TRACKS CURSOR SCREEN)
+    // ACTIVE MONITOR RESOLUTION (NATIVE HYPRLAND FOCUS)
     // ============================================================
-    property string activeMonitorName: ""
-
-    Process {
-        id: monitorDetectProcess
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let name = text.trim()
-                if (name !== "") {
-                    root.activeMonitorName = name
-                }
-            }
+    function getFocusedMonitorName() {
+        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+            return Hyprland.focusedMonitor.name
         }
-    }
-
-    Timer {
-        id: monitorDetectTimer
-        interval: 300
-        running: true
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: {
-            if (!monitorDetectProcess.running) {
-                let pyScript = `
-import json, subprocess
-try:
-    cursor = json.loads(subprocess.check_output(["hyprctl", "cursorpos", "-j"], text=True))
-    cx, cy = cursor.get("x", 0), cursor.get("y", 0)
-    mons = json.loads(subprocess.check_output(["hyprctl", "monitors", "-j"], text=True))
-    focused_mon = None
-    found_mon = None
-    for m in mons:
-        if m.get("focused"):
-            focused_mon = m.get("name")
-        mx, my = m.get("x", 0), m.get("y", 0)
-        mw = m.get("width", 0) / m.get("scale", 1.0)
-        mh = m.get("height", 0) / m.get("scale", 1.0)
-        if mx <= cx <= mx + mw and my <= cy <= my + mh:
-            found_mon = m.get("name")
-    print(found_mon or focused_mon or (mons[0]["name"] if mons else ""))
-except Exception:
-    print("")
-`
-                monitorDetectProcess.command = ["python3", "-c", pyScript]
-                monitorDetectProcess.running = true
-            }
+        if (Quickshell.screens.length > 0) {
+            return Quickshell.screens[0].name
         }
+        return ""
     }
 
     // ============================================================
@@ -139,10 +102,10 @@ except Exception:
     }
 
     function dispatchNotification(notifObj) {
-        let target = root.activeMonitorName
+        let target = root.getFocusedMonitorName()
         let targetModel = root.screenModels[target]
         
-        // Fallback to first available monitor model if monitor name not mapped
+        // Dynamic fallback if the targeted monitor name is invalid or disconnected
         if (!targetModel) {
             let keys = Object.keys(root.screenModels)
             if (keys.length > 0) targetModel = root.screenModels[keys[0]]
@@ -273,7 +236,6 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                 spacing: 10
                 interactive: false
 
-                // FIXED: Removed the Y overlap animation. Now scales and fades in cleanly.
                 add: Transition {
                     ParallelAnimation {
                         NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 250; easing.type: Easing.OutCubic }
@@ -288,13 +250,11 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                     }
                 }
                 
-                // FIXED: Automatically slides existing notifications down smoothly without overlapping
                 displaced: Transition {
                     NumberAnimation { properties: "x,y"; duration: 250; easing.type: Easing.OutCubic }
                 }
 
                 delegate: Item {
-                    // Wrapper to keep the ListView spacing intact during scale animations
                     width: popupList.width
                     height: card.height
 

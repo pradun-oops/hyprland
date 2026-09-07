@@ -9,14 +9,34 @@ import QtQuick.Layouts
 Scope {
     id: root
 
-    // Screen locked static property (Prevents cursor/focus tracking across monitors)
-    property string lockedMonitor: ""
+    // ============================================================
+    // STRICT FOCUSED MONITOR LOCK LOGIC
+    // ============================================================
+    property string targetMonitorName: ""
 
-    Component.onCompleted: {
+    function updateTargetMonitor() {
+        if (root.targetMonitorName !== "") return
+
         if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
-            root.lockedMonitor = Hyprland.focusedMonitor.name
-        } else if (Quickshell.screens.length > 0) {
-            root.lockedMonitor = Quickshell.screens[0].name
+            root.targetMonitorName = Hyprland.focusedMonitor.name
+        }
+    }
+
+    Timer {
+        id: fallbackMonitorTimer
+        interval: 150
+        repeat: false
+        onTriggered: {
+            if (root.targetMonitorName === "" && Quickshell.screens.length > 0) {
+                root.targetMonitorName = Quickshell.screens[0].name
+            }
+        }
+    }
+
+    Connections {
+        target: Hyprland
+        function onFocusedMonitorChanged() {
+            root.updateTargetMonitor()
         }
     }
 
@@ -195,6 +215,17 @@ Scope {
         }
     }
 
+    Component.onCompleted: {
+        root.updateTargetMonitor()
+        if (root.targetMonitorName === "") {
+            fallbackMonitorTimer.start()
+        }
+
+        colorFile.reload()
+        generalConfigFile.reload()
+        bindsFile.reload()
+    }
+
     ListModel { id: filteredModel }
 
     function filterKeybinds(query) {
@@ -226,9 +257,11 @@ Scope {
             required property var modelData
             screen: modelData
 
-            visible: root.lockedMonitor !== "" && modelData.name === root.lockedMonitor
+            property bool isTargetMonitor: modelData.name === root.targetMonitorName
 
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+            visible: root.targetMonitorName !== "" && isTargetMonitor
+
+            WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             WlrLayershell.namespace: "qs-keybinds"
             WlrLayershell.layer: WlrLayer.Overlay
             exclusiveZone: -1
@@ -257,6 +290,9 @@ Scope {
                 width: Math.min(820, parent.width - 40)
                 height: Math.min(620, parent.height - 80)
                 anchors.centerIn: parent
+
+                visible: root.targetMonitorName !== "" && isTargetMonitor
+                focus: isTargetMonitor
 
                 radius: root.themeRounding
                 border.width: root.themeBorderSize
@@ -325,7 +361,9 @@ Scope {
                                     background: Item {}
 
                                     Component.onCompleted: {
-                                        forceActiveFocus()
+                                        if (keybindsWindow.isTargetMonitor) {
+                                            forceActiveFocus()
+                                        }
                                         root.activeKeybinds = root.fullKeybindsList
                                         root.filterKeybinds("")
                                     }

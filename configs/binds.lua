@@ -20,6 +20,7 @@ hl.bind("SUPER + N", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts
 hl.bind("SUPER + K", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh keybinds open"))
 hl.bind("SUPER + tab", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh overview open"))
 hl.bind("SUPER + L", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh lockscreen open"))
+hl.bind("SUPER + W", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/qs_dialog.sh wallpaper open"))
 
 -- ============================================================
 -- AUDIO / VOLUME CONTROLS (USING WPCTL)
@@ -55,7 +56,6 @@ hl.bind("SUPER + B", hl.dsp.exec_cmd("zen-browser"))
 hl.bind("SUPER + E", hl.dsp.exec_cmd("nautilus --new-window"))
 hl.bind("SUPER + C", hl.dsp.exec_cmd("codium"))
 hl.bind("SUPER + O", hl.dsp.exec_cmd("VirtualBox Manager"))
-hl.bind("SUPER + W", hl.dsp.exec_cmd("waypaper"))
 hl.bind("SUPER + A", hl.dsp.exec_cmd("easyeffects"))
 
 hl.bind("SUPER + T", hl.dsp.exec_cmd("kitty --title \"float_term\""))

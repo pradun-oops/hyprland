@@ -67,6 +67,34 @@ Scope {
     property var apiEvents: ({})
     property string targetMonitorName: ""
 
+    // --- STRICT FOCUSED MONITOR LOCK LOGIC ---
+    // Detects active monitor under cursor on launch and locks it
+    function updateTargetMonitor() {
+        if (root.targetMonitorName !== "") return
+
+        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+            root.targetMonitorName = Hyprland.focusedMonitor.name
+        }
+    }
+
+    Timer {
+        id: fallbackMonitorTimer
+        interval: 150
+        repeat: false
+        onTriggered: {
+            if (root.targetMonitorName === "" && Quickshell.screens.length > 0) {
+                root.targetMonitorName = Quickshell.screens[0].name
+            }
+        }
+    }
+
+    Connections {
+        target: Hyprland
+        function onFocusedMonitorChanged() {
+            root.updateTargetMonitor()
+        }
+    }
+
     // Built-in Static Map for Major Indian National Holidays & Festivals
     property var indianStaticHolidays: ({
         "2026-01-14": ["Makar Sankranti / Pongal"],
@@ -129,22 +157,9 @@ Scope {
 
     Component.onCompleted: {
         fetchIndianHolidays(displayedDate.getFullYear())
-        
-        // Monitor selection logic: Prefer external monitor, else focused, else first available
-        let externalMon = ""
-        for (let i = 0; i < Quickshell.screens.length; i++) {
-            if (Quickshell.screens[i].name !== "eDP-1" && Quickshell.screens[i].name.indexOf("eDP") === -1) {
-                externalMon = Quickshell.screens[i].name
-                break
-            }
-        }
-        
-        if (externalMon !== "") {
-            root.targetMonitorName = externalMon
-        } else if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
-            root.targetMonitorName = Hyprland.focusedMonitor.name
-        } else if (Quickshell.screens.length > 0) {
-            root.targetMonitorName = Quickshell.screens[0].name
+        root.updateTargetMonitor()
+        if (root.targetMonitorName === "") {
+            fallbackMonitorTimer.start()
         }
     }
 
@@ -242,7 +257,7 @@ Scope {
             property bool isTargetMonitor: modelData.name === root.targetMonitorName
 
             // Only make it visible on the correct monitor
-            visible: isTargetMonitor
+            visible: root.targetMonitorName !== "" && isTargetMonitor
 
             // Render on top of other applications
             WlrLayershell.layer: WlrLayer.Top

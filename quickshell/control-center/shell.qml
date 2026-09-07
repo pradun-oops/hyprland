@@ -173,6 +173,29 @@ Scope {
         }
     }
 
+    // ============================================================
+    // CURSOR MONITOR DETECTION PROCESS
+    // ============================================================
+    Process {
+        id: cursorMonitorProcess
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let found = text.trim();
+                
+                if (found !== "") {
+                    root.targetMonitorName = found;
+                } else {
+                    // Fallbacks if Python script unexpectedly fails
+                    if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+                        root.targetMonitorName = Hyprland.focusedMonitor.name;
+                    } else if (Quickshell.screens.length > 0) {
+                        root.targetMonitorName = Quickshell.screens[0].name;
+                    }
+                }
+            }
+        }
+    }
+
     Component.onCompleted: { 
         exec("mkdir -p ~/.config/quickshell/json")
         colorFile.reload()
@@ -181,21 +204,42 @@ Scope {
         posFile.reload()
         root.updateInactiveMods()
 
-        // Monitor routing: Prioritize external, fallback to focused, fallback to first available
-        let externalMon = ""
-        for (let i = 0; i < Quickshell.screens.length; i++) {
-            if (Quickshell.screens[i].name !== "eDP-1" && Quickshell.screens[i].name.indexOf("eDP") === -1) {
-                externalMon = Quickshell.screens[i].name
-                break
-            }
-        }
-        if (externalMon !== "") {
-            root.targetMonitorName = externalMon
-        } else if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
-            root.targetMonitorName = Hyprland.focusedMonitor.name
-        } else if (Quickshell.screens.length > 0) {
-            root.targetMonitorName = Quickshell.screens[0].name
-        }
+        // Robust Python script to pinpoint the monitor based on layout coordinates & cursor position
+        let pyScript = `
+import json, subprocess
+try:
+    c = json.loads(subprocess.check_output('hyprctl cursorpos -j', shell=True))
+    m = json.loads(subprocess.check_output('hyprctl monitors -j', shell=True))
+    cx, cy = c.get('x',0), c.get('y',0)
+    res = ''
+    
+    # 1. Fallback: find focused monitor first
+    for mon in m:
+        if mon.get('focused'): 
+            res = mon['name']
+            
+    # 2. Strict Check: find the monitor bounds exactly matching the cursor
+    for mon in m:
+        mx, my = mon.get('x',0), mon.get('y',0)
+        scale = mon.get('scale', 1.0)
+        # Hyprland layout coordinates use logical dimensions (width/scale)
+        w, h = mon.get('width', 1920)/scale, mon.get('height', 1080)/scale
+        
+        # Handle portrait/rotated monitors swapping width & height
+        transform = mon.get('transform', 0)
+        if transform % 2 != 0:
+            w, h = h, w
+            
+        if cx >= mx and cx <= mx + w and cy >= my and cy <= my + h:
+            res = mon['name']
+            break
+            
+    print(res)
+except Exception:
+    pass
+`
+        cursorMonitorProcess.command = ["python3", "-c", pyScript]
+        cursorMonitorProcess.running = true
     }
 
     // ============================================================
@@ -339,7 +383,7 @@ Scope {
             required property var modelData
             screen: modelData
 
-            property bool isTargetMonitor: modelData.name === root.targetMonitorName
+            property bool isTargetMonitor: root.targetMonitorName !== "" && modelData.name === root.targetMonitorName
             visible: isTargetMonitor
 
             WlrLayershell.layer: WlrLayer.Top

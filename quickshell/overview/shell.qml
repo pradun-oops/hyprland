@@ -28,7 +28,7 @@ Scope {
     // ANIMATION & STATE TRACKING
     property bool isOpened: false
     property bool isClosing: false
-    property string lockedMonitor: ""
+    property string activeCursorMonitor: ""
 
     property int selectedIndex: 0
     property var workspaceList: []
@@ -117,29 +117,71 @@ Scope {
         }
     }
 
-    Component.onCompleted: { 
-        let screens = Quickshell.screens;
-        let extScreen = "";
-        for (let i = 0; i < screens.length; i++) {
-            let sName = (screens[i].name || "").toLowerCase();
-            if (!sName.startsWith("edp") && !sName.startsWith("lvds") && !sName.startsWith("dsi") && !sName.includes("builtin")) {
-                extScreen = screens[i].name;
-                break;
+    // ============================================================
+    // CURSOR MONITOR DETECTION PROCESS
+    // ============================================================
+    Process {
+        id: cursorMonitorProcess
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let found = text.trim();
+                
+                if (found !== "") {
+                    root.activeCursorMonitor = found;
+                } else {
+                    // Fallbacks if Python script unexpectedly fails
+                    if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+                        root.activeCursorMonitor = Hyprland.focusedMonitor.name;
+                    } else if (Quickshell.screens.length > 0) {
+                        root.activeCursorMonitor = Quickshell.screens[0].name;
+                    }
+                }
+
+                colorFile.reload()
+                generalFile.reload()
+                animConfigFile.reload()
+                root.isOpened = true
             }
         }
+    }
 
-        if (extScreen !== "") {
-            root.lockedMonitor = extScreen;
-        } else if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
-            root.lockedMonitor = Hyprland.focusedMonitor.name;
-        } else if (screens.length > 0) {
-            root.lockedMonitor = screens[0].name;
-        }
-
-        colorFile.reload()
-        generalFile.reload()
-        animConfigFile.reload()
-        root.isOpened = true
+    Component.onCompleted: {
+        // Robust Python script to pinpoint the monitor based on layout coordinates & cursor position
+        let pyScript = `
+import json, subprocess
+try:
+    c = json.loads(subprocess.check_output('hyprctl cursorpos -j', shell=True))
+    m = json.loads(subprocess.check_output('hyprctl monitors -j', shell=True))
+    cx, cy = c.get('x',0), c.get('y',0)
+    res = ''
+    
+    # 1. Fallback: find focused monitor first
+    for mon in m:
+        if mon.get('focused'): 
+            res = mon['name']
+            
+    # 2. Strict Check: find the monitor bounds exactly matching the cursor
+    for mon in m:
+        mx, my = mon.get('x',0), mon.get('y',0)
+        scale = mon.get('scale', 1.0)
+        # Hyprland layout coordinates use logical dimensions (width/scale)
+        w, h = mon.get('width', 1920)/scale, mon.get('height', 1080)/scale
+        
+        # Handle portrait/rotated monitors swapping width & height
+        transform = mon.get('transform', 0)
+        if transform % 2 != 0:
+            w, h = h, w
+            
+        if cx >= mx and cx <= mx + w and cy >= my and cy <= my + h:
+            res = mon['name']
+            break
+            
+    print(res)
+except Exception:
+    pass
+`
+        cursorMonitorProcess.command = ["python3", "-c", pyScript]
+        cursorMonitorProcess.running = true
     }
 
     // ============================================================
@@ -442,9 +484,10 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
         delegate: PanelWindow {
             id: overviewWindow
             required property var modelData
-            screen: modelData
 
-            property bool isTargetMonitor: root.lockedMonitor !== "" ? (modelData.name === root.lockedMonitor) : true
+            property bool isTargetMonitor: root.activeCursorMonitor !== "" && modelData.name === root.activeCursorMonitor
+
+            screen: modelData
 
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-overview"
@@ -452,7 +495,7 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            visible: !root.isClosing
+            visible: isTargetMonitor && !root.isClosing
 
             anchors {
                 top: true
@@ -467,7 +510,7 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
             Rectangle {
                 anchors.fill: parent
                 color: "black"
-                opacity: root.isClosing ? 0 : (root.isOpened ? 0.65 : 0.0)
+                opacity: root.isOpened && !root.isClosing ? 0.65 : 0.0
 
                 Behavior on opacity { 
                     NumberAnimation { duration: root.animEnabled ? root.animDuration : 0; easing.type: Easing.OutCubic } 
@@ -486,7 +529,6 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
                 implicitWidth: cardColumn.implicitWidth + 48
                 implicitHeight: cardColumn.implicitHeight + 48
 
-                visible: isTargetMonitor
                 focus: isTargetMonitor
 
                 Component.onCompleted: {
@@ -600,7 +642,6 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
                                     width: 220
                                     height: 140
 
-                                    // Same border radius as the main modal container
                                     radius: root.themeRounding
 
                                     property bool isSelected: index === root.selectedIndex
@@ -618,7 +659,6 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
 
                                     color: root.themeBackground
 
-                                    // 1. Wallpaper & Dimming Overlay Source Container
                                     Item {
                                         id: cardBgSource
                                         anchors.fill: parent
@@ -639,7 +679,6 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
                                         }
                                     }
 
-                                    // 2. Rounded Mask with matching themeRounding
                                     Rectangle {
                                         id: cardBgMask
                                         anchors.fill: parent
@@ -649,7 +688,6 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
                                         layer.enabled: true
                                     }
 
-                                    // 3. MultiEffect applying the rounded corner mask
                                     MultiEffect {
                                         anchors.fill: parent
                                         source: cardBgSource
@@ -657,7 +695,6 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
                                         maskSource: cardBgMask
                                     }
 
-                                    // Card Content (Title, Active Tag, Window Icons)
                                     Column {
                                         anchors.fill: parent
                                         anchors.margins: 12
@@ -768,7 +805,6 @@ print(json.dumps({"wallpaper": wallpaper, "workspaces": result}))
                                         }
                                     }
 
-                                    // Dedicated Top Border Overlay to ensure rounded corners & visible border line over wallpaper
                                     Rectangle {
                                         anchors.fill: parent
                                         radius: root.themeRounding

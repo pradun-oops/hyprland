@@ -38,47 +38,33 @@ Scope {
     property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.12)
 
     // ============================================================
-    // MONITOR LOCK VIA CURSOR POSITION
+    // STRICT FOCUSED MONITOR LOCK LOGIC
     // ============================================================
-    property string lockedMonitor: ""
+    property string targetMonitorName: ""
 
-    Process {
-        id: monitorDetector
-        command: [
-            "python3", "-c",
-            "import json, subprocess\n" +
-            "try:\n" +
-            "    monitors = json.loads(subprocess.check_output(['hyprctl', 'monitors', '-j']))\n" +
-            "    cursor = json.loads(subprocess.check_output(['hyprctl', 'cursorpos', '-j']))\n" +
-            "    cx, cy = cursor['x'], cursor['y']\n" +
-            "    sel = None\n" +
-            "    for m in monitors:\n" +
-            "        scale = m.get('scale', 1.0)\n" +
-            "        w = m['width'] / scale if scale > 0 else m['width']\n" +
-            "        h = m['height'] / scale if scale > 0 else m['height']\n" +
-            "        if m['x'] <= cx < m['x'] + w and m['y'] <= cy < m['y'] + h:\n" +
-            "            sel = m['name']\n" +
-            "            break\n" +
-            "    if not sel:\n" +
-            "        for m in monitors:\n" +
-            "            if m.get('focused'): sel = m['name']; break\n" +
-            "    print(sel or (monitors[0]['name'] if monitors else ''))\n" +
-            "except Exception:\n" +
-            "    pass"
-        ]
-        stdout: SplitParser {
-            onRead: data => {
-                let mName = data.trim()
-                if (mName !== "") {
-                    root.lockedMonitor = mName
-                } else {
-                    if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
-                        root.lockedMonitor = String(Hyprland.focusedMonitor.name)
-                    } else if (Quickshell.screens.length > 0) {
-                        root.lockedMonitor = String(Quickshell.screens[0].name)
-                    }
-                }
+    function updateTargetMonitor() {
+        if (root.targetMonitorName !== "") return
+
+        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+            root.targetMonitorName = Hyprland.focusedMonitor.name
+        }
+    }
+
+    Timer {
+        id: fallbackMonitorTimer
+        interval: 150
+        repeat: false
+        onTriggered: {
+            if (root.targetMonitorName === "" && Quickshell.screens.length > 0) {
+                root.targetMonitorName = Quickshell.screens[0].name
             }
+        }
+    }
+
+    Connections {
+        target: Hyprland
+        function onFocusedMonitorChanged() {
+            root.updateTargetMonitor()
         }
     }
 
@@ -141,8 +127,10 @@ Scope {
     }
 
     Component.onCompleted: {
-        // Trigger exact cursor monitor detection immediately on launch
-        monitorDetector.running = true
+        root.updateTargetMonitor()
+        if (root.targetMonitorName === "") {
+            fallbackMonitorTimer.start()
+        }
 
         colorFile.reload()
         generalConfigFile.reload()
@@ -204,12 +192,14 @@ Scope {
             required property var modelData
             screen: modelData
 
-            // Stay hidden until lockedMonitor is set, then display only on the cursor monitor
-            visible: root.lockedMonitor !== "" && modelData.name === root.lockedMonitor
+            property bool isTargetMonitor: modelData.name === root.targetMonitorName
+
+            // Stay hidden until targetMonitorName is set, then display only on target monitor
+            visible: root.targetMonitorName !== "" && isTargetMonitor
 
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "dms:notification-center"
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+            WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
             // Fullscreen backdrop layer
@@ -235,9 +225,13 @@ Scope {
                 anchors.rightMargin: 20
                 implicitWidth: 430
                 implicitHeight: 640
-                focus: true
+                
+                visible: root.targetMonitorName !== "" && isTargetMonitor
+                focus: isTargetMonitor
 
-                Component.onCompleted: forceActiveFocus()
+                Component.onCompleted: {
+                    if (isTargetMonitor) forceActiveFocus()
+                }
                 Keys.onEscapePressed: Qt.quit()
 
                 // Block clicks inside dialog card from dismissing the menu

@@ -13,7 +13,6 @@ Scope {
     // ============================================================
     // POSITION PERSISTENCE VIA JSON
     // ============================================================
-    property string savedScreenName: ""
     property int savedMarginTop: 50
     property int savedMarginRight: 50
 
@@ -53,7 +52,6 @@ Scope {
         let jsonTmp = jsonFile + ".tmp"
         let jsonStr = JSON.stringify({ marginTop: validTop, marginRight: validRight })
 
-        // Atomic write: Write to .tmp first, then atomically move to target file
         let cmd = "mkdir -p '" + jsonDir + "' && echo '" + jsonStr + "' > '" + jsonTmp + "' && mv '" + jsonTmp + "' '" + jsonFile + "'"
 
         savePosProcess.running = false
@@ -69,14 +67,12 @@ Scope {
     property color themeText: "#FFFFFF"
     property color themeTextMuted: "#C5C5C5" 
     
-    // Geometry & Animation Defaults
     property int themeRounding: 12
     property int themeBorderSize: 2
     property real themeBgAlpha: 1.0
     property bool animEnabled: true
     property int animDuration: 500
 
-    // Dynamic Solid Colors
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08) 
 
@@ -106,42 +102,6 @@ Scope {
     property string ramUsedTotal: "0 GB / 0 GB"
     property int diskPercent: 0
     property int gpuPercent: 0
-
-    // --- TARGET MONITOR SELECTION ---
-    property string targetMonitorName: ""
-
-    // ============================================================
-    // EXTERNAL MONITOR DETECTION (HYPRLAND)
-    // ============================================================
-    Process {
-        id: monitorDetectionProcess
-        command: ["bash", "-c", "hyprctl monitors -j 2>/dev/null || echo '[]'"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    let monitors = JSON.parse(text.trim())
-                    if (monitors && monitors.length > 0) {
-                        let builtInPattern = /^eDP|^LVDS|^dsi/i
-                        let externalMon = monitors.find(m => !builtInPattern.test(m.name))
-                        
-                        if (externalMon) {
-                            root.targetMonitorName = externalMon.name
-                        } else {
-                            root.targetMonitorName = monitors[0].name
-                        }
-                    }
-                } catch(e) {}
-            }
-        }
-    }
-
-    Timer {
-        interval: 5000
-        running: true
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: monitorDetectionProcess.running = true
-    }
 
     // ============================================================
     // CONFIG PARSERS
@@ -342,11 +302,10 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
         onPercentChanged: animatedPercent = percent
         onAnimatedPercentChanged: canvas.requestPaint()
 
-        // TLP Traffic Light Protocol Color Logic
         function getTlpColor(val) {
-            if (val < 60) return "#4ade80"       // Green (Low usage: < 60%)
-            if (val < 85) return "#facc15"       // Yellow (Medium usage: 60% - 84%)
-            return "#f87171"                     // Red (High usage: >= 85%)
+            if (val < 60) return "#4ade80"       
+            if (val < 85) return "#facc15"       
+            return "#f87171"                     
         }
 
         Behavior on animatedPercent {
@@ -370,14 +329,12 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                 var centerY = height / 2;
                 var radius = Math.min(width, height) / 2 - 5;
                 
-                // Track / Background Ring
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
                 ctx.lineWidth = 6;
                 ctx.strokeStyle = root.themeSurface;
                 ctx.stroke();
                 
-                // Active Fill Ring with TLP Color
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, radius, -Math.PI / 2, -Math.PI / 2 + (2 * Math.PI * Math.min(Math.max(gaugeRoot.animatedPercent / 100, 0), 1)));
                 ctx.lineWidth = 6;
@@ -418,7 +375,7 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
             required property var modelData
             screen: modelData
 
-            visible: modelData && (root.targetMonitorName === "" || modelData.name === root.targetMonitorName)
+            visible: modelData !== null
 
             WlrLayershell.layer: WlrLayer.Bottom
             WlrLayershell.namespace: "dms:desktop-widget:dashboard"
@@ -443,7 +400,6 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                     NumberAnimation { duration: root.animEnabled ? root.animDuration : 0 }
                 }
 
-                // Background Shape
                 Rectangle {
                     id: bgCardShape
                     anchors.fill: parent
@@ -502,7 +458,6 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                     anchors.margins: 24 
                     spacing: 20 
                     
-                    // --- 1. USER PROFILE HEADER ---
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 12
@@ -592,7 +547,6 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: root.themeSurface }
 
-                    // --- 2. CLOCK & MAIN WEATHER ---
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignTop
@@ -672,7 +626,6 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                         }
                     }
 
-                    // --- 3. WEATHER DETAILS GRID ---
                     Rectangle {
                         Layout.fillWidth: true
                         implicitHeight: weatherGrid.implicitHeight + 24 
@@ -706,7 +659,6 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                         }
                     }
 
-                    // --- 4. HARDWARE TELEMETRY ---
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.topMargin: 4

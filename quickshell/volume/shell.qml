@@ -32,7 +32,6 @@ Scope {
     property bool showOSD: false
     property string lockedMon: ""
 
-    // Lock monitor once on startup to prevent cross-monitor drift
     Component.onCompleted: {
         root.updateAudioState()
         if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
@@ -132,6 +131,12 @@ Scope {
 
                 if (root.lastVolume !== -1 && (vol !== root.lastVolume || muted !== root.lastMute)) {
                     root.showOSD = true
+                    // Capture the monitor where the cursor/focus is right when the OSD triggers
+                    if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+                        root.lockedMon = Hyprland.focusedMonitor.name
+                    } else if (Quickshell.screens.length > 0) {
+                        root.lockedMon = Quickshell.screens[0].name
+                    }
                     autoHideTimer.restart()
                 }
 
@@ -144,7 +149,6 @@ Scope {
         }
     }
 
-    // PipeWire event listener replacing Python 120ms interval polling
     Process {
         id: pipewireEvents
         command: ["pactl", "subscribe"]
@@ -168,11 +172,14 @@ Scope {
             required property var modelData
             screen: modelData
 
-            // Dynamic monitor lookup fallback logic
+            // Dynamic lookup with fallback logic: if lockedMon is invalid/disconnected, fallback gracefully
             property bool isTargetMonitor: {
-                if (root.lockedMon !== "") return modelData.name === root.lockedMon
-                if (Hyprland.focusedMonitor) return modelData.name === Hyprland.focusedMonitor.name
-                return Quickshell.screens.length > 0 ? modelData.name === Quickshell.screens[0].name : true
+                let target = root.lockedMon;
+                let activeScreen = Quickshell.screens.find(s => s.name === target);
+                if (!activeScreen) {
+                    target = Hyprland.focusedMonitor?.name ?? (Quickshell.screens.length > 0 ? Quickshell.screens[0].name : "");
+                }
+                return modelData.name === target;
             }
 
             visible: (root.showOSD || osdContainer.opacity > 0) && isTargetMonitor

@@ -31,7 +31,6 @@ Scope {
     property bool showOSD: false
     property string lockedMon: ""
 
-    // Lock monitor on startup to prevent cursor-tracking monitor jumps
     Component.onCompleted: {
         if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
             root.lockedMon = Hyprland.focusedMonitor.name
@@ -119,6 +118,12 @@ Scope {
                     if (!isNaN(newBri)) {
                         if (root.lastBrightness !== -1 && newBri !== root.lastBrightness) {
                             root.showOSD = true
+                            // Capture the monitor where the cursor/focus is right when the OSD triggers
+                            if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+                                root.lockedMon = Hyprland.focusedMonitor.name
+                            } else if (Quickshell.screens.length > 0) {
+                                root.lockedMon = Quickshell.screens[0].name
+                            }
                             autoHideTimer.restart()
                         }
                         root.lastBrightness = newBri
@@ -152,11 +157,14 @@ Scope {
             required property var modelData
             screen: modelData
 
-            // Dynamic monitor target resolution
+            // Dynamic lookup with fallback logic: if lockedMon is invalid/disconnected, fallback gracefully
             property bool isTargetMonitor: {
-                if (root.lockedMon !== "") return modelData.name === root.lockedMon
-                if (Hyprland.focusedMonitor) return modelData.name === Hyprland.focusedMonitor.name
-                return Quickshell.screens.length > 0 ? modelData.name === Quickshell.screens[0].name : true
+                let target = root.lockedMon;
+                let activeScreen = Quickshell.screens.find(s => s.name === target);
+                if (!activeScreen) {
+                    target = Hyprland.focusedMonitor?.name ?? (Quickshell.screens.length > 0 ? Quickshell.screens[0].name : "");
+                }
+                return modelData.name === target;
             }
 
             visible: (root.showOSD || osdContainer.opacity > 0) && isTargetMonitor
@@ -183,9 +191,9 @@ Scope {
                 border.color: Qt.alpha(root.themeBorder, 0.45)
                 clip: true
 
-                opacity: (root.showOSD && win.isTargetMonitor) ? 1.0 : 0.0
-                scale: (root.showOSD && win.isTargetMonitor) ? 1.0 : 0.95
-                enabled: root.showOSD && win.isTargetMonitor
+                opacity: root.showOSD ? 1.0 : 0.0
+                scale: root.showOSD ? 1.0 : 0.95
+                enabled: root.showOSD
 
                 Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                 Behavior on scale { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }

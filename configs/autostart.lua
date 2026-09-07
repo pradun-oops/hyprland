@@ -5,7 +5,6 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("systemctl --user start hyprland-session.target")
     hl.exec_cmd("/usr/libexec/polkit-gnome-authentication-agent-1 &")
     hl.exec_cmd("awww-daemon &")
-    hl.exec_cmd("waypaper --restore &")
     
     -- GTK and Icon Theme Settings
     hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme prefer-dark")

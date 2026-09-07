@@ -31,7 +31,34 @@ Scope {
     property bool isOpened: false
     property bool isClosing: false
     property string pendingCommand: ""
-    property string lockedMonitor: ""
+    property string targetMonitorName: ""
+
+    // --- STRICT FOCUSED MONITOR LOCK LOGIC ---
+    function updateTargetMonitor() {
+        if (root.targetMonitorName !== "") return
+
+        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+            root.targetMonitorName = Hyprland.focusedMonitor.name
+        }
+    }
+
+    Timer {
+        id: fallbackMonitorTimer
+        interval: 150
+        repeat: false
+        onTriggered: {
+            if (root.targetMonitorName === "" && Quickshell.screens.length > 0) {
+                root.targetMonitorName = Quickshell.screens[0].name
+            }
+        }
+    }
+
+    Connections {
+        target: Hyprland
+        function onFocusedMonitorChanged() {
+            root.updateTargetMonitor()
+        }
+    }
 
     // Script manager path
     property string scriptPath: Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh"
@@ -93,10 +120,9 @@ Scope {
     }
 
     Component.onCompleted: { 
-        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
-            root.lockedMonitor = Hyprland.focusedMonitor.name
-        } else if (Quickshell.screens.length > 0) {
-            root.lockedMonitor = Quickshell.screens[0].name
+        root.updateTargetMonitor()
+        if (root.targetMonitorName === "") {
+            fallbackMonitorTimer.start()
         }
 
         colorFile.reload()
@@ -202,7 +228,7 @@ Scope {
             required property var modelData
             screen: modelData
 
-            property bool isTargetMonitor: root.lockedMonitor !== "" ? (modelData.name === root.lockedMonitor) : true
+            property bool isTargetMonitor: modelData.name === root.targetMonitorName
 
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-power-menu"
@@ -243,7 +269,7 @@ Scope {
                 implicitWidth: powerLayout.implicitWidth + 48
                 implicitHeight: powerLayout.implicitHeight + 48
                 
-                visible: isTargetMonitor
+                visible: root.targetMonitorName !== "" && isTargetMonitor
                 focus: isTargetMonitor
 
                 Component.onCompleted: {

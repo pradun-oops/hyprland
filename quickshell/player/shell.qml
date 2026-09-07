@@ -40,32 +40,53 @@ Scope {
     property var audioSinks: []
     property int currentVolume: 50
 
-    // Desktop Widget Position
-    property int windowX: 100
-    property int windowY: 420
-    property string targetMonitorName: ""
+    // Desktop Widget Position (Using margins like the dashboard widget)
+    property int savedMarginTop: 420
+    property int savedMarginLeft: 100
 
     // ============================================================
-    // POSITION PERSISTENCE
+    // POSITION PERSISTENCE VIA JSON
     // ============================================================
     FileView {
-        id: posFile
+        id: posConfigFile
         path: Quickshell.env("HOME") + "/.config/quickshell/json/player_pos.json"
         watchChanges: true
         onFileChanged: reload()
         onLoaded: {
             try {
-                let d = JSON.parse(text())
-                if (d.x !== undefined) root.windowX = d.x
-                if (d.y !== undefined) root.windowY = d.y
+                let raw = text().trim()
+                if (!raw) return
+                let data = JSON.parse(raw)
+                if (data.marginTop !== undefined && !isNaN(data.marginTop)) {
+                    root.savedMarginTop = Math.max(0, parseInt(data.marginTop))
+                }
+                if (data.marginLeft !== undefined && !isNaN(data.marginLeft)) {
+                    root.savedMarginLeft = Math.max(0, parseInt(data.marginLeft))
+                }
             } catch(e) {}
         }
     }
 
-    Process { id: savePosProcess }
-    function saveWindowPos() {
-        let jsonStr = JSON.stringify({ x: root.windowX, y: root.windowY })
-        savePosProcess.command = ["bash", "-c", "mkdir -p ~/.config/quickshell/json && echo '" + jsonStr + "' > ~/.config/quickshell/json/player_pos.json"]
+    Process {
+        id: savePosProcess
+    }
+
+    function savePosition(top, left) {
+        let validTop = Math.max(0, Math.round(top))
+        let validLeft = Math.max(0, Math.round(left))
+
+        root.savedMarginTop = validTop
+        root.savedMarginLeft = validLeft
+
+        let jsonDir = Quickshell.env("HOME") + "/.config/quickshell/json"
+        let jsonFile = jsonDir + "/player_pos.json"
+        let jsonTmp = jsonFile + ".tmp"
+        let jsonStr = JSON.stringify({ marginTop: validTop, marginLeft: validLeft })
+
+        let cmd = "mkdir -p '" + jsonDir + "' && echo '" + jsonStr + "' > '" + jsonTmp + "' && mv '" + jsonTmp + "' '" + jsonFile + "'"
+
+        savePosProcess.running = false
+        savePosProcess.command = ["bash", "-c", cmd]
         savePosProcess.running = true
     }
 
@@ -113,8 +134,7 @@ Scope {
     Component.onCompleted: {
         colorFile.reload()
         generalConfigFile.reload()
-        posFile.reload()
-        monitorDetectionProcess.running = true
+        posConfigFile.reload()
         audioPollProcess.running = true
     }
 
@@ -167,31 +187,6 @@ Scope {
         interval: 100
         repeat: false
         onTriggered: audioPollProcess.running = true
-    }
-
-    // ============================================================
-    // MONITOR DETECTION
-    // ============================================================
-    Process {
-        id: monitorDetectionProcess
-        command: ["bash", "-c", "hyprctl monitors -j 2>/dev/null || echo '[]'"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    let monitors = JSON.parse(text.trim())
-                    if (monitors && monitors.length > 0) {
-                        let builtInPattern = /^eDP|^LVDS|^dsi/i
-                        let externalMon = monitors.find(m => !builtInPattern.test(m.name))
-                        root.targetMonitorName = externalMon ? externalMon.name : monitors[0].name
-                    }
-                } catch(e) {}
-            }
-        }
-    }
-
-    Timer {
-        interval: 5000; running: true; repeat: true
-        onTriggered: monitorDetectionProcess.running = true
     }
 
     // ============================================================
@@ -332,7 +327,7 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
     }
 
     // ============================================================
-    // WIDGET UI
+    // WIDGET UI (Shown on all monitors and moves synchronously)
     // ============================================================
     Variants {
         model: Quickshell.screens
@@ -341,8 +336,7 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
             required property var modelData
             screen: modelData
 
-            // FIXED: Stays visible when paused (not stopped), hides only when completely stopped or no media player is active
-            visible: root.mediaStatus.toLowerCase() !== "stopped" && root.mediaTitle !== "No media playing" && modelData && (root.targetMonitorName === "" || modelData.name === root.targetMonitorName)
+            visible: root.mediaStatus.toLowerCase() !== "stopped" && root.mediaTitle !== "No media playing" && modelData !== null
 
             WlrLayershell.layer: WlrLayer.Bottom
             WlrLayershell.namespace: "dms:desktop-widget:player"
@@ -351,8 +345,8 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
 
             anchors { top: true; left: true }
             margins {
-                top: root.windowY
-                left: root.windowX
+                top: root.savedMarginTop
+                left: root.savedMarginLeft
             }
 
             implicitWidth: 437
@@ -415,24 +409,46 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                     antialiasing: true
                 }
 
-                // 5. Drag Mouse Area
+                // 5. Drag Mouse Area (Updates saved margins globally across all monitors)
                 MouseArea {
                     anchors.fill: parent
-                    cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                    acceptedButtons: Qt.LeftButton
+                    cursorShape: isDragging ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                    pressAndHoldInterval: 150
                     z: 1 
 
                     property real startX: 0
                     property real startY: 0
+                    property bool isDragging: false
 
                     onPressed: (mouse) => {
                         startX = mouse.x
                         startY = mouse.y
                     }
-                    onPositionChanged: (mouse) => {
-                        root.windowX += (mouse.x - startX)
-                        root.windowY += (mouse.y - startY)
+                    
+                    onPressAndHold: (mouse) => {
+                        isDragging = true
+                        startX = mouse.x
+                        startY = mouse.y
                     }
-                    onReleased: root.saveWindowPos()
+
+                    onPositionChanged: (mouse) => {
+                        if (isDragging) {
+                            let dx = mouse.x - startX
+                            let dy = mouse.y - startY
+                            if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
+                                root.savedMarginLeft = Math.max(0, root.savedMarginLeft + dx)
+                                root.savedMarginTop = Math.max(0, root.savedMarginTop + dy)
+                            }
+                        }
+                    }
+                    
+                    onReleased: {
+                        if (isDragging) {
+                            isDragging = false
+                            root.savePosition(root.savedMarginTop, root.savedMarginLeft)
+                        }
+                    }
                 }
 
                 // 6. Content Container
@@ -709,7 +725,7 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                         }
                     }
 
-                    // Transport Controls + Dynamic Volume Buttons (Turns red at 0% / 100%)
+                    // Transport Controls + Dynamic Volume Buttons
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 52
@@ -820,7 +836,7 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                             MouseArea {
                                 id: volUpMouse
                                 anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: root.adjustVolume("+5%")
+                                onClicked: root.exec("pactl set-sink-volume @DEFAULT_SINK@ +5%")
                             }
                         }
 

@@ -13,25 +13,25 @@ Scope {
     // Target monitor property
     property string lockedMonitor: ""
 
-    // --- STRICT MONITOR PINNING LOGIC ---
+    // --- STRICT FOCUSED MONITOR LOCK LOGIC ---
+    // Detects the active monitor under the cursor on launch and locks it
     function updateTargetMonitor() {
-        if (Quickshell.screens.length === 0) return
+        if (root.lockedMonitor !== "") return
 
-        let external = Quickshell.screens.find(s => !s.name.startsWith("eDP") && !s.name.startsWith("LVDS"))
-        
-        if (external) {
-            root.lockedMonitor = external.name
-        } else if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
             root.lockedMonitor = Hyprland.focusedMonitor.name
-        } else {
-            root.lockedMonitor = Quickshell.screens[0].name
         }
     }
 
-    Connections {
-        target: Quickshell
-        function onScreensChanged() {
-            root.updateTargetMonitor()
+    // Fallback timer only used if Hyprland target monitor is not immediately ready
+    Timer {
+        id: fallbackMonitorTimer
+        interval: 150
+        repeat: false
+        onTriggered: {
+            if (root.lockedMonitor === "" && Quickshell.screens.length > 0) {
+                root.lockedMonitor = Quickshell.screens[0].name
+            }
         }
     }
 
@@ -45,7 +45,7 @@ Scope {
     // --- DYNAMIC ADAPTIVE PROPERTIES ---
     property int themeRounding: 14
     property int themeBorderSize: 2
-    property real themeBgAlpha: 1.0
+    property real themeBgAlpha: 0.95
     property bool animEnabled: true
     property int animDuration: 220       
 
@@ -175,10 +175,16 @@ os.makedirs(os.path.expanduser('~/.config/quickshell/json'), exist_ok=True)
 with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') as out:
     json.dump(apps, out)
         `]
+        onExited: {
+            appCacheFile.reload()
+        }
     }
 
     Component.onCompleted: {
         root.updateTargetMonitor()
+        if (root.lockedMonitor === "") {
+            fallbackMonitorTimer.start()
+        }
         colorFile.reload()
         generalConfigFile.reload()
         animConfigFile.reload()
@@ -218,10 +224,14 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         closeTimer.start()
     }
 
+    property string activeSearchQuery: ""
+
     Process {
         id: fileSearchProcess
         stdout: StdioCollector {
             onStreamFinished: {
+                if (debounceSearchTimer.pendingQuery.trim().toLowerCase() !== root.activeSearchQuery) return
+
                 let lines = text.split('\n')
                 for (let i = 0; i < lines.length; i++) {
                     let line = lines[i].trim()
@@ -254,6 +264,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
     function performSearch(query) {
         let q = query ? query.trim().toLowerCase() : ""
+        root.activeSearchQuery = q
         searchResultsModel.clear()
         
         let count = 0
@@ -342,7 +353,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                 radius: root.themeRounding
                 border.width: root.themeBorderSize
                 border.color: Qt.alpha(root.themeBorder, 0.35)
-                color: root.themeBackground
+                color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
 
                 scale: root.isLoaded ? 1.0 : 0.96
                 opacity: root.isLoaded ? 1.0 : 0.0
@@ -473,7 +484,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         visible: searchResultsModel.count > 0 || searchInput.text.trim() !== ""
                     }
 
-                    // 3. NO RESULTS ALERT VIEW
+                    // 2. NO RESULTS ALERT VIEW
                     Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 56
@@ -498,7 +509,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         }
                     }
 
-                    // 2. RESULTS LISTVIEW
+                    // 3. RESULTS LISTVIEW
                     ListView {
                         id: resultsList
                         Layout.fillWidth: true
