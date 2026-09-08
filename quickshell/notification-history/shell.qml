@@ -10,17 +10,11 @@ import QtQuick.Window
 Scope {
     id: root
 
-    // ============================================================
-    // ESCAPE KEY SHORTCUT
-    // ============================================================
     Shortcut {
         sequence: "Escape"
         onActivated: Qt.quit()
     }
 
-    // ============================================================
-    // ADAPTIVE THEME PROPERTIES
-    // ============================================================
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
@@ -36,9 +30,6 @@ Scope {
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.04) 
     property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.08)
 
-    // ============================================================
-    // STRICT FOCUSED MONITOR LOCK LOGIC
-    // ============================================================
     property string targetMonitorName: ""
 
     function updateTargetMonitor() {
@@ -67,9 +58,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // CONFIG PARSERS
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -137,9 +125,6 @@ Scope {
         historyFile.reload()
     }
 
-    // ============================================================
-    // COMMAND EXECUTION & HISTORY MANAGEMENT
-    // ============================================================
     Process { id: execProcess }
     function exec(cmd) {
         execProcess.running = false;
@@ -209,9 +194,6 @@ Scope {
         return "󰂚"
     }
 
-    // ============================================================
-    // TOP RIGHT NOTIFICATION CENTER DIALOG
-    // ============================================================
     Variants {
         model: Quickshell.screens
         delegate: PanelWindow {
@@ -241,7 +223,6 @@ Scope {
                 onClicked: Qt.quit()
             }
 
-            // Top-Right Positioned Container
             Item {
                 anchors.top: parent.top
                 anchors.right: parent.right
@@ -276,9 +257,6 @@ Scope {
                         anchors.margins: 18
                         spacing: 14
 
-                        // ============================================================
-                        // HEADER SECTION
-                        // ============================================================
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 12
@@ -341,7 +319,6 @@ Scope {
 
                             Item { Layout.fillWidth: true }
 
-                            // Clear All Button
                             Rectangle {
                                 visible: historyModel.count > 0
                                 Layout.preferredWidth: clearRow.implicitWidth + 20
@@ -389,14 +366,10 @@ Scope {
                             color: Qt.alpha(root.themeBorder, 0.14)
                         }
 
-                        // ============================================================
-                        // NOTIFICATION LIST CONTAINER
-                        // ============================================================
                         Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
 
-                            // Empty State
                             ColumnLayout {
                                 anchors.centerIn: parent
                                 visible: historyModel.count === 0
@@ -440,7 +413,6 @@ Scope {
                                 }
                             }
 
-                            // Notification List View (Scrollbars organically disabled)
                             ListView {
                                 id: historyList
                                 anchors.fill: parent
@@ -492,7 +464,6 @@ Scope {
                                         anchors.margins: 12
                                         spacing: 12
 
-                                        // Category/App Badge
                                         Rectangle {
                                             Layout.alignment: Qt.AlignTop
                                             Layout.topMargin: 2
@@ -511,12 +482,10 @@ Scope {
                                             }
                                         }
 
-                                        // Main Content
                                         ColumnLayout {
                                             Layout.fillWidth: true
                                             spacing: 4
 
-                                            // Top Metadata Row
                                             RowLayout {
                                                 Layout.fillWidth: true
                                                 spacing: 6
@@ -542,7 +511,6 @@ Scope {
                                                     Layout.fillWidth: true
                                                 }
 
-                                                // Expand Icon Indicator
                                                 Rectangle {
                                                     visible: card.hasBody
                                                     width: 22
@@ -566,7 +534,6 @@ Scope {
                                                 }
                                             }
 
-                                            // Notification Summary
                                             Text {
                                                 text: model.summary || ""
                                                 color: root.themeText
@@ -578,7 +545,6 @@ Scope {
                                                 elide: Text.ElideRight
                                             }
 
-                                            // Notification Body
                                             Text {
                                                 visible: card.hasBody
                                                 text: model.body || ""

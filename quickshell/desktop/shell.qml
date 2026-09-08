@@ -10,9 +10,6 @@ import Qt5Compat.GraphicalEffects
 Scope {
     id: root
 
-    // ============================================================
-    // POSITION PERSISTENCE VIA JSON
-    // ============================================================
     property int savedMarginTop: 50
     property int savedMarginRight: 50
 
@@ -59,9 +56,6 @@ Scope {
         savePosProcess.running = true
     }
 
-    // ============================================================
-    // ADAPTIVE THEME PROPERTIES
-    // ============================================================
     property color themeBorder: "#ffb3af"
     property color themePrimary: "#ffb3af"
     property color themeText: "#FFFFFF"
@@ -76,7 +70,6 @@ Scope {
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08) 
 
-    // --- STATE PROPERTIES ---
     property string currentHour: "00"
     property string currentMinute: "00"
     property string currentPeriod: "AM"
@@ -84,7 +77,6 @@ Scope {
     property string currentDay: "Monday"
     property string currentTimeExact: "00:00"
 
-    // --- WEATHER CONFIG & STATE ---
     property string weatherLat: "23.3441" 
     property string weatherLon: "85.3096"
     
@@ -96,16 +88,12 @@ Scope {
     property string currentWeatherWind: "--"
     property string currentWeatherPressure: "--"
 
-    // --- SYSTEM HARDWARE TELEMETRY ---
     property int cpuPercent: 0
     property int ramPercent: 0
     property string ramUsedTotal: "0 GB / 0 GB"
     property int diskPercent: 0
     property int gpuPercent: 0
 
-    // ============================================================
-    // CONFIG PARSERS
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -176,9 +164,6 @@ Scope {
         execProcess.running = true
     }
 
-    // ============================================================
-    // BACKGROUND PROCESSES
-    // ============================================================
     Timer {
         interval: 1000
         running: true
@@ -290,9 +275,6 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
         }
     }
 
-    // ============================================================
-    // REUSABLE COMPONENTS
-    // ============================================================
     component CircularGauge : Item {
         id: gaugeRoot
         property string label: "CPU"
@@ -364,9 +346,6 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
         }
     }
 
-    // ============================================================
-    // UI LAYOUT
-    // ============================================================
     Variants {
         model: Quickshell.screens
         

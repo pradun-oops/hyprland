@@ -11,7 +11,6 @@ import Quickshell.Services.Pam
 ShellRoot {
     id: root
 
-    // Root properties & state management
     property string pendingPassword: ""
     property string authStatus: ""
     property color authStatusColor: "#ff6b6b"
@@ -20,11 +19,9 @@ ShellRoot {
     property real shakeOffset: 0
     property string wallpaperPath: ""
 
-    // Clock properties
     property string timeText: ""
     property string dateText: ""
 
-    // Dynamic Theme Properties matching colors.lua & general.lua
     property color themeBorder: "#a2d398"
     property color themePrimary: "#a2d398"
     property color themeBackground: "#141416"
@@ -33,7 +30,6 @@ ShellRoot {
     property int themeRounding: 16
     property int themeBorderSize: 2
 
-    // Real-time Clock Timer (AM/PM Format)
     Timer {
         id: clockTimer
         interval: 1000
@@ -47,7 +43,6 @@ ShellRoot {
         }
     }
 
-    // Dynamic File Watchers (Live Reloading from Hyprland Lua configs)
     FileView {
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
         watchChanges: true
@@ -83,7 +78,6 @@ ShellRoot {
         }
     }
 
-    // Dynamic Wallpaper Fetcher
     Process {
         id: fetchWpProcess
         stdout: StdioCollector {
@@ -158,7 +152,6 @@ print(get_wallpaper())
         fetchWpProcess.running = true
     }
 
-    // Shake animation for failed authentication
     SequentialAnimation {
         id: shakeAnimation
         NumberAnimation { target: root; property: "shakeOffset"; to: -14; duration: 40; easing.type: Easing.InOutQuad }
@@ -169,7 +162,6 @@ print(get_wallpaper())
         NumberAnimation { target: root; property: "shakeOffset"; to: 0; duration: 40; easing.type: Easing.InOutQuad }
     }
 
-    // Success animation before exiting lockscreen
     ParallelAnimation {
         id: successAnimation
         NumberAnimation { target: authSection; property: "scale"; to: 1.08; duration: 280; easing.type: Easing.OutBack }
@@ -177,7 +169,6 @@ print(get_wallpaper())
         onFinished: root.unlockAndQuit()
     }
 
-    // Actions
     function unlockAndQuit() {
         sessionLock.locked = false
         Qt.quit()
@@ -201,7 +192,6 @@ print(get_wallpaper())
         }
     }
 
-    // Wayland Session Lock
     WlSessionLock {
         id: sessionLock
         locked: true
@@ -210,7 +200,6 @@ print(get_wallpaper())
             Item {
                 anchors.fill: parent
 
-                // Background Wallpaper Image
                 Image {
                     id: bgWallpaper
                     anchors.fill: parent
@@ -221,7 +210,6 @@ print(get_wallpaper())
                     visible: status === Image.Ready
                 }
 
-                // Blur & Contrast Effect on Wallpaper
                 MultiEffect {
                     anchors.fill: parent
                     source: bgWallpaper
@@ -233,26 +221,22 @@ print(get_wallpaper())
                     visible: bgWallpaper.status === Image.Ready
                 }
 
-                // Fallback background if wallpaper loading fails
                 Rectangle {
                     anchors.fill: parent
                     color: root.themeBackground
                     visible: bgWallpaper.status !== Image.Ready
                 }
 
-                // Dark Dim Overlay
                 Rectangle {
                     anchors.fill: parent
                     color: "black"
                     opacity: 0.55
                 }
 
-                // Main Centered Content Stack
                 ColumnLayout {
                     anchors.centerIn: parent
                     spacing: 20
 
-                    // ELEGANT CLOCK & DATE DISPLAY (AM/PM Format)
                     ColumnLayout {
                         Layout.alignment: Qt.AlignHCenter
                         spacing: 2
@@ -280,7 +264,6 @@ print(get_wallpaper())
 
                     Item { Layout.preferredHeight: 8 }
 
-                    // Outer Greeting Text
                     Text {
                         Layout.alignment: Qt.AlignHCenter
                         text: root.greetingText
@@ -291,7 +274,6 @@ print(get_wallpaper())
                         styleColor: Qt.rgba(0, 0, 0, 0.5)
                     }
 
-                    // Seamless User Auth Section (No outer card container)
                     Item {
                         id: authSection
                         Layout.alignment: Qt.AlignHCenter
@@ -304,7 +286,6 @@ print(get_wallpaper())
                             anchors.fill: parent
                             spacing: 16
 
-                            // Circular Profile Picture
                             ClippingRectangle {
                                 Layout.alignment: Qt.AlignHCenter
                                 width: 96
@@ -344,7 +325,6 @@ print(get_wallpaper())
                                 }
                             }
 
-                            // Username
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
                                 text: "pradun"
@@ -357,7 +337,6 @@ print(get_wallpaper())
 
                             Item { Layout.preferredHeight: 2 }
 
-                            // Password Input Field
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 46
@@ -386,7 +365,6 @@ print(get_wallpaper())
                                     onAccepted: root.attemptAuth(passwordField.text)
                                 }
 
-                                // Password Eye Show/Hide Toggle
                                 Item {
                                     anchors.right: parent.right
                                     anchors.rightMargin: 10
@@ -413,7 +391,6 @@ print(get_wallpaper())
                                 }
                             }
 
-                            // Status Feedback Message
                             Text {
                                 Layout.alignment: Qt.AlignHCenter
                                 text: root.authStatus
@@ -432,7 +409,6 @@ print(get_wallpaper())
         }
     }
 
-    // System PAM Authentication Context
     PamContext {
         id: pam
         config: "login"

@@ -10,9 +10,6 @@ import QtQuick.Window
 Scope {
     id: root
 
-    // ============================================================
-    // ADAPTIVE THEME PROPERTIES
-    // ============================================================
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
@@ -27,13 +24,11 @@ Scope {
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
 
-    // ANIMATION & STATE TRACKING
     property bool isOpened: false
     property bool isClosing: false
     property string pendingCommand: ""
     property string targetMonitorName: ""
 
-    // --- STRICT FOCUSED MONITOR LOCK LOGIC ---
     function updateTargetMonitor() {
         if (root.targetMonitorName !== "") return
 
@@ -60,12 +55,8 @@ Scope {
         }
     }
 
-    // Script manager path
     property string scriptPath: Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh"
 
-    // ============================================================
-    // CONFIG PARSERS
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -131,9 +122,6 @@ Scope {
         root.isOpened = true
     }
 
-    // ============================================================
-    // COMMAND EXECUTION LOGIC
-    // ============================================================
     Timer { 
         id: closeTimer
         interval: 50 
@@ -145,7 +133,6 @@ Scope {
         root.pendingCommand = cmd
         root.isClosing = true
         if (cmd !== "") {
-            // Environment-aware detached process spawn
             let envPrefix = "export HYPRLAND_INSTANCE_SIGNATURE='" + (Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") || "") + "'; " +
                              "export WAYLAND_DISPLAY='" + (Quickshell.env("WAYLAND_DISPLAY") || "") + "'; " +
                              "export XDG_RUNTIME_DIR='" + (Quickshell.env("XDG_RUNTIME_DIR") || "") + "'; ";
@@ -161,9 +148,6 @@ Scope {
         Qt.quit()
     }
 
-    // ============================================================
-    // REUSABLE BUTTON COMPONENT
-    // ============================================================
     component PowerBtn : Item {
         id: btnRoot
         property string iconText: ""
@@ -217,9 +201,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // CENTERED MODAL DIALOG WINDOW
-    // ============================================================
     Variants {
         model: Quickshell.screens
         
@@ -247,7 +228,6 @@ Scope {
             
             color: "transparent"
 
-            // Fullscreen Dim Overlay
             Rectangle {
                 anchors.fill: parent
                 color: "black"
@@ -263,7 +243,6 @@ Scope {
                 }
             }
 
-            // Centered Modal Container
             Item {
                 anchors.centerIn: parent
                 implicitWidth: powerLayout.implicitWidth + 48
@@ -306,7 +285,6 @@ Scope {
                         anchors.centerIn: parent
                         spacing: 12
 
-                        // Delegates lock action to qs_dialog.sh
                         PowerBtn { 
                             iconText: "󰌾" 
                             labelText: "Lock" 

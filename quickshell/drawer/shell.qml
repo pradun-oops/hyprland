@@ -10,9 +10,6 @@ import QtQuick.Window
 Scope {
     id: root
 
-    // ============================================================
-    // TARGET MONITOR LOCKING
-    // ============================================================
     property string lockedMonitor: ""
 
     function updateTargetMonitor() {
@@ -38,9 +35,6 @@ Scope {
         function onFocusedMonitorChanged() { root.updateTargetMonitor() }
     }
 
-    // ============================================================
-    // THEME PROPERTIES (Parsed from Lua)
-    // ============================================================
     property int themeRounding: 24
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.4 
@@ -55,13 +49,10 @@ Scope {
     property color themeTextMuted: "#A1A1AA"
     property color themePrimary: "#ffb3af"        
 
-    // ============================================================
-    // DESIGN SYSTEM & RELAXED ANIMATION SYSTEM
-    // ============================================================
     QtObject {
         id: style
-        property int animDuration: 480         // Relaxed smooth expansion/movement duration
-        property int fadeDuration: 380         // Relaxed fade-in/out duration
+        property int animDuration: 480         
+        property int fadeDuration: 380         
         property var defaultEasing: Easing.OutQuint
         property var fadeEasing: Easing.OutCubic
         property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.12)
@@ -127,15 +118,9 @@ Scope {
         }
     }
 
-    // ============================================================
-    // APP DATA STATE
-    // ============================================================
     property var allApps: []
     property bool isLoaded: true 
 
-    // ============================================================
-    // APP CACHING ENGINE
-    // ============================================================
     function readJsonSync(path, fallback) {
         var xhr = new XMLHttpRequest();
         xhr.open("GET", "file://" + path, false); 
@@ -257,9 +242,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         cacheBuilder.running = true 
     }
 
-    // ============================================================
-    // LOGIC & MODELS
-    // ============================================================
     ListModel { id: drawerModel }
 
     Timer { id: closeTimer; interval: 60; onTriggered: Qt.quit() }
@@ -289,9 +271,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         }
     }
 
-    // ============================================================
-    // UI RENDERING
-    // ============================================================
     Variants {
         model: Quickshell.screens
 
@@ -388,7 +367,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             model: drawerModel
                             clip: true
 
-                            // Slightly increased dimensions to accommodate beautiful multiline wrap
                             cellWidth: 110
                             cellHeight: 160
 
@@ -473,12 +451,11 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                             font.weight: appMouseArea.containsMouse ? Font.Bold : Font.Medium
                                             horizontalAlignment: Text.AlignHCenter
                                             verticalAlignment: Text.AlignTop
-                                            wrapMode: Text.WordWrap // Break on spaces naturally
+                                            wrapMode: Text.WordWrap
                                             elide: Text.ElideRight
                                             maximumLineCount: 3 
                                             lineHeight: 1.15
                                             Layout.fillWidth: true
-                                            // 100px (Rectangle width) - 16px (8px left + 8px right margins) = 84px maximum width
                                             Layout.maximumWidth: 84
                                             Layout.preferredHeight: 46 
                                         }
@@ -490,7 +467,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         
-                                        // Left click only to launch the app
                                         onClicked: {
                                             executeApp(model.filePath)
                                         }

@@ -10,17 +10,11 @@ import QtQuick.Window
 Scope {
     id: root
 
-    // ============================================================
-    // SHORTCUTS & APP LOGIC
-    // ============================================================
     Shortcut {
         sequence: "Escape"
         onActivated: Qt.quit()
     }
 
-    // ============================================================
-    // THEME & FONT PROPERTIES
-    // ============================================================
     property color themeBorder: "#38bdf8"
     property color themePrimary: "#38bdf8"
     property color themeText: "#f4f4f5"
@@ -36,12 +30,8 @@ Scope {
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.04) 
     property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.08)
 
-    // Font stack for icon fallback rendering
     property string iconFontFamily: "Symbols Nerd Font, JetBrainsMono Nerd Font, Font Awesome 6 Free, Noto Color Emoji, sans-serif"
 
-    // ============================================================
-    // MONITOR LOCK LOGIC
-    // ============================================================
     property string targetMonitorName: ""
 
     function updateTargetMonitor() {
@@ -69,9 +59,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // CONFIG PARSERS
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -127,9 +114,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // CLIPBOARD LOGIC (cliphist)
-    // ============================================================
     ListModel { id: clipboardModel }
 
     Process { id: execProcess }
@@ -218,9 +202,6 @@ Scope {
         refreshClipboard()
     }
 
-    // ============================================================
-    // MAIN UI WINDOW
-    // ============================================================
     Variants {
         model: Quickshell.screens
         delegate: PanelWindow {
@@ -282,9 +263,6 @@ Scope {
                         anchors.margins: 16
                         spacing: 14
 
-                        // ============================================================
-                        // HEADER SECTION
-                        // ============================================================
                         RowLayout {
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignVCenter
@@ -396,14 +374,10 @@ Scope {
                             color: Qt.rgba(1, 1, 1, 0.08)
                         }
 
-                        // ============================================================
-                        // CLIPBOARD LIST VIEW (ROOMY & PROPORTIONAL)
-                        // ============================================================
                         Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
 
-                            // Empty State
                             ColumnLayout {
                                 anchors.centerIn: parent
                                 visible: clipboardModel.count === 0
@@ -448,7 +422,6 @@ Scope {
                                 }
                             }
 
-                            // List
                             ListView {
                                 id: clipList
                                 anchors.fill: parent
@@ -483,7 +456,6 @@ Scope {
                                         anchors.margins: 12
                                         spacing: 12
 
-                                        // Left Icon Box
                                         Rectangle {
                                             Layout.alignment: Qt.AlignVCenter
                                             Layout.preferredWidth: 42
@@ -502,13 +474,11 @@ Scope {
                                             }
                                         }
 
-                                        // Text & Information Column (Matches Notification Dialog Hierarchy)
                                         ColumnLayout {
                                             Layout.fillWidth: true
                                             Layout.alignment: Qt.AlignVCenter
                                             spacing: 4
 
-                                            // Line 1: Type Tag & Character/Size Info
                                             RowLayout {
                                                 spacing: 6
                                                 Layout.alignment: Qt.AlignVCenter
@@ -533,7 +503,6 @@ Scope {
                                                 }
                                             }
 
-                                            // Line 2: Copied Text Content
                                             Text {
                                                 text: model.content
                                                 color: root.themeText
@@ -545,7 +514,6 @@ Scope {
                                             }
                                         }
 
-                                        // Right Side Action Buttons
                                         RowLayout {
                                             spacing: 6
                                             Layout.alignment: Qt.AlignVCenter

@@ -9,9 +9,6 @@ import QtQuick.Controls
 Scope {
     id: root
 
-    // ============================================================
-    // DYNAMIC THEME (Loaded live from Hyprland configs)
-    // ============================================================
     property color themeBackground: "#141416"
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08)
     property color themePrimary: "#a2d398"
@@ -23,7 +20,6 @@ Scope {
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.7
 
-    // Dynamic Watchers for Hyprland Lua Configs
     FileView {
         id: colorsLuaFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -58,9 +54,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // STATE, INDIAN CALENDAR & TODO PERSISTENCE
-    // ============================================================
     property date currentDate: new Date()
     property date selectedDate: new Date()
     property date displayedDate: new Date()
@@ -69,7 +62,6 @@ Scope {
     property var apiEvents: ({})
     property string targetMonitorName: ""
 
-    // Midnight Rollover Timer
     Timer {
         interval: 60000 
         running: true
@@ -82,7 +74,6 @@ Scope {
         }
     }
 
-    // --- STRICT FOCUSED MONITOR LOCK LOGIC ---
     function updateTargetMonitor() {
         if (root.targetMonitorName !== "") return
 
@@ -109,7 +100,6 @@ Scope {
         }
     }
 
-    // Built-in Static Map for Major Indian National Holidays & Festivals
     property var indianStaticHolidays: ({
         "2026-01-14": ["Makar Sankranti / Pongal"],
         "2026-01-26": ["Republic Day"],
@@ -147,7 +137,6 @@ Scope {
         return y + "-" + m + "-" + day
     }
 
-    // Fetch Indian Holidays via Public API with resilience
     function fetchIndianHolidays(year) {
         var xhr = new XMLHttpRequest()
         xhr.open("GET", "https://date.nager.at/api/v3/PublicHolidays/" + year + "/IN")
@@ -167,8 +156,8 @@ Scope {
                 } catch(e) {}
             }
         }
-        xhr.onerror = function() { console.log("Holiday API network error, falling back to static.") }
-        xhr.ontimeout = function() { console.log("Holiday API timeout, falling back to static.") }
+        xhr.onerror = function() {}
+        xhr.ontimeout = function() {}
         xhr.send()
     }
 
@@ -180,7 +169,6 @@ Scope {
         }
     }
 
-    // Load custom user todos
     FileView {
         id: eventsConfigFile
         path: Quickshell.env("HOME") + "/.config/quickshell/json/calendar_events.json"
@@ -230,7 +218,6 @@ Scope {
         }
     }
 
-    // Event lookup helper
     function getEventsForDate(cellDate) {
         let key = formatDateKey(cellDate)
         let list = []
@@ -259,9 +246,6 @@ Scope {
         return list
     }
 
-    // ============================================================
-    // MAIN FLOATING WINDOW DELEGATE
-    // ============================================================
     Variants {
         model: Quickshell.screens
 
@@ -301,7 +285,6 @@ Scope {
 
                 focus: true 
 
-                // Arrow Key Navigation Logic
                 Keys.onPressed: (event) => {
                     let d = new Date(root.selectedDate)
                     let changed = false
@@ -376,7 +359,6 @@ Scope {
                     anchors.margins: 24
                     spacing: 18
 
-                    // Header Navigation
                     RowLayout {
                         Layout.fillWidth: true
 
@@ -483,7 +465,6 @@ Scope {
                         }
                     }
 
-                    // Days of Week Bar
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 0
@@ -500,7 +481,6 @@ Scope {
                         }
                     }
 
-                    // Expanded 7-column Calendar Grid with Opacity Animation
                     Grid {
                         id: daysGrid
                         columns: 7
@@ -591,7 +571,6 @@ Scope {
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: root.themeSurface }
 
-                    // Integrated Event Details & Daily Tasks Panel
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 10
@@ -603,7 +582,6 @@ Scope {
                             font.weight: Font.Bold
                         }
 
-                        // Constrained Task List via ScrollView
                         ScrollView {
                             Layout.fillWidth: true
                             Layout.maximumHeight: 150
@@ -631,7 +609,6 @@ Scope {
                                         Layout.fillWidth: true
                                         implicitHeight: 32
                                         radius: 6
-                                        // Transparent background for personal tasks to match the screenshot look
                                         color: modelData.type === "holiday" ? Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.15) : "transparent"
                                         border.color: modelData.type === "holiday" ? root.themePrimary : "transparent"
                                         border.width: modelData.type === "holiday" ? 1 : 0
@@ -651,7 +628,6 @@ Scope {
                                                 Layout.fillWidth: true
                                             }
 
-                                            // Cross Button to Delete Todo
                                             Rectangle {
                                                 width: 24; height: 24; radius: 12
                                                 color: delBtnMouse.containsMouse ? Qt.rgba(1.0, 0.3, 0.3, 0.15) : "transparent"
@@ -679,7 +655,6 @@ Scope {
                             }
                         }
 
-                        // Add Task Input Row
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 8

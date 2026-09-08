@@ -10,9 +10,6 @@ import QtQuick.Window
 Scope {
     id: root
 
-    // ============================================================
-    // ESCAPE KEY SHORTCUT & APP QUIT LOGIC
-    // ============================================================
     function quitApp() {
         if (!isCalculated && calcInput.trim() !== "" && calcResult !== "Error") {
             calculate()
@@ -32,9 +29,6 @@ Scope {
         onActivated: root.quitApp()
     }
 
-    // ============================================================
-    // ADAPTIVE THEME PROPERTIES
-    // ============================================================
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
@@ -50,9 +44,6 @@ Scope {
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.04) 
     property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.08)
 
-    // ============================================================
-    // STRICT FOCUSED MONITOR LOCK LOGIC
-    // ============================================================
     property string targetMonitorName: ""
 
     function updateTargetMonitor() {
@@ -80,9 +71,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // CONFIG PARSERS
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -138,9 +126,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // CALCULATOR LOGIC & SECURE HISTORY SAVING
-    // ============================================================
     property string calcInput: ""
     property string calcResult: ""
     property bool isCalculated: true
@@ -279,9 +264,6 @@ Scope {
         historyFile.reload()
     }
 
-    // ============================================================
-    // DIALOG UI & DRAG LOGIC
-    // ============================================================
     Variants {
         model: Quickshell.screens
         delegate: PanelWindow {
@@ -372,11 +354,9 @@ Scope {
                         anchors.centerIn: parent
                         spacing: 20
 
-                        // --- LEFT SIDE: CALCULATOR ---
                         ColumnLayout {
                             spacing: 16
 
-                            // Header / Controls
                             RowLayout {
                                 Layout.fillWidth: true
                                 
@@ -433,7 +413,6 @@ Scope {
                                 }
                             }
 
-                            // Display Screen
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 120
@@ -471,11 +450,9 @@ Scope {
                                 }
                             }
 
-                            // Keypad Area
                             RowLayout {
                                 spacing: 10
 
-                                // Expert Keypad
                                 GridLayout {
                                     visible: root.isExpertMode
                                     columns: 2; columnSpacing: 10; rowSpacing: 10
@@ -492,7 +469,6 @@ Scope {
                                     }
                                 }
 
-                                // Basic Keypad
                                 GridLayout {
                                     columns: 4; columnSpacing: 10; rowSpacing: 10
                                     
@@ -510,7 +486,6 @@ Scope {
                             }
                         }
 
-                        // Vertical Divider
                         Rectangle {
                             visible: root.showHistory
                             Layout.preferredWidth: 1
@@ -518,7 +493,6 @@ Scope {
                             color: Qt.rgba(1, 1, 1, 0.08)
                         }
 
-                        // --- RIGHT SIDE: HISTORY ---
                         ColumnLayout {
                             visible: root.showHistory
                             Layout.preferredWidth: root.showHistory ? 340 : 0
@@ -569,7 +543,6 @@ Scope {
                                 }
                             }
 
-                            // Calculator History Card List
                             ListView {
                                 id: histList
                                 Layout.fillWidth: true
@@ -610,7 +583,6 @@ Scope {
                                         anchors.bottomMargin: 12
                                         spacing: 14
 
-                                        // Formatted Calculator Icon
                                         Rectangle {
                                             Layout.alignment: Qt.AlignVCenter
                                             width: 38
@@ -678,7 +650,6 @@ Scope {
                                 }
                             }
 
-                            // Empty State
                             Item {
                                 visible: historyModel.count === 0
                                 Layout.fillWidth: true
@@ -708,9 +679,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // REUSABLE BUTTON DELEGATE
-    // ============================================================
     Component {
         id: calcBtnDelegate
         Rectangle {

@@ -11,9 +11,6 @@ import QtQuick.Effects
 Scope {
     id: root
 
-    // ============================================================
-    // ADAPTIVE THEME PROPERTIES
-    // ============================================================
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
@@ -24,9 +21,6 @@ Scope {
     property int themeBorderSize: 1
     property bool animEnabled: true
 
-    // ============================================================
-    // DESIGN SYSTEM & ANIMATION SYSTEM
-    // ============================================================
     QtObject {
         id: style
         property int animDuration: 480
@@ -35,7 +29,6 @@ Scope {
         property var fadeEasing: Easing.OutCubic
     }
 
-    // ANIMATION & STATE TRACKING
     property bool isOpened: false
     property bool isClosing: false
     property string activeCursorMonitor: ""
@@ -45,16 +38,12 @@ Scope {
     property string wallpaperPath: ""
     property string wallpaperThumbPath: ""
 
-    // Helper for formatting file paths for QML Image sources
     function formatFileUrl(pathStr) {
         if (!pathStr || pathStr.length === 0) return "";
         if (pathStr.startsWith("file://")) return pathStr;
         return "file://" + pathStr;
     }
 
-    // ============================================================
-    // LIVE WALLPAPER CACHE WATCHER
-    // ============================================================
     FileView {
         id: wallpaperCacheFile
         path: Quickshell.env("HOME") + "/.cache/qs_wallpaper_path"
@@ -67,9 +56,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // CONFIG PARSERS
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -121,9 +107,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // CURSOR MONITOR DETECTION PROCESS
-    // ============================================================
     Process {
         id: cursorMonitorProcess
         stdout: StdioCollector {
@@ -182,9 +165,6 @@ except Exception:
         cursorMonitorProcess.running = true
     }
 
-    // ============================================================
-    // DISPATCH & CLOSE LOGIC
-    // ============================================================
     Timer { 
         id: closeTimer
         interval: style.fadeDuration 
@@ -220,9 +200,6 @@ except Exception:
         closeTimer.start();
     }
 
-    // ============================================================
-    // HYPRLAND WORKSPACE, APP ICON & WALLPAPER POLLING
-    // ============================================================
     Process {
         id: fetchWsProcess
         stdout: StdioCollector {
@@ -378,7 +355,6 @@ def make_low_quality_thumb(src_path):
 def get_wallpaper():
     found_path = ""
     
-    # 1. Check swww query
     try:
         out = subprocess.check_output("swww query 2>/dev/null", shell=True, text=True)
         for line in out.splitlines():
@@ -390,7 +366,6 @@ def get_wallpaper():
                     break
     except Exception: pass
 
-    # 2. Check awww query
     if not found_path:
         try:
             out = subprocess.check_output("awww query 2>/dev/null", shell=True, text=True)
@@ -403,7 +378,6 @@ def get_wallpaper():
                         break
         except Exception: pass
 
-    # 3. Check hyprpaper
     if not found_path:
         try:
             out = subprocess.check_output("hyprctl hyprpaper listactive 2>/dev/null", shell=True, text=True)
@@ -415,7 +389,6 @@ def get_wallpaper():
                         break
         except Exception: pass
 
-    # 4. Check waypaper config
     if not found_path:
         try:
             wp_cfg = os.path.expanduser("~/.config/waypaper/config.ini")
@@ -429,7 +402,6 @@ def get_wallpaper():
                                 break
         except Exception: pass
 
-    # 5. Check cache and common locations
     if not found_path:
         home = os.path.expanduser("~")
         candidates = [
@@ -446,7 +418,6 @@ def get_wallpaper():
                     found_path = real_p
                     break
 
-    # 6. Fallback to latest picture in Pictures/Wallpapers
     if not found_path:
         home = os.path.expanduser("~")
         search_dirs = [
@@ -562,9 +533,6 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
         }
     }
 
-    // ============================================================
-    // MULTI-MONITOR OVERLAY & MODAL DIALOG CONTAINER
-    // ============================================================
     Variants {
         model: Quickshell.screens
 
@@ -593,9 +561,6 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
             color: "transparent"
 
-            // ============================================================
-            // TARGET MONITOR: DIM BACKDROP & MAIN DIALOG
-            // ============================================================
             Item {
                 anchors.fill: parent
                 visible: isTargetMonitor
@@ -754,9 +719,6 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                             }
                                         }
 
-                                        // ============================================================
-                                        // WALLPAPER BACKGROUND LAYER (STRICTLY CLIPPED TO ROUNDING)
-                                        // ============================================================
                                         Item {
                                             id: bgContainer
                                             anchors.fill: parent
@@ -766,13 +728,11 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                 maskSource: cardMask
                                             }
 
-                                            // Base background
                                             Rectangle {
                                                 anchors.fill: parent
                                                 color: root.themeBackground
                                             }
 
-                                            // Wallpaper image
                                             Image {
                                                 id: cardWpImg
                                                 anchors.fill: parent
@@ -783,7 +743,6 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                 visible: status === Image.Ready && source !== ""
                                             }
 
-                                            // Dark contrast tint
                                             Rectangle {
                                                 anchors.fill: parent
                                                 color: "#000000"
@@ -791,7 +750,6 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                             }
                                         }
 
-                                        // Mask for rounded wallpaper corners
                                         Rectangle {
                                             id: cardMask
                                             anchors.fill: parent
@@ -801,9 +759,6 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                             layer.enabled: true
                                         }
 
-                                        // ============================================================
-                                        // FOREGROUND CONTENT LAYER
-                                        // ============================================================
                                         Column {
                                             anchors.fill: parent
                                             anchors.margins: 12
@@ -914,9 +869,6 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                             }
                                         }
 
-                                        // ============================================================
-                                        // BORDER OVERLAY
-                                        // ============================================================
                                         Rectangle {
                                             anchors.fill: parent
                                             radius: root.themeRounding

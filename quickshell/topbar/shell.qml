@@ -1,16 +1,14 @@
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Io
+import Quickshell.Hyprland
 import QtQuick
 import QtQuick.Controls
-import QtQuick.Window
+import QtQuick.Layouts
 
 Scope {
     id: root
 
-    // ============================================================
-    // ADAPTIVE THEME PROPERTIES (Matched with general.lua)
-    // ============================================================
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
@@ -23,23 +21,17 @@ Scope {
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
 
-    // ============================================================
-    // DESIGN SYSTEM & RELAXED ANIMATION SYSTEM
-    // ============================================================
     QtObject {
         id: style
         property int moduleSpacing: 8
-        property int animDuration: 480         // Relaxed smooth expansion/shrink duration
-        property int fadeDuration: 380         // Relaxed fade-in/out duration
+        property int animDuration: 480         
+        property int fadeDuration: 380         
         property var defaultEasing: Easing.OutQuint
         property var fadeEasing: Easing.OutCubic
         property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.08)
         property color separatorColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.18)
     }
 
-    // ============================================================
-    // DYNAMIC STATE PROPERTIES
-    // ============================================================
     property string currentTime: ""
     property string currentDate: ""
     
@@ -59,15 +51,11 @@ Scope {
     property int activeWs: 1
     property var activeWorkspaces: [1, 2, 3, 4, 5]
 
-    // Running background apps list
     property var runningAppsList: []
 
     property int barY: 5 
     property int islandHeight: 36
 
-    // ============================================================
-    // CONFIG PARSERS
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -124,9 +112,6 @@ Scope {
         generalFile.reload()
     }
 
-    // ============================================================
-    // COMMAND EXECUTION
-    // ============================================================
     Process { id: execProcess }
     function exec(cmd) {
         execProcess.running = false
@@ -134,9 +119,6 @@ Scope {
         execProcess.running = true
     }
 
-    // ============================================================
-    // ROBUST BACKGROUND APP ICON RESOLVER & POLLING
-    // ============================================================
     Process {
         id: runningAppsProcess
         stdout: StdioCollector {
@@ -203,9 +185,6 @@ print(json.dumps(running))
         }
     }
 
-    // ============================================================
-    // MEDIA PLAYER STATUS POLLING
-    // ============================================================
     Process {
         id: mediaProcess
         stdout: StdioCollector {
@@ -229,9 +208,6 @@ print(json.dumps(running))
         }
     }
 
-    // ============================================================
-    // FAST DATA POLLING (Time, Volume, Workspaces)
-    // ============================================================
     Timer {
         interval: 1000
         running: true
@@ -296,9 +272,6 @@ print(json.dumps(running))
         }
     }
 
-    // ============================================================
-    // SLOW DATA POLLING (Hardware & Network)
-    // ============================================================
     Process {
         id: hardwareProcess
         stdout: StdioCollector {
@@ -373,9 +346,6 @@ print(json.dumps({
         }
     }
 
-    // ============================================================
-    // MULTI-MONITOR DELEGATION
-    // ============================================================
     Variants {
         model: Quickshell.screens
         
@@ -402,7 +372,6 @@ print(json.dumps({
             Item {
                 anchors.fill: parent
 
-                // DYNAMIC ISLAND CONTAINER (RELAXED ANIMATION ENHANCED)
                 Rectangle {
                     id: barIsland
                     
@@ -419,7 +388,6 @@ print(json.dumps({
                     
                     width: isExpanded ? expandedWidth : collapsedWidth
                     
-                    // Relaxed Smooth Island Expansion / Shrinking
                     Behavior on width { 
                         NumberAnimation { 
                             duration: style.animDuration
@@ -446,7 +414,6 @@ print(json.dumps({
                         onDoubleClicked: barIsland.isPinned = !barIsland.isPinned
                     }
 
-                    // 1. COLLAPSED CONTENT (MUSIC RHYTHM + TIME)
                     Row {
                         id: collapsedRow
                         height: root.islandHeight
@@ -462,7 +429,6 @@ print(json.dumps({
                             } 
                         }
 
-                        // Collapsed 5-Bar Rhythm Visualizer
                         Row {
                             spacing: 2.5
                             visible: root.isPlaying
@@ -499,7 +465,6 @@ print(json.dumps({
                         }
                     }
 
-                    // 2. EXPANDED CONTENT
                     Row {
                         id: expandedRow
                         height: root.islandHeight
@@ -515,15 +480,11 @@ print(json.dumps({
                             } 
                         }
 
-                        // ==========================================
-                        // LEFT SIDE: Workspaces & Network
-                        // ==========================================
                         Row {
                             id: leftRow
                             height: parent.height
                             spacing: style.moduleSpacing
 
-                            // Workspaces (Display Only - No Click/Switch Logic)
                             Row {
                                 height: root.islandHeight
                                 spacing: 4
@@ -538,7 +499,6 @@ print(json.dumps({
                                         anchors.verticalCenter: parent.verticalCenter
                                         color: modelData === root.activeWs ? root.themePrimary : Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.15)
 
-                                        // Relaxed Workspace Indicator Morphing
                                         Behavior on width { 
                                             NumberAnimation { 
                                                 duration: 380
@@ -572,7 +532,6 @@ print(json.dumps({
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
-                            // Network Speed (Fixed bounding containers to eliminate jitter)
                             Row {
                                 height: root.islandHeight
                                 spacing: 2
@@ -601,7 +560,6 @@ print(json.dumps({
                             }
                         }
 
-                        // LEFT MAIN SEPARATOR
                         Rectangle {
                             width: 1
                             height: 16
@@ -609,9 +567,6 @@ print(json.dumps({
                             anchors.verticalCenter: parent.verticalCenter
                         }
 
-                        // ==========================================
-                        // CENTER: Time & Date + Music Visualizer
-                        // ==========================================
                         Item {
                             id: centerBlock
                             height: parent.height
@@ -622,7 +577,6 @@ print(json.dumps({
                                 anchors.centerIn: parent
                                 spacing: 8
 
-                                // Expanded 5-Bar Rhythm Visualizer
                                 Row {
                                     spacing: 2.5
                                     visible: root.isPlaying
@@ -670,7 +624,6 @@ print(json.dumps({
                             }
                         }
 
-                        // RIGHT MAIN SEPARATOR
                         Rectangle {
                             width: 1
                             height: 16
@@ -678,15 +631,11 @@ print(json.dumps({
                             anchors.verticalCenter: parent.verticalCenter
                         }
 
-                        // ==========================================
-                        // RIGHT SIDE: Temp, Volume, Battery + Background Apps Drawer + Action Buttons
-                        // ==========================================
                         Row {
                             id: rightRow
                             height: parent.height
                             spacing: style.moduleSpacing
 
-                            // Temperature (Fixed bounding containers to eliminate jitter)
                             Row {
                                 height: root.islandHeight
                                 spacing: 2
@@ -719,7 +668,6 @@ print(json.dumps({
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
-                            // Volume Container (Scroll wheel capped at 100% max)
                             Item {
                                 height: root.islandHeight
                                 width: 56
@@ -763,7 +711,6 @@ print(json.dumps({
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
-                            // Battery Container (Fixed power profile cycle logic with string cleanup)
                             Item {
                                 height: root.islandHeight
                                 width: 56
@@ -810,9 +757,6 @@ print(json.dumps({
                                 visible: root.runningAppsList.length > 0
                             }
 
-                            // ==========================================
-                            // RUNNING BACKGROUND APPS DRAWER (RELAXED EXPANSION)
-                            // ==========================================
                             Item {
                                 id: appsDrawer
                                 height: root.islandHeight
@@ -820,7 +764,6 @@ print(json.dumps({
                                 visible: root.runningAppsList.length > 0
                                 anchors.verticalCenter: parent.verticalCenter
 
-                                // Relaxed Drawer Width Transition
                                 Behavior on width {
                                     NumberAnimation { 
                                         duration: style.animDuration
@@ -835,7 +778,6 @@ print(json.dumps({
                                     spacing: 6
                                     x: 4
 
-                                    // Expand Arrow Indicator
                                     Text {
                                         text: appsHover.hovered ? "󰁔" : "󰁍"
                                         color: root.themePrimary
@@ -845,7 +787,6 @@ print(json.dumps({
                                         Behavior on color { ColorAnimation { duration: 250; easing.type: Easing.OutCubic } }
                                     }
 
-                                    // App Icons Row (Revealed on hover with relaxed fade)
                                     Row {
                                         id: appsRow
                                         spacing: 6
@@ -897,15 +838,11 @@ print(json.dumps({
                                 anchors.verticalCenter: parent.verticalCenter
                             }
 
-                            // ==========================================
-                            // EXTRA ACTION BUTTONS (Network & Power)
-                            // ==========================================
                             Row {
                                 height: root.islandHeight
                                 spacing: 8
                                 anchors.verticalCenter: parent.verticalCenter
 
-                                // 1. Network Button
                                 Item {
                                     width: 24; height: 24
                                     anchors.verticalCenter: parent.verticalCenter
@@ -926,7 +863,6 @@ print(json.dumps({
                                     }
                                 }
 
-                                // 2. Power Button
                                 Item {
                                     width: 24; height: 24
                                     anchors.verticalCenter: parent.verticalCenter

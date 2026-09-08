@@ -17,6 +17,7 @@
 | ![](./assets/image1.png) | ![](./assets/image2.png) | ![](./assets/image3.png) |
 | ![](./assets/image4.png) | ![](./assets/image5.png) | ![](./assets/image6.png) |
 | ![](./assets/image7.png) | ![](./assets/image8.png) | ![](./assets/image9.png) |
+| ![](./assets/image10.png) | ![](./assets/image11.png) | ![](./assets/image12.png) |
 
 # 💻 Hardware
 
@@ -35,33 +36,20 @@
 # ✨ Features
 
 - 🧊 Liquid Glass UI with Gaussian Blur
-- 🎨 Dynamic wallpaper management using **Waypaper** + **swww**
-- 🌈 Automatic keyboard RGB synchronization
+- 🎨 Dynamic wallpaper management using **awww** and **Matugen**
+- 🌈 Automatic keyboard RGB synchronization (Lenovo LegionAura)
 - 🖥️ Dual-monitor optimized layout
 - 🚀 Hardware accelerated Wayland rendering
-- 🧩 Dank Material Shell
+- 🧩 **100% Custom-built Quickshell Widgets** (Completely self-written UI Architecture)
 - ⚡ Smooth Hyprland animations
 - 📂 Smart floating and tiling window rules
 - 🔔 Modern notification center
 - 🔍 Spotlight launcher
 - 🎛️ Control Center
-- 🔋 Battery & system widgets
+- 🔋 Battery & system telemetry widgets
 - 📋 Clipboard history
 - 🖼️ Workspace overview
 - 🎯 Optimized for productivity
-
----
-
-# 🛡️ Cyber Security Workflow
-
-Workspace | Purpose
---------- | -------
-1 | Browser & Documentation
-2 | Kali Linux VM & Codium
-3 | Research
-4 | Notes
-5 | VirtualBox Manager
-6–10 | General Development & Multitasking
 
 ---
 
@@ -69,49 +57,38 @@ Workspace | Purpose
 
 - Fedora
 - Hyprland
-- Dank Material Shell
-- Kitty
-- Waybar (optional)
 - Quickshell
-- Swww
-- Waypaper
+- Kitty
+- awww
+- Matugen
 - Zen Browser
 - VS Codium
 - Nautilus
 - Fastfetch
-- Btop
 
 ---
 
 # 🛠 Installation
 
-Install the required packages:
+Setting up this configuration on a fresh Fedora install is completely automated.
 
-```bash
-sudo dnf install hyprland kitty nautilus swww waypaper \
-fastfetch btop entr jq ddcutil brightnessctl \
-libnotify slurp wf-recorder \
-xdg-desktop-portal-hyprland inotify-tools
-```
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/pradun-oops/hyprland.git
+   cd hyprland
+   ```
 
-Clone the repository:
+2. **Run the installation script:**
+   This handles all DNF package dependencies, sets up the required Copr repositories, compiles `awww` via Cargo, installs Ruby tools, and configures systemd services.
+   ```bash
+   ./scripts/install.sh
+   ```
 
-```bash
-git clone https://github.com/pradun-oops/hyprland.git
-cd <repo>
-```
-
-Copy the configuration:
-
-```bash
-cp -r .config/* ~/.config/
-```
-
-Reload Hyprland:
-
-```bash
-hyprctl reload
-```
+3. **Run the setup script:**
+   This will securely mirror the entire repository into your `~/.config` directory and instantly reload Hyprland.
+   ```bash
+   ./scripts/setup.sh
+   ```
 
 ---
 
@@ -120,10 +97,14 @@ hyprctl reload
 ```text
 .
 ├── assets/
-├── hypr/
+├── configs/
+├── fastfetch/
 ├── kitty/
+├── matugen/
 ├── quickshell/
 ├── scripts/
+├── Wallpapers/
+├── hyprland.lua
 └── README.md
 ```
 
@@ -132,12 +113,7 @@ hyprctl reload
 # ❤️ Credits
 
 - Hyprland
-- Dank Material Shell
 - Fedora Project
 - Quickshell
-- Waypaper
-- Swww
-
----
-
-## ⭐ If you like this setup, consider starring the repository!
+- awww
+- Matugen

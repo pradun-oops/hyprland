@@ -10,20 +10,15 @@ import Qt.labs.folderlistmodel
 Scope {
     id: root
 
-    // ============================================================
-    // STATE & NAVIGATION PROPERTIES
-    // ============================================================
     property string targetMonitorName: ""
     property string currentPath: Quickshell.env("HOME")
     property string searchQuery: ""
     property bool showHiddenFiles: false
     property bool isEditingPath: false
 
-    // Clipboard & Operations State
     property string clipboardPath: ""
-    property string clipboardAction: "copy" // "copy" or "move"
+    property string clipboardAction: "copy"
 
-    // Context Menu State
     property bool contextMenuVisible: false
     property real contextMenuX: 0
     property real contextMenuY: 0
@@ -32,14 +27,12 @@ Scope {
     property bool targetIsDir: false
     property bool isBackgroundContext: false
 
-    // Deletion Confirmation State
     property bool deleteDialogVisible: false
     property string deleteTargetPath: ""
     property string deleteTargetName: ""
 
-    // File/Folder Creation State
     property bool createDialogVisible: false
-    property string createType: "folder" // "folder" or "file"
+    property string createType: "folder"
     property string createTargetPath: ""
 
     function updateTargetMonitor() {
@@ -65,9 +58,6 @@ Scope {
         function onFocusedMonitorChanged() { root.updateTargetMonitor() }
     }
 
-    // ============================================================
-    // ADAPTIVE THEME PROPERTIES
-    // ============================================================
     property int themeRounding: 16
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.88
@@ -112,9 +102,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // SIDEBAR BOOKMARKS MANAGEMENT
-    // ============================================================
     ListModel { id: bookmarksModel }
 
     function isBookmarked(path) {
@@ -198,9 +185,6 @@ Scope {
         sysProcess.runCmd(saveCmd)
     }
 
-    // ============================================================
-    // RECURSIVE HOME SEARCH PROCESS
-    // ============================================================
     ListModel { id: searchResultsModel }
 
     Timer {
@@ -253,7 +237,6 @@ Scope {
         bookmarkConfigFile.reload()
     }
 
-    // System Operations Runner
     Process {
         id: sysProcess
         function runCmd(cmd) {
@@ -314,9 +297,6 @@ Scope {
         return ["png", "jpg", "jpeg", "webp", "gif", "svg", "bmp", "ico"].indexOf(ext) !== -1
     }
 
-    // ============================================================
-    // MAIN PANEL WINDOW OVERLAY
-    // ============================================================
     Variants {
         model: Quickshell.screens
 
@@ -393,12 +373,10 @@ Scope {
                     anchors.margins: 18
                     spacing: 12
 
-                    // Header Bar
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 10
 
-                        // Up Navigation Button
                         Rectangle {
                             width: 36; height: 36
                             radius: Math.max(6, root.themeRounding - 6)
@@ -421,7 +399,6 @@ Scope {
                             }
                         }
 
-                        // Path Location Bar
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 36
@@ -430,7 +407,6 @@ Scope {
                             border.width: 1
                             border.color: pathInput.activeFocus ? root.themePrimary : Qt.rgba(1, 1, 1, 0.08)
 
-                            // Breadcrumbs View Mode
                             RowLayout {
                                 anchors.fill: parent
                                 anchors.leftMargin: 8; anchors.rightMargin: 8
@@ -506,7 +482,6 @@ Scope {
                                 }
                             }
 
-                            // Text Editable Path View
                             TextField {
                                 id: pathInput
                                 anchors.fill: parent
@@ -526,7 +501,6 @@ Scope {
                             }
                         }
 
-                        // Search Bar
                         Rectangle {
                             Layout.preferredWidth: 230
                             Layout.preferredHeight: 36
@@ -588,13 +562,11 @@ Scope {
                         color: Qt.alpha(root.themeBorder, 0.15)
                     }
 
-                    // Main Body: Sidebar + Grid View
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
                         spacing: 12
 
-                        // Left Sidebar - Fixed Non-Scrolling & Non-Reorderable
                         Rectangle {
                             Layout.preferredWidth: 180
                             Layout.fillHeight: true
@@ -674,7 +646,6 @@ Scope {
                             }
                         }
 
-                        // Right Grid Area
                         Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -739,7 +710,6 @@ Scope {
                                                 width: 48
                                                 height: 42
 
-                                                // Image File Thumbnail
                                                 Rectangle {
                                                     anchors.fill: parent
                                                     radius: 6
@@ -765,7 +735,6 @@ Scope {
                                                     }
                                                 }
 
-                                                // Colored Folder Graphics
                                                 Rectangle {
                                                     anchors.fill: parent
                                                     visible: fileIsDir
@@ -789,7 +758,6 @@ Scope {
                                                     }
                                                 }
 
-                                                // Fallback File Icon
                                                 Rectangle {
                                                     anchors.fill: parent
                                                     visible: !fileIsDir && !root.isImageFile(fileName)
@@ -883,7 +851,6 @@ Scope {
                         }
                     }
 
-                    // Footer Status Bar
                     Rectangle {
                         Layout.fillWidth: true
                         height: 32
@@ -914,7 +881,6 @@ Scope {
                     }
                 }
 
-                // Global Adaptive Context Menu Overlay
                 Rectangle {
                     id: contextMenu
                     visible: root.contextMenuVisible
@@ -934,7 +900,6 @@ Scope {
                         anchors.margins: 6
                         spacing: 2
 
-                        // Create New Folder
                         ContextMenuItem {
                             text: "New Folder"
                             icon: "📁"
@@ -949,7 +914,6 @@ Scope {
                             }
                         }
 
-                        // Create New File
                         ContextMenuItem {
                             text: "New File"
                             icon: "📄"
@@ -980,7 +944,6 @@ Scope {
                             }
                         }
 
-                        // Add to Sidebar
                         ContextMenuItem {
                             text: "Add to Sidebar"
                             icon: "📌"
@@ -991,7 +954,6 @@ Scope {
                             }
                         }
 
-                        // Remove from Sidebar
                         ContextMenuItem {
                             text: "Remove from Sidebar"
                             icon: "❌"
@@ -1088,7 +1050,6 @@ Scope {
                     }
                 }
 
-                // Create File/Folder Modal Dialog Overlay
                 Rectangle {
                     id: createModal
                     anchors.fill: parent
@@ -1169,7 +1130,6 @@ Scope {
 
                                 Item { Layout.fillWidth: true }
 
-                                // Cancel Button
                                 Rectangle {
                                     width: 80; height: 32
                                     radius: 6
@@ -1192,7 +1152,6 @@ Scope {
                                     }
                                 }
 
-                                // Create Button
                                 Rectangle {
                                     width: 80; height: 32
                                     radius: 6
@@ -1228,7 +1187,6 @@ Scope {
                     }
                 }
 
-                // Delete Confirmation Modal Dialog Overlay
                 Rectangle {
                     id: deleteModal
                     anchors.fill: parent
@@ -1288,7 +1246,6 @@ Scope {
 
                                 Item { Layout.fillWidth: true }
 
-                                // Cancel Button
                                 Rectangle {
                                     width: 75; height: 30
                                     radius: 6
@@ -1311,7 +1268,6 @@ Scope {
                                     }
                                 }
 
-                                // Yes / Delete Button
                                 Rectangle {
                                     width: 75; height: 30
                                     radius: 6
@@ -1343,7 +1299,6 @@ Scope {
         }
     }
 
-    // Context Menu Component
     component ContextMenuItem: Rectangle {
         id: cItem
         property string text: ""
@@ -1382,7 +1337,6 @@ Scope {
         }
     }
 
-    // Key Hint Component
     component KeyHint: RowLayout {
         property string keys: ""
         property string label: ""

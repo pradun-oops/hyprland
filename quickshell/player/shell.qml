@@ -10,9 +10,6 @@ import Qt5Compat.GraphicalEffects
 Scope {
     id: root
 
-    // ============================================================
-    // THEME PROPERTIES (Parsed from Hyprland configs)
-    // ============================================================
     property color themeBorder: "#ffb3af"
     property color themePrimary: "#ffb3af"
     property color themeText: "#FFFFFF"
@@ -23,9 +20,6 @@ Scope {
     property int themeBorderSize: 1
     property real themeBgAlpha: 0.7
 
-    // ============================================================
-    // MEDIA & VOLUME STATE
-    // ============================================================
     property string mediaTitle: "No media playing"
     property string mediaArtist: "Unknown Artist"
     property string mediaAlbum: "Unknown Album"
@@ -37,17 +31,12 @@ Scope {
     property real trackPosition: 0
     property real trackLength: 0
 
-    // Audio State
     property var audioSinks: []
     property int currentVolume: 50
 
-    // Desktop Widget Position (Using margins like the dashboard widget)
     property int savedMarginTop: 420
     property int savedMarginLeft: 100
 
-    // ============================================================
-    // POSITION PERSISTENCE VIA JSON
-    // ============================================================
     FileView {
         id: posConfigFile
         path: Quickshell.env("HOME") + "/.config/quickshell/json/player_pos.json"
@@ -91,9 +80,6 @@ Scope {
         savePosProcess.running = true
     }
 
-    // ============================================================
-    // LUA CONFIG PARSERS
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -157,7 +143,6 @@ Scope {
         return root.playerName !== "" ? (" -p " + root.playerName) : ""
     }
 
-    // Switch MPRIS Media Player Source (Browser <-> VLC <-> Spotify)
     function switchMediaPlayer() {
         if (!root.activePlayerList || root.activePlayerList.length <= 1) return;
         let currIdx = root.activePlayerList.indexOf(root.playerName);
@@ -167,7 +152,6 @@ Scope {
         exec("playerctl -p " + nextPlayer + " play 2>/dev/null && notify-send -a 'Media Switcher' 'Switched Player' '" + nextPlayer + "'");
     }
 
-    // Switch Audio Output Device (Laptop Speakers <-> Headphones)
     function switchAudioSink() {
         if (!root.audioSinks || root.audioSinks.length <= 1) return;
         let currIdx = root.audioSinks.findIndex(d => d.is_def);
@@ -177,7 +161,6 @@ Scope {
         audioPollProcess.running = true;
     }
 
-    // Adjust System Audio Volume
     function adjustVolume(percent) {
         exec("pactl set-sink-volume @DEFAULT_SINK@ " + percent)
         audioPollTimer.restart()
@@ -190,9 +173,6 @@ Scope {
         onTriggered: audioPollProcess.running = true
     }
 
-    // ============================================================
-    // MEDIA & AUDIO POLLING
-    // ============================================================
     Process {
         id: mediaStateProcess
         stdout: StdioCollector {
@@ -316,7 +296,7 @@ def get_list(typ):
 def get_vol():
     try:
         out = subprocess.check_output("pactl get-sink-volume @DEFAULT_SINK@", shell=True, text=True)
-        m = re.search(r'(\\d+)%', out)
+        m = re.search(r'(\d+)%', out)
         return int(m.group(1)) if m else 50
     except: return 50
 
@@ -327,9 +307,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
         }
     }
 
-    // ============================================================
-    // WIDGET UI (Shown on all monitors and moves synchronously)
-    // ============================================================
     Variants {
         model: Quickshell.screens
         delegate: PanelWindow {
@@ -357,7 +334,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
             Item {
                 anchors.fill: parent
 
-                // 1. Solid Background Base
                 Rectangle {
                     anchors.fill: parent
                     radius: root.themeRounding
@@ -365,7 +341,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                     antialiasing: true
                 }
 
-                // 2. Container Background Album Art Cover
                 Image {
                     id: bgArt
                     anchors.fill: parent
@@ -391,7 +366,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                     antialiasing: true
                 }
 
-                // 3. Dark Backdrop Tint
                 Rectangle {
                     anchors.fill: parent
                     radius: root.themeRounding
@@ -400,7 +374,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                     antialiasing: true
                 }
 
-                // 4. Accent Border Overlay
                 Rectangle {
                     anchors.fill: parent
                     radius: root.themeRounding
@@ -410,7 +383,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                     antialiasing: true
                 }
 
-                // 5. Drag Mouse Area (Updates saved margins globally across all monitors)
                 MouseArea {
                     anchors.fill: parent
                     acceptedButtons: Qt.LeftButton
@@ -452,14 +424,12 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                     }
                 }
 
-                // 6. Content Container
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 22
                     spacing: 12
                     z: 10
 
-                    // Header Row (App & Output Switchers)
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 36
@@ -474,7 +444,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
 
                         Item { Layout.fillWidth: true }
 
-                        // Button 1: Switch Media App (Perfect Circle)
                         Rectangle {
                             Layout.preferredWidth: 36; Layout.preferredHeight: 36
                             radius: 18
@@ -491,7 +460,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                             }
                         }
 
-                        // Button 2: Switch Audio Output Device (Perfect Circle)
                         Rectangle {
                             Layout.preferredWidth: 36; Layout.preferredHeight: 36
                             radius: 18
@@ -509,7 +477,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                         }
                     }
 
-                    // Metadata Section (Song Name & Artist Only)
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 4
@@ -535,7 +502,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                         }
                     }
 
-                    // 20 Left + Moving Vinyl CD Disc + 20 Right Rhythm Visualizer Container
                     Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 38
@@ -545,7 +511,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                             spacing: 8
                             height: 36
 
-                            // Left Rhythm Bars (20 Bars)
                             Row {
                                 spacing: 2.5
                                 anchors.verticalCenter: parent.verticalCenter
@@ -580,7 +545,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                                 }
                             }
 
-                            // Moving Spinning CD Disc with Album Art
                             Item {
                                 width: 36
                                 height: 36
@@ -606,7 +570,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                                             running: root.isPlaying
                                         }
 
-                                        // Spinning CD Album Art Image
                                         Image {
                                             id: cdArtImg
                                             anchors.fill: parent
@@ -630,7 +593,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                                             antialiasing: true
                                         }
 
-                                        // Vinyl Grooves Overlay Ring
                                         Rectangle {
                                             anchors.centerIn: parent
                                             width: parent.width * 0.65
@@ -641,7 +603,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                                             border.width: 1
                                         }
 
-                                        // Center Spindle Hole
                                         Rectangle {
                                             anchors.centerIn: parent
                                             width: 8
@@ -655,7 +616,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                                 }
                             }
 
-                            // Right Rhythm Bars (20 Bars)
                             Row {
                                 spacing: 2.5
                                 anchors.verticalCenter: parent.verticalCenter
@@ -692,7 +652,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                         }
                     }
 
-                    // Progress Bar & Time Stamps
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 20
@@ -726,7 +685,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                         }
                     }
 
-                    // Transport Controls + Dynamic Volume Buttons
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 52
@@ -735,7 +693,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
 
                         Item { Layout.fillWidth: true }
 
-                        // Volume Down Button (Turns Red at 0%)
                         Rectangle {
                             property bool isMinVol: root.currentVolume <= 0
 
@@ -761,7 +718,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                             }
                         }
 
-                        // Backward Button
                         Rectangle {
                             Layout.preferredWidth: 38; Layout.preferredHeight: 38
                             radius: 19
@@ -777,7 +733,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                             }
                         }
 
-                        // Play / Pause Button (Circle Container)
                         Rectangle {
                             Layout.preferredWidth: 52; Layout.preferredHeight: 52
                             radius: 26
@@ -799,7 +754,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                             }
                         }
 
-                        // Forward Button
                         Rectangle {
                             Layout.preferredWidth: 38; Layout.preferredHeight: 38
                             radius: 19
@@ -815,7 +769,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                             }
                         }
 
-                        // Volume Up Button (Turns Red at 100%)
                         Rectangle {
                             property bool isMaxVol: root.currentVolume >= 100
 

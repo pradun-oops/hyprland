@@ -9,15 +9,11 @@ import QtQuick.Layouts
 Scope {
     id: root
 
-    // Fallback global shortcut
     Shortcut {
         sequence: "Escape"
         onActivated: Qt.quit()
     }
 
-    // ============================================================
-    // STRICT FOCUSED MONITOR LOCK LOGIC
-    // ============================================================
     property string targetMonitorName: ""
 
     function updateTargetMonitor() {
@@ -46,9 +42,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // THEME & STYLING PROPERTIES
-    // ============================================================
     property color themeBorder: "#ff4b6e"
     property color themePrimary: "#ff4b6e"
     property color themeText: "#ffffff"
@@ -370,7 +363,6 @@ print(json.dumps(get_net()))
 
             property bool isTargetMonitor: modelData.name === root.targetMonitorName
 
-            // Removed `!root.isFullscreen` to allow showing over fullscreen apps
             visible: root.targetMonitorName !== "" && isTargetMonitor
 
             WlrLayershell.namespace: "qs-network-center"

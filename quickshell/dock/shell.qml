@@ -5,14 +5,11 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
-import QtCore
+import Qt5Compat.GraphicalEffects
 
 Scope {
     id: root
 
-    // ============================================================
-    // ADAPTIVE THEME PROPERTIES (MATCHED WITH BAR DESIGN)
-    // ============================================================
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
@@ -26,9 +23,6 @@ Scope {
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
 
-    // ============================================================
-    // DESIGN SYSTEM & RELAXED ANIMATION SYSTEM
-    // ============================================================
     QtObject {
         id: style
         property int animDuration: 480         
@@ -45,9 +39,6 @@ Scope {
         rootExecProcess.running = true
     }
 
-    // ============================================================
-    // PERSISTENCE & PINNED APPS MODEL (FILE-BASED)
-    // ============================================================
     property string savedAppsFilePath: Quickshell.env("HOME") + "/.config/quickshell/json/dock_pinned.json"
 
     ListModel { 
@@ -183,9 +174,6 @@ Scope {
         root.savePinnedApps()
     }
 
-    // ============================================================
-    // CONFIG PARSERS
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -250,9 +238,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // MULTI-MONITOR DELEGATION
-    // ============================================================
     Variants {
         model: Quickshell.screens
         
@@ -278,13 +263,9 @@ Scope {
 
             property string outputName: dockWindow.screen ? dockWindow.screen.name : ""
 
-            // TOOLTIP GLOBAL STATE
             property string activeTooltipText: ""
             property real activeTooltipX: 0
 
-            // ============================================================
-            // DOCK STATE LOGIC
-            // ============================================================
             property bool isOverlapped: false
             property bool dockPinnedOpen: false 
             
@@ -331,16 +312,12 @@ Scope {
             onDockShouldBeVisibleChanged: {
                 if (dockShouldBeVisible) {
                     hitboxShrinkTimer.stop()
-                    // Increased window bounds slightly to accommodate the unified tooltip floating on top
                     currentHitboxHeight = 140
                 } else {
                     hitboxShrinkTimer.restart()
                 }
             }
 
-            // ============================================================
-            // APP ACTIONS
-            // ============================================================
             Process { id: launchProcess }
 
             function launchApp(app) {
@@ -375,9 +352,6 @@ Scope {
                 onTriggered: dockWindow.commitDragOrder(visualModel)
             }
 
-            // ============================================================
-            // SMART HIDE & RUNNING APPS PARSER
-            // ============================================================
             Process {
                 id: clientProcess
                 stdout: StdioCollector {
@@ -483,9 +457,6 @@ except Exception:
                 }
             }
 
-            // ============================================================
-            // ROOT UI
-            // ============================================================
             Item {
                 id: rootContainer
                 anchors.fill: parent
@@ -501,7 +472,6 @@ except Exception:
                     HoverHandler { id: bottomHoverHandler }
                 }
 
-                // UNIFIED SHARED TOOLTIP (Floats safely outside clipping areas)
                 Rectangle {
                     id: sharedTooltip
                     height: 26
@@ -512,11 +482,9 @@ except Exception:
                     border.color: Qt.alpha(root.themeBorder, 0.3)
                     z: 20
                     
-                    // Anchored to stay directly above the dock at all times
                     anchors.bottom: dockContainer.top
                     anchors.bottomMargin: 6
                     
-                    // Mathematical bounding calculation preventing edge clipping
                     property real targetX: dockWindow.activeTooltipX - (width / 2)
                     x: Math.max(0, Math.min(targetX, rootContainer.width - width))
                     Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
@@ -577,16 +545,12 @@ except Exception:
                         }
                     }
 
-                    // ====================================================
-                    // DOCK MASTER LAYOUT
-                    // ====================================================
                     RowLayout {
                         id: masterDockLayout
                         anchors.centerIn: parent
                         spacing: 12
                         z: 10
 
-                        // 0. APP LAUNCHER GRID ICON
                         Item {
                             width: 52
                             height: 52
@@ -654,7 +618,6 @@ except Exception:
                             Layout.rightMargin: 2
                         }
 
-                        // 1. PINNED APPS
                         ListView {
                             id: dockList
                             Layout.preferredWidth: pinnedAppsModel.count * 76 - 12
@@ -672,7 +635,7 @@ except Exception:
                             remove: Transition {
                                 ParallelAnimation {
                                     NumberAnimation { properties: "opacity"; to: 0; duration: style.fadeDuration; easing.type: style.fadeEasing }
-                                    NumberAnimation { properties: "scale"; to: 0; duration: style.fadeDuration; easing.type: style.fadeEasing }
+                                    NumberAnimation { properties: "scale"; to: 0; duration: style.fadeDuration; easing.type: style.defaultEasing }
                                 }
                             }
                             displaced: Transition {
@@ -855,7 +818,6 @@ except Exception:
                             }
                         }
 
-                        // 2. GLASS SEPARATOR
                         Rectangle {
                             Layout.preferredWidth: 2
                             Layout.preferredHeight: 40
@@ -866,7 +828,6 @@ except Exception:
                             Layout.rightMargin: 4
                         }
 
-                        // 3. UNPINNED RUNNING APPS
                         ListView {
                             id: unpinnedList
                             Layout.preferredWidth: Math.min(dockWindow.unpinnedApps.length * 76 - 12, 400)

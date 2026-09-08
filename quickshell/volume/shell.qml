@@ -9,9 +9,6 @@ import QtQuick.Layouts
 Scope {
     id: root
 
-    // ============================================================
-    // ADAPTIVE THEME PROPERTIES
-    // ============================================================
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
@@ -24,9 +21,6 @@ Scope {
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
 
-    // ============================================================
-    // OSD STATE PROPERTIES
-    // ============================================================
     property int volumePct: 0
     property bool isMuted: false
     property bool showOSD: false
@@ -41,7 +35,6 @@ Scope {
         }
     }
 
-    // Relaxed, ultra-smooth volume interpolation curve
     property real animatedVolume: 0
     Behavior on animatedVolume { 
         NumberAnimation { 
@@ -53,9 +46,6 @@ Scope {
     property int lastVolume: -1
     property bool lastMute: false
 
-    // ============================================================
-    // THEME PARSERS
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -91,9 +81,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // COMMAND EXECUTION
-    // ============================================================
     Process { id: execProcess }
     function exec(cmd) {
         execProcess.running = false
@@ -101,9 +88,6 @@ Scope {
         execProcess.running = true
     }
 
-    // ============================================================
-    // EVENT-DRIVEN AUDIO STATE MONITORING
-    // ============================================================
     Timer {
         id: autoHideTimer
         interval: 2000
@@ -165,9 +149,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // WAYLAND UI OSD DIALOG
-    // ============================================================
     Variants {
         model: Quickshell.screens
         delegate: PanelWindow {
@@ -212,7 +193,6 @@ Scope {
                 scale: root.showOSD ? 1.0 : 0.90
                 enabled: root.showOSD
 
-                // Smooth slide offset transition
                 transform: Translate {
                     x: root.showOSD ? 0 : 16
                     Behavior on x { 
@@ -220,7 +200,6 @@ Scope {
                     }
                 }
 
-                // Smooth Container Entry / Exit Animations
                 Behavior on opacity { 
                     NumberAnimation { duration: 320; easing.type: Easing.OutCubic } 
                 }
@@ -267,7 +246,6 @@ Scope {
                     anchors.margins: 12
                     spacing: 8
 
-                    // ICON CONTAINER
                     Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: 32
@@ -280,7 +258,6 @@ Scope {
                             color: root.isMuted ? "#FF453A" : root.themePrimary
                             font.pixelSize: 22
 
-                            // Dynamic pulse effect on mute / state changes
                             scale: root.isMuted ? 0.92 : (mainArea.containsMouse ? 1.08 : 1.0)
 
                             Behavior on color { 
@@ -292,7 +269,6 @@ Scope {
                         }
                     }
 
-                    // SLIDER TRACK & FILL
                     Item {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: 8
@@ -315,7 +291,6 @@ Scope {
                                 radius: parent.radius
                                 color: root.isMuted ? "#FF453A" : root.themePrimary
 
-                                // Smooth color shift when switching mute states
                                 Behavior on color { 
                                     ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
                                 }
@@ -323,7 +298,6 @@ Scope {
                         }
                     }
 
-                    // PERCENTAGE / STATUS TEXT
                     Text {
                         id: labelText
                         Layout.alignment: Qt.AlignHCenter

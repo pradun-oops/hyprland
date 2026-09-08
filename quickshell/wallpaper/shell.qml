@@ -7,24 +7,9 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Qt.labs.folderlistmodel
 
-/*
- * ============================================================
- * HYPRLAND LAYER RULE REQUIREMENT
- * ============================================================
- * Add this to your hyprland.conf to make the background see-through
- * and apply a blur effect to the layershell:
- *
- * layerrule = blur, qs-wallselect
- * layerrule = ignorealpha 0.2, qs-wallselect
- * ============================================================
- */
-
 Scope {
     id: root
 
-    // ============================================================
-    // STRICT FOCUSED MONITOR LOCK LOGIC
-    // ============================================================
     property string targetMonitorName: ""
 
     function updateTargetMonitor() {
@@ -53,9 +38,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // THEME PROPERTIES (0.7 Opacity / Translucent Setup)
-    // ============================================================
     property int themeRounding: 15
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.7
@@ -70,16 +52,11 @@ Scope {
     property string currentFolder: "file://" + Quickshell.env("HOME") + "/Pictures/Wallpapers"
     property string activeWallpaperPath: ""
     
-    // Engine Options
     property var availableEngines: ["awww", "swww", "hyprpaper", "swaybg", "mpvpaper"]
     property string selectedEngine: "awww"
 
-    // Cache Versioning
     property int cacheEpoch: 0
 
-    // ============================================================
-    // THUMBNAIL CACHE GENERATOR (Multithreaded 8-worker Python)
-    // ============================================================
     readonly property string cachePythonScript: `
 import os, sys, hashlib, subprocess
 from concurrent.futures import ThreadPoolExecutor
@@ -163,9 +140,6 @@ if files:
         root.triggerCacheGeneration()
     }
 
-    // ============================================================
-    // READ-ONLY DYNAMIC THEME PARSING
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -201,7 +175,6 @@ if files:
         }
     }
 
-    // Engine Autodetection
     Process {
         id: detectEngines
         command: ["sh", "-c", "for eng in awww swww hyprpaper swaybg mpvpaper; do command -v $eng >/dev/null 2>&1 && echo $eng; done"]
@@ -226,7 +199,6 @@ if files:
         }
     }
 
-    // Auto-detect default wallpaper folder
     Process {
         id: initFolderCheck
         command: [
@@ -258,9 +230,6 @@ if files:
         root.triggerCacheGeneration()
     }
 
-    // ============================================================
-    // WALLPAPER APPLICATION (Forced "fade" Animation)
-    // ============================================================
     Process {
         id: applyWallpaper
         property string imagePath: ""
@@ -272,7 +241,6 @@ if files:
             "ENGINE=\"$1\"\n" +
             "IMG=\"$2\"\n" +
             "ANIM=\"$3\"\n" +
-            "# 1. Apply wallpaper via chosen engine\n" +
             "if [ \"$ENGINE\" = \"awww\" ]; then\n" +
             "    if awww -h 2>&1 | grep -q -- '--transition-type'; then\n" +
             "        awww img \"$IMG\" --transition-type \"$ANIM\" --transition-pos 0.5,0.5 --transition-duration 0.5 2>/dev/null || " +
@@ -295,7 +263,6 @@ if files:
             "elif [ \"$ENGINE\" = \"mpvpaper\" ]; then\n" +
             "    killall mpvpaper 2>/dev/null; mpvpaper -o \"loop no-audio\" '*' \"$IMG\" &\n" +
             "fi\n" +
-            "# 2. Extract colors dynamically with Matugen\n" +
             "if command -v matugen >/dev/null 2>&1; then\n" +
             "    mkdir -p \"$HOME/.config/qt5ct/colors\"\n" +
             "    mkdir -p \"$HOME/.config/qt6ct/colors\"\n" +
@@ -309,7 +276,7 @@ if files:
             "sh",
             root.selectedEngine,
             applyWallpaper.imagePath,
-            "fade" // Default forced animation
+            "fade"
         ]
         
         onExited: running = false
@@ -326,9 +293,6 @@ if files:
         }
     }
 
-    // ============================================================
-    // WINDOW UI
-    // ============================================================
     Variants {
         model: Quickshell.screens
 
@@ -386,7 +350,6 @@ if files:
                     anchors.margins: 20
                     spacing: 14
 
-                    // Header Area
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 10
@@ -406,7 +369,6 @@ if files:
 
                         Item { Layout.fillWidth: true }
 
-                        // Styled Engine Dropdown
                         ComboBox {
                             id: engineCombo
                             Layout.preferredHeight: 38
@@ -493,7 +455,6 @@ if files:
                             }
                         }
 
-                        // Search Box
                         Rectangle {
                             Layout.preferredWidth: 200
                             Layout.preferredHeight: 38
@@ -543,7 +504,6 @@ if files:
                         color: Qt.alpha(root.themeBorder, 0.20)
                     }
 
-                    // Wallpaper Grid Container
                     Item {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
@@ -680,7 +640,6 @@ if files:
                         }
                     }
 
-                    // Footer Bar
                     Rectangle {
                         Layout.fillWidth: true
                         height: 32

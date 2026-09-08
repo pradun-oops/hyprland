@@ -9,9 +9,6 @@ import QtQuick.Layouts
 Scope {
     id: root
 
-    // ============================================================
-    // STRICT FOCUSED MONITOR LOCK LOGIC
-    // ============================================================
     property string targetMonitorName: ""
 
     function updateTargetMonitor() {
@@ -40,27 +37,23 @@ Scope {
         }
     }
 
-    // Adaptive Theme Properties (Solid Background & Real-time updates)
     property int themeRounding: 14
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.7
     
     property color themeBackground: "#141416" 
     property color themeBorder: "#ffb3af"
-    property color themeText: "#FFFFFF"         
+    property color themeText: "#FFFFFF"          
     property color themeTextMuted: "#A1A1AA"
     property color themePrimary: "#ffb3af"         
 
-    // Full Complete Shortcuts List synchronized with binds.lua
     property var fullKeybindsList: [
-        // Screenshots & Recording
         { category: "Screenshots & Recording", keys: "Print", desc: "Screenshot Active Window" },
         { category: "Screenshots & Recording", keys: "CTRL + Print", desc: "Screenshot Selected Area" },
         { category: "Screenshots & Recording", keys: "ALT + Print", desc: "Screenshot Fullscreen" },
         { category: "Screenshots & Recording", keys: "SUPER + SHIFT + R", desc: "Record Screen (Full)" },
         { category: "Screenshots & Recording", keys: "SUPER + CTRL + R", desc: "Record Screen (Area)" },
 
-        // Widget Toggles & Launchers
         { category: "Widgets & Launchers", keys: "SUPER + Space", desc: "Spotlight Search" },
         { category: "Widgets & Launchers", keys: "SUPER + X", desc: "Power Menu" },
         { category: "Widgets & Launchers", keys: "SUPER + I", desc: "Connections" },
@@ -74,8 +67,11 @@ Scope {
         { category: "Widgets & Launchers", keys: "SUPER + SHIFT + B", desc: "Bluetooth Settings" },
         { category: "Widgets & Launchers", keys: "SUPER + M", desc: "System Monitor" },
         { category: "Widgets & Launchers", keys: "SUPER + SHIFT + W", desc: "Weather Widget" },
+        { category: "Widgets & Launchers", keys: "SUPER + P", desc: "Settings Widget" },
+        { category: "Widgets & Launchers", keys: "SUPER + SHIFT + CTRL + C", desc: "Calculator Widget" },
+        { category: "Widgets & Launchers", keys: "SUPER + ALT + E", desc: "File Manager Widget" },
+        { category: "Widgets & Launchers", keys: "SUPER + V", desc: "Clipboard History" },
 
-        // Audio & Media Controls
         { category: "Audio & Media", keys: "XF86AudioRaiseVolume", desc: "Raise Volume" },
         { category: "Audio & Media", keys: "XF86AudioLowerVolume", desc: "Lower Volume" },
         { category: "Audio & Media", keys: "XF86AudioMute", desc: "Toggle Audio Mute" },
@@ -84,14 +80,12 @@ Scope {
         { category: "Audio & Media", keys: "XF86AudioNext", desc: "Next Track" },
         { category: "Audio & Media", keys: "XF86AudioPrev", desc: "Previous Track" },
 
-        // Brightness Controls
         { category: "Brightness", keys: "XF86MonBrightnessUp", desc: "Laptop Brightness Up" },
         { category: "Brightness", keys: "XF86MonBrightnessDown", desc: "Laptop Brightness Down" },
         { category: "Brightness", keys: "ALT + XF86MonBrightnessUp", desc: "External Monitor Brightness Up" },
         { category: "Brightness", keys: "ALT + XF86MonBrightnessDown", desc: "External Monitor Brightness Down" },
         { category: "Brightness", keys: "SUPER + ALT + space", desc: "Toggle Backlight" },
 
-        // Application Launchers
         { category: "Application Launchers", keys: "SUPER + Return", desc: "Terminal (Kitty)" },
         { category: "Application Launchers", keys: "SUPER + B", desc: "Zen Browser" },
         { category: "Application Launchers", keys: "SUPER + E", desc: "File Manager (Nautilus)" },
@@ -100,13 +94,11 @@ Scope {
         { category: "Application Launchers", keys: "SUPER + A", desc: "EasyEffects" },
         { category: "Application Launchers", keys: "SUPER + T", desc: "Floating Terminal" },
 
-        // System & Session Commands
         { category: "System & Session", keys: "SUPER + Q", desc: "Close Active Window" },
         { category: "System & Session", keys: "SUPER + SHIFT + E", desc: "Exit Hyprland Session" },
         { category: "System & Session", keys: "SUPER + SHIFT + P", desc: "Toggle DPMS (Screen Sleep)" },
         { category: "System & Session", keys: "SUPER + ALT + R", desc: "Reload Hyprland" },
 
-        // Window Management & Layouts
         { category: "Window Management", keys: "SUPER + F", desc: "Toggle Maximized" },
         { category: "Window Management", keys: "SUPER + SHIFT + F", desc: "Toggle Fullscreen" },
         { category: "Window Management", keys: "SUPER + R", desc: "Toggle Split Direction" },
@@ -127,13 +119,11 @@ Scope {
         { category: "Window Management", keys: "SUPER + Mouse:272", desc: "Move Window (Mouse)" },
         { category: "Window Management", keys: "SUPER + Mouse:273", desc: "Resize Window (Mouse)" },
 
-        // Multi-Monitor Controls
         { category: "Multi-Monitor", keys: "SUPER + CTRL + H", desc: "Focus Left Monitor" },
         { category: "Multi-Monitor", keys: "SUPER + CTRL + L", desc: "Focus Right Monitor" },
         { category: "Multi-Monitor", keys: "SUPER + CTRL + SHIFT + H", desc: "Move Window to Left Monitor" },
         { category: "Multi-Monitor", keys: "SUPER + CTRL + SHIFT + L", desc: "Move Window to Right Monitor" },
 
-        // Workspace Navigation
         { category: "Workspaces", keys: "SUPER + CTRL + J", desc: "Switch Next Workspace" },
         { category: "Workspaces", keys: "SUPER + CTRL + K", desc: "Switch Previous Workspace" },
         { category: "Workspaces", keys: "SUPER + Mouse_down", desc: "Cycle Workspace Next (Mouse)" },
@@ -174,7 +164,6 @@ Scope {
 
     property var activeKeybinds: []
 
-    // Dynamic Theme File Parsing with Real-time Reloading
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -352,7 +341,6 @@ Scope {
                     anchors.margins: 18
                     spacing: 12
 
-                    // Header
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 12
@@ -426,7 +414,6 @@ Scope {
                         color: Qt.alpha(root.themeBorder, 0.20)
                     }
 
-                    // Keybind List
                     ListView {
                         id: keybindsList
                         Layout.fillWidth: true
@@ -448,7 +435,6 @@ Scope {
                             radius: Math.max(4, root.themeRounding - 6)
                             color: ListView.isCurrentItem ? Qt.alpha(root.themePrimary, 0.15) : Qt.rgba(1, 1, 1, 0.04)
 
-                            // Explicit role binding to prevent scoping loss
                             property string rawKeys: model.itemKeys || ""
 
                             RowLayout {
@@ -466,7 +452,6 @@ Scope {
                                     elide: Text.ElideRight
                                 }
 
-                                // Key Badges Combo (Placed before Category tag)
                                 Row {
                                     spacing: 4
                                     Layout.alignment: Qt.AlignVCenter
@@ -512,7 +497,6 @@ Scope {
                         }
                     }
 
-                    // Footer Bar
                     Rectangle {
                         Layout.fillWidth: true
                         height: 30

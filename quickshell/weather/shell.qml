@@ -15,9 +15,6 @@ Scope {
         onActivated: Qt.quit()
     }
 
-    // ============================================================
-    // STRICT FOCUSED MONITOR LOCK LOGIC
-    // ============================================================
     property string targetMonitorName: ""
 
     function updateTargetMonitor() {
@@ -46,9 +43,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // THEME & STYLING PROPERTIES
-    // ============================================================
     property int themeRounding: 22
     property int themeBorderSize: 1
     property real themeBgAlpha: 0.72
@@ -99,9 +93,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // WEATHER DATA PROPERTIES
-    // ============================================================
     property bool isFetching: true
     property string fetchError: ""
     
@@ -388,9 +379,6 @@ except Exception as e:
                         anchors.margins: 22
                         spacing: 16
 
-                        // ============================================================
-                        // HEADER & SEARCH BAR
-                        // ============================================================
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 14
@@ -507,9 +495,6 @@ except Exception as e:
 
                         Rectangle { Layout.fillWidth: true; height: 1; color: Qt.alpha(root.themeBorder, 0.15) }
 
-                        // ============================================================
-                        // ERROR STATE OVERLAY
-                        // ============================================================
                         Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
@@ -523,16 +508,12 @@ except Exception as e:
                             }
                         }
 
-                        // ============================================================
-                        // MAIN DASHBOARD LAYOUT
-                        // ============================================================
                         RowLayout {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             spacing: 20
                             visible: root.fetchError === ""
 
-                            // ==================== LEFT COLUMN (SCROLLABLE) ====================
                             ScrollView {
                                 Layout.fillHeight: true
                                 Layout.fillWidth: true
@@ -546,7 +527,6 @@ except Exception as e:
                                     width: parent.width
                                     spacing: 16
 
-                                    // Hero Weather Card (Subtle Glass Gradient)
                                     Rectangle {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 160
@@ -608,7 +588,6 @@ except Exception as e:
                                         }
                                     }
 
-                                    // Hourly Forecast Strip
                                     ColumnLayout {
                                         Layout.fillWidth: true
                                         spacing: 8
@@ -677,16 +656,12 @@ except Exception as e:
                                         }
                                     }
 
-                                    // ============================================================
-                                    // 6 MODERN DUAL-ANCHORED TELEMETRY METRIC CARDS
-                                    // ============================================================
                                     GridLayout {
                                         Layout.fillWidth: true
                                         columns: 2
                                         columnSpacing: 12
                                         rowSpacing: 12
 
-                                        // Card 1: Wind
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: windHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
@@ -742,7 +717,6 @@ except Exception as e:
                                             }
                                         }
 
-                                        // Card 2: UV Index
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: uvHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
@@ -799,7 +773,6 @@ except Exception as e:
                                             }
                                         }
 
-                                        // Card 3: Humidity
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: humHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
@@ -855,7 +828,6 @@ except Exception as e:
                                             }
                                         }
 
-                                        // Card 4: Pressure
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: pressHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
@@ -911,7 +883,6 @@ except Exception as e:
                                             }
                                         }
 
-                                        // Card 5: Cloud Cover
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: cloudsHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
@@ -967,7 +938,6 @@ except Exception as e:
                                             }
                                         }
 
-                                        // Card 6: Sun Schedule
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: sunHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
@@ -1037,10 +1007,8 @@ except Exception as e:
                                 }
                             }
 
-                            // Divider Line
                             Rectangle { Layout.fillHeight: true; width: 1; color: Qt.alpha(root.themeBorder, 0.15) }
 
-                            // ==================== RIGHT COLUMN (7-DAY DETAILED FORECAST) ====================
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
@@ -1088,7 +1056,6 @@ except Exception as e:
                                             anchors.rightMargin: 14
                                             spacing: 10
 
-                                            // Day & Date
                                             ColumnLayout {
                                                 Layout.preferredWidth: 55
                                                 spacing: 2
@@ -1097,7 +1064,6 @@ except Exception as e:
                                                 Text { text: model.date; font.pixelSize: 10; color: root.themeTextMuted }
                                             }
 
-                                            // Icon & Condition Text
                                             RowLayout {
                                                 Layout.fillWidth: true
                                                 Layout.preferredWidth: 125
@@ -1113,7 +1079,6 @@ except Exception as e:
                                                 }
                                             }
 
-                                            // Rain & Precip Volume
                                             ColumnLayout {
                                                 Layout.preferredWidth: 55
                                                 spacing: 2
@@ -1126,7 +1091,6 @@ except Exception as e:
                                                 Text { text: model.precip; font.pixelSize: 10; color: root.themeTextMuted }
                                             }
 
-                                            // Min Temp
                                             Text { 
                                                 text: model.min
                                                 font.pixelSize: 13; color: root.themeTextMuted
@@ -1134,7 +1098,6 @@ except Exception as e:
                                                 Layout.alignment: Qt.AlignVCenter
                                             }
 
-                                            // Visual Range Bar
                                             Rectangle {
                                                 Layout.preferredWidth: 65
                                                 Layout.preferredHeight: 6
@@ -1151,7 +1114,6 @@ except Exception as e:
                                                 }
                                             }
 
-                                            // Max Temp
                                             Text { 
                                                 text: model.max
                                                 font.pixelSize: 13; font.weight: Font.Bold; color: root.themeText

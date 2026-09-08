@@ -41,9 +41,6 @@ Scope {
     property int windowMarginTop: 54
     property int windowMarginRight: 16
 
-    // ============================================================
-    // UTILITY: SYNC FILE READING
-    // ============================================================
     function readJsonSync(path, fallback) {
         var xhr = new XMLHttpRequest();
         xhr.open("GET", "file://" + path, false); 
@@ -77,9 +74,6 @@ Scope {
         savePosProcess.running = true
     }
 
-    // ============================================================
-    // STATE PERSISTENCE (DND & Night Light)
-    // ============================================================
     Process { id: saveStateProcess }
     function saveState() {
         let jsonStr = JSON.stringify({ dnd: root.dndEnabled, nightLight: root.nightLightEnabled })
@@ -87,9 +81,6 @@ Scope {
         saveStateProcess.running = true
     }
 
-    // ============================================================
-    // MODS (TILES) LIST
-    // ============================================================
     property var masterMods: ["wifi", "bluetooth", "dnd", "nightLight", "micMute", "speakerMute", "settings", "colorPicker"]
     property var toggleMods: ["wifi", "bluetooth", "dnd", "nightLight", "micMute", "settings"]
     property var inactiveMods: []
@@ -210,12 +201,10 @@ Scope {
         posFile.reload()
         root.updateInactiveMods()
 
-        // Load Persistent States
         let state = readJsonSync(Quickshell.env("HOME") + "/.config/quickshell/json/cc_state.json", {dnd: false, nightLight: false})
         root.dndEnabled = state.dnd === true
         root.nightLightEnabled = state.nightLight === true
 
-        // Apply saved daemon states quietly
         if (root.dndEnabled) root.exec("makoctl mode -a dnd 2>/dev/null || dunstctl set-paused true 2>/dev/null || swaync-client -dn 2>/dev/null")
         if (root.nightLightEnabled) root.exec("pgrep -x hyprsunset || hyprsunset -t 4500 &")
 
@@ -290,7 +279,6 @@ except Exception:
                 if (out.length >= 3) {
                     root.wifiEnabled = out[0].indexOf("enabled") !== -1
                     root.btEnabled = out[1].indexOf("Soft blocked: yes") === -1
-                    // The nightlight truth check
                     root.nightLightEnabled = out[2] !== ""
                 }
             }
@@ -376,7 +364,6 @@ except Exception:
                 root.saveState()
                 break
             case "micMute": 
-                // wpctl saves state locally natively
                 root.exec("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle && sleep 0.1 && (wpctl get-volume @DEFAULT_AUDIO_SOURCE@ | grep -q MUTED && notify-send 'Microphone' 'Muted' -t 2000 || notify-send 'Microphone' 'Unmuted' -t 2000)")
                 break
             case "speakerMute":
@@ -387,7 +374,7 @@ except Exception:
                 break
             case "colorPicker":
                 root.exec("hyprpicker -a &")
-                Qt.quit() // Close CC so you can pick the color on the screen
+                Qt.quit() 
                 break
         }
     }
@@ -668,7 +655,6 @@ except Exception:
                                             radius: 16 
                                             property int originIndex: index
                                             
-                                            // Relaxed Scale Animation
                                             scale: (tMouse.containsMouse && !dragItem.Drag.active && !root.editMode) ? 1.03 : 1.0
                                             Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
                                             

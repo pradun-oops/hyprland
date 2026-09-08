@@ -11,9 +11,6 @@ import QtQuick.Window
 Scope {
     id: root
 
-    // ============================================================
-    // ADAPTIVE THEME PROPERTIES (MATCHED WITH BAR & DOCK)
-    // ============================================================
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
@@ -26,21 +23,15 @@ Scope {
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
 
-    // ============================================================
-    // DESIGN SYSTEM & RELAXED ANIMATION SYSTEM
-    // ============================================================
     QtObject {
         id: style
-        property int animDuration: 480         // Relaxed smooth expansion/movement duration
-        property int fadeDuration: 380         // Relaxed fade-in/out duration
+        property int animDuration: 480         
+        property int fadeDuration: 380         
         property var defaultEasing: Easing.OutQuint
         property var fadeEasing: Easing.OutCubic
         property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.12)
     }
 
-    // ============================================================
-    // THEME PARSERS
-    // ============================================================
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -83,9 +74,6 @@ Scope {
         generalFile.reload()
     }
 
-    // ============================================================
-    // ACTIVE MONITOR RESOLUTION (NATIVE HYPRLAND FOCUS)
-    // ============================================================
     function getFocusedMonitorName() {
         if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
             return Hyprland.focusedMonitor.name
@@ -96,9 +84,6 @@ Scope {
         return ""
     }
 
-    // ============================================================
-    // SCREEN MODEL REGISTRATION & DISPATCHING
-    // ============================================================
     property var screenModels: ({})
 
     function registerScreenModel(name, model) {
@@ -117,7 +102,6 @@ Scope {
         let target = root.getFocusedMonitorName()
         let targetModel = root.screenModels[target]
         
-        // Dynamic fallback if the targeted monitor name is invalid or disconnected
         if (!targetModel) {
             let keys = Object.keys(root.screenModels)
             if (keys.length > 0) targetModel = root.screenModels[keys[0]]
@@ -143,9 +127,6 @@ Scope {
         }
     }
 
-    // ============================================================
-    // COMMAND EXECUTION & HISTORY SAVER
-    // ============================================================
     Process { id: execProcess }
     function exec(cmd) {
         execProcess.running = false
@@ -180,9 +161,6 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
         historyProcess.running = true
     }
 
-    // ============================================================
-    // NOTIFICATION SERVER
-    // ============================================================
     Notifs.NotificationServer {
         id: notifServer
         onNotification: (notification) => {
@@ -196,9 +174,6 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
         }
     }
 
-    // ============================================================
-    // WAYLAND UI NOTIFICATION POPUP WINDOW (PER MONITOR)
-    // ============================================================
     Variants {
         model: Quickshell.screens
         delegate: PanelWindow {
@@ -236,7 +211,6 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
             implicitHeight: popupList.contentHeight
             color: "transparent"
 
-            // Smoothly animate total window height with relaxed dynamics
             Behavior on implicitHeight {
                 NumberAnimation { 
                     duration: style.animDuration
@@ -251,7 +225,6 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                 spacing: 10
                 interactive: false
 
-                // Relaxed Smooth Addition Transition
                 add: Transition {
                     ParallelAnimation {
                         NumberAnimation { 
@@ -271,7 +244,6 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                     }
                 }
                 
-                // Relaxed Smooth Removal Transition
                 remove: Transition {
                     ParallelAnimation {
                         NumberAnimation { 
@@ -289,7 +261,6 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                     }
                 }
                 
-                // Relaxed Smooth Displacement Animation
                 displaced: Transition {
                     NumberAnimation { 
                         properties: "x,y"
@@ -320,7 +291,6 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                             ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing }
                         }
 
-                        // Auto-dismissal timer (4 seconds)
                         Timer {
                             interval: 4000
                             running: true
@@ -337,7 +307,6 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                             }
                             spacing: 12
 
-                            // Modern Accent Icon Badge
                             Rectangle {
                                 Layout.preferredWidth: 38
                                 Layout.preferredHeight: 38
@@ -363,7 +332,6 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                                 }
                             }
 
-                            // Compact Info Layout
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 Layout.alignment: Qt.AlignVCenter
@@ -400,7 +368,6 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                                 }
                             }
 
-                            // Close Button with Relaxed Transitions
                             Rectangle {
                                 id: closeBtn
                                 Layout.preferredWidth: 24

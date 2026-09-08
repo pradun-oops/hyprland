@@ -9,46 +9,11 @@ import QtQuick.Layouts
 Scope {
     id: root
 
-    // Fallback global shortcut
     Shortcut {
         sequence: "Escape"
         onActivated: Qt.quit()
     }
 
-    // ============================================================
-    // STRICT FOCUSED MONITOR LOCK LOGIC
-    // ============================================================
-    property string targetMonitorName: ""
-
-    function updateTargetMonitor() {
-        if (root.targetMonitorName !== "") return
-
-        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
-            root.targetMonitorName = Hyprland.focusedMonitor.name
-        }
-    }
-
-    Timer {
-        id: fallbackMonitorTimer
-        interval: 150
-        repeat: false
-        onTriggered: {
-            if (root.targetMonitorName === "" && Quickshell.screens.length > 0) {
-                root.targetMonitorName = Quickshell.screens[0].name
-            }
-        }
-    }
-
-    Connections {
-        target: Hyprland
-        function onFocusedMonitorChanged() {
-            root.updateTargetMonitor()
-        }
-    }
-
-    // ============================================================
-    // THEME & STYLING PROPERTIES
-    // ============================================================
     property int themeRounding: 14
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.75
@@ -75,7 +40,6 @@ Scope {
     ]
 
     property var settingsSchema: [
-        // General & Decoration
         { id: "gaps_in", name: "Inner Gaps", cat: "General", type: "slider", min: 0, max: 30, step: 1, val: 5, file: "general.lua", match: /gaps_in\s*=\s*([0-9.]+)/, replaceCmd: "s/(gaps_in\\s*=\\s*)[0-9.]+/\\1{VAL}/" },
         { id: "gaps_out", name: "Outer Gaps", cat: "General", type: "slider", min: 0, max: 40, step: 1, val: 5, file: "general.lua", match: /gaps_out\s*=\s*([0-9.]+)/, replaceCmd: "s/(gaps_out\\s*=\\s*)[0-9.]+/\\1{VAL}/" },
         { id: "border_size", name: "Border Size", cat: "General", type: "slider", min: 0, max: 10, step: 1, val: 2, file: "general.lua", match: /border_size\s*=\s*([0-9.]+)/, replaceCmd: "s/(border_size\\s*=\\s*)[0-9.]+/\\1{VAL}/" },
@@ -86,27 +50,50 @@ Scope {
         { id: "shadow_enabled", name: "Enable Shadow", cat: "Decoration", type: "switch", valBool: true, file: "general.lua", match: /shadow\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/, replaceCmd: "/shadow\\s*=\\s*\\{/,/\\}/ s/(enabled\\s*=\\s*)(true|false)/\\1{VAL}/" },
         { id: "layout", name: "Layout Mode", cat: "General", type: "toggle", options: ["scrolling", "dwindle", "master"], valStr: "scrolling", file: "general.lua", match: /layout\s*=\s*["']?([a-zA-Z0-9_-]+)["']?/, replaceCmd: "s/(layout\\s*=\\s*)[\"']?[^\"'\\s,]+[\"']?/\\1\"{VAL}\"/" },
 
-        // Animations
         { id: "anim_enabled", name: "Global Animations", cat: "Animations", type: "switch", valBool: true, file: "animations.lua", match: /animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/, replaceCmd: "/animations\\s*=\\s*\\{/,/\\}/ s/(enabled\\s*=\\s*)(true|false)/\\1{VAL}/" },
         { id: "anim_preset", name: "Animation Preset", cat: "Animations", type: "preset", options: ["Default", "Snappy", "Bouncy", "Smooth", "Fast Slide", "Overshoot"], valStr: "Default", file: "animations.lua", match: /--\s*preset:\s*([^\r\n]+)/ },
 
-        // Input & Keyboard
         { id: "numlock", name: "Numlock Default", cat: "Input", type: "switch", valBool: false, file: "input.lua", match: /numlock_by_default\s*=\s*(true|false)/, replaceCmd: "s/(numlock_by_default\\s*=\\s*)(true|false)/\\1{VAL}/" },
         { id: "repeat_rate", name: "Repeat Rate", cat: "Input", type: "slider", min: 10, max: 100, step: 5, val: 50, file: "input.lua", match: /repeat_rate\s*=\s*([0-9.]+)/, replaceCmd: "s/(repeat_rate\\s*=\\s*)[0-9.]+/\\1{VAL}/" },
         { id: "repeat_delay", name: "Repeat Delay", cat: "Input", type: "slider", min: 100, max: 1000, step: 25, val: 200, file: "input.lua", match: /repeat_delay\s*=\s*([0-9.]+)/, replaceCmd: "s/(repeat_delay\\s*=\\s*)[0-9.]+/\\1{VAL}/" },
         { id: "sensitivity", name: "Mouse Sensitivity", cat: "Input", type: "slider", min: -1.0, max: 1.0, step: 0.1, val: 0.0, file: "input.lua", match: /sensitivity\s*=\s*(-?[0-9.]+)/, replaceCmd: "s/(sensitivity\\s*=\\s*)-?[0-9.]+/\\1{VAL}/" },
         { id: "accel_profile", name: "Accel Profile", cat: "Input", type: "toggle", options: ["flat", "adaptive"], valStr: "flat", file: "input.lua", match: /accel_profile\s*=\s*["']?([a-zA-Z0-9_-]+)["']?/, replaceCmd: "s/(accel_profile\\s*=\\s*)[\"']?[^\"'\\s,]+[\"']?/\\1\"{VAL}\"/" },
 
-        // Touchpad
         { id: "tap_to_click", name: "Tap to Click", cat: "Touchpad", type: "switch", valBool: true, file: "input.lua", match: /tap_to_click\s*=\s*(true|false)/, replaceCmd: "s/(tap_to_click\\s*=\\s*)(true|false)/\\1{VAL}/" },
         { id: "natural_scroll", name: "Natural Scroll", cat: "Touchpad", type: "switch", valBool: true, file: "input.lua", match: /natural_scroll\s*=\s*(true|false)/, replaceCmd: "s/(natural_scroll\\s*=\\s*)(true|false)/\\1{VAL}/" },
         { id: "disable_while_typing", name: "Disable While Typing", cat: "Touchpad", type: "switch", valBool: true, file: "input.lua", match: /disable_while_typing\s*=\s*(true|false)/, replaceCmd: "s/(disable_while_typing\\s*=\\s*)(true|false)/\\1{VAL}/" },
         { id: "scroll_factor", name: "Scroll Factor", cat: "Touchpad", type: "slider", min: 0.1, max: 2.0, step: 0.1, val: 0.5, file: "input.lua", match: /scroll_factor\s*=\s*([0-9.]+)/, replaceCmd: "s/(scroll_factor\\s*=\\s*)[0-9.]+/\\1{VAL}/" },
 
-        // Cursor Theme
         { id: "cursor_theme", name: "Cursor Theme", cat: "Cursor", type: "cursor", valStr: "WhiteSur-cursors", file: "cursor.lua", match: /XCURSOR_THEME",\s*"([^"]+)"/ },
         { id: "cursor_size", name: "Cursor Size", cat: "Cursor", type: "slider", min: 16, max: 48, step: 4, val: 24, file: "cursor.lua", match: /XCURSOR_SIZE",\s*"([0-9]+)"/, replaceCmd: "s/(HYPRCURSOR_SIZE\",\\s*)\"[0-9]+\"/\\1\"{VAL}\"/g; s/(XCURSOR_SIZE\",\\s*)\"[0-9]+\"/\\1\"{VAL}\"/g" }
     ]
+
+    property string targetMonitorName: ""
+
+    function updateTargetMonitor() {
+        if (root.targetMonitorName !== "") return
+        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+            root.targetMonitorName = Hyprland.focusedMonitor.name
+        }
+    }
+
+    Timer {
+        id: fallbackMonitorTimer
+        interval: 150
+        repeat: false
+        onTriggered: {
+            if (root.targetMonitorName === "" && Quickshell.screens.length > 0) {
+                root.targetMonitorName = Quickshell.screens[0].name
+            }
+        }
+    }
+
+    Connections {
+        target: Hyprland
+        function onFocusedMonitorChanged() {
+            root.updateTargetMonitor()
+        }
+    }
 
     Process { id: bashRunner }
 
@@ -355,6 +342,8 @@ Scope {
     }
 
     Component.onCompleted: {
+        root.updateTargetMonitor()
+        if (root.targetMonitorName === "") fallbackMonitorTimer.start()
         cursorScanner.running = true
         colorFile.reload()
         generalConfigFile.reload()
@@ -521,7 +510,6 @@ Scope {
                                 radius: Math.max(4, root.themeRounding - 6)
                                 color: ListView.isCurrentItem ? Qt.alpha(root.themePrimary, 0.15) : Qt.rgba(1, 1, 1, 0.04)
 
-                                // Left Column: Setting Label
                                 Text {
                                     anchors.left: parent.left
                                     anchors.leftMargin: 16
@@ -534,7 +522,6 @@ Scope {
                                     elide: Text.ElideRight
                                 }
 
-                                // Middle Column: Category Badge
                                 Rectangle {
                                     anchors.horizontalCenter: parent.horizontalCenter
                                     anchors.verticalCenter: parent.verticalCenter
@@ -553,7 +540,6 @@ Scope {
                                     }
                                 }
 
-                                // Right Column: Controls Container
                                 Item {
                                     anchors.right: parent.right
                                     anchors.rightMargin: 16
@@ -561,7 +547,6 @@ Scope {
                                     width: 140
                                     height: 36
 
-                                    // Slider Control
                                     RowLayout {
                                         anchors.centerIn: parent
                                         visible: model.itemType === "slider"
@@ -641,7 +626,6 @@ Scope {
                                         }
                                     }
 
-                                    // Toggle Switch
                                     Rectangle {
                                         anchors.centerIn: parent
                                         visible: model.itemType === "switch"
@@ -665,7 +649,6 @@ Scope {
                                         }
                                     }
 
-                                    // Mode / Accel Toggle Button
                                     Rectangle {
                                         anchors.centerIn: parent
                                         visible: model.itemType === "toggle"
@@ -699,7 +682,6 @@ Scope {
                                         }
                                     }
 
-                                    // Animation Preset Button
                                     Rectangle {
                                         anchors.centerIn: parent
                                         visible: model.itemType === "preset"
@@ -729,7 +711,6 @@ Scope {
                                         }
                                     }
 
-                                    // Cursor Theme Selection Button
                                     Rectangle {
                                         anchors.centerIn: parent
                                         visible: model.itemType === "cursor"
@@ -791,7 +772,6 @@ Scope {
                     }
                 }
 
-                // Animation Preset Selection Dialog
                 Rectangle {
                     id: presetDialog
                     anchors.fill: parent
@@ -915,7 +895,6 @@ Scope {
                     }
                 }
 
-                // Cursor Theme Selector Dialog
                 Rectangle {
                     id: cursorDialog
                     anchors.fill: parent

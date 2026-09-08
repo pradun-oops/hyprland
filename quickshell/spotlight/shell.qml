@@ -38,14 +38,11 @@ Scope {
         }
     }
 
-    // ============================================================
-    // THEME & RELAXED ANIMATION PROPERTIES
-    // ============================================================
     property int themeRounding: 14
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.7
     property bool animEnabled: true
-    property int animDuration: 500       // Smooth & relaxed duration (ms)
+    property int animDuration: 500
 
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08)    
@@ -174,15 +171,12 @@ for d in app_dirs:
                 name = next((l.split('=',1)[1].strip() for l in content.split('\\n') if l.startswith('Name=')), '')
                 icon = next((l.split('=',1)[1].strip() for l in content.split('\\n') if l.startswith('Icon=')), 'application-x-executable')
                 
-                # Strip extension safely
                 if not icon.startswith('/'):
                     if icon.lower().endswith(('.png', '.svg', '.xpm')): icon = icon.rsplit('.', 1)[0]
                 
-                # Fallbacks for specific missing items
                 if 'blueman' in icon.lower(): icon = 'blueman'
                 elif 'bluetooth' in icon.lower(): icon = 'bluetooth'
                 
-                # Resolve to absolute path to guarantee rendering in QML
                 final_icon = find_icon(icon)
                 
                 if name and name.lower() not in seen:
@@ -369,7 +363,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                 width: Math.min(720, parent.width - 40)
                 implicitHeight: mainLayout.implicitHeight + 24
                 
-                // Positioned 200px from top
                 anchors.top: parent.top
                 anchors.topMargin: 200
                 anchors.horizontalCenter: parent.horizontalCenter
@@ -390,7 +383,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                     }
                 }
 
-                // Smooth Relaxed Dialog Height Expansion / Shrink Transition
                 Behavior on implicitHeight {
                     enabled: root.animEnabled
                     NumberAnimation {
@@ -574,7 +566,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         spacing: 4
                         boundsBehavior: Flickable.StopAtBounds
 
-                        // Smooth & Relaxed ListView Expansion Transition
                         Behavior on Layout.preferredHeight {
                             enabled: root.animEnabled
                             NumberAnimation {
@@ -583,7 +574,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             }
                         }
 
-                        // Relaxed Entrance & Displaced Transitions for Search Results
                         add: Transition {
                             ParallelAnimation {
                                 NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 420; easing.type: Easing.OutCubic }
@@ -622,7 +612,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                             color: isSelected ? Qt.alpha(root.themePrimary, 0.16) : "transparent"
                             
-                            // Relaxed Card Highlight Fade
                             Behavior on color {
                                 enabled: root.animEnabled
                                 ColorAnimation { 
@@ -631,7 +620,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 }
                             }
 
-                            // Left Accent Indicator
                             Rectangle {
                                 width: 3
                                 height: itemCard.isSelected ? 20 : 0
@@ -752,7 +740,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 onEntered: resultsList.currentIndex = index
                                 onClicked: {
                                     resultsList.currentIndex = index
-                                    executeResult(model.itemType, model.filePath, model.fileName)
+                                    executeResult(item.itemType, item.filePath, item.fileName)
                                 }
                             }
                         }
