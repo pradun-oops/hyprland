@@ -29,10 +29,7 @@ Scope {
     property bool dndEnabled: false
     property bool nightLightEnabled: false
     property bool micMuted: false
-    
-    property int volumeLevel: 50
     property bool volumeMuted: false
-    property int brightnessLevel: 70
 
     property string userName: "Pradun Kumar"
     property string systemInfo: "Fedora 43 • Hyprland"
@@ -43,6 +40,23 @@ Scope {
 
     property int windowMarginTop: 54
     property int windowMarginRight: 16
+
+    // ============================================================
+    // UTILITY: SYNC FILE READING
+    // ============================================================
+    function readJsonSync(path, fallback) {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "file://" + path, false); 
+        try {
+            xhr.send();
+            if (xhr.status === 200 || xhr.status === 0) {
+                if (xhr.responseText.trim() !== "") {
+                    return JSON.parse(xhr.responseText);
+                }
+            }
+        } catch (e) {}
+        return fallback;
+    }
 
     FileView {
         id: posFile
@@ -63,8 +77,21 @@ Scope {
         savePosProcess.running = true
     }
 
-    property var masterMods: ["wifi", "bluetooth", "dnd", "nightLight", "micMute"]
-    property var toggleMods: ["wifi", "bluetooth", "dnd", "nightLight", "micMute"]
+    // ============================================================
+    // STATE PERSISTENCE (DND & Night Light)
+    // ============================================================
+    Process { id: saveStateProcess }
+    function saveState() {
+        let jsonStr = JSON.stringify({ dnd: root.dndEnabled, nightLight: root.nightLightEnabled })
+        saveStateProcess.command = ["bash", "-c", "mkdir -p ~/.config/quickshell/json && echo '" + jsonStr + "' > ~/.config/quickshell/json/cc_state.json"]
+        saveStateProcess.running = true
+    }
+
+    // ============================================================
+    // MODS (TILES) LIST
+    // ============================================================
+    property var masterMods: ["wifi", "bluetooth", "dnd", "nightLight", "micMute", "speakerMute", "settings", "colorPicker"]
+    property var toggleMods: ["wifi", "bluetooth", "dnd", "nightLight", "micMute", "settings"]
     property var inactiveMods: []
 
     function updateInactiveMods() {
@@ -183,6 +210,15 @@ Scope {
         posFile.reload()
         root.updateInactiveMods()
 
+        // Load Persistent States
+        let state = readJsonSync(Quickshell.env("HOME") + "/.config/quickshell/json/cc_state.json", {dnd: false, nightLight: false})
+        root.dndEnabled = state.dnd === true
+        root.nightLightEnabled = state.nightLight === true
+
+        // Apply saved daemon states quietly
+        if (root.dndEnabled) root.exec("makoctl mode -a dnd 2>/dev/null || dunstctl set-paused true 2>/dev/null || swaync-client -dn 2>/dev/null")
+        if (root.nightLightEnabled) root.exec("pgrep -x hyprsunset || hyprsunset -t 4500 &")
+
         let pyScript = `
 import json, subprocess
 try:
@@ -228,17 +264,9 @@ except Exception:
         stdout: StdioCollector {
             onStreamFinished: {
                 let out = text.trim().split('|')
-                if (out.length >= 4) {
-                    let volStr = out[0]
-                    root.volumeMuted = volStr.indexOf("MUTED") !== -1
-                    let m = volStr.match(/(\d+\.\d+)/)
-                    if (m) root.volumeLevel = Math.round(parseFloat(m[1]) * 100)
-
+                if (out.length >= 2) {
+                    root.volumeMuted = out[0].indexOf("MUTED") !== -1
                     root.micMuted = out[1].indexOf("MUTED") !== -1
-
-                    let bg = parseInt(out[2]) || 0
-                    let bm = parseInt(out[3]) || 1
-                    root.brightnessLevel = Math.round((bg / bm) * 100)
                 }
             }
         }
@@ -249,7 +277,7 @@ except Exception:
         repeat: true
         triggeredOnStart: true
         onTriggered: {
-            fastUpdateProcess.command = ["bash", "-c", "echo \"$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null)|$(wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null)|$(brightnessctl g 2>/dev/null)|$(brightnessctl m 2>/dev/null)\""]
+            fastUpdateProcess.command = ["bash", "-c", "echo \"$(wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null)|$(wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null)\""]
             fastUpdateProcess.running = true
         }
     }
@@ -262,6 +290,7 @@ except Exception:
                 if (out.length >= 3) {
                     root.wifiEnabled = out[0].indexOf("enabled") !== -1
                     root.btEnabled = out[1].indexOf("Soft blocked: yes") === -1
+                    // The nightlight truth check
                     root.nightLightEnabled = out[2] !== ""
                 }
             }
@@ -285,6 +314,9 @@ except Exception:
             case "dnd": return "Do Not Disturb"
             case "nightLight": return "Night Light"
             case "micMute": return "Mic Mute"
+            case "speakerMute": return "Speaker Mute"
+            case "settings": return "Settings"
+            case "colorPicker": return "Color Picker"
         }
         return type
     }
@@ -296,6 +328,9 @@ except Exception:
             case "dnd": return root.dndEnabled ? "󰍶" : "󰍷"
             case "nightLight": return root.nightLightEnabled ? "󰖔" : "󰖕"
             case "micMute": return root.micMuted ? "󰍭" : "󰍬"
+            case "speakerMute": return root.volumeMuted ? "󰖁" : "󰕾"
+            case "settings": return "󰒓"
+            case "colorPicker": return "󰏘"
         }
         return "󰐥"
     }
@@ -307,6 +342,9 @@ except Exception:
             case "dnd": return root.dndEnabled
             case "nightLight": return root.nightLightEnabled
             case "micMute": return root.micMuted
+            case "speakerMute": return root.volumeMuted
+            case "settings": return false
+            case "colorPicker": return false
         }
         return false
     }
@@ -323,13 +361,33 @@ except Exception:
                 break
             case "dnd": 
                 root.dndEnabled = !root.dndEnabled
-                root.exec("notify-send 'Do Not Disturb' '" + (root.dndEnabled ? "Enabled" : "Disabled") + "' -u normal -t 2500")
+                if (root.dndEnabled) {
+                    root.exec("makoctl mode -a dnd 2>/dev/null || dunstctl set-paused true 2>/dev/null || swaync-client -dn 2>/dev/null")
+                    root.exec("notify-send 'Do Not Disturb' 'Enabled' -u normal -t 2500")
+                } else {
+                    root.exec("makoctl mode -r dnd 2>/dev/null || dunstctl set-paused false 2>/dev/null || swaync-client -df 2>/dev/null")
+                    root.exec("notify-send 'Do Not Disturb' 'Disabled' -u normal -t 2500")
+                }
+                root.saveState()
                 break
             case "nightLight": 
-                root.exec(root.nightLightEnabled ? "pkill hyprsunset || pkill wlsunset" : "hyprsunset -t 4500 &")
+                root.nightLightEnabled = !root.nightLightEnabled
+                root.exec(root.nightLightEnabled ? "hyprsunset -t 4500 &" : "pkill hyprsunset || pkill wlsunset")
+                root.saveState()
                 break
             case "micMute": 
-                root.exec("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle && sleep 0.1 && wpctl get-volume @DEFAULT_AUDIO_SOURCE@ | grep -q MUTED && notify-send 'Microphone' 'Muted' -t 2000 || notify-send 'Microphone' 'Unmuted' -t 2000")
+                // wpctl saves state locally natively
+                root.exec("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle && sleep 0.1 && (wpctl get-volume @DEFAULT_AUDIO_SOURCE@ | grep -q MUTED && notify-send 'Microphone' 'Muted' -t 2000 || notify-send 'Microphone' 'Unmuted' -t 2000)")
+                break
+            case "speakerMute":
+                root.exec("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle")
+                break
+            case "settings":
+                root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh setting open")
+                break
+            case "colorPicker":
+                root.exec("hyprpicker -a &")
+                Qt.quit() // Close CC so you can pick the color on the screen
                 break
         }
     }
@@ -610,6 +668,10 @@ except Exception:
                                             radius: 16 
                                             property int originIndex: index
                                             
+                                            // Relaxed Scale Animation
+                                            scale: (tMouse.containsMouse && !dragItem.Drag.active && !root.editMode) ? 1.03 : 1.0
+                                            Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                                            
                                             color: {
                                                 if (root.editMode) return root.themeSurfaceHover
                                                 if (root.isToggleActive(modelData)) return root.themePrimary
@@ -619,7 +681,7 @@ except Exception:
                                             
                                             border.width: 1
                                             border.color: (root.isToggleActive(modelData) && !root.editMode) ? Qt.alpha(root.themePrimary, 0.5) : Qt.alpha(root.themeBorder, 0.12)
-                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                            Behavior on color { ColorAnimation { duration: 200 } }
 
                                             Drag.active: tMouse.dragReady && root.editMode
                                             Drag.source: dragItem
@@ -629,7 +691,7 @@ except Exception:
                                             states: State {
                                                 when: dragItem.Drag.active
                                                 ParentChange { target: dragItem; parent: ccContainer }
-                                                PropertyChanges { target: dragItem; opacity: 0.9; scale: 1.02; z: 100 } 
+                                                PropertyChanges { target: dragItem; opacity: 0.9; scale: 1.05; z: 100 } 
                                             }
 
                                             Item {
@@ -740,148 +802,6 @@ except Exception:
                                                 Text { anchors.centerIn: parent; text: "＋"; color: "#fff"; font.pixelSize: 11; font.weight: Font.Bold }
                                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.addToggle(modelData) }
                                             }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Column {
-                                width: parent.width
-                                spacing: 10
-                                visible: !root.editMode
-
-                                Rectangle {
-                                    width: parent.width
-                                    height: 38
-                                    radius: 19
-                                    color: root.themeSurface
-                                    border.width: 1
-                                    border.color: Qt.alpha(root.themeBorder, 0.08)
-
-                                    Rectangle {
-                                        id: volFill
-                                        anchors.left: parent.left
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        height: parent.height
-                                        width: Math.max(height, (parent.width * root.volumeLevel) / 100)
-                                        radius: 19
-                                        color: root.volumeMuted ? root.themeSurfaceActive : root.themePrimary
-                                        
-                                        Behavior on width {
-                                            NumberAnimation { duration: volMouse.pressed ? 0 : 120; easing.type: Easing.OutCubic }
-                                        }
-                                    }
-
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 14
-                                        anchors.rightMargin: 14
-
-                                        Text {
-                                            text: root.volumeMuted ? "󰖁" : (root.volumeLevel > 50 ? "" : "")
-                                            color: (volFill.width > 35 && !root.volumeMuted) ? root.themeOnPrimary : root.themeText
-                                            font.pixelSize: 15
-                                        }
-
-                                        Text {
-                                            text: "Volume"
-                                            color: (volFill.width > 80 && !root.volumeMuted) ? root.themeOnPrimary : root.themeText
-                                            font.pixelSize: 12
-                                            font.weight: Font.DemiBold
-                                            Layout.fillWidth: true
-                                        }
-
-                                        Text {
-                                            text: root.volumeLevel + "%"
-                                            color: (volFill.width > parent.width - 50 && !root.volumeMuted) ? root.themeOnPrimary : root.themeText
-                                            font.pixelSize: 12
-                                            font.weight: Font.Bold
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        id: volMouse
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        preventStealing: true
-
-                                        function updateVolume(mouseX) {
-                                            let pct = Math.min(100, Math.max(0, Math.round((mouseX / width) * 100)))
-                                            root.volumeLevel = pct
-                                            root.exec("wpctl set-volume @DEFAULT_AUDIO_SINK@ " + (pct / 100).toFixed(2))
-                                        }
-
-                                        onPressed: (mouse) => updateVolume(mouse.x)
-                                        onPositionChanged: (mouse) => {
-                                            if (pressed) updateVolume(mouse.x)
-                                        }
-                                    }
-                                }
-
-                                Rectangle {
-                                    width: parent.width
-                                    height: 38
-                                    radius: 19
-                                    color: root.themeSurface
-                                    border.width: 1
-                                    border.color: Qt.alpha(root.themeBorder, 0.08)
-
-                                    Rectangle {
-                                        id: brightFill
-                                        anchors.left: parent.left
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        height: parent.height
-                                        width: Math.max(height, (parent.width * root.brightnessLevel) / 100)
-                                        radius: 19
-                                        color: root.themePrimary
-                                        
-                                        Behavior on width {
-                                            NumberAnimation { duration: brightMouse.pressed ? 0 : 120; easing.type: Easing.OutCubic }
-                                        }
-                                    }
-
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 14
-                                        anchors.rightMargin: 14
-
-                                        Text {
-                                            text: "󰃠"
-                                            color: brightFill.width > 35 ? root.themeOnPrimary : root.themeText
-                                            font.pixelSize: 15
-                                        }
-
-                                        Text {
-                                            text: "Brightness"
-                                            color: brightFill.width > 80 ? root.themeOnPrimary : root.themeText
-                                            font.pixelSize: 12
-                                            font.weight: Font.DemiBold
-                                            Layout.fillWidth: true
-                                        }
-
-                                        Text {
-                                            text: root.brightnessLevel + "%"
-                                            color: brightFill.width > parent.width - 50 ? root.themeOnPrimary : root.themeText
-                                            font.pixelSize: 12
-                                            font.weight: Font.Bold
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        id: brightMouse
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        preventStealing: true
-
-                                        function updateBrightness(mouseX) {
-                                            let pct = Math.min(100, Math.max(5, Math.round((mouseX / width) * 100)))
-                                            root.brightnessLevel = pct
-                                            root.exec("brightnessctl set " + pct + "%")
-                                        }
-
-                                        onPressed: (mouse) => updateBrightness(mouse.x)
-                                        onPositionChanged: (mouse) => {
-                                            if (pressed) updateBrightness(mouse.x)
                                         }
                                     }
                                 }

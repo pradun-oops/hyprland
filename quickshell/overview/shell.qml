@@ -485,7 +485,7 @@ def parse_workspace_id(ws_info):
         if wid is not None and wid != 0: return wid
         wname = str(ws_info.get("name", ""))
         if wname.isdigit(): return int(wname)
-        match = re.search(r'\\d+', wname)
+        match = re.search(r'\d+', wname)
         if match and not wname.startswith("special:"): return int(match.group())
         return wname
     return None
@@ -592,58 +592,6 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
             }
 
             color: "transparent"
-
-            // ============================================================
-            // NON-TARGET MONITOR: DIMMED & BLURRED OVERLAY
-            // ============================================================
-            Item {
-                anchors.fill: parent
-                visible: !isTargetMonitor
-
-                Image {
-                    id: secondaryWallpaperImg
-                    anchors.fill: parent
-                    source: root.formatFileUrl(root.wallpaperThumbPath !== "" ? root.wallpaperThumbPath : root.wallpaperPath)
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    cache: false
-                    visible: status === Image.Ready && source !== ""
-                }
-
-                MultiEffect {
-                    anchors.fill: parent
-                    source: secondaryWallpaperImg
-                    blurEnabled: true
-                    blur: 1.0
-                    blurMax: 36
-                    opacity: root.isOpened && !root.isClosing ? 1.0 : 0.0
-
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: root.animEnabled ? style.fadeDuration : 0
-                            easing.type: style.fadeEasing
-                        }
-                    }
-                }
-
-                Rectangle {
-                    anchors.fill: parent
-                    color: "#000000"
-                    opacity: root.isOpened && !root.isClosing ? 0.60 : 0.0
-
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: root.animEnabled ? style.fadeDuration : 0
-                            easing.type: style.fadeEasing
-                        }
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: root.dismissMenu()
-                }
-            }
 
             // ============================================================
             // TARGET MONITOR: DIM BACKDROP & MAIN DIALOG
@@ -785,17 +733,13 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                 Repeater {
                                     model: root.workspaceList
 
-                                    delegate: Rectangle {
+                                    delegate: Item {
                                         id: cardItem
                                         required property var modelData
                                         required property int index
 
                                         width: 220
                                         height: 140
-
-                                        radius: root.themeRounding
-                                        color: root.themeBackground
-                                        clip: true
 
                                         property bool isSelected: index === root.selectedIndex
                                         property bool isActiveWs: modelData.isActive
@@ -810,25 +754,56 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                             }
                                         }
 
-                                        // WALLPAPER IMAGE BACKGROUND
-                                        Image {
-                                            id: cardWpImg
+                                        // ============================================================
+                                        // WALLPAPER BACKGROUND LAYER (STRICTLY CLIPPED TO ROUNDING)
+                                        // ============================================================
+                                        Item {
+                                            id: bgContainer
                                             anchors.fill: parent
-                                            source: root.formatFileUrl(root.wallpaperThumbPath !== "" ? root.wallpaperThumbPath : root.wallpaperPath)
-                                            fillMode: Image.PreserveAspectCrop
-                                            asynchronous: true
-                                            cache: false
-                                            visible: status === Image.Ready && source !== ""
+                                            layer.enabled: true
+                                            layer.effect: MultiEffect {
+                                                maskEnabled: true
+                                                maskSource: cardMask
+                                            }
+
+                                            // Base background
+                                            Rectangle {
+                                                anchors.fill: parent
+                                                color: root.themeBackground
+                                            }
+
+                                            // Wallpaper image
+                                            Image {
+                                                id: cardWpImg
+                                                anchors.fill: parent
+                                                source: root.formatFileUrl(root.wallpaperThumbPath !== "" ? root.wallpaperThumbPath : root.wallpaperPath)
+                                                fillMode: Image.PreserveAspectCrop
+                                                asynchronous: true
+                                                cache: false
+                                                visible: status === Image.Ready && source !== ""
+                                            }
+
+                                            // Dark contrast tint
+                                            Rectangle {
+                                                anchors.fill: parent
+                                                color: "#000000"
+                                                opacity: cardWpImg.visible ? 0.35 : 0.0
+                                            }
                                         }
 
-                                        // DARK OVERLAY FOR TEXT CONTRAST
+                                        // Mask for rounded wallpaper corners
                                         Rectangle {
+                                            id: cardMask
                                             anchors.fill: parent
-                                            color: "#000000"
-                                            opacity: cardWpImg.visible ? 0.35 : 0.0
+                                            radius: root.themeRounding
+                                            color: "black"
+                                            visible: false
+                                            layer.enabled: true
                                         }
 
-                                        // CONTENT LAYER
+                                        // ============================================================
+                                        // FOREGROUND CONTENT LAYER
+                                        // ============================================================
                                         Column {
                                             anchors.fill: parent
                                             anchors.margins: 12
@@ -939,6 +914,9 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                             }
                                         }
 
+                                        // ============================================================
+                                        // BORDER OVERLAY
+                                        // ============================================================
                                         Rectangle {
                                             anchors.fill: parent
                                             radius: root.themeRounding
@@ -947,7 +925,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                             border.color: cardItem.isSelected 
                                                 ? root.themePrimary 
                                                 : (cardItem.isActiveWs ? Qt.alpha(root.themeBorder, 0.9) : Qt.alpha(root.themeBorder, 0.45))
-                                            z: 100
+                                            z: 10
 
                                             Behavior on border.color { 
                                                 ColorAnimation { 

@@ -128,159 +128,10 @@ Scope {
     }
 
     // ============================================================
-    // PERSISTENCE: HIDDEN APPS & DOCK PINS
+    // APP DATA STATE
     // ============================================================
-    property string hiddenAppsFilePath: Quickshell.env("HOME") + "/.config/quickshell/json/drawer_hidden.json"
-    property string dockedAppsFilePath: Quickshell.env("HOME") + "/.config/quickshell/json/dock_pinned.json"
-
-    property var hiddenAppsList: []
-    property var dockedAppsList: []
     property var allApps: []
-    property bool isLoaded: true // Instant load flag set to true by default
-    property string activeSearchQuery: "" 
-
-    FileView {
-        id: hiddenAppsFile
-        path: root.hiddenAppsFilePath
-        watchChanges: true
-        onFileChanged: reload()
-        onLoaded: {
-            try {
-                let content = text().trim()
-                if (content !== "") {
-                    let data = JSON.parse(content)
-                    if (Array.isArray(data)) root.hiddenAppsList = data
-                }
-            } catch(e) { root.hiddenAppsList = [] }
-            if (root.allApps.length > 0) performSearch(root.activeSearchQuery)
-        }
-        onLoadFailed: { root.hiddenAppsList = [] }
-    }
-
-    FileView {
-        id: dockedAppsFile
-        path: root.dockedAppsFilePath
-        watchChanges: true
-        onFileChanged: reload()
-        onLoaded: {
-            try {
-                let content = text().trim()
-                if (content !== "") {
-                    let data = JSON.parse(content)
-                    if (Array.isArray(data)) root.dockedAppsList = data
-                }
-            } catch(e) { root.dockedAppsList = [] }
-        }
-        onLoadFailed: { root.dockedAppsList = [] }
-    }
-
-    Process { id: persistenceProcess }
-
-    function saveHiddenApps() {
-        let jsonStr = JSON.stringify(root.hiddenAppsList)
-        persistenceProcess.command = ["bash", "-c", "mkdir -p $(dirname '" + root.hiddenAppsFilePath + "') && echo '" + jsonStr.replace(/'/g, "'\\''") + "' > '" + root.hiddenAppsFilePath + "'"]
-        persistenceProcess.running = true
-    }
-
-    function saveDockedApps() {
-        let jsonStr = JSON.stringify(root.dockedAppsList)
-        persistenceProcess.command = ["bash", "-c", "mkdir -p $(dirname '" + root.dockedAppsFilePath + "') && echo '" + jsonStr.replace(/'/g, "'\\''") + "' > '" + root.dockedAppsFilePath + "'"]
-        persistenceProcess.running = true
-    }
-
-    function isAppPinned(app) {
-        if (!app) return false;
-        let targetPath = app.filePath || ""
-        let targetClass = (app.wmClass || "").toLowerCase()
-        let targetCmd = (app.cmd || "").toLowerCase()
-        for (let i = 0; i < root.dockedAppsList.length; i++) {
-            let item = root.dockedAppsList[i]
-            let pPath = item.filePath || ""
-            let pClass = (item.wmClass || "").toLowerCase()
-            let pCmd = (item.cmd || "").toLowerCase()
-            
-            if (targetPath && pPath && targetPath === pPath) return true
-            if (targetClass && pClass && targetClass === pClass) return true
-            if (targetCmd && pCmd && targetCmd === pCmd) return true
-        }
-        return false
-    }
-
-    function togglePinApp(app) {
-        if (!app) return;
-        let targetPath = app.filePath || ""
-        let targetClass = (app.wmClass || "").toLowerCase()
-        let targetCmd = (app.cmd || "").toLowerCase()
-        let newList = []
-        let found = false
-        
-        for (let i = 0; i < root.dockedAppsList.length; i++) {
-            let item = root.dockedAppsList[i]
-            let pPath = item.filePath || ""
-            let pClass = (item.wmClass || "").toLowerCase()
-            let pCmd = (item.cmd || "").toLowerCase()
-            
-            let isMatch = false
-            if (targetPath && pPath && targetPath === pPath) {
-                isMatch = true
-            } else if (targetClass && pClass && targetClass === pClass) {
-                isMatch = true
-            } else if (targetCmd && pCmd && targetCmd === pCmd) {
-                isMatch = true
-            }
-            
-            if (isMatch) {
-                found = true
-            } else {
-                newList.push(item)
-            }
-        }
-        
-        if (!found) {
-            newList.push({
-                name: app.displayName || app.name,
-                iconName: app.iconName,
-                cmd: app.cmd,
-                wmClass: app.wmClass,
-                process: app.process,
-                filePath: app.filePath
-            })
-        }
-        root.dockedAppsList = newList
-        saveDockedApps()
-    }
-
-    function toggleHideApp(filePath) {
-        let newList = [...root.hiddenAppsList]
-        let index = newList.indexOf(filePath)
-        let isHiding = false
-        
-        if (index > -1) {
-            newList.splice(index, 1)
-        } else {
-            newList.push(filePath)
-            isHiding = true
-        }
-        
-        root.hiddenAppsList = newList
-        saveHiddenApps()
-
-        let q = root.activeSearchQuery 
-        if (q === "") {
-            if (isHiding) {
-                for (let i = 0; i < drawerModel.count; i++) {
-                    if (drawerModel.get(i).filePath === filePath) {
-                        drawerModel.remove(i, 1)
-                        break
-                    }
-                }
-            } else {
-                performSearch("")
-            }
-        } else {
-            performSearch(q)
-        }
-    }
+    property bool isLoaded: true 
 
     // ============================================================
     // APP CACHING ENGINE
@@ -310,7 +161,7 @@ Scope {
                 if (content !== "") {
                     let parsedApps = JSON.parse(content)
                     root.allApps = parsedApps
-                    performSearch(root.activeSearchQuery) 
+                    loadApps() 
                 }
             } catch (e) {}
         }
@@ -385,8 +236,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         `]
         onExited: {
             appCacheFile.reload()
-            hiddenAppsFile.reload()
-            dockedAppsFile.reload()
         }
     }
 
@@ -397,20 +246,14 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         generalConfigFile.reload()
         animConfigFile.reload()
         
-        // Instant synchronous preload on startup so items paint immediately
-        root.hiddenAppsList = readJsonSync(root.hiddenAppsFilePath, [])
-        root.dockedAppsList = readJsonSync(root.dockedAppsFilePath, [])
         let cachedApps = readJsonSync(Quickshell.env("HOME") + "/.config/quickshell/json/app_cache.json", [])
         
         if (cachedApps.length > 0) {
             root.allApps = cachedApps
-            performSearch("") 
+            loadApps() 
         }
 
         appCacheFile.reload()
-        hiddenAppsFile.reload()
-        dockedAppsFile.reload()
-
         cacheBuilder.running = true 
     }
 
@@ -439,34 +282,12 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         closeTimer.start()
     }
 
-    function performSearch(query) {
-        let q = query ? query.trim().toLowerCase() : ""
-        root.activeSearchQuery = q 
+    function loadApps() {
         drawerModel.clear()
-        
         for (let i = 0; i < root.allApps.length; i++) {
-            let app = root.allApps[i]
-            let isHidden = root.hiddenAppsList.indexOf(app.filePath) > -1
-
-            if (q === "") {
-                if (!isHidden) {
-                    drawerModel.append(app)
-                }
-            } else {
-                if (app.displayName.toLowerCase().includes(q) || app.fileName.toLowerCase().includes(q)) {
-                    drawerModel.append(app)
-                }
-            }
+            drawerModel.append(root.allApps[i])
         }
     }
-
-    // ============================================================
-    // CONTEXT MENU STATE
-    // ============================================================
-    property bool contextMenuOpen: false
-    property var contextMenuApp: null
-    property real menuX: 0
-    property real menuY: 0
 
     // ============================================================
     // UI RENDERING
@@ -501,24 +322,12 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                 Shortcut { 
                     sequence: "Escape" 
-                    onActivated: {
-                        if (root.contextMenuOpen) {
-                            root.contextMenuOpen = false
-                        } else {
-                            Qt.quit()
-                        }
-                    } 
+                    onActivated: Qt.quit() 
                 }
 
                 MouseArea {
                     anchors.fill: parent
-                    onClicked: {
-                        if (root.contextMenuOpen) {
-                            root.contextMenuOpen = false
-                        } else {
-                            Qt.quit()
-                        }
-                    }
+                    onClicked: Qt.quit()
                 }
 
                 Rectangle {
@@ -532,93 +341,18 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                     border.color: Qt.alpha(root.themeBorder, 0.25)
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
 
-                    // Instantly visible with no scaling or opacity delay
                     scale: 1.0
                     opacity: 1.0
 
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: (mouse) => {
-                            if (root.contextMenuOpen) root.contextMenuOpen = false
-                            mouse.accepted = true
-                        }
+                        onClicked: (mouse) => { mouse.accepted = true }
                     }
 
                     ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 32
                         spacing: 24
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 56
-                            radius: 28
-                            color: root.themeSurface
-                            border.width: 1
-                            border.color: Qt.alpha(root.themeBorder, searchInput.activeFocus ? 0.6 : 0.15)
-                            
-                            Behavior on border.color { 
-                                ColorAnimation { 
-                                    duration: root.animEnabled ? style.fadeDuration : 0
-                                    easing.type: style.fadeEasing 
-                                } 
-                            }
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 20
-                                anchors.rightMargin: 20
-                                spacing: 16
-
-                                Text {
-                                    text: "🔍"
-                                    font.pixelSize: 20
-                                    color: searchInput.text !== "" ? root.themePrimary : root.themeTextMuted
-                                    Layout.alignment: Qt.AlignVCenter
-                                    Behavior on color { 
-                                        ColorAnimation { 
-                                            duration: root.animEnabled ? style.fadeDuration : 0
-                                            easing.type: style.fadeEasing 
-                                        } 
-                                    }
-                                }
-
-                                TextField {
-                                    id: searchInput
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
-
-                                    font.pixelSize: 20
-                                    font.weight: Font.Medium
-                                    color: root.themeText
-                                    
-                                    placeholderText: "Search apps..."
-                                    placeholderTextColor: Qt.alpha(root.themeTextMuted, 0.6)
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    background: Item {}
-
-                                    Component.onCompleted: searchInput.forceActiveFocus()
-
-                                    onTextChanged: root.performSearch(text)
-
-                                    onAccepted: {
-                                        if (drawerModel.count > 0) {
-                                            let item = drawerModel.get(0)
-                                            executeApp(item.filePath)
-                                        }
-                                    }
-
-                                    Keys.onEscapePressed: (event) => {
-                                        if (root.contextMenuOpen) {
-                                            root.contextMenuOpen = false
-                                        } else {
-                                            Qt.quit()
-                                        }
-                                        event.accepted = true
-                                    }
-                                }
-                            }
-                        }
 
                         Item {
                             Layout.fillWidth: true
@@ -654,10 +388,9 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             model: drawerModel
                             clip: true
 
-                            // Removed entry add/displaced animations to prevent pop-in delay
-
+                            // Slightly increased dimensions to accommodate beautiful multiline wrap
                             cellWidth: 110
-                            cellHeight: 145
+                            cellHeight: 160
 
                             leftMargin: Math.max(0, (width - (Math.floor(width / cellWidth) * cellWidth)) / 2)
 
@@ -673,8 +406,8 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                                 Rectangle {
                                     anchors.centerIn: parent
-                                    width: 98
-                                    height: 135
+                                    width: 100
+                                    height: 150
                                     radius: 16
                                     color: appMouseArea.containsMouse ? root.themeSurfaceHover : "transparent"
                                     border.width: 1
@@ -740,155 +473,27 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                             font.weight: appMouseArea.containsMouse ? Font.Bold : Font.Medium
                                             horizontalAlignment: Text.AlignHCenter
                                             verticalAlignment: Text.AlignTop
-                                            wrapMode: Text.Wrap
+                                            wrapMode: Text.WordWrap // Break on spaces naturally
                                             elide: Text.ElideRight
-                                            maximumLineCount: 2
+                                            maximumLineCount: 3 
                                             lineHeight: 1.15
                                             Layout.fillWidth: true
-                                            Layout.preferredHeight: 34
+                                            // 100px (Rectangle width) - 16px (8px left + 8px right margins) = 84px maximum width
+                                            Layout.maximumWidth: 84
+                                            Layout.preferredHeight: 46 
                                         }
                                     }
 
                                     MouseArea {
                                         id: appMouseArea
                                         anchors.fill: parent
-                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         
-                                        onClicked: (mouse) => {
-                                            if (mouse.button === Qt.LeftButton) {
-                                                root.contextMenuOpen = false
-                                                executeApp(model.filePath)
-                                            } else if (mouse.button === Qt.RightButton) {
-                                                root.contextMenuApp = model
-                                                
-                                                let pos = appMouseArea.mapToItem(mainContainer, mouse.x, mouse.y)
-                                                
-                                                root.menuX = Math.min(mainContainer.width - 180, pos.x)
-                                                root.menuY = Math.min(mainContainer.height - 180, pos.y)
-                                                root.contextMenuOpen = true
-                                            }
+                                        // Left click only to launch the app
+                                        onClicked: {
+                                            executeApp(model.filePath)
                                         }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // --- 4. CONTEXT MENU POPUP DIALOG & TRAP LAYER ---
-                Item {
-                    anchors.fill: mainContainer
-                    visible: root.contextMenuOpen
-                    z: 100
-
-                    MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        onClicked: root.contextMenuOpen = false
-                        onWheel: root.contextMenuOpen = false
-                    }
-
-                    Rectangle {
-                        id: contextMenu
-                        x: root.menuX
-                        y: root.menuY
-                        width: 170
-                        implicitHeight: menuLayout.implicitHeight + 16
-                        radius: 12
-                        
-                        color: Qt.alpha(root.themeBackground, 0.95)
-                        border.width: 1
-                        border.color: Qt.alpha(root.themeBorder, 0.4)
-
-                        ColumnLayout {
-                            id: menuLayout
-                            anchors.fill: parent
-                            anchors.margins: 8
-                            spacing: 4
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 36
-                                radius: 8
-                                color: openMouse.containsMouse ? root.themeSurfaceHover : "transparent"
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 10
-                                    anchors.rightMargin: 10
-                                    spacing: 10
-                                    Text { text: "📂"; color: root.themePrimary; font.pixelSize: 14 }
-                                    Text { text: "Open"; color: root.themeText; font.pixelSize: 13; font.weight: Font.Medium }
-                                }
-
-                                MouseArea {
-                                    id: openMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        root.contextMenuOpen = false
-                                        if (root.contextMenuApp) executeApp(root.contextMenuApp.filePath)
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 36
-                                radius: 8
-                                color: pinMouse.containsMouse ? root.themeSurfaceHover : "transparent"
-
-                                property bool isPinned: root.contextMenuApp ? root.isAppPinned(root.contextMenuApp) : false
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 10
-                                    anchors.rightMargin: 10
-                                    spacing: 10
-                                    Text { text: parent.parent.isPinned ? "📌" : "📍"; color: root.themeText; font.pixelSize: 14 }
-                                    Text { text: parent.parent.isPinned ? "Unpin from Dock" : "Pin to Dock"; color: root.themeText; font.pixelSize: 13; font.weight: Font.Medium }
-                                }
-
-                                MouseArea {
-                                    id: pinMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        root.contextMenuOpen = false
-                                        if (root.contextMenuApp) root.togglePinApp(root.contextMenuApp)
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 36
-                                radius: 8
-                                color: hideMouse.containsMouse ? Qt.alpha("#ff4b6e", 0.2) : "transparent"
-
-                                property bool isHidden: root.contextMenuApp ? root.hiddenAppsList.indexOf(root.contextMenuApp.filePath) > -1 : false
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 10
-                                    anchors.rightMargin: 10
-                                    spacing: 10
-                                    Text { text: parent.parent.isHidden ? "👁️" : "🙈"; color: "#ff4b6e"; font.pixelSize: 14 }
-                                    Text { text: parent.parent.isHidden ? "Unhide" : "Hide"; color: "#ff4b6e"; font.pixelSize: 13; font.weight: Font.Medium }
-                                }
-
-                                MouseArea {
-                                    id: hideMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        root.contextMenuOpen = false
-                                        if (root.contextMenuApp) root.toggleHideApp(root.contextMenuApp.filePath)
                                     }
                                 }
                             }

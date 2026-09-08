@@ -18,7 +18,7 @@ Scope {
     property color themeBorder: "#a2d398"
     property color themeText: "#FFFFFF"
     property color themeTextMuted: "#8E8E93"
-    property color themeAccent: "#f5a97f" // Color for personal tasks/todos
+    property color themeAccent: "#f5a97f" 
     property int themeRounding: 15
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.7
@@ -61,6 +61,7 @@ Scope {
     // ============================================================
     // STATE, INDIAN CALENDAR & TODO PERSISTENCE
     // ============================================================
+    property date currentDate: new Date()
     property date selectedDate: new Date()
     property date displayedDate: new Date()
 
@@ -68,8 +69,20 @@ Scope {
     property var apiEvents: ({})
     property string targetMonitorName: ""
 
+    // Midnight Rollover Timer
+    Timer {
+        interval: 60000 
+        running: true
+        repeat: true
+        onTriggered: {
+            let now = new Date()
+            if (now.getDate() !== root.currentDate.getDate() || now.getMonth() !== root.currentDate.getMonth()) {
+                root.currentDate = now
+            }
+        }
+    }
+
     // --- STRICT FOCUSED MONITOR LOCK LOGIC ---
-    // Detects active monitor under cursor on launch and locks it
     function updateTargetMonitor() {
         if (root.targetMonitorName !== "") return
 
@@ -134,10 +147,11 @@ Scope {
         return y + "-" + m + "-" + day
     }
 
-    // Fetch Indian Holidays via Public API
+    // Fetch Indian Holidays via Public API with resilience
     function fetchIndianHolidays(year) {
         var xhr = new XMLHttpRequest()
         xhr.open("GET", "https://date.nager.at/api/v3/PublicHolidays/" + year + "/IN")
+        xhr.timeout = 5000 
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
                 try {
@@ -153,6 +167,8 @@ Scope {
                 } catch(e) {}
             }
         }
+        xhr.onerror = function() { console.log("Holiday API network error, falling back to static.") }
+        xhr.ontimeout = function() { console.log("Holiday API timeout, falling back to static.") }
         xhr.send()
     }
 
@@ -254,34 +270,21 @@ Scope {
             required property var modelData
             screen: modelData
 
-            // Identify if this instance is running on the target monitor
             property bool isTargetMonitor: modelData.name === root.targetMonitorName
-
-            // Only make it visible on the correct monitor
             visible: root.targetMonitorName !== "" && isTargetMonitor
 
-            // Render on top of other applications, including fullscreen apps
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-calendar"
-            
-            // Only capture keyboard focus if it's the target monitor
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            // Layer-shell anchors: snap to the top, automatically center horizontally
-            anchors {
-                top: true
-            }
-            // 50px spacing from the top edge
-            margins {
-                top: 50
-            }
+            anchors { top: true }
+            margins { top: 50 }
 
             implicitWidth: mainCard.width
             implicitHeight: mainCard.height
             color: "transparent"
 
-            // Close the widget cleanly when hitting Escape
             Shortcut {
                 sequence: "Escape"
                 onActivated: Qt.quit()
@@ -295,6 +298,29 @@ Scope {
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                 border.color: root.themeBorder
                 border.width: root.themeBorderSize
+
+                focus: true 
+
+                // Arrow Key Navigation Logic
+                Keys.onPressed: (event) => {
+                    let d = new Date(root.selectedDate)
+                    let changed = false
+                    
+                    if (event.key === Qt.Key_Left) { d.setDate(d.getDate() - 1); changed = true }
+                    else if (event.key === Qt.Key_Right) { d.setDate(d.getDate() + 1); changed = true }
+                    else if (event.key === Qt.Key_Up) { d.setDate(d.getDate() - 7); changed = true }
+                    else if (event.key === Qt.Key_Down) { d.setDate(d.getDate() + 7); changed = true }
+                    
+                    if (changed) {
+                        root.selectedDate = d
+                        if (d.getMonth() !== root.displayedDate.getMonth() || d.getFullYear() !== root.displayedDate.getFullYear()) {
+                            root.displayedDate = new Date(d.getFullYear(), d.getMonth(), 1)
+                            root.fetchIndianHolidays(d.getFullYear())
+                            gridAnim.restart()
+                        }
+                        event.accepted = true
+                    }
+                }
 
                 function getDayInfo(idx, baseDate) {
                     let year = baseDate.getFullYear()
@@ -322,7 +348,7 @@ Scope {
                         cellDate = new Date(year, month + 1, dayNum)
                     }
 
-                    let now = new Date()
+                    let now = root.currentDate
                     let isToday = isCurrentMonth &&
                                   (dayNum === now.getDate()) &&
                                   (month === now.getMonth()) &&
@@ -397,6 +423,7 @@ Scope {
                                         let newD = new Date(root.displayedDate.getFullYear(), root.displayedDate.getMonth() - 1, 1)
                                         root.displayedDate = newD
                                         root.fetchIndianHolidays(newD.getFullYear())
+                                        gridAnim.restart()
                                     }
                                 }
                             }
@@ -422,6 +449,7 @@ Scope {
                                         root.displayedDate = new Date()
                                         root.selectedDate = new Date()
                                         root.fetchIndianHolidays(root.displayedDate.getFullYear())
+                                        gridAnim.restart()
                                     }
                                 }
                             }
@@ -448,6 +476,7 @@ Scope {
                                         let newD = new Date(root.displayedDate.getFullYear(), root.displayedDate.getMonth() + 1, 1)
                                         root.displayedDate = newD
                                         root.fetchIndianHolidays(newD.getFullYear())
+                                        gridAnim.restart()
                                     }
                                 }
                             }
@@ -471,11 +500,22 @@ Scope {
                         }
                     }
 
-                    // Expanded 7-column Calendar Grid
+                    // Expanded 7-column Calendar Grid with Opacity Animation
                     Grid {
+                        id: daysGrid
                         columns: 7
                         spacing: 8
                         Layout.alignment: Qt.AlignHCenter
+
+                        NumberAnimation { 
+                            id: gridAnim 
+                            target: daysGrid 
+                            property: "opacity" 
+                            from: 0.0 
+                            to: 1.0 
+                            duration: 300 
+                            easing.type: Easing.OutCubic 
+                        }
 
                         Repeater {
                             model: 42
@@ -535,6 +575,14 @@ Scope {
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
                                         root.selectedDate = dayCell.dayInfo.dateObj
+                                        
+                                        if (dayCell.dayInfo.dateObj.getMonth() !== root.displayedDate.getMonth()) {
+                                            root.displayedDate = new Date(dayCell.dayInfo.dateObj.getFullYear(), dayCell.dayInfo.dateObj.getMonth(), 1)
+                                            root.fetchIndianHolidays(root.displayedDate.getFullYear())
+                                            gridAnim.restart()
+                                        }
+                                        
+                                        taskInputField.forceActiveFocus()
                                     }
                                 }
                             }
@@ -555,62 +603,75 @@ Scope {
                             font.weight: Font.Bold
                         }
 
-                        // Event List
-                        ColumnLayout {
+                        // Constrained Task List via ScrollView
+                        ScrollView {
                             Layout.fillWidth: true
-                            spacing: 6
+                            Layout.maximumHeight: 150
+                            Layout.preferredHeight: Math.min(eventListCol.implicitHeight, 150)
+                            clip: true
+                            ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-                            property var activeEvents: root.getEventsForDate(root.selectedDate)
+                            ColumnLayout {
+                                id: eventListCol
+                                width: parent.width
+                                spacing: 8
 
-                            Text {
-                                text: "No events or tasks scheduled for this date."
-                                color: root.themeTextMuted
-                                font.pixelSize: 12
-                                visible: parent.activeEvents.length === 0
-                            }
+                                property var activeEvents: root.getEventsForDate(root.selectedDate)
 
-                            Repeater {
-                                model: parent.activeEvents
-                                delegate: Rectangle {
-                                    Layout.fillWidth: true
-                                    implicitHeight: 34
-                                    radius: 8
-                                    color: modelData.type === "holiday" ? Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.15) : root.themeSurface
-                                    border.color: modelData.type === "holiday" ? root.themePrimary : "transparent"
-                                    border.width: 1
+                                Text {
+                                    text: "No events or tasks scheduled for this date."
+                                    color: root.themeTextMuted
+                                    font.pixelSize: 13
+                                    visible: parent.activeEvents.length === 0
+                                }
 
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 10
-                                        anchors.rightMargin: 10
+                                Repeater {
+                                    model: parent.activeEvents
+                                    delegate: Rectangle {
+                                        Layout.fillWidth: true
+                                        implicitHeight: 32
+                                        radius: 6
+                                        // Transparent background for personal tasks to match the screenshot look
+                                        color: modelData.type === "holiday" ? Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.15) : "transparent"
+                                        border.color: modelData.type === "holiday" ? root.themePrimary : "transparent"
+                                        border.width: modelData.type === "holiday" ? 1 : 0
 
-                                        Text {
-                                            text: modelData.type === "holiday" ? ("🇮🇳 " + modelData.text) : ("• " + modelData.text)
-                                            color: modelData.type === "holiday" ? root.themePrimary : root.themeText
-                                            font.pixelSize: 12
-                                            font.weight: modelData.type === "holiday" ? Font.Bold : Font.Normal
-                                            elide: Text.ElideRight
-                                            Layout.fillWidth: true
-                                        }
-
-                                        Rectangle {
-                                            width: 20; height: 20; radius: 10
-                                            color: delBtnMouse.containsMouse ? Qt.rgba(1.0, 0.3, 0.3, 0.4) : "transparent"
-                                            visible: modelData.type === "todo"
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: modelData.type === "holiday" ? 10 : 0
+                                            anchors.rightMargin: 4
+                                            spacing: 8
 
                                             Text {
-                                                anchors.centerIn: parent
-                                                text: "✕"
-                                                color: root.themeTextMuted
-                                                font.pixelSize: 10
+                                                text: modelData.type === "holiday" ? ("🇮🇳 " + modelData.text) : ("•  " + modelData.text)
+                                                color: modelData.type === "holiday" ? root.themePrimary : root.themeText
+                                                font.pixelSize: 13
+                                                font.weight: modelData.type === "holiday" ? Font.Bold : Font.Normal
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
                                             }
 
-                                            MouseArea {
-                                                id: delBtnMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: root.removeEventForSelectedDate(modelData.index)
+                                            // Cross Button to Delete Todo
+                                            Rectangle {
+                                                width: 24; height: 24; radius: 12
+                                                color: delBtnMouse.containsMouse ? Qt.rgba(1.0, 0.3, 0.3, 0.15) : "transparent"
+                                                visible: modelData.type === "todo"
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "✕"
+                                                    color: delBtnMouse.containsMouse ? "#ff4d4d" : root.themeTextMuted
+                                                    font.pixelSize: 12
+                                                    font.weight: Font.Bold
+                                                }
+
+                                                MouseArea {
+                                                    id: delBtnMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: root.removeEventForSelectedDate(modelData.index)
+                                                }
                                             }
                                         }
                                     }
@@ -643,7 +704,7 @@ Scope {
 
                                     Text {
                                         text: "Enter task for " + root.selectedDate.toLocaleDateString(Qt.locale(), "MMM d") + "..."
-                                        color: root.themeTextMuted
+                                        color: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.55)
                                         font.pixelSize: 13
                                         anchors.verticalCenter: parent.verticalCenter
                                         visible: !taskInputField.text && !taskInputField.activeFocus

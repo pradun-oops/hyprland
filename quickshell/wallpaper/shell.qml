@@ -26,7 +26,6 @@ Scope {
     // STRICT FOCUSED MONITOR LOCK LOGIC
     // ============================================================
     property string targetMonitorName: ""
-    property bool isPickingFolder: false
 
     function updateTargetMonitor() {
         if (root.targetMonitorName !== "") return
@@ -68,15 +67,101 @@ Scope {
     property color themeTextMuted: "#A1A1AA"
     property color themePrimary: "#d6bbfb"        
 
-    property string currentFolder: "file://" + Quickshell.env("HOME") + "/Pictures"
+    property string currentFolder: "file://" + Quickshell.env("HOME") + "/Pictures/Wallpapers"
     property string activeWallpaperPath: ""
     
-    // Engine & Animation Options
+    // Engine Options
     property var availableEngines: ["awww", "swww", "hyprpaper", "swaybg", "mpvpaper"]
     property string selectedEngine: "awww"
 
-    property var availableAnimations: ["grow", "fade", "wipe", "wave", "outer", "random"]
-    property string selectedAnimation: "grow"
+    // Cache Versioning
+    property int cacheEpoch: 0
+
+    // ============================================================
+    // THUMBNAIL CACHE GENERATOR (Multithreaded 8-worker Python)
+    // ============================================================
+    readonly property string cachePythonScript: `
+import os, sys, hashlib, subprocess
+from concurrent.futures import ThreadPoolExecutor
+
+CACHE_DIR = os.path.expanduser("~/.cache/qs_wallpaper_thumbs")
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+target_dir = sys.argv[1] if len(sys.argv) > 1 else ""
+if not target_dir or not os.path.isdir(target_dir):
+    sys.exit(0)
+
+has_pil = False
+try:
+    from PIL import Image
+    has_pil = True
+except ImportError:
+    pass
+
+EXTS = ('.png', '.jpg', '.jpeg', '.webp', '.gif')
+
+def make_thumb(filepath):
+    try:
+        if not os.path.isfile(filepath):
+            return
+        h = hashlib.md5(filepath.encode('utf-8')).hexdigest()
+        out_file = os.path.join(CACHE_DIR, f"{h}.jpg")
+        
+        mtime = os.path.getmtime(filepath)
+        if os.path.exists(out_file) and os.path.getmtime(out_file) >= mtime:
+            return
+            
+        if has_pil:
+            with Image.open(filepath) as img:
+                img.thumbnail((360, 240))
+                if img.mode != "RGB":
+                    img = img.convert("RGB")
+                img.save(out_file, "JPEG", quality=75)
+        else:
+            cmd = ["ffmpeg", "-y", "-loglevel", "quiet", "-i", filepath, "-vf", "scale=360:-1", "-vframes", "1", "-q:v", "5", out_file]
+            r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if r.returncode != 0:
+                subprocess.run(["magick", filepath, "-resize", "360x240^", "-gravity", "center", "-extent", "360x240", "-quality", "75", out_file], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+files = []
+try:
+    for entry in os.scandir(target_dir):
+        if entry.is_file() and entry.name.lower().endswith(EXTS):
+            files.append(entry.path)
+except Exception:
+    pass
+
+if files:
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        list(executor.map(make_thumb, files))
+`
+
+    Process {
+        id: cacheGeneratorProcess
+        property string folderPath: ""
+        running: false
+        command: ["python3", "-c", root.cachePythonScript, cacheGeneratorProcess.folderPath]
+        onExited: {
+            root.cacheEpoch++
+        }
+    }
+
+    function triggerCacheGeneration() {
+        let path = String(root.currentFolder).replace("file://", "")
+        if (path.length > 0 && path !== "/") {
+            if (cacheGeneratorProcess.running) {
+                cacheGeneratorProcess.running = false
+            }
+            cacheGeneratorProcess.folderPath = path
+            cacheGeneratorProcess.running = true
+        }
+    }
+
+    onCurrentFolderChanged: {
+        root.triggerCacheGeneration()
+    }
 
     // ============================================================
     // READ-ONLY DYNAMIC THEME PARSING
@@ -146,17 +231,18 @@ Scope {
         id: initFolderCheck
         command: [
             "sh", "-c",
-            "if [ -d \"$HOME/Pictures/Wallpapers\" ] && [ \"$(ls -A \"$HOME/Pictures/Wallpapers\" 2>/dev/null)\" ]; then echo \"$HOME/Pictures/Wallpapers\"; " +
-            "elif [ -d \"$HOME/Pictures/wallpapers\" ] && [ \"$(ls -A \"$HOME/Pictures/wallpapers\" 2>/dev/null)\" ]; then echo \"$HOME/Pictures/wallpapers\"; " +
-            "elif [ -d \"$HOME/wallpapers\" ] && [ \"$(ls -A \"$HOME/wallpapers\" 2>/dev/null)\" ]; then echo \"$HOME/wallpapers\"; " +
+            "if [ -d \"$HOME/Pictures/Wallpapers\" ]; then echo \"$HOME/Pictures/Wallpapers\"; " +
+            "elif [ -d \"$HOME/Pictures/wallpapers\" ]; then echo \"$HOME/Pictures/wallpapers\"; " +
+            "elif [ -d \"$HOME/wallpapers\" ]; then echo \"$HOME/wallpapers\"; " +
             "else echo \"$HOME/Pictures\"; fi"
         ]
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
                 let dir = this.text.trim();
-                if (dir.length > 0) {
+                if (dir.length > 0 && dir.startsWith("/")) {
                     root.currentFolder = "file://" + dir;
+                    root.triggerCacheGeneration();
                 }
             }
         }
@@ -169,39 +255,11 @@ Scope {
         }
         colorFile.reload()
         generalConfigFile.reload()
+        root.triggerCacheGeneration()
     }
 
     // ============================================================
-    // FOLDER PICKER PROCESS (Strictly GTK via Zenity / PyGObject)
-    // ============================================================
-    Process {
-        id: folderPickerProcess
-        running: false
-        command: [
-            "sh", "-c",
-            "if command -v zenity >/dev/null 2>&1; then " +
-            "    zenity --file-selection --directory --title='Select Wallpaper Folder' --filename=\"$HOME/Pictures/\" 2>/dev/null; " +
-            "else " +
-            "    python3 -c \"import gi; gi.require_version('Gtk', '3.0'); from gi.repository import Gtk; d = Gtk.FileChooserNative.new('Select Folder', None, Gtk.FileChooserAction.SELECT_FOLDER, 'Open', 'Cancel'); r = d.run(); print(d.get_filename() if r == Gtk.ResponseType.ACCEPT else ''); d.destroy()\" 2>/dev/null; " +
-            "fi"
-        ]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let selected = this.text.trim();
-                if (selected.length > 0) {
-                    root.currentFolder = "file://" + selected;
-                    searchInput.text = "";
-                }
-                root.isPickingFolder = false;
-            }
-        }
-        onExited: {
-            root.isPickingFolder = false;
-        }
-    }
-
-    // ============================================================
-    // WALLPAPER APPLICATION & MATUGEN COLOR EXTRACTION
+    // WALLPAPER APPLICATION (Forced "fade" Animation)
     // ============================================================
     Process {
         id: applyWallpaper
@@ -251,7 +309,7 @@ Scope {
             "sh",
             root.selectedEngine,
             applyWallpaper.imagePath,
-            root.selectedAnimation
+            "fade" // Default forced animation
         ]
         
         onExited: running = false
@@ -260,11 +318,10 @@ Scope {
     function updateFilters(query) {
         let q = query.trim()
         if (q === "") {
-            folderModel.nameFilters = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.PNG", "*.JPG", "*.JPEG", "*.GIF", "*.WEBP"]
+            folderModel.nameFilters = ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp"]
         } else {
             folderModel.nameFilters = [
-                "*" + q + "*.png", "*" + q + "*.jpg", "*" + q + "*.jpeg", "*" + q + "*.gif", "*" + q + "*.webp",
-                "*" + q + "*.PNG", "*" + q + "*.JPG", "*" + q + "*.JPEG", "*" + q + "*.GIF", "*" + q + "*.WEBP"
+                "*" + q + "*.png", "*" + q + "*.jpg", "*" + q + "*.jpeg", "*" + q + "*.gif", "*" + q + "*.webp"
             ]
         }
     }
@@ -284,10 +341,9 @@ Scope {
 
             visible: root.targetMonitorName !== "" && isTargetMonitor
 
-            WlrLayershell.keyboardFocus: (!root.isPickingFolder && isTargetMonitor) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             WlrLayershell.namespace: "qs-wallselect"
-            
-            WlrLayershell.layer: root.isPickingFolder ? WlrLayer.Bottom : WlrLayer.Overlay
+            WlrLayershell.layer: WlrLayer.Overlay
             exclusiveZone: -1
 
             Shortcut {
@@ -314,9 +370,6 @@ Scope {
                 width: Math.min(1150, parent.width - 40)
                 height: Math.min(760, parent.height - 80)
                 anchors.centerIn: parent
-
-                visible: root.targetMonitorName !== "" && isTargetMonitor
-                focus: isTargetMonitor
 
                 radius: root.themeRounding
                 border.width: root.themeBorderSize
@@ -409,7 +462,7 @@ Scope {
                                 width: engineCombo.width
                                 padding: 4
                                 background: Rectangle {
-                                    color: Qt.rgba(0.05, 0.05, 0.07, 0.35) // High transparency for compositor blur
+                                    color: Qt.rgba(0.05, 0.05, 0.07, 0.35)
                                     radius: Math.max(4, root.themeRounding - 6)
                                     border.width: 1
                                     border.color: Qt.alpha(root.themePrimary, 0.45)
@@ -436,129 +489,6 @@ Scope {
                                     font.pixelSize: 13
                                     verticalAlignment: Text.AlignVCenter
                                     horizontalAlignment: Text.AlignHCenter
-                                }
-                            }
-                        }
-
-                        // Styled Animation Dropdown (with Blue Accent & Blur Support)
-                        ComboBox {
-                            id: animCombo
-                            Layout.preferredHeight: 38
-                            Layout.preferredWidth: 135
-                            model: root.availableAnimations
-                            currentIndex: root.availableAnimations.indexOf(root.selectedAnimation)
-                            onCurrentTextChanged: {
-                                if (currentText !== "") {
-                                    root.selectedAnimation = currentText
-                                }
-                            }
-                            
-                            background: Rectangle {
-                                color: animCombo.down ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, 0.06)
-                                radius: Math.max(4, root.themeRounding - 4)
-                                border.width: 1
-                                border.color: animCombo.activeFocus ? "#3b82f6" : Qt.rgba(1, 1, 1, 0.14)
-                            }
-
-                            contentItem: RowLayout {
-                                spacing: 8
-                                anchors.left: parent.left
-                                anchors.leftMargin: 12
-                                anchors.right: parent.right
-                                anchors.rightMargin: 24
-                                anchors.verticalCenter: parent.verticalCenter
-
-                                Text {
-                                    text: "✨"
-                                    font.pixelSize: 15
-                                    color: "#3b82f6"
-                                }
-                                Text {
-                                    text: animCombo.currentText
-                                    color: root.themeText
-                                    font.pixelSize: 13
-                                    font.weight: Font.Medium
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                }
-                            }
-
-                            indicator: Text {
-                                x: animCombo.width - width - 10
-                                y: (animCombo.height - height) / 2
-                                text: "▾"
-                                font.pixelSize: 13
-                                color: root.themeTextMuted
-                            }
-
-                            popup: Popup {
-                                y: animCombo.height + 6
-                                width: animCombo.width
-                                padding: 4
-                                background: Rectangle {
-                                    color: Qt.rgba(0.05, 0.05, 0.07, 0.35) // High transparency for compositor blur
-                                    radius: Math.max(4, root.themeRounding - 6)
-                                    border.width: 1
-                                    border.color: "#3b82f6" // Blue border for animation dialog
-                                }
-                                contentItem: ListView {
-                                    clip: true
-                                    implicitHeight: contentHeight
-                                    model: animCombo.popup.visible ? animCombo.delegateModel : null
-                                    currentIndex: animCombo.highlightedIndex
-                                }
-                            }
-
-                            delegate: ItemDelegate {
-                                width: animCombo.width - 8
-                                height: 34
-                                highlighted: animCombo.highlightedIndex === index
-                                background: Rectangle {
-                                    color: highlighted ? Qt.rgba(0.23, 0.51, 0.96, 0.3) : (hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
-                                    radius: 5
-                                }
-                                contentItem: Text {
-                                    text: modelData
-                                    color: highlighted ? "#3b82f6" : root.themeText
-                                    font.pixelSize: 13
-                                    verticalAlignment: Text.AlignVCenter
-                                    horizontalAlignment: Text.AlignHCenter
-                                }
-                            }
-                        }
-
-                        // Browse Button
-                        Rectangle {
-                            Layout.preferredHeight: 38
-                            Layout.preferredWidth: 105
-                            radius: Math.max(4, root.themeRounding - 4)
-                            color: browseMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.2) : Qt.rgba(1, 1, 1, 0.06)
-                            border.width: 1
-                            border.color: Qt.rgba(1, 1, 1, 0.14)
-
-                            RowLayout {
-                                anchors.centerIn: parent
-                                spacing: 6
-                                Text {
-                                    text: "📁"
-                                    font.pixelSize: 15
-                                }
-                                Text {
-                                    text: "Browse"
-                                    font.pixelSize: 12
-                                    color: root.themeText
-                                    font.weight: Font.Medium
-                                }
-                            }
-
-                            MouseArea {
-                                id: browseMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.isPickingFolder = true
-                                    folderPickerProcess.running = true
                                 }
                             }
                         }
@@ -621,7 +551,7 @@ Scope {
                         Text {
                             anchors.centerIn: parent
                             visible: folderModel.count === 0
-                            text: "No images found in this folder.\nClick 'Browse' to select your wallpaper directory."
+                            text: "No images found in:\n" + String(root.currentFolder).replace("file://", "")
                             horizontalAlignment: Text.AlignHCenter
                             color: root.themeTextMuted
                             font.pixelSize: 14
@@ -632,6 +562,7 @@ Scope {
                             id: imageGrid
                             anchors.fill: parent
                             clip: true
+                            cacheBuffer: 600
                             
                             readonly property int columns: Math.max(1, Math.floor(width / 230))
                             cellWidth: width > 0 ? Math.floor(width / columns) : 230
@@ -640,7 +571,7 @@ Scope {
                             model: FolderListModel {
                                 id: folderModel
                                 folder: root.currentFolder
-                                nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp", "*.PNG", "*.JPG", "*.JPEG", "*.GIF", "*.WEBP"]
+                                nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp"]
                                 showDirs: false
                                 caseSensitive: false
                                 sortField: FolderListModel.Time
@@ -656,8 +587,9 @@ Scope {
                                 width: imageGrid.cellWidth
                                 height: imageGrid.cellHeight
 
-                                property string fullPath: filePath ? filePath : (model.fileUrl ? model.fileUrl.toString().replace("file://", "") : "")
-                                property string displayName: fileName ? fileName : ""
+                                property string fullPath: model.filePath ? model.filePath : (model.fileUrl ? model.fileUrl.toString().replace("file://", "") : "")
+                                property string displayName: model.fileName ? model.fileName : ""
+                                property string thumbFile: Quickshell.env("HOME") + "/.cache/qs_wallpaper_thumbs/" + Qt.md5(fullPath) + ".jpg"
 
                                 Rectangle {
                                     anchors.fill: parent
@@ -671,19 +603,44 @@ Scope {
                                     
                                     clip: true
 
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰋩"
+                                        font.pixelSize: 24
+                                        color: Qt.rgba(1, 1, 1, 0.08)
+                                        visible: imgItem.status !== Image.Ready
+                                    }
+
                                     Image {
+                                        id: imgItem
                                         anchors.fill: parent
-                                        source: "file://" + fullPath
                                         fillMode: Image.PreserveAspectCrop
                                         asynchronous: true
                                         cache: true
-                                        sourceSize.width: 440
-                                        sourceSize.height: 290
+                                        sourceSize: Qt.size(280, 180)
                                         smooth: true
-                                        mipmap: true
-                                        
-                                        opacity: itemMouse.containsMouse ? 0.85 : 1.0
-                                        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                                        property bool fallbackToOriginal: false
+
+                                        source: fallbackToOriginal ? ("file://" + fullPath) : ("file://" + thumbFile)
+
+                                        onStatusChanged: {
+                                            if (status === Image.Error && !fallbackToOriginal) {
+                                                fallbackToOriginal = true
+                                            }
+                                        }
+
+                                        Connections {
+                                            target: root
+                                            function onCacheEpochChanged() {
+                                                if (imgItem.fallbackToOriginal) {
+                                                    imgItem.fallbackToOriginal = false
+                                                }
+                                            }
+                                        }
+
+                                        opacity: status === Image.Ready ? (itemMouse.containsMouse ? 0.85 : 1.0) : 0.0
+                                        Behavior on opacity { NumberAnimation { duration: 120 } }
                                     }
                                     
                                     Rectangle {
@@ -693,7 +650,7 @@ Scope {
                                         height: 32
                                         color: Qt.rgba(0, 0, 0, 0.78)
                                         opacity: itemMouse.containsMouse ? 1.0 : 0.0
-                                        Behavior on opacity { NumberAnimation { duration: 150 } }
+                                        Behavior on opacity { NumberAnimation { duration: 120 } }
                                         
                                         Text {
                                             anchors.fill: parent

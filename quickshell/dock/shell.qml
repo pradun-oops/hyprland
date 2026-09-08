@@ -20,7 +20,7 @@ Scope {
     
     property int themeRounding: 20
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.1
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     
     property color themeBackground: "#141416" 
@@ -31,8 +31,8 @@ Scope {
     // ============================================================
     QtObject {
         id: style
-        property int animDuration: 480         // Relaxed smooth expansion/movement duration
-        property int fadeDuration: 380         // Relaxed fade-in/out duration
+        property int animDuration: 480         
+        property int fadeDuration: 380         
         property var defaultEasing: Easing.OutQuint
         property var fadeEasing: Easing.OutCubic
         property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.12)
@@ -278,6 +278,10 @@ Scope {
 
             property string outputName: dockWindow.screen ? dockWindow.screen.name : ""
 
+            // TOOLTIP GLOBAL STATE
+            property string activeTooltipText: ""
+            property real activeTooltipX: 0
+
             // ============================================================
             // DOCK STATE LOGIC
             // ============================================================
@@ -327,7 +331,8 @@ Scope {
             onDockShouldBeVisibleChanged: {
                 if (dockShouldBeVisible) {
                     hitboxShrinkTimer.stop()
-                    currentHitboxHeight = 110
+                    // Increased window bounds slightly to accommodate the unified tooltip floating on top
+                    currentHitboxHeight = 140
                 } else {
                     hitboxShrinkTimer.restart()
                 }
@@ -496,6 +501,40 @@ except Exception:
                     HoverHandler { id: bottomHoverHandler }
                 }
 
+                // UNIFIED SHARED TOOLTIP (Floats safely outside clipping areas)
+                Rectangle {
+                    id: sharedTooltip
+                    height: 26
+                    width: tooltipLabel.implicitWidth + 20
+                    radius: 6
+                    color: Qt.alpha(root.themeBackground, 0.95)
+                    border.width: 1
+                    border.color: Qt.alpha(root.themeBorder, 0.3)
+                    z: 20
+                    
+                    // Anchored to stay directly above the dock at all times
+                    anchors.bottom: dockContainer.top
+                    anchors.bottomMargin: 6
+                    
+                    // Mathematical bounding calculation preventing edge clipping
+                    property real targetX: dockWindow.activeTooltipX - (width / 2)
+                    x: Math.max(0, Math.min(targetX, rootContainer.width - width))
+                    Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                    
+                    opacity: dockWindow.activeTooltipText !== "" ? 1.0 : 0.0
+                    visible: opacity > 0
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                    
+                    Text {
+                        id: tooltipLabel
+                        anchors.centerIn: parent
+                        text: dockWindow.activeTooltipText
+                        color: root.themeText
+                        font.pixelSize: 13
+                        font.weight: Font.Medium
+                    }
+                }
+
                 Rectangle {
                     id: dockContainer
                     anchors.horizontalCenter: parent.horizontalCenter
@@ -544,7 +583,7 @@ except Exception:
                     RowLayout {
                         id: masterDockLayout
                         anchors.centerIn: parent
-                        spacing: 8
+                        spacing: 12
                         z: 10
 
                         // 0. APP LAUNCHER GRID ICON
@@ -553,12 +592,10 @@ except Exception:
                             height: 52
 
                             scale: launcherMouse.containsMouse ? 1.15 : 1.0
-                            Behavior on scale { 
-                                NumberAnimation { 
-                                    duration: root.animEnabled ? style.animDuration : 0
-                                    easing.type: style.defaultEasing 
-                                } 
-                            }
+                            anchors.verticalCenterOffset: launcherMouse.containsMouse ? -4 : 0
+                            
+                            Behavior on scale { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.defaultEasing } }
+                            Behavior on anchors.verticalCenterOffset { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.defaultEasing } }
 
                             Rectangle {
                                 anchors.fill: parent
@@ -575,10 +612,7 @@ except Exception:
                                     Repeater {
                                         model: 9
                                         delegate: Rectangle {
-                                            width: 5
-                                            height: 5
-                                            radius: 2.5
-                                            color: root.themePrimary
+                                            width: 5; height: 5; radius: 2.5; color: root.themePrimary
                                         }
                                     }
                                 }
@@ -592,6 +626,21 @@ except Exception:
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     root.exec("quickshell -c ~/.config/hypr/quickshell/drawer/")
+                                }
+                                onContainsMouseChanged: {
+                                    if (containsMouse) {
+                                        let pos = mapToItem(rootContainer, width/2, 0)
+                                        dockWindow.activeTooltipX = pos.x
+                                        dockWindow.activeTooltipText = "App Drawer"
+                                    } else if (dockWindow.activeTooltipText === "App Drawer") {
+                                        dockWindow.activeTooltipText = ""
+                                    }
+                                }
+                                onPositionChanged: {
+                                    if (containsMouse) {
+                                        let pos = mapToItem(rootContainer, width/2, 0)
+                                        dockWindow.activeTooltipX = pos.x
+                                    }
                                 }
                             }
                         }
@@ -608,13 +657,12 @@ except Exception:
                         // 1. PINNED APPS
                         ListView {
                             id: dockList
-                            Layout.preferredWidth: pinnedAppsModel.count * 72 - 8 
+                            Layout.preferredWidth: pinnedAppsModel.count * 76 - 12
                             Layout.preferredHeight: 64
                             orientation: ListView.Horizontal
-                            spacing: 8
+                            spacing: 12 
                             interactive: false 
 
-                            // Relaxed smooth transitions
                             add: Transition {
                                 ParallelAnimation {
                                     NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: style.fadeDuration; easing.type: style.fadeEasing }
@@ -669,12 +717,10 @@ except Exception:
                                         }
 
                                         scale: itemMouse.containsMouse && !Drag.active ? 1.15 : (Drag.active ? 1.05 : 1.0)
-                                        Behavior on scale { 
-                                            NumberAnimation { 
-                                                duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.defaultEasing 
-                                            } 
-                                        }
+                                        anchors.verticalCenterOffset: itemMouse.containsMouse && !Drag.active ? -4 : 0
+                                        
+                                        Behavior on scale { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.defaultEasing } }
+                                        Behavior on anchors.verticalCenterOffset { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.defaultEasing } }
 
                                         states: [
                                             State {
@@ -713,57 +759,39 @@ except Exception:
                                             Row {
                                                 anchors.horizontalCenter: parent.horizontalCenter
                                                 anchors.bottom: parent.bottom
-                                                anchors.bottomMargin: 2
+                                                anchors.bottomMargin: 4
                                                 spacing: 4
                                                 visible: iconContainer.instanceCount > 0
                                                 Repeater {
                                                     model: Math.min(iconContainer.instanceCount, 3)
-                                                    Rectangle { 
-                                                        width: 5
-                                                        height: 5
-                                                        radius: 2.5
-                                                        color: root.themePrimary 
-                                                    }
+                                                    Rectangle { width: 5; height: 5; radius: 2.5; color: root.themePrimary }
                                                 }
                                             }
                                         }
+                                    }
 
-                                        MouseArea {
-                                            id: itemMouse
-                                            anchors.fill: parent
-                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                            hoverEnabled: true
-                                            cursorShape: dragActive ? Qt.ClosedHandCursor : Qt.PointingHandCursor
-                                            
-                                            property bool dragActive: false
+                                    MouseArea {
+                                        id: itemMouse
+                                        anchors.fill: parent
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                        hoverEnabled: true
+                                        cursorShape: dragActive ? Qt.ClosedHandCursor : Qt.PointingHandCursor
+                                        
+                                        property bool dragActive: false
 
-                                            drag.target: dragActive ? iconContainer : null
-                                            drag.axis: Drag.XAxis
-                                            
-                                            onPressAndHold: (mouse) => {
-                                                if (mouse.button === Qt.LeftButton) {
-                                                    itemMouse.dragActive = true
-                                                }
+                                        drag.target: dragActive ? iconContainer : null
+                                        drag.axis: Drag.XAxis
+                                        
+                                        onPressAndHold: (mouse) => {
+                                            if (mouse.button === Qt.LeftButton) {
+                                                itemMouse.dragActive = true
                                             }
+                                        }
 
-                                            onClicked: (mouse) => {
-                                                if (mouse.button === Qt.LeftButton) {
-                                                    if (!itemMouse.dragActive) {
-                                                        dockWindow.launchApp({
-                                                            name: model.name,
-                                                            iconName: model.iconName,
-                                                            cmd: model.cmd,
-                                                            wmClass: model.wmClass,
-                                                            process: model.process,
-                                                            filePath: model.filePath || ""
-                                                        })
-                                                    }
-                                                }
-                                            }
-
-                                            onDoubleClicked: (mouse) => {
-                                                if (mouse.button === Qt.RightButton) {
-                                                    root.togglePinApp({
+                                        onClicked: (mouse) => {
+                                            if (mouse.button === Qt.LeftButton) {
+                                                if (!itemMouse.dragActive) {
+                                                    dockWindow.launchApp({
                                                         name: model.name,
                                                         iconName: model.iconName,
                                                         cmd: model.cmd,
@@ -773,13 +801,53 @@ except Exception:
                                                     })
                                                 }
                                             }
-                                            
-                                            onReleased: {
-                                                if (itemMouse.dragActive) {
-                                                    iconContainer.Drag.drop()
-                                                    persistTimer.restart()
-                                                    itemMouse.dragActive = false
-                                                }
+                                        }
+
+                                        onDoubleClicked: (mouse) => {
+                                            if (mouse.button === Qt.RightButton) {
+                                                root.togglePinApp({
+                                                    name: model.name,
+                                                    iconName: model.iconName,
+                                                    cmd: model.cmd,
+                                                    wmClass: model.wmClass,
+                                                    process: model.process,
+                                                    filePath: model.filePath || ""
+                                                })
+                                            }
+                                        }
+                                        
+                                        onReleased: {
+                                            if (itemMouse.dragActive) {
+                                                iconContainer.Drag.drop()
+                                                persistTimer.restart()
+                                                itemMouse.dragActive = false
+                                            }
+                                        }
+                                        
+                                        onContainsMouseChanged: {
+                                            if (containsMouse && !dragActive) {
+                                                let pos = mapToItem(rootContainer, width/2, 0)
+                                                dockWindow.activeTooltipX = pos.x
+                                                dockWindow.activeTooltipText = model.name
+                                            } else if (dockWindow.activeTooltipText === model.name) {
+                                                dockWindow.activeTooltipText = ""
+                                            }
+                                        }
+                                        
+                                        onDragActiveChanged: {
+                                            if (dragActive && dockWindow.activeTooltipText === model.name) {
+                                                dockWindow.activeTooltipText = ""
+                                            } else if (!dragActive && containsMouse) {
+                                                let pos = mapToItem(rootContainer, width/2, 0)
+                                                dockWindow.activeTooltipX = pos.x
+                                                dockWindow.activeTooltipText = model.name
+                                            }
+                                        }
+
+                                        onPositionChanged: {
+                                            if (containsMouse && !dragActive) {
+                                                let pos = mapToItem(rootContainer, width/2, 0)
+                                                dockWindow.activeTooltipX = pos.x
                                             }
                                         }
                                     }
@@ -799,92 +867,110 @@ except Exception:
                         }
 
                         // 3. UNPINNED RUNNING APPS
-                        Row {
-                            spacing: 8
+                        ListView {
+                            id: unpinnedList
+                            Layout.preferredWidth: Math.min(dockWindow.unpinnedApps.length * 76 - 12, 400)
+                            Layout.preferredHeight: 64
+                            orientation: ListView.Horizontal
+                            spacing: 12
                             visible: dockWindow.unpinnedApps.length > 0
+                            interactive: dockWindow.unpinnedApps.length > 5 
+                            clip: true
                             
-                            Repeater {
-                                model: dockWindow.unpinnedApps
-                                Item {
-                                    width: 64
-                                    height: 64
+                            model: dockWindow.unpinnedApps
+                            
+                            delegate: Item {
+                                width: 64
+                                height: 64
+                                
+                                scale: unpinnedMouse.containsMouse ? 1.15 : 1.0
+                                anchors.verticalCenterOffset: unpinnedMouse.containsMouse ? -4 : 0
+                                
+                                Behavior on scale { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.defaultEasing } }
+                                Behavior on anchors.verticalCenterOffset { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.defaultEasing } }
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 16
+                                    color: "transparent"
+
+                                    ToolButton {
+                                        anchors.centerIn: parent
+                                        visible: !modelData.iconName.startsWith("/")
+                                        icon.name: !modelData.iconName.startsWith("/") ? modelData.iconName : ""
+                                        icon.width: 52
+                                        icon.height: 52
+                                        icon.color: "transparent"
+                                        background: Item {}
+                                        hoverEnabled: false
+                                        down: false
+                                        padding: 0
+                                    }
+
+                                    Image {
+                                        anchors.centerIn: parent
+                                        visible: modelData.iconName.startsWith("/")
+                                        source: modelData.iconName.startsWith("/") ? "file://" + modelData.iconName : ""
+                                        sourceSize: Qt.size(52, 52)
+                                        fillMode: Image.PreserveAspectFit
+                                    }
                                     
-                                    scale: unpinnedMouse.containsMouse ? 1.15 : 1.0
-                                    Behavior on scale { 
-                                        NumberAnimation { 
-                                            duration: root.animEnabled ? style.animDuration : 0
-                                            easing.type: style.defaultEasing 
-                                        } 
-                                    }
-
                                     Rectangle {
-                                        anchors.fill: parent
-                                        radius: 16
-                                        color: "transparent"
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        anchors.bottom: parent.bottom
+                                        anchors.bottomMargin: 4 
+                                        width: 5; height: 5; radius: 2.5
+                                        color: root.themePrimary
+                                    }
+                                }
 
-                                        ToolButton {
-                                            anchors.centerIn: parent
-                                            visible: !modelData.iconName.startsWith("/")
-                                            icon.name: !modelData.iconName.startsWith("/") ? modelData.iconName : ""
-                                            icon.width: 52
-                                            icon.height: 52
-                                            icon.color: "transparent"
-                                            background: Item {}
-                                            hoverEnabled: false
-                                            down: false
-                                            padding: 0
-                                        }
-
-                                        Image {
-                                            anchors.centerIn: parent
-                                            visible: modelData.iconName.startsWith("/")
-                                            source: modelData.iconName.startsWith("/") ? "file://" + modelData.iconName : ""
-                                            sourceSize: Qt.size(52, 52)
-                                            fillMode: Image.PreserveAspectFit
-                                        }
-                                        
-                                        Rectangle {
-                                            anchors.horizontalCenter: parent.horizontalCenter
-                                            anchors.bottom: parent.bottom
-                                            anchors.bottomMargin: 2
-                                            width: 5
-                                            height: 5
-                                            radius: 2.5
-                                            color: root.themePrimary
+                                MouseArea {
+                                    id: unpinnedMouse
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    
+                                    onClicked: (mouse) => {
+                                        if (mouse.button === Qt.LeftButton) {
+                                            dockWindow.launchApp({
+                                                name: modelData.name,
+                                                iconName: modelData.iconName,
+                                                cmd: modelData.cmd,
+                                                wmClass: modelData.wmClass,
+                                                process: modelData.process,
+                                                filePath: modelData.filePath || ""
+                                            })
                                         }
                                     }
 
-                                    MouseArea {
-                                        id: unpinnedMouse
-                                        anchors.fill: parent
-                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        
-                                        onClicked: (mouse) => {
-                                            if (mouse.button === Qt.LeftButton) {
-                                                dockWindow.launchApp({
-                                                    name: modelData.name,
-                                                    iconName: modelData.iconName,
-                                                    cmd: modelData.cmd,
-                                                    wmClass: modelData.wmClass,
-                                                    process: modelData.process,
-                                                    filePath: modelData.filePath || ""
-                                                })
-                                            }
+                                    onDoubleClicked: (mouse) => {
+                                        if (mouse.button === Qt.RightButton) {
+                                            root.togglePinApp({
+                                                name: modelData.name,
+                                                iconName: modelData.iconName,
+                                                cmd: modelData.cmd,
+                                                wmClass: modelData.wmClass,
+                                                process: modelData.process,
+                                                filePath: modelData.filePath || ""
+                                            })
                                         }
-
-                                        onDoubleClicked: (mouse) => {
-                                            if (mouse.button === Qt.RightButton) {
-                                                root.togglePinApp({
-                                                    name: modelData.name,
-                                                    iconName: modelData.iconName,
-                                                    cmd: modelData.cmd,
-                                                    wmClass: modelData.wmClass,
-                                                    process: modelData.process,
-                                                    filePath: modelData.filePath || ""
-                                                })
-                                            }
+                                    }
+                                    
+                                    onContainsMouseChanged: {
+                                        if (containsMouse) {
+                                            let pos = mapToItem(rootContainer, width/2, 0)
+                                            dockWindow.activeTooltipX = pos.x
+                                            dockWindow.activeTooltipText = modelData.name
+                                        } else if (dockWindow.activeTooltipText === modelData.name) {
+                                            dockWindow.activeTooltipText = ""
+                                        }
+                                    }
+                                    
+                                    onPositionChanged: {
+                                        if (containsMouse) {
+                                            let pos = mapToItem(rootContainer, width/2, 0)
+                                            dockWindow.activeTooltipX = pos.x
                                         }
                                     }
                                 }

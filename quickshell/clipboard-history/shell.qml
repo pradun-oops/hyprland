@@ -11,7 +11,7 @@ Scope {
     id: root
 
     // ============================================================
-    // ESCAPE KEY SHORTCUT
+    // SHORTCUTS & APP LOGIC
     // ============================================================
     Shortcut {
         sequence: "Escape"
@@ -19,31 +19,33 @@ Scope {
     }
 
     // ============================================================
-    // ADAPTIVE THEME PROPERTIES
+    // THEME & FONT PROPERTIES
     // ============================================================
-    property color themeBorder: "#ffffff"
-    property color themePrimary: "#ffffff"
-    property color themeText: "#ffffff"
+    property color themeBorder: "#38bdf8"
+    property color themePrimary: "#38bdf8"
+    property color themeText: "#f4f4f5"
     property color themeTextMuted: "#a1a1aa"
     
-    property int themeRounding: 22
+    property int themeRounding: 14
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.72
+    property real themeBgAlpha: 0.88
     property bool animEnabled: true
-    property int animDuration: 220
+    property int animDuration: 180
     
-    property color themeBackground: "#141416" 
+    property color themeBackground: "#121215" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.04) 
     property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.08)
 
+    // Font stack for icon fallback rendering
+    property string iconFontFamily: "Symbols Nerd Font, JetBrainsMono Nerd Font, Font Awesome 6 Free, Noto Color Emoji, sans-serif"
+
     // ============================================================
-    // STRICT FOCUSED MONITOR LOCK LOGIC
+    // MONITOR LOCK LOGIC
     // ============================================================
     property string targetMonitorName: ""
 
     function updateTargetMonitor() {
         if (root.targetMonitorName !== "") return
-
         if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
             root.targetMonitorName = Hyprland.focusedMonitor.name
         }
@@ -125,21 +127,11 @@ Scope {
         }
     }
 
-    Component.onCompleted: {
-        root.updateTargetMonitor()
-        if (root.targetMonitorName === "") {
-            fallbackMonitorTimer.start()
-        }
-
-        colorFile.reload()
-        generalConfigFile.reload()
-        animConfigFile.reload()
-        historyFile.reload()
-    }
-
     // ============================================================
-    // COMMAND EXECUTION & HISTORY MANAGEMENT
+    // CLIPBOARD LOGIC (cliphist)
     // ============================================================
+    ListModel { id: clipboardModel }
+
     Process { id: execProcess }
     function exec(cmd) {
         execProcess.running = false;
@@ -147,70 +139,87 @@ Scope {
         execProcess.running = true
     }
 
-    ListModel { id: historyModel }
+    Process {
+        id: fetchClipboardProcess
+        running: false
+        command: ["cliphist", "list"]
+        stdout: StdioCollector { id: clipboardCollector }
 
-    FileView {
-        id: historyFile
-        path: Quickshell.env("HOME") + "/.config/quickshell/notification_history.json"
-        watchChanges: true
-        onFileChanged: reload()
-        onLoaded: {
-            try {
-                let data = JSON.parse(text())
-                historyModel.clear()
-                for (let i = 0; i < data.length; i++) {
-                    historyModel.append(data[i])
+        onExited: (exitCode) => {
+            clipboardModel.clear()
+            if (exitCode !== 0 || !clipboardCollector.text) return;
+
+            let lines = clipboardCollector.text.trim().split("\n")
+            let maxItems = Math.min(lines.length, 60)
+
+            for (let i = 0; i < maxItems; i++) {
+                let line = lines[i]
+                let tabIndex = line.indexOf("\t")
+                if (tabIndex === -1) continue;
+
+                let cid = line.substring(0, tabIndex)
+                let rawContent = line.substring(tabIndex + 1)
+                
+                let isImg = rawContent.includes("[[ binary data")
+                let displayTxt = rawContent.trim()
+                
+                if (isImg) {
+                    let cleanedInfo = rawContent.replace("[[ binary data ", "").replace(" ]]", "")
+                    displayTxt = "Image (" + cleanedInfo + ")"
                 }
-            } catch(e) {
-                historyModel.clear()
+
+                clipboardModel.append({
+                    "id": cid,
+                    "raw": line,
+                    "content": displayTxt,
+                    "isImage": isImg,
+                    "charCount": isImg ? 0 : rawContent.trim().length,
+                    "lineCount": isImg ? 1 : rawContent.split("\n").length
+                })
             }
         }
     }
 
-    function clearAllHistory() {
-        let path = Quickshell.env("HOME") + "/.config/quickshell/notification_history.json"
-        exec("echo '[]' > " + path)
+    function refreshClipboard() {
+        fetchClipboardProcess.running = false
+        fetchClipboardProcess.running = true
     }
 
-    function removeNotification(idx) {
-        if (idx >= 0 && idx < historyModel.count) {
-            historyModel.remove(idx)
-            let arr = []
-            for (let i = 0; i < historyModel.count; i++) {
-                arr.push(historyModel.get(i))
-            }
-            let path = Quickshell.env("HOME") + "/.config/quickshell/notification_history.json"
-            let jsonStr = JSON.stringify(arr).replace(/"/g, '\\"')
-            exec("echo \"" + jsonStr + "\" > " + path)
-        }
+    function copyItem(rawLine) {
+        let safeLine = rawLine.replace(/'/g, "'\\''")
+        exec("echo '" + safeLine + "' | cliphist decode | wl-copy")
+        Qt.quit() 
     }
 
-    function formatTimeAgo(timestamp) {
-        if (!timestamp) return ""
-        let diff = Math.floor(Date.now() / 1000) - timestamp
-        if (diff < 60) return "Just now"
-        if (diff < 3600) return Math.floor(diff / 60) + "m ago"
-        if (diff < 86400) return Math.floor(diff / 3600) + "h ago"
-        return Math.floor(diff / 86400) + "d ago"
+    Timer {
+        id: refreshTimer
+        interval: 100
+        repeat: false
+        onTriggered: root.refreshClipboard()
     }
 
-    function getAppGlyph(app, sum) {
-        let a = (app || "").toLowerCase()
-        let s = (sum || "").toLowerCase()
-        if (a.includes("grim") || s.includes("screenshot")) return "󰄄"
-        if (a.includes("record") || s.includes("record")) return "󰕧"
-        if (a.includes("term") || a.includes("kitty") || a.includes("wezterm")) return "󰆍"
-        if (a.includes("firefox") || a.includes("chrome") || a.includes("zen")) return "󰈹"
-        if (a.includes("spotify") || a.includes("music") || a.includes("audio")) return "󰝚"
-        if (a.includes("discord") || a.includes("slack") || a.includes("telegram")) return "󰒱"
-        if (a.includes("update") || a.includes("package") || a.includes("system")) return "󰚰"
-        if (a.includes("bluetooth") || a.includes("device")) return "󰂯"
-        if (a.includes("battery") || a.includes("power")) return "󰂄"
-        return "󰂚"
+    function deleteItem(rawLine) {
+        let safeLine = rawLine.replace(/'/g, "'\\''")
+        exec("echo '" + safeLine + "' | cliphist delete")
+        refreshTimer.start()
+    }
+
+    function clearAllClipboard() {
+        exec("cliphist wipe")
+        clipboardModel.clear()
+    }
+
+    Component.onCompleted: {
+        root.updateTargetMonitor()
+        if (root.targetMonitorName === "") fallbackMonitorTimer.start()
+        colorFile.reload()
+        generalConfigFile.reload()
+        animConfigFile.reload()
+        refreshClipboard()
     }
 
     // ============================================================
-    // TOP RIGHT NOTIFICATION CENTER DIALOG
+    // MAIN UI WINDOW
     // ============================================================
     Variants {
         model: Quickshell.screens
@@ -219,12 +228,11 @@ Scope {
             required property var modelData
             screen: modelData
 
-            property bool isTargetMonitor: modelData.name === root.targetMonitorName
-
+            property bool isTargetMonitor: modelData && modelData.name ? (modelData.name === root.targetMonitorName) : false
             visible: root.targetMonitorName !== "" && isTargetMonitor
 
             WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.namespace: "qs-notification-center"
+            WlrLayershell.namespace: "qs-clipboard"
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
@@ -241,21 +249,18 @@ Scope {
                 onClicked: Qt.quit()
             }
 
-            // Top-Right Positioned Container
             Item {
                 anchors.top: parent.top
                 anchors.right: parent.right
-                anchors.topMargin: 56
-                anchors.rightMargin: 20
-                implicitWidth: 440
-                implicitHeight: 680
+                anchors.topMargin: 48
+                anchors.rightMargin: 24
+                implicitWidth: 460
+                implicitHeight: 700
                 
                 visible: root.targetMonitorName !== "" && isTargetMonitor
                 focus: isTargetMonitor
 
-                Component.onCompleted: {
-                    if (isTargetMonitor) forceActiveFocus()
-                }
+                Component.onCompleted: { if (isTargetMonitor) forceActiveFocus() }
                 Keys.onEscapePressed: Qt.quit()
 
                 MouseArea {
@@ -269,11 +274,12 @@ Scope {
                     radius: root.themeRounding
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themeBorder, 0.35)
+                    border.color: Qt.alpha(root.themeBorder, 0.3)
+                    clip: true
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 18
+                        anchors.margins: 16
                         spacing: 14
 
                         // ============================================================
@@ -281,21 +287,23 @@ Scope {
                         // ============================================================
                         RowLayout {
                             Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignVCenter
                             spacing: 12
 
                             Rectangle {
-                                width: 40
-                                height: 40
-                                radius: 12
-                                color: Qt.alpha(root.themePrimary, 0.12)
+                                Layout.preferredWidth: 40
+                                Layout.preferredHeight: 40
+                                radius: 10
+                                color: Qt.alpha(root.themePrimary, 0.15)
                                 border.width: 1
-                                border.color: Qt.alpha(root.themePrimary, 0.28)
+                                border.color: Qt.alpha(root.themePrimary, 0.35)
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: "󰂚"
+                                    text: "󰅍"
+                                    font.family: root.iconFontFamily
                                     color: root.themePrimary
-                                    font.pixelSize: 20
+                                    font.pixelSize: 18
                                 }
                             }
 
@@ -306,34 +314,34 @@ Scope {
                                 RowLayout {
                                     spacing: 8
                                     Text {
-                                        text: "Notifications"
+                                        text: "Clipboard History"
                                         color: root.themeText
-                                        font.pixelSize: 17
+                                        font.pixelSize: 15
                                         font.weight: Font.Bold
                                     }
 
                                     Rectangle {
-                                        visible: historyModel.count > 0
-                                        Layout.preferredWidth: badgeText.implicitWidth + 12
+                                        visible: clipboardModel.count > 0
+                                        Layout.preferredWidth: badgeText.implicitWidth + 10
                                         Layout.preferredHeight: 18
                                         radius: 9
-                                        color: Qt.alpha(root.themePrimary, 0.2)
+                                        color: Qt.alpha(root.themePrimary, 0.18)
                                         border.width: 1
-                                        border.color: Qt.alpha(root.themePrimary, 0.4)
+                                        border.color: Qt.alpha(root.themePrimary, 0.35)
 
                                         Text {
                                             id: badgeText
                                             anchors.centerIn: parent
-                                            text: historyModel.count
+                                            text: clipboardModel.count
                                             color: root.themePrimary
-                                            font.pixelSize: 11
+                                            font.pixelSize: 10
                                             font.weight: Font.Bold
                                         }
                                     }
                                 }
 
                                 Text {
-                                    text: historyModel.count > 0 ? "Recent system alerts & messages" : "All caught up"
+                                    text: "Click item to copy • Esc to close"
                                     color: root.themeTextMuted
                                     font.pixelSize: 11
                                 }
@@ -341,18 +349,16 @@ Scope {
 
                             Item { Layout.fillWidth: true }
 
-                            // Clear All Button
                             Rectangle {
-                                visible: historyModel.count > 0
-                                Layout.preferredWidth: clearRow.implicitWidth + 20
+                                visible: clipboardModel.count > 0
+                                Layout.preferredWidth: clearRow.implicitWidth + 16
                                 Layout.preferredHeight: 32
-                                radius: 10
-                                color: clearBtnArea.containsMouse ? Qt.alpha(root.themePrimary, 0.16) : Qt.rgba(1, 1, 1, 0.05)
+                                radius: 8
+                                color: clearBtnArea.containsMouse ? Qt.rgba(0.9, 0.2, 0.2, 0.22) : Qt.rgba(1, 1, 1, 0.05)
                                 border.width: 1
-                                border.color: clearBtnArea.containsMouse ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1, 1, 1, 0.1)
+                                border.color: clearBtnArea.containsMouse ? Qt.rgba(0.9, 0.2, 0.2, 0.45) : Qt.rgba(1, 1, 1, 0.1)
 
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                                Behavior on color { ColorAnimation { duration: 120 } }
 
                                 RowLayout {
                                     id: clearRow
@@ -361,15 +367,16 @@ Scope {
 
                                     Text {
                                         text: "󰆴"
-                                        color: clearBtnArea.containsMouse ? root.themePrimary : root.themeTextMuted
+                                        font.family: root.iconFontFamily
+                                        color: clearBtnArea.containsMouse ? "#ff5555" : root.themeTextMuted
                                         font.pixelSize: 13
                                     }
 
                                     Text {
                                         text: "Clear All"
-                                        color: clearBtnArea.containsMouse ? root.themeText : root.themeTextMuted
+                                        color: clearBtnArea.containsMouse ? "#ffffff" : root.themeTextMuted
                                         font.pixelSize: 11
-                                        font.weight: Font.DemiBold
+                                        font.weight: Font.Medium
                                     }
                                 }
 
@@ -378,7 +385,7 @@ Scope {
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.clearAllHistory()
+                                    onClicked: root.clearAllClipboard()
                                 }
                             }
                         }
@@ -386,11 +393,11 @@ Scope {
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 1
-                            color: Qt.alpha(root.themeBorder, 0.14)
+                            color: Qt.rgba(1, 1, 1, 0.08)
                         }
 
                         // ============================================================
-                        // NOTIFICATION LIST CONTAINER
+                        // CLIPBOARD LIST VIEW (ROOMY & PROPORTIONAL)
                         // ============================================================
                         Item {
                             Layout.fillWidth: true
@@ -399,196 +406,198 @@ Scope {
                             // Empty State
                             ColumnLayout {
                                 anchors.centerIn: parent
-                                visible: historyModel.count === 0
-                                spacing: 12
+                                visible: clipboardModel.count === 0
+                                spacing: 10
 
                                 Rectangle {
                                     Layout.alignment: Qt.AlignHCenter
-                                    width: 64
-                                    height: 64
-                                    radius: 32
+                                    width: 56
+                                    height: 56
+                                    radius: 28
                                     color: Qt.rgba(1, 1, 1, 0.03)
                                     border.width: 1
-                                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                                    border.color: Qt.rgba(1, 1, 1, 0.07)
 
                                     Text {
                                         anchors.centerIn: parent
-                                        text: "󰂛"
+                                        text: "󰅢"
+                                        font.family: root.iconFontFamily
                                         color: Qt.alpha(root.themeTextMuted, 0.4)
-                                        font.pixelSize: 30
+                                        font.pixelSize: 26
                                     }
                                 }
 
                                 ColumnLayout {
-                                    spacing: 3
+                                    spacing: 2
                                     Layout.alignment: Qt.AlignHCenter
 
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
-                                        text: "No New Notifications"
+                                        text: "Clipboard Empty"
                                         color: root.themeText
-                                        font.pixelSize: 14
+                                        font.pixelSize: 13
                                         font.weight: Font.Bold
                                     }
 
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
-                                        text: "Your notification center is clear"
+                                        text: "Copied items will appear here"
                                         color: root.themeTextMuted
                                         font.pixelSize: 11
                                     }
                                 }
                             }
 
-                            // Notification List View (Scrollbars organically disabled)
+                            // List
                             ListView {
-                                id: historyList
+                                id: clipList
                                 anchors.fill: parent
-                                model: historyModel
+                                model: clipboardModel
                                 spacing: 10
                                 clip: true
+                                boundsBehavior: Flickable.StopAtBounds
 
                                 delegate: Rectangle {
                                     id: card
-                                    width: historyList.width
-                                    
-                                    property bool isExpanded: false
-                                    property bool hasBody: model.body !== undefined && model.body.trim() !== ""
+                                    width: clipList.width
+                                    height: 74
 
-                                    implicitHeight: notifCardLayout.implicitHeight + 24
-                                    height: implicitHeight
-
-                                    radius: Math.max(4, root.themeRounding - 6)
+                                    radius: Math.max(8, root.themeRounding - 2)
                                     color: cardArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                     border.width: 1
-                                    border.color: cardArea.containsMouse ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1, 1, 1, 0.08)
+                                    border.color: cardArea.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(1, 1, 1, 0.06)
 
-                                    Behavior on height {
-                                        NumberAnimation { 
-                                            duration: root.animEnabled ? root.animDuration : 0
-                                            easing.type: Easing.OutCubic 
-                                        }
-                                    }
-                                    Behavior on border.color { ColorAnimation { duration: 150 } }
-                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+                                    Behavior on border.color { ColorAnimation { duration: 120 } }
 
                                     MouseArea {
                                         id: cardArea
                                         anchors.fill: parent
                                         hoverEnabled: true
-                                        cursorShape: card.hasBody ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                        onClicked: {
-                                            if (card.hasBody) {
-                                                card.isExpanded = !card.isExpanded
-                                            }
-                                        }
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.copyItem(model.raw)
                                     }
 
                                     RowLayout {
-                                        id: notifCardLayout
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-                                        anchors.top: parent.top
+                                        anchors.fill: parent
                                         anchors.margins: 12
                                         spacing: 12
 
-                                        // Category/App Badge
+                                        // Left Icon Box
                                         Rectangle {
-                                            Layout.alignment: Qt.AlignTop
-                                            Layout.topMargin: 2
-                                            width: 36
-                                            height: 36
+                                            Layout.alignment: Qt.AlignVCenter
+                                            Layout.preferredWidth: 42
+                                            Layout.preferredHeight: 42
                                             radius: 10
-                                            color: Qt.alpha(root.themePrimary, 0.12)
+                                            color: model.isImage ? Qt.rgba(0.95, 0.6, 0.15, 0.15) : Qt.alpha(root.themePrimary, 0.15)
                                             border.width: 1
-                                            border.color: Qt.alpha(root.themePrimary, 0.25)
+                                            border.color: model.isImage ? Qt.rgba(0.95, 0.6, 0.15, 0.35) : Qt.alpha(root.themePrimary, 0.3)
 
                                             Text {
                                                 anchors.centerIn: parent
-                                                text: root.getAppGlyph(model.appName, model.summary)
-                                                color: root.themePrimary
-                                                font.pixelSize: 17
+                                                text: model.isImage ? "󰋩" : "󰈙"
+                                                font.family: root.iconFontFamily
+                                                color: model.isImage ? "#f59e0b" : root.themePrimary
+                                                font.pixelSize: 20
                                             }
                                         }
 
-                                        // Main Content
+                                        // Text & Information Column (Matches Notification Dialog Hierarchy)
                                         ColumnLayout {
                                             Layout.fillWidth: true
+                                            Layout.alignment: Qt.AlignVCenter
                                             spacing: 4
 
-                                            // Top Metadata Row
+                                            // Line 1: Type Tag & Character/Size Info
                                             RowLayout {
-                                                Layout.fillWidth: true
                                                 spacing: 6
+                                                Layout.alignment: Qt.AlignVCenter
 
                                                 Text {
-                                                    text: (model.appName || "System").toUpperCase()
-                                                    color: root.themePrimary
+                                                    text: model.isImage ? "IMAGE" : "TEXT"
+                                                    color: model.isImage ? "#f59e0b" : root.themePrimary
                                                     font.pixelSize: 10
                                                     font.weight: Font.Bold
-                                                    font.letterSpacing: 0.8
                                                 }
 
                                                 Text {
                                                     text: "•"
-                                                    color: Qt.alpha(root.themeTextMuted, 0.4)
+                                                    color: root.themeTextMuted
                                                     font.pixelSize: 10
                                                 }
 
                                                 Text {
-                                                    text: root.formatTimeAgo(model.time)
+                                                    text: model.isImage ? model.content.replace("Image (", "").replace(")", "") : (model.charCount + " chars")
                                                     color: root.themeTextMuted
-                                                    font.pixelSize: 10
-                                                    Layout.fillWidth: true
-                                                }
-
-                                                // Expand Icon Indicator
-                                                Rectangle {
-                                                    visible: card.hasBody
-                                                    width: 22
-                                                    height: 22
-                                                    radius: 6
-                                                    color: expandHover.containsMouse ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
-
-                                                    Text {
-                                                        anchors.centerIn: parent
-                                                        text: card.isExpanded ? "󰅃" : "󰅀"
-                                                        color: card.isExpanded ? root.themePrimary : root.themeTextMuted
-                                                        font.pixelSize: 11
-                                                    }
-
-                                                    MouseArea {
-                                                        id: expandHover
-                                                        anchors.fill: parent
-                                                        hoverEnabled: true
-                                                        onClicked: card.isExpanded = !card.isExpanded
-                                                    }
+                                                    font.pixelSize: 11
                                                 }
                                             }
 
-                                            // Notification Summary
+                                            // Line 2: Copied Text Content
                                             Text {
-                                                text: model.summary || ""
+                                                text: model.content
                                                 color: root.themeText
                                                 font.pixelSize: 13
                                                 font.weight: Font.Bold
                                                 Layout.fillWidth: true
-                                                wrapMode: Text.WordWrap
-                                                maximumLineCount: 2
                                                 elide: Text.ElideRight
+                                                maximumLineCount: 1
+                                            }
+                                        }
+
+                                        // Right Side Action Buttons
+                                        RowLayout {
+                                            spacing: 6
+                                            Layout.alignment: Qt.AlignVCenter
+
+                                            Rectangle {
+                                                Layout.preferredWidth: 32
+                                                Layout.preferredHeight: 32
+                                                radius: 7
+                                                color: copyBtnMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(1, 1, 1, 0.05)
+                                                border.width: 1
+                                                border.color: copyBtnMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(1, 1, 1, 0.08)
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "󰆏"
+                                                    font.family: root.iconFontFamily
+                                                    color: copyBtnMouse.containsMouse ? root.themePrimary : root.themeTextMuted
+                                                    font.pixelSize: 14
+                                                }
+
+                                                MouseArea {
+                                                    id: copyBtnMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: root.copyItem(model.raw)
+                                                }
                                             }
 
-                                            // Notification Body
-                                            Text {
-                                                visible: card.hasBody
-                                                text: model.body || ""
-                                                color: root.themeTextMuted
-                                                font.pixelSize: 11
-                                                lineHeight: 1.25
-                                                Layout.fillWidth: true
-                                                wrapMode: Text.WordWrap
-                                                maximumLineCount: card.isExpanded ? 12 : 1
-                                                elide: Text.ElideRight
+                                            Rectangle {
+                                                Layout.preferredWidth: 32
+                                                Layout.preferredHeight: 32
+                                                radius: 7
+                                                color: delBtnMouse.containsMouse ? Qt.rgba(0.9, 0.2, 0.2, 0.25) : Qt.rgba(1, 1, 1, 0.05)
+                                                border.width: 1
+                                                border.color: delBtnMouse.containsMouse ? Qt.rgba(0.9, 0.2, 0.2, 0.5) : Qt.rgba(1, 1, 1, 0.08)
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "󰆴"
+                                                    font.family: root.iconFontFamily
+                                                    color: delBtnMouse.containsMouse ? "#ff5555" : root.themeTextMuted
+                                                    font.pixelSize: 14
+                                                }
+
+                                                MouseArea {
+                                                    id: delBtnMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: root.deleteItem(model.raw)
+                                                }
                                             }
                                         }
                                     }

@@ -7,7 +7,7 @@ hl.on("hyprland.start", function()
     -- 2. Core Daemons, Agents, and Hardware overrides
     hl.exec_cmd("/usr/libexec/polkit-gnome-authentication-agent-1 &")
     hl.exec_cmd("awww-daemon &")
-    hl.exec_cmd("rfkill unblock bluetooth") -- < Prevents the GDM Bluetooth soft-block bug
+    hl.exec_cmd("wl-paste --watch cliphist store &")
     
     -- 3. GTK and Theme Settings
     -- hl.exec_cmd("gsettings set org.gnome.desktop.interface color-scheme prefer-dark")
