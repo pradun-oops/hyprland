@@ -237,41 +237,65 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
         }
     }
 
+    function fetchWeather() {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", `https://api.open-meteo.com/v1/forecast?latitude=${root.weatherLat}&longitude=${root.weatherLon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m&timezone=auto`);
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
+                try {
+                    var d = JSON.parse(xhr.responseText).current;
+                    root.currentWeatherTemp = Math.round(d.temperature_2m);
+                    root.currentWeatherFeelsLike = Math.round(d.apparent_temperature);
+                    root.currentWeatherHumidity = d.relative_humidity_2m + "%";
+                    root.currentWeatherWind = Math.round(d.wind_speed_10m) + " km/h";
+                    root.currentWeatherPressure = Math.round(d.surface_pressure) + " hPa";
+                    
+                    var code = d.weather_code;
+                    var desc = "Clear";
+                    var icon = "☀️";
+                    
+                    if (code === 1 || code === 2 || code === 3) { desc = "Cloudy"; icon = "☁️"; }
+                    if (code >= 45 && code <= 48) { desc = "Fog"; icon = "🌫️"; }
+                    if (code >= 51 && code <= 67) { desc = "Rain"; icon = "🌧️"; }
+                    if (code >= 71 && code <= 77) { desc = "Snow"; icon = "❄️"; }
+                    if (code >= 95 && code <= 99) { desc = "Storm"; icon = "⛈️"; }
+                    if (code === 3) { desc = "Overcast"; } 
+                    
+                    root.currentWeatherDesc = desc;
+                    root.currentWeatherIcon = icon;
+                } catch(e) {}
+            }
+        }
+        xhr.send();
+    }
+
+    function fetchLocation() {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", "http://ip-api.com/json/");
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+                if (xhr.status === 200) {
+                    try {
+                        var d = JSON.parse(xhr.responseText);
+                        if (d && d.lat !== undefined && d.lon !== undefined) {
+                            root.weatherLat = d.lat.toString();
+                            root.weatherLon = d.lon.toString();
+                        }
+                    } catch(e) {}
+                }
+                root.fetchWeather();
+            }
+        }
+        xhr.send();
+    }
+
     Timer {
         interval: 1800000 
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: {
-            var xhr = new XMLHttpRequest();
-            xhr.open("GET", `https://api.open-meteo.com/v1/forecast?latitude=${root.weatherLat}&longitude=${root.weatherLon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m&timezone=auto`);
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
-                    try {
-                        var d = JSON.parse(xhr.responseText).current;
-                        root.currentWeatherTemp = Math.round(d.temperature_2m);
-                        root.currentWeatherFeelsLike = Math.round(d.apparent_temperature);
-                        root.currentWeatherHumidity = d.relative_humidity_2m + "%";
-                        root.currentWeatherWind = Math.round(d.wind_speed_10m) + " km/h";
-                        root.currentWeatherPressure = Math.round(d.surface_pressure) + " hPa";
-                        
-                        var code = d.weather_code;
-                        var desc = "Clear";
-                        var icon = "☀️";
-                        
-                        if (code === 1 || code === 2 || code === 3) { desc = "Cloudy"; icon = "☁️"; }
-                        if (code >= 45 && code <= 48) { desc = "Fog"; icon = "🌫️"; }
-                        if (code >= 51 && code <= 67) { desc = "Rain"; icon = "🌧️"; }
-                        if (code >= 71 && code <= 77) { desc = "Snow"; icon = "❄️"; }
-                        if (code >= 95 && code <= 99) { desc = "Storm"; icon = "⛈️"; }
-                        if (code === 3) { desc = "Overcast"; } 
-                        
-                        root.currentWeatherDesc = desc;
-                        root.currentWeatherIcon = icon;
-                    } catch(e) {}
-                }
-            }
-            xhr.send();
+            root.fetchLocation();
         }
     }
 

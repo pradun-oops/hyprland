@@ -9,14 +9,25 @@ import QtQuick.Layouts
 Scope {
     id: root
 
+    QtObject {
+        id: animStyle
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
+        property var fadeEasing: Easing.OutCubic
+        property real overshoot: 0.1
+    }
+
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
     property color themeTextMuted: "#a1a1aa"
     
     property int themeRounding: 12
-    property int themeBorderSize: 1
+    property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
+    property bool animEnabled: true
+    property int animDuration: 380
     
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
@@ -31,13 +42,16 @@ Scope {
         } else if (Quickshell.screens.length > 0) {
             root.lockedMon = Quickshell.screens[0].name
         }
+        colorFile.reload()
+        generalFile.reload()
+        animConfigFile.reload()
     }
 
     property real animatedBrightness: 0
     Behavior on animatedBrightness { 
         NumberAnimation { 
-            duration: 380
-            easing.type: Easing.OutQuint 
+            duration: root.animEnabled ? animStyle.animDuration : 0
+            easing.type: animStyle.fadeEasing 
         } 
     }
 
@@ -74,6 +88,23 @@ Scope {
                 let textContent = text()
                 let roundingMatch = textContent.match(/rounding\s*=\s*(\d+)/)
                 if (roundingMatch && roundingMatch[1]) root.themeRounding = parseInt(roundingMatch[1])
+            } catch (e) {}
+        }
+    }
+
+    FileView {
+        id: animConfigFile
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
+                if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
             } catch (e) {}
         }
     }
@@ -150,7 +181,8 @@ Scope {
                 return modelData.name === target;
             }
 
-            visible: (root.showOSD || osdContainer.opacity > 0) && isTargetMonitor
+            // Immediately unmap surface on close to vanish blur without delay
+            visible: root.showOSD && isTargetMonitor
 
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-brightness-osd"
@@ -175,27 +207,35 @@ Scope {
                 clip: true
 
                 opacity: root.showOSD ? 1.0 : 0.0
-                scale: root.showOSD ? 1.0 : 0.90
+                scale: root.showOSD ? 1.0 : 0.5
                 enabled: root.showOSD
 
                 transform: Translate {
                     x: root.showOSD ? 0 : 16
                     Behavior on x { 
-                        NumberAnimation { duration: 380; easing.type: Easing.OutQuint } 
+                        NumberAnimation { 
+                            duration: root.animEnabled ? animStyle.animDuration : 0
+                            easing.type: animStyle.bounceEasing
+                            easing.overshoot: animStyle.overshoot
+                        } 
                     }
                 }
 
                 Behavior on opacity { 
-                    NumberAnimation { duration: 320; easing.type: Easing.OutCubic } 
+                    NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } 
                 }
                 Behavior on scale { 
-                    NumberAnimation { duration: 380; easing.type: Easing.OutQuint } 
+                    NumberAnimation { 
+                        duration: root.animEnabled ? animStyle.animDuration : 0
+                        easing.type: animStyle.bounceEasing
+                        easing.overshoot: animStyle.overshoot
+                    } 
                 }
                 Behavior on color { 
-                    ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                    ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } 
                 }
                 Behavior on border.color { 
-                    ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                    ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } 
                 }
 
                 MouseArea {
@@ -250,10 +290,14 @@ Scope {
                             scale: mainArea.containsMouse ? 1.08 : 1.0
 
                             Behavior on color { 
-                                ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                                ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } 
                             }
                             Behavior on scale { 
-                                NumberAnimation { duration: 350; easing.type: Easing.OutQuint } 
+                                NumberAnimation { 
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                } 
                             }
                         }
                     }
@@ -269,7 +313,7 @@ Scope {
                             color: root.themeSurface
 
                             Behavior on color { 
-                                ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                                ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } 
                             }
 
                             Rectangle {
@@ -280,7 +324,7 @@ Scope {
                                 color: root.themePrimary
 
                                 Behavior on color { 
-                                    ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                                    ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } 
                                 }
                             }
                         }
@@ -294,7 +338,7 @@ Scope {
                         font.weight: Font.Bold
 
                         Behavior on color { 
-                            ColorAnimation { duration: 300; easing.type: Easing.OutCubic } 
+                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } 
                         }
                     }
                 }

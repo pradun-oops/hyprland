@@ -9,6 +9,15 @@ import QtQuick.Layouts
 Scope {
     id: root
 
+    QtObject {
+        id: animStyle
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
+        property var fadeEasing: Easing.OutCubic
+        property real overshoot: 1.4
+    }
+
     property string targetMonitorName: ""
 
     function updateTargetMonitor() {
@@ -40,6 +49,8 @@ Scope {
     property int themeRounding: 14
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.7
+    property bool animEnabled: true
+    property int animDuration: 380
     
     property color themeBackground: "#141416" 
     property color themeBorder: "#ffb3af"
@@ -204,6 +215,23 @@ Scope {
     }
 
     FileView {
+        id: animConfigFile
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
+                if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
+            } catch (e) {}
+        }
+    }
+
+    FileView {
         id: bindsFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/binds.lua"
         watchChanges: true
@@ -243,7 +271,7 @@ Scope {
             } catch (e) {
                 root.activeKeybinds = root.fullKeybindsList
             }
-            root.filterKeybinds(searchInput ? searchInput.text : "")
+            root.filterKeybinds("")
         }
     }
 
@@ -255,6 +283,7 @@ Scope {
 
         colorFile.reload()
         generalConfigFile.reload()
+        animConfigFile.reload()
         bindsFile.reload()
     }
 
@@ -323,8 +352,25 @@ Scope {
                 height: Math.min(620, parent.height - 80)
                 anchors.centerIn: parent
 
-                visible: root.targetMonitorName !== "" && isTargetMonitor
-                focus: isTargetMonitor
+                property bool shown: false
+                Component.onCompleted: shown = true
+
+                scale: shown ? 1.0 : 0.90
+                opacity: shown ? 1.0 : 0.0
+
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: root.animEnabled ? animStyle.animDuration : 0
+                        easing.type: animStyle.bounceEasing
+                        easing.overshoot: animStyle.overshoot
+                    }
+                }
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: animStyle.fadeDuration
+                        easing.type: animStyle.fadeEasing
+                    }
+                }
 
                 radius: root.themeRounding
                 border.width: root.themeBorderSize
@@ -368,6 +414,8 @@ Scope {
                             border.width: 1
                             border.color: searchInput.activeFocus ? root.themePrimary : Qt.rgba(1, 1, 1, 0.1)
 
+                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
                             RowLayout {
                                 anchors.fill: parent
                                 anchors.leftMargin: 10
@@ -391,12 +439,30 @@ Scope {
                                     verticalAlignment: TextInput.AlignVCenter
                                     background: Item {}
 
-                                    Component.onCompleted: {
-                                        if (keybindsWindow.isTargetMonitor) {
-                                            forceActiveFocus()
+                                    Timer {
+                                        id: focusTimer
+                                        interval: 20
+                                        repeat: false
+                                        onTriggered: {
+                                            if (keybindsWindow.isTargetMonitor) {
+                                                searchInput.forceActiveFocus()
+                                            }
                                         }
+                                    }
+
+                                    Component.onCompleted: {
                                         root.activeKeybinds = root.fullKeybindsList
                                         root.filterKeybinds("")
+                                        focusTimer.start()
+                                    }
+
+                                    Connections {
+                                        target: keybindsWindow
+                                        function onVisibleChanged() {
+                                            if (keybindsWindow.visible && keybindsWindow.isTargetMonitor) {
+                                                focusTimer.start()
+                                            }
+                                        }
                                     }
 
                                     onTextChanged: root.filterKeybinds(text)
@@ -423,6 +489,35 @@ Scope {
                         spacing: 6
                         highlightFollowsCurrentItem: true
 
+                        add: Transition {
+                            ParallelAnimation {
+                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                NumberAnimation {
+                                    property: "scale"
+                                    from: 0.94; to: 1.0
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
+                        }
+
+                        remove: Transition {
+                            ParallelAnimation {
+                                NumberAnimation { property: "opacity"; to: 0; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                NumberAnimation { property: "scale"; to: 0.90; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                            }
+                        }
+
+                        displaced: Transition {
+                            NumberAnimation {
+                                properties: "y,x"
+                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                easing.type: animStyle.bounceEasing
+                                easing.overshoot: animStyle.overshoot
+                            }
+                        }
+
                         ScrollBar.vertical: ScrollBar {
                             active: keybindsList.moving || keybindsList.flicking
                             policy: ScrollBar.AsNeeded
@@ -433,9 +528,28 @@ Scope {
                             width: keybindsList.width
                             height: 42
                             radius: Math.max(4, root.themeRounding - 6)
-                            color: ListView.isCurrentItem ? Qt.alpha(root.themePrimary, 0.15) : Qt.rgba(1, 1, 1, 0.04)
+                            color: ListView.isCurrentItem ? Qt.alpha(root.themePrimary, 0.15) : (rowMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.04))
+
+                            scale: rowMouse.containsMouse ? 1.015 : 1.0
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
+                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                             property string rawKeys: model.itemKeys || ""
+
+                            MouseArea {
+                                id: rowMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: keybindsList.currentIndex = index
+                            }
 
                             RowLayout {
                                 anchors.fill: parent

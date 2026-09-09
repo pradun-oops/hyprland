@@ -203,3 +203,17 @@ hl.window_rule({
 	opacity = "1.0 override 1.0 override",
 	no_blur = true,
 })
+
+hl.window_rule({
+    match = { class = "^(org\\.pulseaudio\\.pavucontrol)$" },
+    float = true,
+    size = "900 600",
+    center = true,
+})
+
+hl.window_rule({
+    match = { class = "^(org\\.gnome\\.PowerStats)$" },
+    float = true,
+    size = "900 600",
+    center = true,
+})

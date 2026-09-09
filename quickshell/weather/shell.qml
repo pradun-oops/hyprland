@@ -46,6 +46,8 @@ Scope {
     property int themeRounding: 22
     property int themeBorderSize: 1
     property real themeBgAlpha: 0.72
+    property bool animEnabled: true
+    property int animDuration: 500
     
     property color themeBackground: "#121318" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.04) 
@@ -54,6 +56,15 @@ Scope {
     property color themePrimary: "#ffb3af"
     property color themeText: "#ffffff"
     property color themeTextMuted: "#94a3b8"
+
+    QtObject {
+        id: animStyle
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
+        property var fadeEasing: Easing.OutCubic
+        property real overshoot: 1.5
+    }
 
     FileView {
         id: colorFile
@@ -93,7 +104,26 @@ Scope {
         }
     }
 
-    property bool isFetching: true
+    FileView {
+        id: animConfigFile
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
+            } catch (e) {}
+        }
+    }
+
+    property bool isFetching: false
+    property bool isFetchingApi: false
+    property bool hasData: false
     property string fetchError: ""
     
     property string locName: "Locating..."
@@ -116,48 +146,81 @@ Scope {
     ListModel { id: hourlyModel }
     ListModel { id: forecastModel }
 
+    function applyWeatherData(d) {
+        if (d.error) {
+            root.fetchError = d.error
+            root.isFetching = false
+            root.isFetchingApi = false
+            return
+        }
+
+        root.fetchError = ""
+        root.locName = d.location
+        root.currTemp = d.current.temp
+        root.currFeel = d.current.feels_like
+        root.currHigh = d.current.high
+        root.currLow = d.current.low
+        root.currDesc = d.current.desc
+        root.currIcon = d.current.icon
+        root.currWind = d.current.wind
+        root.currWindGust = d.current.wind_gust
+        root.currHum = d.current.humidity
+        root.currUV = d.current.uv
+        root.currUVDesc = d.current.uv_desc
+        root.currPress = d.current.pressure
+        root.currClouds = d.current.clouds
+        root.currSunrise = d.current.sunrise
+        root.currSunset = d.current.sunset
+
+        hourlyModel.clear()
+        if (d.hourly) {
+            for (let h = 0; h < d.hourly.length; h++) {
+                hourlyModel.append(d.hourly[h])
+            }
+        }
+
+        forecastModel.clear()
+        if (d.daily) {
+            for (let i = 0; i < d.daily.length; i++) {
+                forecastModel.append(d.daily[i])
+            }
+        }
+
+        root.hasData = true
+        root.isFetching = false
+        root.isFetchingApi = false
+    }
+
+    FileView {
+        id: localCacheReader
+        path: "/tmp/qs_weather_cache.json"
+        onLoaded: {
+            try {
+                let d = JSON.parse(text().trim())
+                if (d && !d.error && d.current) {
+                    root.applyWeatherData(d)
+                }
+            } catch(e) {}
+        }
+    }
+
     Process {
         id: weatherFetcher
         stdout: SplitParser {
             onRead: (data) => {
                 try {
-                    let d = JSON.parse(data)
+                    let d = JSON.parse(data.trim())
                     
-                    if (d.error) {
-                        root.fetchError = d.error
-                        root.isFetching = false
+                    if (d.status === "fetching_api") {
+                        root.isFetchingApi = true
                         return
                     }
 
-                    root.fetchError = ""
-                    root.locName = d.location
-                    root.currTemp = d.current.temp
-                    root.currFeel = d.current.feels_like
-                    root.currHigh = d.current.high
-                    root.currLow = d.current.low
-                    root.currDesc = d.current.desc
-                    root.currIcon = d.current.icon
-                    root.currWind = d.current.wind
-                    root.currWindGust = d.current.wind_gust
-                    root.currHum = d.current.humidity
-                    root.currUV = d.current.uv
-                    root.currUVDesc = d.current.uv_desc
-                    root.currPress = d.current.pressure
-                    root.currClouds = d.current.clouds
-                    root.currSunrise = d.current.sunrise
-                    root.currSunset = d.current.sunset
-
-                    hourlyModel.clear()
-                    for (let h = 0; h < d.hourly.length; h++) {
-                        hourlyModel.append(d.hourly[h])
-                    }
-
-                    forecastModel.clear()
-                    for (let i = 0; i < d.daily.length; i++) {
-                        forecastModel.append(d.daily[i])
-                    }
-                } catch(e) {}
-                root.isFetching = false
+                    root.applyWeatherData(d)
+                } catch(e) {
+                    root.isFetching = false
+                    root.isFetchingApi = false
+                }
             }
         }
     }
@@ -165,9 +228,17 @@ Scope {
     function fetchWeather(city) {
         root.isFetching = true
         root.fetchError = ""
-        let safeQuery = city.trim().replace(/"/g, '\\"')
         
-        let pyScript = `import urllib.request, json, urllib.parse, datetime, os, time
+        let trimmed = city.trim()
+        if (trimmed !== "") {
+            root.isFetchingApi = true
+        } else {
+            root.isFetchingApi = false
+        }
+
+        let safeQuery = trimmed.replace(/"/g, '\\"')
+        
+        let pyScript = `import urllib.request, json, urllib.parse, datetime, os, time, sys
 
 CACHE_FILE = "/tmp/qs_weather_cache.json"
 CACHE_EXPIRY = 1800
@@ -202,8 +273,12 @@ try:
     if not query:
         if os.path.exists(CACHE_FILE) and (time.time() - os.path.getmtime(CACHE_FILE)) < CACHE_EXPIRY:
             with open(CACHE_FILE, 'r') as f:
-                print(f.read(), flush=True)
-            exit(0)
+                content = f.read().strip()
+                if content:
+                    print(content, flush=True)
+                    sys.exit(0)
+
+    print(json.dumps({"status": "fetching_api"}), flush=True)
 
     if query:
         geo_url = "https://geocoding-api.open-meteo.com/v1/search?name=" + urllib.parse.quote(query) + "&count=1&format=json"
@@ -215,14 +290,21 @@ try:
                 lat, lon = res["latitude"], res["longitude"]
                 loc_name = f"{res['name']}, {res.get('country', '')}"
             else:
-                print(json.dumps({"error": "Location not found. Try another city."}))
-                exit(0)
+                print(json.dumps({"error": "Location not found. Try another city."}), flush=True)
+                sys.exit(0)
     else:
-        req = urllib.request.Request("http://ip-api.com/json/", headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=6) as resp:
-            ip_data = json.loads(resp.read().decode())
-            lat, lon = ip_data["lat"], ip_data["lon"]
-            loc_name = f"{ip_data['city']}, {ip_data.get('country', '')}"
+        try:
+            req = urllib.request.Request("http://ip-api.com/json/", headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                ip_data = json.loads(resp.read().decode())
+                lat, lon = ip_data["lat"], ip_data["lon"]
+                loc_name = f"{ip_data['city']}, {ip_data.get('country', '')}"
+        except Exception:
+            req = urllib.request.Request("https://ipapi.co/json/", headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                ip_data = json.loads(resp.read().decode())
+                lat, lon = ip_data["latitude"], ip_data["longitude"]
+                loc_name = f"{ip_data['city']}, {ip_data.get('country_name', '')}"
 
     url = (
         f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
@@ -326,6 +408,8 @@ except Exception as e:
         }
         colorFile.reload()
         generalConfigFile.reload()
+        animConfigFile.reload()
+        localCacheReader.reload()
         root.fetchWeather("")
     }
 
@@ -367,6 +451,26 @@ except Exception as e:
                     height: Math.min(840, parent.height - 40)
                     anchors.centerIn: parent
 
+                    property bool shown: false
+                    Component.onCompleted: shown = true
+
+                    scale: shown ? 1.0 : 0.90
+                    opacity: shown ? 1.0 : 0.0
+
+                    Behavior on scale {
+                        NumberAnimation {
+                            duration: root.animEnabled ? animStyle.animDuration : 0
+                            easing.type: animStyle.bounceEasing
+                            easing.overshoot: animStyle.overshoot
+                        }
+                    }
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: animStyle.fadeDuration
+                            easing.type: animStyle.fadeEasing
+                        }
+                    }
+
                     radius: root.themeRounding
                     border.width: root.themeBorderSize
                     border.color: Qt.alpha(root.themeBorder, 0.30)
@@ -400,14 +504,16 @@ except Exception as e:
                                 spacing: 2
                                 Layout.alignment: Qt.AlignVCenter
                                 Text { text: "Weather Telemetry"; font.pixelSize: 18; font.weight: Font.Bold; color: root.themeText }
-                                RowLayout {
-                                    spacing: 6
-                                    Rectangle {
-                                        width: 6; height: 6; radius: 3
-                                        color: root.isFetching ? "#facc15" : "#4ade80"
+                                RowLayout {                                
+                                    Text { text: root.isFetchingApi ? "Updating telemetry..." : root.locName; font.pixelSize: 12; color: root.themeTextMuted }
+                                    spacing: 10
+                                     Rectangle {
+                                        width: 10; height: 10; radius: 5
+                                        color: root.isFetchingApi ? "#facc15" : "#4ade80"
                                         Layout.alignment: Qt.AlignVCenter
+                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
                                     }
-                                    Text { text: root.isFetching ? "Locating station..." : root.locName; font.pixelSize: 12; color: root.themeTextMuted }
+                                    
                                 }
                             }
 
@@ -419,10 +525,33 @@ except Exception as e:
                                 border.width: 1
                                 border.color: autoGpsHover.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : Qt.alpha(root.themeBorder, 0.2)
                                 Layout.alignment: Qt.AlignVCenter
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                                Behavior on border.color { ColorAnimation { duration: 150 } }
                                 
-                                Text { anchors.centerIn: parent; text: "󰤉"; font.pixelSize: 16; color: root.themePrimary }
+                                scale: autoGpsHover.containsMouse ? 1.10 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                        easing.type: animStyle.bounceEasing
+                                        easing.overshoot: animStyle.overshoot
+                                    }
+                                }
+                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                
+                                Text { 
+                                    id: gpsIconText
+                                    anchors.centerIn: parent
+                                    text: "󰤉"
+                                    font.pixelSize: 16
+                                    color: root.themePrimary
+                                    
+                                    RotationAnimator {
+                                        target: gpsIconText
+                                        from: 0; to: 360
+                                        duration: 1000
+                                        loops: Animation.Infinite
+                                        running: root.isFetchingApi
+                                    }
+                                }
                                 
                                 MouseArea {
                                     id: autoGpsHover
@@ -441,7 +570,7 @@ except Exception as e:
                                 border.width: 1
                                 border.color: searchInput.activeFocus ? root.themePrimary : Qt.rgba(1, 1, 1, 0.12)
                                 Layout.alignment: Qt.AlignVCenter
-                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
                                 RowLayout {
                                     anchors.fill: parent
@@ -474,8 +603,17 @@ except Exception as e:
                             Rectangle {
                                 width: 38; height: 38; radius: 10
                                 color: closeHover.containsMouse ? "#ff4b6e" : Qt.alpha(root.themeText, 0.08)
-                                Behavior on color { ColorAnimation { duration: 150 } }
                                 Layout.alignment: Qt.AlignVCenter
+
+                                scale: closeHover.containsMouse ? 1.10 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                        easing.type: animStyle.bounceEasing
+                                        easing.overshoot: animStyle.overshoot
+                                    }
+                                }
+                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
 
                                 Text { 
                                     anchors.centerIn: parent
@@ -498,7 +636,94 @@ except Exception as e:
                         Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: root.fetchError !== ""
+                            visible: opacity > 0
+                            opacity: (root.isFetchingApi && !root.hasData) ? 1.0 : 0.0
+                            scale: (root.isFetchingApi && !root.hasData) ? 1.0 : 0.88
+
+                            Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
+
+                            ColumnLayout {
+                                anchors.centerIn: parent
+                                spacing: 18
+
+                                Item {
+                                    Layout.preferredWidth: 60
+                                    Layout.preferredHeight: 60
+                                    Layout.alignment: Qt.AlignHCenter
+
+                                    Canvas {
+                                        id: spinnerCanvas
+                                        anchors.fill: parent
+                                        onPaint: {
+                                            var ctx = getContext("2d");
+                                            ctx.reset();
+                                            var cx = width / 2;
+                                            var cy = height / 2;
+                                            var r = width / 2 - 5;
+
+                                            ctx.beginPath();
+                                            ctx.arc(cx, cy, r, 0, 2 * Math.PI, false);
+                                            ctx.lineWidth = 4;
+                                            ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.08);
+                                            ctx.stroke();
+
+                                            ctx.beginPath();
+                                            ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI * 0.6, false);
+                                            ctx.lineWidth = 4;
+                                            ctx.lineCap = "round";
+                                            ctx.strokeStyle = root.themePrimary;
+                                            ctx.stroke();
+                                        }
+
+                                        RotationAnimator {
+                                            target: spinnerCanvas
+                                            from: 0; to: 360
+                                            duration: 1000
+                                            loops: Animation.Infinite
+                                            running: root.isFetchingApi
+                                        }
+                                    }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰖐"
+                                        font.pixelSize: 22
+                                        color: root.themePrimary
+                                    }
+                                }
+
+                                Text {
+                                    text: "Fetching live weather updates..."
+                                    font.pixelSize: 14
+                                    font.weight: Font.Medium
+                                    color: root.themeTextMuted
+                                    Layout.alignment: Qt.AlignHCenter
+                                }
+                            }
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            visible: opacity > 0
+                            opacity: (!root.isFetching && root.fetchError !== "") ? 1.0 : 0.0
+                            scale: (!root.isFetching && root.fetchError !== "") ? 1.0 : 0.90
+
+                            Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
                             
                             ColumnLayout {
                                 anchors.centerIn: parent
@@ -512,7 +737,18 @@ except Exception as e:
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             spacing: 20
-                            visible: root.fetchError === ""
+                            visible: opacity > 0
+                            opacity: (root.hasData && root.fetchError === "") ? 1.0 : 0.0
+                            scale: (root.hasData && root.fetchError === "") ? 1.0 : 0.95
+
+                            Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
 
                             ScrollView {
                                 Layout.fillHeight: true
@@ -528,6 +764,7 @@ except Exception as e:
                                     spacing: 16
 
                                     Rectangle {
+                                        id: heroCard
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 160
                                         radius: Math.max(4, root.themeRounding - 6)
@@ -537,6 +774,21 @@ except Exception as e:
                                         }
                                         border.width: 1
                                         border.color: Qt.alpha(root.themeBorder, 0.20)
+
+                                        scale: heroHover.containsMouse ? 1.0 : 1.0
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                                easing.type: animStyle.bounceEasing
+                                                easing.overshoot: animStyle.overshoot
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: heroHover
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                        }
 
                                         RowLayout {
                                             anchors.fill: parent
@@ -614,8 +866,17 @@ except Exception as e:
                                                 color: hourlyHover.containsMouse ? root.themeSurfaceHover : (model.time === "Now" ? Qt.alpha(root.themePrimary, 0.09) : root.themeSurface)
                                                 border.width: 1
                                                 border.color: model.time === "Now" ? Qt.alpha(root.themePrimary, 0.45) : (hourlyHover.containsMouse ? Qt.alpha(root.themeBorder, 0.28) : Qt.alpha(root.themeBorder, 0.12))
-                                                Behavior on color { ColorAnimation { duration: 150 } }
-                                                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                                                scale: hourlyHover.containsMouse ? 1.0 : 1.0
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                                        easing.type: animStyle.bounceEasing
+                                                        easing.overshoot: animStyle.overshoot
+                                                    }
+                                                }
+                                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
                                                 MouseArea {
                                                     id: hourlyHover
@@ -662,20 +923,29 @@ except Exception as e:
                                         columnSpacing: 12
                                         rowSpacing: 12
 
+                                        // Wind Card
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: windHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                             border.width: 1
                                             border.color: windHover.containsMouse ? Qt.alpha("#38bdf8", 0.4) : Qt.alpha(root.themeBorder, 0.14)
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-                                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                                            
+                                            scale: windHover.containsMouse ? 1.0 : 1.0
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
                                             MouseArea { id: windHover; anchors.fill: parent; hoverEnabled: true }
 
                                             RowLayout {
                                                 anchors.fill: parent
-                                                anchors.leftMargin: 16
-                                                anchors.rightMargin: 18
+                                                anchors.leftMargin: 16; anchors.rightMargin: 18
                                                 spacing: 12
 
                                                 Rectangle {
@@ -694,43 +964,48 @@ except Exception as e:
 
                                                     Text { 
                                                         text: "WIND"
-                                                        font.pixelSize: 10; font.weight: Font.Bold
-                                                        font.letterSpacing: 1.1
+                                                        font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
                                                         color: root.themeTextMuted
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                     Text { 
                                                         text: root.currWind
                                                         font.pixelSize: 18; font.weight: Font.Bold
                                                         color: root.themeText
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                     Text { 
                                                         text: "Gusts: " + root.currWindGust
                                                         font.pixelSize: 11; color: Qt.alpha(root.themeTextMuted, 0.85)
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                 }
                                             }
                                         }
 
+                                        // UV Card
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: uvHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                             border.width: 1
                                             border.color: uvHover.containsMouse ? Qt.alpha("#facc15", 0.4) : Qt.alpha(root.themeBorder, 0.14)
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-                                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                                            scale: uvHover.containsMouse ? 1.0 : 1.0
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
                                             MouseArea { id: uvHover; anchors.fill: parent; hoverEnabled: true }
 
                                             RowLayout {
                                                 anchors.fill: parent
-                                                anchors.leftMargin: 16
-                                                anchors.rightMargin: 18
+                                                anchors.leftMargin: 16; anchors.rightMargin: 18
                                                 spacing: 12
 
                                                 Rectangle {
@@ -749,44 +1024,48 @@ except Exception as e:
 
                                                     Text { 
                                                         text: "UV INDEX"
-                                                        font.pixelSize: 10; font.weight: Font.Bold
-                                                        font.letterSpacing: 1.1
+                                                        font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
                                                         color: root.themeTextMuted
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                     Text { 
                                                         text: root.currUV
                                                         font.pixelSize: 18; font.weight: Font.Bold
                                                         color: root.themeText
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                     Text { 
                                                         text: root.currUVDesc
-                                                        font.pixelSize: 11; font.weight: Font.Medium
-                                                        color: "#facc15"
+                                                        font.pixelSize: 11; font.weight: Font.Medium; color: "#facc15"
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                 }
                                             }
                                         }
 
+                                        // Humidity Card
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: humHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                             border.width: 1
                                             border.color: humHover.containsMouse ? Qt.alpha("#a78bfa", 0.4) : Qt.alpha(root.themeBorder, 0.14)
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-                                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                                            scale: humHover.containsMouse ? 1.0 : 1.0
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
                                             MouseArea { id: humHover; anchors.fill: parent; hoverEnabled: true }
 
                                             RowLayout {
                                                 anchors.fill: parent
-                                                anchors.leftMargin: 16
-                                                anchors.rightMargin: 18
+                                                anchors.leftMargin: 16; anchors.rightMargin: 18
                                                 spacing: 12
 
                                                 Rectangle {
@@ -805,43 +1084,48 @@ except Exception as e:
 
                                                     Text { 
                                                         text: "HUMIDITY"
-                                                        font.pixelSize: 10; font.weight: Font.Bold
-                                                        font.letterSpacing: 1.1
+                                                        font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
                                                         color: root.themeTextMuted
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                     Text { 
                                                         text: root.currHum
                                                         font.pixelSize: 18; font.weight: Font.Bold
                                                         color: root.themeText
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                     Text { 
                                                         text: "Relative Dew Point"
                                                         font.pixelSize: 11; color: Qt.alpha(root.themeTextMuted, 0.85)
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                 }
                                             }
                                         }
 
+                                        // Pressure Card
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: pressHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                             border.width: 1
                                             border.color: pressHover.containsMouse ? Qt.alpha("#fb923c", 0.4) : Qt.alpha(root.themeBorder, 0.14)
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-                                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                                            scale: pressHover.containsMouse ? 1.0 : 1.0
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
                                             MouseArea { id: pressHover; anchors.fill: parent; hoverEnabled: true }
 
                                             RowLayout {
                                                 anchors.fill: parent
-                                                anchors.leftMargin: 16
-                                                anchors.rightMargin: 18
+                                                anchors.leftMargin: 16; anchors.rightMargin: 18
                                                 spacing: 12
 
                                                 Rectangle {
@@ -860,43 +1144,48 @@ except Exception as e:
 
                                                     Text { 
                                                         text: "PRESSURE"
-                                                        font.pixelSize: 10; font.weight: Font.Bold
-                                                        font.letterSpacing: 1.1
+                                                        font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
                                                         color: root.themeTextMuted
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                     Text { 
                                                         text: root.currPress
                                                         font.pixelSize: 18; font.weight: Font.Bold
                                                         color: root.themeText
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                     Text { 
                                                         text: "Barometric Sea Level"
                                                         font.pixelSize: 11; color: Qt.alpha(root.themeTextMuted, 0.85)
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                 }
                                             }
                                         }
 
+                                        // Clouds Card
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: cloudsHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                             border.width: 1
                                             border.color: cloudsHover.containsMouse ? Qt.alpha("#38bdf8", 0.4) : Qt.alpha(root.themeBorder, 0.14)
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-                                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                                            scale: cloudsHover.containsMouse ? 1.0 : 1.0
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
                                             MouseArea { id: cloudsHover; anchors.fill: parent; hoverEnabled: true }
 
                                             RowLayout {
                                                 anchors.fill: parent
-                                                anchors.leftMargin: 16
-                                                anchors.rightMargin: 18
+                                                anchors.leftMargin: 16; anchors.rightMargin: 18
                                                 spacing: 12
 
                                                 Rectangle {
@@ -915,43 +1204,48 @@ except Exception as e:
 
                                                     Text { 
                                                         text: "CLOUD COVER"
-                                                        font.pixelSize: 10; font.weight: Font.Bold
-                                                        font.letterSpacing: 1.1
+                                                        font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
                                                         color: root.themeTextMuted
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                     Text { 
                                                         text: root.currClouds
                                                         font.pixelSize: 18; font.weight: Font.Bold
                                                         color: root.themeText
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                     Text { 
                                                         text: "Sky Obscuration"
                                                         font.pixelSize: 11; color: Qt.alpha(root.themeTextMuted, 0.85)
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                 }
                                             }
                                         }
 
+                                        // Sun Schedule Card
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: sunHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                             border.width: 1
                                             border.color: sunHover.containsMouse ? Qt.alpha("#f59e0b", 0.4) : Qt.alpha(root.themeBorder, 0.14)
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-                                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                                            scale: sunHover.containsMouse ? 1.0 : 1.0
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
                                             MouseArea { id: sunHover; anchors.fill: parent; hoverEnabled: true }
 
                                             RowLayout {
                                                 anchors.fill: parent
-                                                anchors.leftMargin: 16
-                                                anchors.rightMargin: 18
+                                                anchors.leftMargin: 16; anchors.rightMargin: 18
                                                 spacing: 12
 
                                                 Rectangle {
@@ -970,11 +1264,9 @@ except Exception as e:
 
                                                     Text { 
                                                         text: "SUN SCHEDULE"
-                                                        font.pixelSize: 10; font.weight: Font.Bold
-                                                        font.letterSpacing: 1.1
+                                                        font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
                                                         color: root.themeTextMuted
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                     
                                                     RowLayout {
@@ -998,7 +1290,6 @@ except Exception as e:
                                                         text: "Sunrise & Sunset"
                                                         font.pixelSize: 11; color: Qt.alpha(root.themeTextMuted, 0.85)
                                                         Layout.alignment: Qt.AlignRight
-                                                        horizontalAlignment: Text.AlignRight
                                                     }
                                                 }
                                             }
@@ -1041,8 +1332,17 @@ except Exception as e:
                                         color: forecastItemHover.containsMouse ? root.themeSurfaceHover : (model.day === "Today" ? Qt.rgba(1, 1, 1, 0.05) : Qt.rgba(1, 1, 1, 0.025))
                                         border.width: 1
                                         border.color: forecastItemHover.containsMouse ? Qt.alpha(root.themeBorder, 0.28) : (model.day === "Today" ? Qt.alpha(root.themeBorder, 0.22) : Qt.alpha(root.themeBorder, 0.08))
-                                        Behavior on color { ColorAnimation { duration: 150 } }
-                                        Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                                        scale: forecastItemHover.containsMouse ? 1.0 : 1.0
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                                easing.type: animStyle.bounceEasing
+                                                easing.overshoot: animStyle.overshoot
+                                            }
+                                        }
+                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
                                         MouseArea {
                                             id: forecastItemHover
@@ -1052,8 +1352,7 @@ except Exception as e:
 
                                         RowLayout {
                                             anchors.fill: parent
-                                            anchors.leftMargin: 14
-                                            anchors.rightMargin: 14
+                                            anchors.leftMargin: 14; anchors.rightMargin: 14
                                             spacing: 10
 
                                             ColumnLayout {

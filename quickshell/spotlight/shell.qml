@@ -10,6 +10,11 @@ import QtQuick.Window
 Scope {
     id: root
 
+    Shortcut {
+        sequence: "Escape"
+        onActivated: Qt.quit()
+    }
+
     property string lockedMonitor: ""
 
     function updateTargetMonitor() {
@@ -42,7 +47,7 @@ Scope {
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.7
     property bool animEnabled: true
-    property int animDuration: 500
+    property int animDuration: 380
 
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08)    
@@ -50,6 +55,15 @@ Scope {
     property color themeText: "#FFFFFF"          
     property color themeTextMuted: "#A1A1AA"
     property color themePrimary: "#ffb3af"        
+
+    QtObject {
+        id: animStyle
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
+        property var fadeEasing: Easing.OutCubic
+        property real overshoot: 1.4
+    }
 
     FileView {
         id: colorFile
@@ -98,13 +112,11 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let enabledMatch = content.match(/enabled\s*=\s*(true|false)/)
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
 
-                let winInMatch = content.match(/leaf\s*=\s*"windowsIn"[\s\S]*?speed\s*=\s*([0-9.]+)/)
-                if (winInMatch && winInMatch[1]) {
-                    root.animDuration = Math.round(parseFloat(winInMatch[1]) * 50)
-                }
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
             } catch (e) {}
         }
     }
@@ -248,13 +260,18 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                     if (line !== "") {
                         let parts = line.split('|')
                         if (parts.length >= 4) {
-                            searchResultsModel.append({
-                                "itemType": parts[0],
-                                "filePath": parts[1],
-                                "displayName": parts[2],
-                                "fileName": parts[1].split('/').pop(),
-                                "iconName": parts[3]
-                            })
+                            let fname = parts[2].trim()
+                            
+                            // Aggressive prefix match check for safety
+                            if (fname.toLowerCase().startsWith(root.activeSearchQuery)) {
+                                searchResultsModel.append({
+                                    "itemType": parts[0],
+                                    "filePath": parts[1],
+                                    "displayName": parts[2],
+                                    "fileName": parts[1].split('/').pop(),
+                                    "iconName": parts[3]
+                                })
+                            }
                         }
                     }
                 }
@@ -290,7 +307,13 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         for (let i = 0; i < root.allApps.length; i++) {
             if (count >= maxApps) break; 
             let app = root.allApps[i]
-            if (app.displayName.toLowerCase().includes(q) || app.fileName.toLowerCase().includes(q)) {
+            let dName = (app.displayName || "").trim().toLowerCase()
+            let fName = (app.fileName || "").trim().toLowerCase()
+            if (fName.endsWith(".desktop")) fName = fName.slice(0, -8)
+            let baseFile = fName.split(".").pop()
+
+            // Aggressive Prefix Match: App must strictly START with the searched letter
+            if (dName.startsWith(q) || fName.startsWith(q) || baseFile.startsWith(q)) {
                 searchResultsModel.append(app)
                 count++
             }
@@ -301,9 +324,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                 fileSearchProcess.running = false
             }
 
+            // Bash search explicitly uses $q* enforcing string to begin with the query
             let bashCmd = `
                 q='` + q.replace(/'/g, "'\\''") + `'
-                find "$HOME/Documents" "$HOME/Downloads" "$HOME/Pictures" "$HOME/Videos" "$HOME/Desktop" "$HOME" -maxdepth 3 -type f -not -path '*/.*' -iname "*$q*" 2>/dev/null | grep -v -E "(\\.desktop|\\.cache|\\.local|\\.git|node_modules)" | head -n 10 | while read -r f; do
+                find "$HOME/Documents" "$HOME/Downloads" "$HOME/Pictures" "$HOME/Videos" "$HOME/Desktop" "$HOME" -maxdepth 3 -type f -not -path '*/.*' -iname "$q*" 2>/dev/null | grep -v -E "(\\.desktop|\\.cache|\\.local|\\.git|node_modules)" | head -n 10 | while read -r f; do
                     fname=$(basename "$f")
                     ext="\${fname##*.}"
                     case "\${ext,,}" in
@@ -361,7 +385,12 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
             Rectangle {
                 id: searchContainer
                 width: Math.min(720, parent.width - 40)
-                implicitHeight: mainLayout.implicitHeight + 24
+                
+                property real targetHeight: mainLayout.implicitHeight + 28
+                height: targetHeight
+                
+                // Safe and strictly mathematical check to ensure box physically reached its goal before fading items in
+                property bool isFullyExpanded: height >= (targetHeight - 5)
                 
                 anchors.top: parent.top
                 anchors.topMargin: 200
@@ -372,47 +401,49 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                 border.color: Qt.alpha(root.themeBorder, 0.35)
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
 
-                scale: root.isLoaded ? 1.0 : 0.92
+                scale: root.isLoaded ? 1.0 : 0.90
                 opacity: root.isLoaded ? 1.0 : 0.0
 
                 transform: Translate {
                     y: root.isLoaded ? 0 : 16
                     Behavior on y {
-                        enabled: root.animEnabled
-                        NumberAnimation { duration: root.animDuration; easing.type: Easing.OutQuint }
+                        NumberAnimation { 
+                            duration: root.animEnabled ? animStyle.animDuration : 0
+                            easing.type: animStyle.bounceEasing
+                            easing.overshoot: animStyle.overshoot
+                        }
                     }
                 }
 
-                Behavior on implicitHeight {
-                    enabled: root.animEnabled
+                Behavior on height {
                     NumberAnimation {
-                        duration: root.animDuration
-                        easing.type: Easing.OutQuint
+                        duration: root.animEnabled ? animStyle.animDuration : 0
+                        easing.type: animStyle.bounceEasing
+                        easing.overshoot: animStyle.overshoot
                     }
                 }
 
                 Behavior on scale {
-                    enabled: root.animEnabled
                     NumberAnimation {
-                        duration: root.animDuration
-                        easing.type: Easing.OutQuint
+                        duration: root.animEnabled ? animStyle.animDuration : 0
+                        easing.type: animStyle.bounceEasing
+                        easing.overshoot: animStyle.overshoot
                     }
                 }
 
                 Behavior on opacity {
-                    enabled: root.animEnabled
                     NumberAnimation { 
-                        duration: 380
-                        easing.type: Easing.OutCubic
+                        duration: animStyle.fadeDuration
+                        easing.type: animStyle.fadeEasing
                     }
                 }
 
                 Behavior on color {
-                    ColorAnimation { duration: 380; easing.type: Easing.OutCubic }
+                    ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                 }
 
                 Behavior on border.color {
-                    ColorAnimation { duration: 380; easing.type: Easing.OutCubic }
+                    ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                 }
 
                 MouseArea {
@@ -441,7 +472,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             Layout.alignment: Qt.AlignVCenter
 
                             Behavior on color {
-                                ColorAnimation { duration: 380; easing.type: Easing.OutCubic }
+                                ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                             }
                         }
 
@@ -503,18 +534,36 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             Layout.preferredHeight: 22
                             Layout.rightMargin: 4
                             radius: 6 
-                            color: Qt.rgba(1, 1, 1, 0.08)
+                            color: escBadgeMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.08)
+                            scale: escBadgeMouse.containsMouse ? 1.10 : 1.0
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
+                            Behavior on color {
+                                ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                            }
 
                             Text {
                                 anchors.centerIn: parent
                                 text: "ESC"
-                                color: root.themeTextMuted
+                                color: escBadgeMouse.containsMouse ? root.themeText : root.themeTextMuted
                                 font.pixelSize: 10
                                 font.weight: Font.Bold
+
+                                Behavior on color {
+                                    ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                }
                             }
                             
                             MouseArea {
+                                id: escBadgeMouse
                                 anchors.fill: parent
+                                hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: Qt.quit()
                             }
@@ -525,10 +574,16 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         Layout.fillWidth: true
                         height: 1
                         color: Qt.alpha(root.themeBorder, 0.20)
+                        
+                        // Layout is preserved independently of animation to prevent engine layout loops
                         visible: searchResultsModel.count > 0 || searchInput.text.trim() !== ""
+                        opacity: searchContainer.isFullyExpanded ? 1.0 : 0.0
 
+                        Behavior on opacity {
+                            NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                        }
                         Behavior on color {
-                            ColorAnimation { duration: 380; easing.type: Easing.OutCubic }
+                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                         }
                     }
 
@@ -536,6 +591,11 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         Layout.fillWidth: true
                         Layout.preferredHeight: 56
                         visible: searchResultsModel.count === 0 && searchInput.text.trim() !== ""
+                        opacity: searchContainer.isFullyExpanded ? 1.0 : 0.0
+
+                        Behavior on opacity {
+                            NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                        }
 
                         RowLayout {
                             anchors.centerIn: parent
@@ -548,7 +608,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             }
 
                             Text {
-                                text: "No results found for \"" + searchInput.text + "\""
+                                text: "No results found starting with \"" + searchInput.text + "\""
                                 color: root.themeTextMuted
                                 font.pixelSize: 13
                                 font.weight: Font.Medium
@@ -566,31 +626,51 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         spacing: 4
                         boundsBehavior: Flickable.StopAtBounds
 
-                        Behavior on Layout.preferredHeight {
-                            enabled: root.animEnabled
+                        // Items pop in smoothly ONLY after the container physically catches up
+                        opacity: searchContainer.isFullyExpanded ? 1.0 : 0.0
+                        scale: searchContainer.isFullyExpanded ? 1.0 : 0.96
+
+                        Behavior on opacity {
+                            NumberAnimation { 
+                                duration: animStyle.fadeDuration
+                                easing.type: animStyle.fadeEasing 
+                            }
+                        }
+                        Behavior on scale {
                             NumberAnimation {
-                                duration: root.animDuration
-                                easing.type: Easing.OutQuint
+                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                easing.type: animStyle.bounceEasing
+                                easing.overshoot: animStyle.overshoot
                             }
                         }
 
                         add: Transition {
                             ParallelAnimation {
-                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 420; easing.type: Easing.OutCubic }
-                                NumberAnimation { property: "scale"; from: 0.94; to: 1.0; duration: 420; easing.type: Easing.OutQuint }
-                                NumberAnimation { property: "y"; duration: 450; easing.type: Easing.OutQuint }
+                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                NumberAnimation { 
+                                    property: "scale"
+                                    from: 0.92; to: 1.0
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot 
+                                }
                             }
                         }
                         
                         remove: Transition {
                             ParallelAnimation {
-                                NumberAnimation { property: "opacity"; to: 0; duration: 250; easing.type: Easing.OutCubic }
-                                NumberAnimation { property: "scale"; to: 0.92; duration: 250; easing.type: Easing.OutCubic }
+                                NumberAnimation { property: "opacity"; to: 0; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                NumberAnimation { property: "scale"; to: 0.90; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                             }
                         }
 
                         displaced: Transition {
-                            NumberAnimation { properties: "y,x"; duration: 450; easing.type: Easing.OutQuint }
+                            NumberAnimation { 
+                                properties: "y,x"
+                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                easing.type: animStyle.bounceEasing
+                                easing.overshoot: animStyle.overshoot 
+                            }
                         }
 
                         onCountChanged: {
@@ -610,13 +690,21 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             radius: Math.max(4, root.themeRounding - 4)
                             property bool isSelected: ListView.isCurrentItem
 
-                            color: isSelected ? Qt.alpha(root.themePrimary, 0.16) : "transparent"
+                            color: isSelected ? Qt.alpha(root.themePrimary, 0.16) : (itemCardMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.08) : "transparent")
+                            scale: isSelected ? 1.015 : 1.0
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
                             
                             Behavior on color {
-                                enabled: root.animEnabled
                                 ColorAnimation { 
-                                    duration: 280 
-                                    easing.type: Easing.OutCubic 
+                                    duration: animStyle.fadeDuration 
+                                    easing.type: animStyle.fadeEasing 
                                 }
                             }
 
@@ -631,21 +719,20 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 opacity: itemCard.isSelected ? 1 : 0
                                 
                                 Behavior on height {
-                                    enabled: root.animEnabled
                                     NumberAnimation { 
-                                        duration: 400 
-                                        easing.type: Easing.OutQuint
+                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                        easing.type: animStyle.bounceEasing
+                                        easing.overshoot: animStyle.overshoot
                                     }
                                 }
                                 Behavior on opacity {
-                                    enabled: root.animEnabled
                                     NumberAnimation { 
-                                        duration: 280 
-                                        easing.type: Easing.OutCubic
+                                        duration: animStyle.fadeDuration 
+                                        easing.type: animStyle.fadeEasing 
                                     }
                                 }
                                 Behavior on color {
-                                    ColorAnimation { duration: 380; easing.type: Easing.OutCubic }
+                                    ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                                 }
                             }
 
@@ -683,7 +770,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                     Layout.alignment: Qt.AlignVCenter
 
                                     Behavior on color {
-                                        ColorAnimation { duration: 280; easing.type: Easing.OutCubic }
+                                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                                     }
                                 }
 
@@ -703,7 +790,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                         color: model.itemType === "app" ? root.themePrimary : root.themeTextMuted
 
                                         Behavior on color {
-                                            ColorAnimation { duration: 380; easing.type: Easing.OutCubic }
+                                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                                         }
                                     }
                                 }
@@ -714,10 +801,9 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                     Layout.alignment: Qt.AlignVCenter
 
                                     Behavior on opacity {
-                                        enabled: root.animEnabled
                                         NumberAnimation { 
-                                            duration: 280 
-                                            easing.type: Easing.OutCubic
+                                            duration: animStyle.fadeDuration 
+                                            easing.type: animStyle.fadeEasing 
                                         }
                                     }
 
@@ -728,19 +814,20 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                         font.weight: Font.Bold
 
                                         Behavior on color {
-                                            ColorAnimation { duration: 380; easing.type: Easing.OutCubic }
+                                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                                         }
                                     }
                                 }
                             }
 
                             MouseArea {
+                                id: itemCardMouse
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 onEntered: resultsList.currentIndex = index
                                 onClicked: {
                                     resultsList.currentIndex = index
-                                    executeResult(item.itemType, item.filePath, item.fileName)
+                                    executeResult(model.itemType, model.filePath, model.fileName)
                                 }
                             }
                         }

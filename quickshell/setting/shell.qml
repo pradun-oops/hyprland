@@ -16,7 +16,7 @@ Scope {
 
     property int themeRounding: 14
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.75
+    property real themeBgAlpha: 1.0
     property bool internalChange: false
     property string searchQuery: ""
     
@@ -48,7 +48,6 @@ Scope {
         { id: "inactive_opacity", name: "Inactive Opacity", cat: "Decoration", type: "slider", min: 0.1, max: 1.0, step: 0.05, val: 0.85, file: "general.lua", match: /inactive_opacity\s*=\s*([0-9.]+)/, replaceCmd: "s/(inactive_opacity\\s*=\\s*)[0-9.]+/\\1{VAL}/" },
         { id: "blur_enabled", name: "Enable Blur", cat: "Decoration", type: "switch", valBool: true, file: "general.lua", match: /blur\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/, replaceCmd: "/blur\\s*=\\s*\\{/,/\\}/ s/(enabled\\s*=\\s*)(true|false)/\\1{VAL}/" },
         { id: "shadow_enabled", name: "Enable Shadow", cat: "Decoration", type: "switch", valBool: true, file: "general.lua", match: /shadow\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/, replaceCmd: "/shadow\\s*=\\s*\\{/,/\\}/ s/(enabled\\s*=\\s*)(true|false)/\\1{VAL}/" },
-        { id: "layout", name: "Layout Mode", cat: "General", type: "toggle", options: ["scrolling", "dwindle", "master"], valStr: "scrolling", file: "general.lua", match: /layout\s*=\s*["']?([a-zA-Z0-9_-]+)["']?/, replaceCmd: "s/(layout\\s*=\\s*)[\"']?[^\"'\\s,]+[\"']?/\\1\"{VAL}\"/" },
 
         { id: "anim_enabled", name: "Global Animations", cat: "Animations", type: "switch", valBool: true, file: "animations.lua", match: /animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/, replaceCmd: "/animations\\s*=\\s*\\{/,/\\}/ s/(enabled\\s*=\\s*)(true|false)/\\1{VAL}/" },
         { id: "anim_preset", name: "Animation Preset", cat: "Animations", type: "preset", options: ["Default", "Snappy", "Bouncy", "Smooth", "Fast Slide", "Overshoot"], valStr: "Default", file: "animations.lua", match: /--\s*preset:\s*([^\r\n]+)/ },
@@ -154,10 +153,6 @@ Scope {
         } else {
             let valStr = (typeof val === "boolean") ? (val ? "true" : "false") : (typeof val === "number" ? (val % 1 === 0 ? val.toString() : val.toFixed(2)) : val.toString())
             let cmd = `sed -i -E '${setting.replaceCmd.replace("{VAL}", valStr)}' '${path}'`
-
-            if (setting.id === "layout") {
-                cmd += ` && hyprctl keyword general:layout '${valStr}'`
-            }
 
             if (bashRunner.running) bashRunner.terminate()
             bashRunner.command = ["bash", "-c", cmd]
@@ -393,18 +388,53 @@ Scope {
             visible: root.targetMonitorName !== "" && isTargetMonitor
 
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
-            WlrLayershell.namespace: "qs-config"
+            WlrLayershell.namespace: "qs-config-noblur"
             WlrLayershell.layer: WlrLayer.Overlay
             exclusiveZone: -1
 
-            Shortcut { sequence: "Escape"; onActivated: Qt.quit() }
+            property bool isClosing: false
+
+            function closeWidget() {
+                if (isClosing) return
+                if (presetDialog.visible) {
+                    presetDialog.closeDialog()
+                    return
+                }
+                if (cursorDialog.visible) {
+                    cursorDialog.closeDialog()
+                    return
+                }
+                isClosing = true
+                mainCloseAnim.start()
+            }
+
+            ParallelAnimation {
+                id: mainCloseAnim
+                NumberAnimation { target: backdropOverlay; property: "opacity"; to: 0; duration: 220; easing.type: Easing.OutCubic }
+                NumberAnimation { target: mainCard; property: "scale"; to: 0.88; duration: 220; easing.type: Easing.InBack }
+                NumberAnimation { target: mainCard; property: "opacity"; to: 0; duration: 180; easing.type: Easing.OutCubic }
+                onFinished: Qt.quit()
+            }
+
+            Shortcut { sequence: "Escape"; onActivated: controlWindow.closeWidget() }
 
             anchors { top: true; bottom: true; left: true; right: true }
             color: "transparent"
 
-            MouseArea {
+            Rectangle {
+                id: backdropOverlay
                 anchors.fill: parent
-                onClicked: Qt.quit()
+                color: Qt.rgba(0, 0, 0, 0.65)
+                opacity: 0
+
+                NumberAnimation on opacity {
+                    from: 0; to: 1; duration: 300; easing.type: Easing.OutCubic
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: controlWindow.closeWidget()
+                }
             }
 
             Item {
@@ -416,7 +446,7 @@ Scope {
                     if (isTargetMonitor) forceActiveFocus()
                 }
 
-                Keys.onEscapePressed: Qt.quit()
+                Keys.onEscapePressed: controlWindow.closeWidget()
 
                 Rectangle {
                     id: mainCard
@@ -427,7 +457,16 @@ Scope {
                     radius: root.themeRounding
                     border.width: root.themeBorderSize
                     border.color: Qt.alpha(root.themeBorder, 0.40)
-                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                    color: root.themeBackground
+
+                    scale: 0.85
+                    opacity: 0
+
+                    ParallelAnimation {
+                        running: true
+                        NumberAnimation { target: mainCard; property: "scale"; from: 0.85; to: 1.0; duration: 450; easing.type: Easing.OutBack; easing.overshoot: 1.25 }
+                        NumberAnimation { target: mainCard; property: "opacity"; from: 0; to: 1.0; duration: 300; easing.type: Easing.OutCubic }
+                    }
 
                     MouseArea {
                         anchors.fill: parent
@@ -496,6 +535,7 @@ Scope {
                             model: filteredModel
                             clip: true
                             spacing: 6
+                            interactive: !presetDialog.visible && !cursorDialog.visible
                             highlightFollowsCurrentItem: true
 
                             ScrollBar.vertical: ScrollBar {
@@ -510,235 +550,241 @@ Scope {
                                 radius: Math.max(4, root.themeRounding - 6)
                                 color: ListView.isCurrentItem ? Qt.alpha(root.themePrimary, 0.15) : Qt.rgba(1, 1, 1, 0.04)
 
-                                Text {
-                                    anchors.left: parent.left
+                                RowLayout {
+                                    anchors.fill: parent
                                     anchors.leftMargin: 16
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 180
-                                    text: model.itemName
-                                    color: root.themeText
-                                    font.pixelSize: 14
-                                    font.weight: Font.Medium
-                                    elide: Text.ElideRight
-                                }
-
-                                Rectangle {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    height: 22
-                                    implicitWidth: catText.implicitWidth + 14
-                                    radius: 6
-                                    color: Qt.alpha(root.themeText, 0.08)
+                                    anchors.rightMargin: 16
+                                    spacing: 12
 
                                     Text {
-                                        id: catText
-                                        anchors.centerIn: parent
-                                        text: model.itemCategory
-                                        font.pixelSize: 10
-                                        font.weight: Font.Bold
-                                        color: root.themeTextMuted
+                                        text: model.itemName
+                                        color: root.themeText
+                                        font.pixelSize: 14
+                                        font.weight: Font.Medium
+                                        Layout.preferredWidth: 170
+                                        elide: Text.ElideRight
                                     }
-                                }
 
-                                Item {
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: 16
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    width: 140
-                                    height: 36
-
-                                    RowLayout {
-                                        anchors.centerIn: parent
-                                        visible: model.itemType === "slider"
-                                        spacing: 6
-
-                                        Rectangle {
-                                            width: 28; height: 28
-                                            radius: 6
-                                            color: minusMouse.containsPress ? Qt.alpha(root.themePrimary, 0.4) : (minusMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.alpha(root.themePrimary, 0.15))
-                                            border.color: Qt.alpha(root.themePrimary, 0.4)
-                                            border.width: 1
-
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: "-"
-                                                color: root.themeText
-                                                font.pixelSize: 16
-                                                font.weight: Font.Bold
-                                            }
-
-                                            MouseArea {
-                                                id: minusMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    let step = model.itemStep || 1
-                                                    let minVal = model.itemMin
-                                                    let curVal = model.itemVal
-                                                    let newVal = Math.max(minVal, curVal - step)
-                                                    let precision = step < 1 ? 2 : 0
-                                                    newVal = parseFloat(newVal.toFixed(precision))
-                                                    root.commitChange(model.itemId, newVal)
-                                                }
-                                            }
-                                        }
+                                    Rectangle {
+                                        height: 22
+                                        implicitWidth: catText.implicitWidth + 14
+                                        radius: 6
+                                        color: Qt.alpha(root.themeText, 0.08)
 
                                         Text {
-                                            Layout.preferredWidth: 42
-                                            horizontalAlignment: Text.AlignHCenter
-                                            text: Number(model.itemVal).toFixed(model.itemStep < 1 ? 2 : 0)
-                                            color: root.themePrimary
-                                            font.pixelSize: 13
+                                            id: catText
+                                            anchors.centerIn: parent
+                                            text: model.itemCategory
+                                            font.pixelSize: 10
                                             font.weight: Font.Bold
+                                            color: root.themeTextMuted
+                                        }
+                                    }
+
+                                    Item { Layout.fillWidth: true }
+
+                                    Item {
+                                        Layout.preferredWidth: 150
+                                        Layout.preferredHeight: 36
+
+                                        RowLayout {
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            visible: model.itemType === "slider"
+                                            spacing: 6
+
+                                            Rectangle {
+                                                width: 28; height: 28
+                                                radius: 6
+                                                color: minusMouse.containsPress ? Qt.alpha(root.themePrimary, 0.4) : (minusMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.alpha(root.themePrimary, 0.15))
+                                                border.color: Qt.alpha(root.themePrimary, 0.4)
+                                                border.width: 1
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "-"
+                                                    color: root.themeText
+                                                    font.pixelSize: 16
+                                                    font.weight: Font.Bold
+                                                }
+
+                                                MouseArea {
+                                                    id: minusMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        let step = model.itemStep || 1
+                                                        let minVal = model.itemMin
+                                                        let curVal = model.itemVal
+                                                        let newVal = Math.max(minVal, curVal - step)
+                                                        let precision = step < 1 ? 2 : 0
+                                                        newVal = parseFloat(newVal.toFixed(precision))
+                                                        root.commitChange(model.itemId, newVal)
+                                                    }
+                                                }
+                                            }
+
+                                            Text {
+                                                Layout.preferredWidth: 42
+                                                horizontalAlignment: Text.AlignHCenter
+                                                text: Number(model.itemVal).toFixed(model.itemStep < 1 ? 2 : 0)
+                                                color: root.themePrimary
+                                                font.pixelSize: 13
+                                                font.weight: Font.Bold
+                                            }
+
+                                            Rectangle {
+                                                width: 28; height: 28
+                                                radius: 6
+                                                color: plusMouse.containsPress ? Qt.alpha(root.themePrimary, 0.4) : (plusMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.alpha(root.themePrimary, 0.15))
+                                                border.color: Qt.alpha(root.themePrimary, 0.4)
+                                                border.width: 1
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "+"
+                                                    color: root.themeText
+                                                    font.pixelSize: 16
+                                                    font.weight: Font.Bold
+                                                }
+
+                                                MouseArea {
+                                                    id: plusMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: {
+                                                        let step = model.itemStep || 1
+                                                        let maxVal = model.itemMax
+                                                        let curVal = model.itemVal
+                                                        let newVal = Math.min(maxVal, curVal + step)
+                                                        let precision = step < 1 ? 2 : 0
+                                                        newVal = parseFloat(newVal.toFixed(precision))
+                                                        root.commitChange(model.itemId, newVal)
+                                                    }
+                                                }
+                                            }
                                         }
 
                                         Rectangle {
-                                            width: 28; height: 28
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            visible: model.itemType === "switch"
+                                            width: 42; height: 22
+                                            radius: 11
+                                            color: model.itemValBool ? root.themePrimary : Qt.rgba(1, 1, 1, 0.1)
+                                            border.color: model.itemValBool ? root.themePrimary : Qt.rgba(1, 1, 1, 0.2)
+                                            border.width: 1
+
+                                            Rectangle {
+                                                x: model.itemValBool ? parent.width - width - 3 : 3
+                                                y: 3; width: 16; height: 16; radius: 8
+                                                color: model.itemValBool ? root.themeBackground : "#FFFFFF"
+                                                Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
+                                            }
+
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: root.commitChange(model.itemId, !model.itemValBool)
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            visible: model.itemType === "toggle"
+                                            width: 110; height: 28
                                             radius: 6
-                                            color: plusMouse.containsPress ? Qt.alpha(root.themePrimary, 0.4) : (plusMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.alpha(root.themePrimary, 0.15))
+                                            color: toggleMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.alpha(root.themePrimary, 0.15)
                                             border.color: Qt.alpha(root.themePrimary, 0.4)
                                             border.width: 1
 
                                             Text {
                                                 anchors.centerIn: parent
-                                                text: "+"
-                                                color: root.themeText
-                                                font.pixelSize: 16
-                                                font.weight: Font.Bold
+                                                text: model.itemValStr.toUpperCase()
+                                                color: root.themePrimary
+                                                font.pixelSize: 11; font.weight: Font.Bold
                                             }
 
                                             MouseArea {
-                                                id: plusMouse
+                                                id: toggleMouse
                                                 anchors.fill: parent
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    let step = model.itemStep || 1
-                                                    let maxVal = model.itemMax
-                                                    let curVal = model.itemVal
-                                                    let newVal = Math.min(maxVal, curVal + step)
-                                                    let precision = step < 1 ? 2 : 0
-                                                    newVal = parseFloat(newVal.toFixed(precision))
-                                                    root.commitChange(model.itemId, newVal)
+                                                    let setting = root.settingsSchema.find(s => s.id === model.itemId)
+                                                    if (setting && setting.options && setting.options.length > 0) {
+                                                        let opts = setting.options
+                                                        let idx = opts.indexOf(model.itemValStr)
+                                                        let nextIdx = (idx >= 0) ? (idx + 1) % opts.length : 0
+                                                        root.commitChange(model.itemId, opts[nextIdx])
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
-
-                                    Rectangle {
-                                        anchors.centerIn: parent
-                                        visible: model.itemType === "switch"
-                                        width: 42; height: 22
-                                        radius: 11
-                                        color: model.itemValBool ? root.themePrimary : Qt.rgba(1, 1, 1, 0.1)
-                                        border.color: model.itemValBool ? root.themePrimary : Qt.rgba(1, 1, 1, 0.2)
-                                        border.width: 1
 
                                         Rectangle {
-                                            x: model.itemValBool ? parent.width - width - 3 : 3
-                                            y: 3; width: 16; height: 16; radius: 8
-                                            color: model.itemValBool ? root.themeBackground : "#FFFFFF"
-                                            Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
-                                        }
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            visible: model.itemType === "preset"
+                                            width: 130; height: 28
+                                            radius: 6
+                                            color: presetTriggerMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.alpha(root.themePrimary, 0.15)
+                                            border.color: Qt.alpha(root.themePrimary, 0.4)
+                                            border.width: 1
 
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.commitChange(model.itemId, !model.itemValBool)
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        anchors.centerIn: parent
-                                        visible: model.itemType === "toggle"
-                                        width: 110; height: 28
-                                        radius: 6
-                                        color: toggleMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.alpha(root.themePrimary, 0.15)
-                                        border.color: Qt.alpha(root.themePrimary, 0.4)
-                                        border.width: 1
-
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: model.itemValStr.toUpperCase()
-                                            color: root.themePrimary
-                                            font.pixelSize: 11; font.weight: Font.Bold
-                                        }
-
-                                        MouseArea {
-                                            id: toggleMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                let setting = root.settingsSchema.find(s => s.id === model.itemId)
-                                                if (setting && setting.options && setting.options.length > 0) {
-                                                    let opts = setting.options
-                                                    let idx = opts.indexOf(model.itemValStr)
-                                                    let nextIdx = (idx >= 0) ? (idx + 1) % opts.length : 0
-                                                    root.commitChange(model.itemId, opts[nextIdx])
+                                            RowLayout {
+                                                anchors.centerIn: parent
+                                                spacing: 6
+                                                Text {
+                                                    text: root.currentAnimPreset
+                                                    color: root.themePrimary
+                                                    font.pixelSize: 11; font.weight: Font.Bold
                                                 }
+                                                Text { text: "▾"; color: root.themePrimary; font.pixelSize: 10 }
+                                            }
+
+                                            MouseArea {
+                                                id: presetTriggerMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: presetDialog.openDialog()
                                             }
                                         }
-                                    }
 
-                                    Rectangle {
-                                        anchors.centerIn: parent
-                                        visible: model.itemType === "preset"
-                                        width: 130; height: 28
-                                        radius: 6
-                                        color: presetTriggerMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.alpha(root.themePrimary, 0.15)
-                                        border.color: Qt.alpha(root.themePrimary, 0.4)
-                                        border.width: 1
+                                        Rectangle {
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            visible: model.itemType === "cursor"
+                                            width: 130; height: 28
+                                            radius: 6
+                                            color: cursorTriggerMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.alpha(root.themePrimary, 0.15)
+                                            border.color: Qt.alpha(root.themePrimary, 0.4)
+                                            border.width: 1
 
-                                        RowLayout {
-                                            anchors.centerIn: parent
-                                            spacing: 6
-                                            Text {
-                                                text: root.currentAnimPreset
-                                                color: root.themePrimary
-                                                font.pixelSize: 11; font.weight: Font.Bold
+                                            RowLayout {
+                                                anchors.centerIn: parent
+                                                spacing: 6
+                                                Text {
+                                                    text: root.currentCursorTheme
+                                                    color: root.themePrimary
+                                                    font.pixelSize: 11; font.weight: Font.Bold
+                                                    elide: Text.ElideRight
+                                                    Layout.maximumWidth: 95
+                                                }
+                                                Text { text: "▾"; color: root.themePrimary; font.pixelSize: 10 }
                                             }
-                                            Text { text: "▾"; color: root.themePrimary; font.pixelSize: 10 }
-                                        }
 
-                                        MouseArea {
-                                            id: presetTriggerMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: presetDialog.visible = true
-                                        }
-                                    }
-
-                                    Rectangle {
-                                        anchors.centerIn: parent
-                                        visible: model.itemType === "cursor"
-                                        width: 130; height: 28
-                                        radius: 6
-                                        color: cursorTriggerMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.alpha(root.themePrimary, 0.15)
-                                        border.color: Qt.alpha(root.themePrimary, 0.4)
-                                        border.width: 1
-
-                                        RowLayout {
-                                            anchors.centerIn: parent
-                                            spacing: 6
-                                            Text {
-                                                text: root.currentCursorTheme
-                                                color: root.themePrimary
-                                                font.pixelSize: 11; font.weight: Font.Bold
-                                                elide: Text.ElideRight
-                                                Layout.maximumWidth: 95
+                                            MouseArea {
+                                                id: cursorTriggerMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: cursorDialog.openDialog()
                                             }
-                                            Text { text: "▾"; color: root.themePrimary; font.pixelSize: 10 }
-                                        }
-
-                                        MouseArea {
-                                            id: cursorTriggerMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: cursorDialog.visible = true
                                         }
                                     }
                                 }
@@ -772,22 +818,50 @@ Scope {
                     }
                 }
 
-                Rectangle {
+                Item {
                     id: presetDialog
                     anchors.fill: parent
-                    visible: false
-                    radius: root.themeRounding
-                    color: Qt.rgba(0, 0, 0, 0.75)
+                    visible: opacity > 0
+                    opacity: 0
                     z: 100
 
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: presetDialog.visible = false
+                    function openDialog() {
+                        closeAnimPreset.stop()
+                        openAnimPreset.restart()
+                    }
+
+                    function closeDialog() {
+                        openAnimPreset.stop()
+                        closeAnimPreset.restart()
+                    }
+
+                    ParallelAnimation {
+                        id: openAnimPreset
+                        NumberAnimation { target: presetDialog; property: "opacity"; from: 0; to: 1; duration: 250; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: presetCardContainer; property: "scale"; from: 0.85; to: 1.0; duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.25 }
+                    }
+
+                    ParallelAnimation {
+                        id: closeAnimPreset
+                        NumberAnimation { target: presetDialog; property: "opacity"; from: 1; to: 0; duration: 200; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: presetCardContainer; property: "scale"; from: 1.0; to: 0.88; duration: 200; easing.type: Easing.InBack }
                     }
 
                     Rectangle {
-                        width: parent.width - 60
-                        height: parent.height - 70
+                        anchors.fill: parent
+                        color: Qt.rgba(0, 0, 0, 0.75)
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: presetDialog.closeDialog()
+                            onWheel: (wheel) => wheel.accepted = true
+                        }
+                    }
+
+                    Rectangle {
+                        id: presetCardContainer
+                        width: Math.min(540, parent.width - 60)
+                        height: Math.min(500, parent.height - 70)
                         anchors.centerIn: parent
                         radius: root.themeRounding
                         color: root.themeBackground
@@ -797,27 +871,31 @@ Scope {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: (mouse) => mouse.accepted = true
+                            onWheel: (wheel) => wheel.accepted = true
                         }
 
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 18
+                            anchors.margins: 20
                             spacing: 12
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                Text { text: "🪄"; font.pixelSize: 20; color: root.themePrimary }
+                                spacing: 10
+                                Text { text: "🪄"; font.pixelSize: 22 }
                                 Text { text: "Select Animation Preset"; font.pixelSize: 16; font.weight: Font.Bold; color: root.themeText }
                                 Item { Layout.fillWidth: true }
                                 Rectangle {
-                                    width: 26; height: 26; radius: 13
+                                    width: 28; height: 28; radius: 14
                                     color: dialogCloseMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.3) : Qt.rgba(1, 1, 1, 0.08)
+                                    Behavior on color { ColorAnimation { duration: 150 } }
                                     Text { anchors.centerIn: parent; text: "✕"; color: root.themeText; font.pixelSize: 11 }
                                     MouseArea {
                                         id: dialogCloseMouse
                                         anchors.fill: parent
+                                        hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: presetDialog.visible = false
+                                        onClicked: presetDialog.closeDialog()
                                     }
                                 }
                             }
@@ -840,14 +918,26 @@ Scope {
                                 spacing: 8
                                 clip: true
 
+                                ScrollBar.vertical: ScrollBar {
+                                    active: presetListView.moving || presetListView.flicking
+                                    policy: ScrollBar.AsNeeded
+                                }
+
                                 delegate: Rectangle {
+                                    id: presetItem
                                     width: presetListView.width
                                     height: 58
                                     radius: 8
                                     property bool isActive: modelData.name === root.currentAnimPreset
-                                    color: isActive ? Qt.alpha(root.themePrimary, 0.20) : (presetCardMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.03))
-                                    border.color: isActive ? root.themePrimary : Qt.rgba(1, 1, 1, 0.1)
+                                    property bool isHovered: presetCardMouse.containsMouse
+
+                                    color: isActive ? Qt.alpha(root.themePrimary, 0.22) : (isHovered ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.03))
+                                    border.color: isActive ? root.themePrimary : (isHovered ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(1, 1, 1, 0.1))
                                     border.width: isActive ? 2 : 1
+                                    scale: presetCardMouse.containsPress ? 0.98 : (isHovered ? 1.01 : 1.0)
+
+                                    Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+                                    Behavior on color { ColorAnimation { duration: 150 } }
 
                                     RowLayout {
                                         anchors.fill: parent
@@ -858,11 +948,27 @@ Scope {
                                         ColumnLayout {
                                             spacing: 2
                                             Layout.fillWidth: true
+                                            Layout.alignment: Qt.AlignVCenter
                                             Text { text: modelData.name; color: root.themeText; font.pixelSize: 13; font.weight: Font.Bold }
-                                            Text { text: modelData.desc; color: root.themeTextMuted; font.pixelSize: 11; elide: Text.ElideRight }
+                                            Text { text: modelData.desc; color: root.themeTextMuted; font.pixelSize: 11; elide: Text.ElideRight; Layout.fillWidth: true }
+                                        }
+
+                                        Item {
+                                            Layout.preferredWidth: 24
+                                            Layout.preferredHeight: 24
+                                            Layout.alignment: Qt.AlignVCenter
+
+                                            Rectangle {
+                                                anchors.centerIn: parent
+                                                visible: isActive
+                                                width: 20; height: 20; radius: 10
+                                                color: root.themePrimary
+                                                Text { anchors.centerIn: parent; text: "✓"; color: root.themeBackground; font.pixelSize: 11; font.weight: Font.Bold }
+                                            }
                                         }
 
                                         Rectangle {
+                                            Layout.alignment: Qt.AlignVCenter
                                             Layout.preferredHeight: 20
                                             Layout.preferredWidth: tagText.implicitWidth + 10
                                             radius: 4
@@ -886,7 +992,7 @@ Scope {
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
                                             root.commitChange("anim_preset", modelData.name)
-                                            presetDialog.visible = false
+                                            presetDialog.closeDialog()
                                         }
                                     }
                                 }
@@ -895,22 +1001,50 @@ Scope {
                     }
                 }
 
-                Rectangle {
+                Item {
                     id: cursorDialog
                     anchors.fill: parent
-                    visible: false
-                    radius: root.themeRounding
-                    color: Qt.rgba(0, 0, 0, 0.75)
+                    visible: opacity > 0
+                    opacity: 0
                     z: 100
 
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: cursorDialog.visible = false
+                    function openDialog() {
+                        closeAnimCursor.stop()
+                        openAnimCursor.restart()
+                    }
+
+                    function closeDialog() {
+                        openAnimCursor.stop()
+                        closeAnimCursor.restart()
+                    }
+
+                    ParallelAnimation {
+                        id: openAnimCursor
+                        NumberAnimation { target: cursorDialog; property: "opacity"; from: 0; to: 1; duration: 250; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: cursorCardContainer; property: "scale"; from: 0.85; to: 1.0; duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.25 }
+                    }
+
+                    ParallelAnimation {
+                        id: closeAnimCursor
+                        NumberAnimation { target: cursorDialog; property: "opacity"; from: 1; to: 0; duration: 200; easing.type: Easing.OutCubic }
+                        NumberAnimation { target: cursorCardContainer; property: "scale"; from: 1.0; to: 0.88; duration: 200; easing.type: Easing.InBack }
                     }
 
                     Rectangle {
-                        width: parent.width - 60
-                        height: parent.height - 70
+                        anchors.fill: parent
+                        color: Qt.rgba(0, 0, 0, 0.75)
+
+                        MouseArea {
+                            anchors.fill: parent
+                            onClicked: cursorDialog.closeDialog()
+                            onWheel: (wheel) => wheel.accepted = true
+                        }
+                    }
+
+                    Rectangle {
+                        id: cursorCardContainer
+                        width: Math.min(540, parent.width - 60)
+                        height: Math.min(500, parent.height - 70)
                         anchors.centerIn: parent
                         radius: root.themeRounding
                         color: root.themeBackground
@@ -920,27 +1054,31 @@ Scope {
                         MouseArea {
                             anchors.fill: parent
                             onClicked: (mouse) => mouse.accepted = true
+                            onWheel: (wheel) => wheel.accepted = true
                         }
 
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 18
+                            anchors.margins: 20
                             spacing: 12
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                Text { text: "🖱️"; font.pixelSize: 20; color: root.themePrimary }
+                                spacing: 10
+                                Text { text: "🖱️"; font.pixelSize: 22 }
                                 Text { text: "Installed Cursor Themes"; font.pixelSize: 16; font.weight: Font.Bold; color: root.themeText }
                                 Item { Layout.fillWidth: true }
                                 Rectangle {
-                                    width: 26; height: 26; radius: 13
+                                    width: 28; height: 28; radius: 14
                                     color: cursorCloseMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.3) : Qt.rgba(1, 1, 1, 0.08)
+                                    Behavior on color { ColorAnimation { duration: 150 } }
                                     Text { anchors.centerIn: parent; text: "✕"; color: root.themeText; font.pixelSize: 11 }
                                     MouseArea {
                                         id: cursorCloseMouse
                                         anchors.fill: parent
+                                        hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: cursorDialog.visible = false
+                                        onClicked: cursorDialog.closeDialog()
                                     }
                                 }
                             }
@@ -962,14 +1100,25 @@ Scope {
                                 spacing: 6
                                 clip: true
 
+                                ScrollBar.vertical: ScrollBar {
+                                    active: cursorListView.moving || cursorListView.flicking
+                                    policy: ScrollBar.AsNeeded
+                                }
+
                                 delegate: Rectangle {
                                     width: cursorListView.width
                                     height: 48
                                     radius: 8
                                     property bool isActive: modelData === root.currentCursorTheme
-                                    color: isActive ? Qt.alpha(root.themePrimary, 0.20) : (cursorCardMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.03))
-                                    border.color: isActive ? root.themePrimary : Qt.rgba(1, 1, 1, 0.1)
+                                    property bool isHovered: cursorCardMouse.containsMouse
+
+                                    color: isActive ? Qt.alpha(root.themePrimary, 0.20) : (isHovered ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.03))
+                                    border.color: isActive ? root.themePrimary : (isHovered ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(1, 1, 1, 0.1))
                                     border.width: isActive ? 2 : 1
+                                    scale: cursorCardMouse.containsPress ? 0.98 : (isHovered ? 1.01 : 1.0)
+
+                                    Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
+                                    Behavior on color { ColorAnimation { duration: 150 } }
 
                                     RowLayout {
                                         anchors.fill: parent
@@ -977,14 +1126,21 @@ Scope {
                                         anchors.rightMargin: 16
                                         spacing: 12
 
-                                        Text { text: "👆"; font.pixelSize: 16 }
-                                        Text { text: modelData; color: root.themeText; font.pixelSize: 13; font.weight: Font.Bold; Layout.fillWidth: true }
+                                        Text { text: "👆"; font.pixelSize: 16; Layout.alignment: Qt.AlignVCenter }
+                                        Text { text: modelData; color: root.themeText; font.pixelSize: 13; font.weight: Font.Bold; Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter; elide: Text.ElideRight }
 
-                                        Rectangle {
-                                            visible: isActive
-                                            width: 20; height: 20; radius: 10
-                                            color: root.themePrimary
-                                            Text { anchors.centerIn: parent; text: "✓"; color: root.themeBackground; font.pixelSize: 11; font.weight: Font.Bold }
+                                        Item {
+                                            Layout.preferredWidth: 24
+                                            Layout.preferredHeight: 24
+                                            Layout.alignment: Qt.AlignVCenter
+
+                                            Rectangle {
+                                                anchors.centerIn: parent
+                                                visible: isActive
+                                                width: 20; height: 20; radius: 10
+                                                color: root.themePrimary
+                                                Text { anchors.centerIn: parent; text: "✓"; color: root.themeBackground; font.pixelSize: 11; font.weight: Font.Bold }
+                                            }
                                         }
                                     }
 
@@ -995,7 +1151,7 @@ Scope {
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
                                             root.commitChange("cursor_theme", modelData)
-                                            cursorDialog.visible = false
+                                            cursorDialog.closeDialog()
                                         }
                                     }
                                 }

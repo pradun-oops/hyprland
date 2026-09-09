@@ -19,10 +19,19 @@ Scope {
     property int themeBorderSize: 1
     property real themeBgAlpha: 1.0
     property bool animEnabled: true
-    property int animDuration: 220 
+    property int animDuration: 380 
     
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
+
+    QtObject {
+        id: animStyle
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
+        property var fadeEasing: Easing.OutCubic
+        property real overshoot: 1.4
+    }
 
     property bool isOpened: false
     property bool isClosing: false
@@ -102,10 +111,11 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+
                 let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
-                if (speedMatch && speedMatch[1]) root.animDuration = parseFloat(speedMatch[1]) * 80
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
             } catch (e) {}
         }
     }
@@ -124,7 +134,7 @@ Scope {
 
     Timer { 
         id: closeTimer
-        interval: 50 
+        interval: animStyle.fadeDuration 
         onTriggered: Qt.quit() 
     }
 
@@ -139,13 +149,15 @@ Scope {
             
             Quickshell.execDetached(["bash", "-c", envPrefix + "nohup " + cmd + " >/dev/null 2>&1 &"])
         }
+        closeTimer.interval = animStyle.fadeDuration
         closeTimer.start()
     }
 
     function dismissMenu() {
         if (root.isClosing) return
         root.isClosing = true
-        Qt.quit()
+        closeTimer.interval = animStyle.fadeDuration
+        closeTimer.start()
     }
 
     component PowerBtn : Item {
@@ -157,8 +169,14 @@ Scope {
 
         width: 100; height: 110
 
-        scale: btnMouse.containsMouse && !root.isClosing ? 1.08 : 1.0
-        Behavior on scale { NumberAnimation { duration: root.animEnabled ? root.animDuration : 0; easing.type: Easing.OutBack } }
+        scale: btnMouse.containsMouse && !root.isClosing ? 1.10 : 1.0
+        Behavior on scale { 
+            NumberAnimation { 
+                duration: root.animEnabled ? animStyle.animDuration : 0
+                easing.type: animStyle.bounceEasing
+                easing.overshoot: animStyle.overshoot 
+            } 
+        }
 
         Rectangle {
             anchors.fill: parent
@@ -167,8 +185,8 @@ Scope {
             border.width: 1
             border.color: btnMouse.containsMouse && !root.isClosing ? Qt.alpha(btnRoot.hoverColor, 0.6) : "transparent"
             
-            Behavior on color { ColorAnimation { duration: 150 } }
-            Behavior on border.color { ColorAnimation { duration: 150 } }
+            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
             ColumnLayout {
                 anchors.centerIn: parent
@@ -179,7 +197,7 @@ Scope {
                     text: btnRoot.iconText
                     color: btnMouse.containsMouse && !root.isClosing ? btnRoot.hoverColor : root.themeText
                     font.pixelSize: 32
-                    Behavior on color { ColorAnimation { duration: 150 } }
+                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                 }
 
                 Text {
@@ -188,7 +206,7 @@ Scope {
                     color: btnMouse.containsMouse && !root.isClosing ? btnRoot.hoverColor : root.themeText
                     font.pixelSize: 13
                     font.weight: Font.DemiBold
-                    Behavior on color { ColorAnimation { duration: 150 } }
+                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                 }
             }
         }
@@ -217,7 +235,7 @@ Scope {
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            visible: !root.isClosing
+            visible: root.isOpened
 
             anchors {
                 top: true
@@ -231,10 +249,13 @@ Scope {
             Rectangle {
                 anchors.fill: parent
                 color: "black"
-                opacity: root.isClosing ? 0 : (root.isOpened ? 0.6 : 0.0)
+                opacity: root.isClosing ? 0.0 : (root.isOpened ? 0.6 : 0.0)
 
                 Behavior on opacity { 
-                    NumberAnimation { duration: root.animEnabled ? root.animDuration : 0; easing.type: Easing.OutCubic } 
+                    NumberAnimation { 
+                        duration: animStyle.fadeDuration 
+                        easing.type: animStyle.fadeEasing 
+                    } 
                 }
 
                 MouseArea {
@@ -265,14 +286,21 @@ Scope {
                     border.width: root.themeBorderSize
                     border.color: Qt.alpha(root.themeBorder, 0.45)
 
-                    opacity: root.isClosing ? 0 : (root.isOpened ? 1.0 : 0.0)
-                    scale: root.isClosing ? 0.95 : (root.isOpened ? 1.0 : 0.95)
+                    opacity: root.isClosing ? 0.0 : (root.isOpened ? 1.0 : 0.0)
+                    scale: root.isClosing ? 0.90 : (root.isOpened ? 1.0 : 0.90)
                     
                     Behavior on opacity { 
-                        NumberAnimation { duration: root.animEnabled ? root.animDuration : 0; easing.type: Easing.OutCubic } 
+                        NumberAnimation { 
+                            duration: animStyle.fadeDuration 
+                            easing.type: animStyle.fadeEasing 
+                        } 
                     }
                     Behavior on scale { 
-                        NumberAnimation { duration: root.animEnabled ? root.animDuration : 0; easing.type: Easing.OutBack } 
+                        NumberAnimation { 
+                            duration: root.animEnabled ? animStyle.animDuration : 0 
+                            easing.type: animStyle.bounceEasing 
+                            easing.overshoot: animStyle.overshoot
+                        } 
                     }
 
                     MouseArea {

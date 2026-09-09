@@ -20,13 +20,15 @@ Scope {
     property int themeRounding: 24
     property int themeBorderSize: 1
     property bool animEnabled: true
+    property int animDuration: 380
 
     QtObject {
         id: style
-        property int animDuration: 480
-        property int fadeDuration: 380
-        property var defaultEasing: Easing.OutQuint
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
         property var fadeEasing: Easing.OutCubic
+        property real overshoot: 0.5
     }
 
     property bool isOpened: false
@@ -103,6 +105,9 @@ Scope {
                 let content = text()
                 let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
             } catch (e) {}
         }
     }
@@ -572,7 +577,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                     Behavior on opacity { 
                         NumberAnimation { 
-                            duration: root.animEnabled ? style.fadeDuration : 0; 
+                            duration: root.animEnabled ? style.fadeDuration : 0 
                             easing.type: style.fadeEasing 
                         } 
                     }
@@ -637,19 +642,20 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                         border.width: root.themeBorderSize
                         border.color: Qt.alpha(root.themeBorder, 0.45)
 
-                        opacity: root.isClosing ? 0 : (root.isOpened ? 1.0 : 0.0)
-                        scale: root.isClosing ? 0.94 : (root.isOpened ? 1.0 : 0.94)
+                        opacity: root.isClosing ? 0.0 : (root.isOpened ? 1.0 : 0.0)
+                        scale: root.isClosing ? 0.90 : (root.isOpened ? 1.0 : 0.90)
 
                         Behavior on opacity { 
                             NumberAnimation { 
-                                duration: root.animEnabled ? style.fadeDuration : 0; 
+                                duration: root.animEnabled ? style.fadeDuration : 0 
                                 easing.type: style.fadeEasing 
                             } 
                         }
                         Behavior on scale { 
                             NumberAnimation { 
-                                duration: root.animEnabled ? style.animDuration : 0; 
-                                easing.type: style.defaultEasing 
+                                duration: root.animEnabled ? style.animDuration : 0 
+                                easing.type: style.bounceEasing
+                                easing.overshoot: style.overshoot
                             } 
                         }
 
@@ -715,7 +721,8 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                         Behavior on scale {
                                             NumberAnimation {
                                                 duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.defaultEasing
+                                                easing.type: style.bounceEasing
+                                                easing.overshoot: style.overshoot
                                             }
                                         }
 
@@ -747,6 +754,9 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                 anchors.fill: parent
                                                 color: "#000000"
                                                 opacity: cardWpImg.visible ? 0.35 : 0.0
+                                                Behavior on opacity {
+                                                    NumberAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing }
+                                                }
                                             }
                                         }
 
@@ -815,6 +825,15 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                         color: Qt.rgba(0, 0, 0, 0.65)
                                                         border.width: 1
                                                         border.color: Qt.rgba(255, 255, 255, 0.2)
+
+                                                        scale: iconMouse.containsMouse ? 1.15 : 1.0
+                                                        Behavior on scale {
+                                                            NumberAnimation {
+                                                                duration: root.animEnabled ? style.animDuration : 0
+                                                                easing.type: style.bounceEasing
+                                                                easing.overshoot: style.overshoot
+                                                            }
+                                                        }
 
                                                         Image {
                                                             id: imgIcon

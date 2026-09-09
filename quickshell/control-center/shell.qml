@@ -24,6 +24,18 @@ Scope {
     property color themeSurfaceActive: Qt.rgba(1.0, 1.0, 1.0, 0.22)
     property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.14)
 
+    property bool animEnabled: true
+    property int animDuration: 220
+
+    QtObject {
+        id: animStyle
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
+        property var fadeEasing: Easing.OutCubic
+        property real overshoot: 1.4
+    }
+
     property bool wifiEnabled: true
     property bool btEnabled: true
     property bool dndEnabled: false
@@ -174,6 +186,23 @@ Scope {
         }
     }
 
+    FileView {
+        id: animConfigFile
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = parseFloat(speedMatch[1]) * 100
+            } catch (e) {}
+        }
+    }
+
     Process {
         id: cursorMonitorProcess
         stdout: StdioCollector {
@@ -197,6 +226,7 @@ Scope {
         exec("mkdir -p ~/.config/quickshell/json")
         colorFile.reload()
         generalFile.reload()
+        animConfigFile.reload()
         modsFile.reload()
         posFile.reload()
         root.updateInactiveMods()
@@ -405,7 +435,12 @@ except Exception:
 
             implicitWidth: 380
             implicitHeight: Math.min((mainColumn.implicitHeight + 96) * 1.1, Screen.height - 80)
-            Behavior on implicitHeight { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+            Behavior on implicitHeight {
+                NumberAnimation {
+                    duration: root.animEnabled ? animStyle.animDuration : 0
+                    easing.type: animStyle.fadeEasing
+                }
+            }
 
             color: "transparent"
 
@@ -558,7 +593,16 @@ except Exception:
                                     height: 36
                                     radius: 18
                                     color: root.editMode ? root.themePrimary : (editMouse.containsMouse ? root.themeSurfaceHover : root.themeSurface)
-                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                    scale: editMouse.pressed ? 0.92 : 1.0
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                     Text { 
                                         anchors.centerIn: parent
@@ -580,7 +624,16 @@ except Exception:
                                     height: 36
                                     radius: 18
                                     color: pwrMouse.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                    scale: pwrMouse.pressed ? 0.92 : 1.0
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                     Text { 
                                         anchors.centerIn: parent
@@ -655,8 +708,14 @@ except Exception:
                                             radius: 16 
                                             property int originIndex: index
                                             
-                                            scale: (tMouse.containsMouse && !dragItem.Drag.active && !root.editMode) ? 1.03 : 1.0
-                                            Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                                            scale: (tMouse.pressed && !root.editMode) ? 0.96 : 1.0
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
                                             
                                             color: {
                                                 if (root.editMode) return root.themeSurfaceHover
@@ -667,7 +726,9 @@ except Exception:
                                             
                                             border.width: 1
                                             border.color: (root.isToggleActive(modelData) && !root.editMode) ? Qt.alpha(root.themePrimary, 0.5) : Qt.alpha(root.themeBorder, 0.12)
-                                            Behavior on color { ColorAnimation { duration: 200 } }
+
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                             Drag.active: tMouse.dragReady && root.editMode
                                             Drag.source: dragItem
@@ -717,9 +778,25 @@ except Exception:
                                                 color: "#FF453A"
                                                 visible: root.editMode
                                                 z: 10
+
+                                                scale: removeMouse.pressed ? 0.88 : 1.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                                        easing.type: animStyle.bounceEasing
+                                                        easing.overshoot: animStyle.overshoot
+                                                    }
+                                                }
                                                 
                                                 Text { anchors.centerIn: parent; text: "✕"; color: "#fff"; font.pixelSize: 10; font.weight: Font.Bold }
-                                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.removeToggle(modelData) }
+                                                MouseArea {
+                                                    id: removeMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: root.removeToggle(modelData)
+                                                }
                                             }
 
                                             MouseArea {
@@ -785,8 +862,25 @@ except Exception:
                                                 height: 22
                                                 radius: 11
                                                 color: "#32D74B"
+
+                                                scale: addMouse.pressed ? 0.88 : 1.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                                        easing.type: animStyle.bounceEasing
+                                                        easing.overshoot: animStyle.overshoot
+                                                    }
+                                                }
+
                                                 Text { anchors.centerIn: parent; text: "＋"; color: "#fff"; font.pixelSize: 11; font.weight: Font.Bold }
-                                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.addToggle(modelData) }
+                                                MouseArea {
+                                                    id: addMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: root.addToggle(modelData)
+                                                }
                                             }
                                         }
                                     }

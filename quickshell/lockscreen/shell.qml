@@ -7,6 +7,7 @@ import Quickshell.Widgets
 import Quickshell.Wayland
 import Quickshell.Io
 import Quickshell.Services.Pam
+import Quickshell.Services.Mpris
 
 ShellRoot {
     id: root
@@ -30,6 +31,16 @@ ShellRoot {
     property int themeRounding: 16
     property int themeBorderSize: 2
 
+    // MPRIS Active Media Player Selection
+    readonly property var activePlayer: {
+        if (!Mpris || !Mpris.players) return null
+        let list = Mpris.players.values || []
+        for (let i = 0; i < list.length; i++) {
+            if (list[i] && list[i].isPlaying) return list[i]
+        }
+        return list.length > 0 ? list[0] : null
+    }
+
     Timer {
         id: clockTimer
         interval: 1000
@@ -40,6 +51,20 @@ ShellRoot {
             let now = new Date()
             root.timeText = Qt.formatDateTime(now, "hh:mm A")
             root.dateText = Qt.formatDateTime(now, "dddd, MMMM d")
+        }
+    }
+
+    // Fast initial wallpaper load from cache
+    FileView {
+        path: Quickshell.env("HOME") + "/.cache/quickshell_last_wallpaper.txt"
+        watchChanges: false
+        onLoaded: {
+            try {
+                let cached = text().trim()
+                if (cached && cached.length > 0 && root.wallpaperPath === "") {
+                    root.wallpaperPath = cached
+                }
+            } catch (e) {}
         }
     }
 
@@ -81,8 +106,9 @@ ShellRoot {
     Process {
         id: fetchWpProcess
         stdout: StdioCollector {
+            id: wpCollector
             onStreamFinished: {
-                let res = text.trim()
+                let res = wpCollector.text.trim()
                 if (res && res.length > 0) {
                     root.wallpaperPath = res
                 }
@@ -101,17 +127,18 @@ ShellRoot {
         greetingText = greetings[Math.floor(Math.random() * greetings.length)];
 
         let pyScript = `
-import subprocess, os
+import subprocess, os, glob
 
 def get_wallpaper():
-    try:
-        out = subprocess.check_output("swww query 2>/dev/null", shell=True, text=True)
-        for line in out.splitlines():
-            for chunk in line.split():
-                clean = chunk.strip(",'\\"")
+    for cmd in ["awww query", "swww query"]:
+        try:
+            out = subprocess.check_output(cmd, shell=True, text=True)
+            cleaned_out = out.replace(":", " ")
+            for chunk in cleaned_out.split():
+                clean = chunk.strip("',\\" ")
                 if clean.startswith("/") and os.path.isfile(clean):
                     return clean
-    except Exception: pass
+        except Exception: pass
 
     try:
         out = subprocess.check_output("hyprctl hyprpaper listactive 2>/dev/null", shell=True, text=True)
@@ -146,7 +173,16 @@ def get_wallpaper():
 
     return ""
 
-print(get_wallpaper())
+wp = get_wallpaper()
+if wp:
+    try:
+        cache_file = os.path.expanduser("~/.cache/quickshell_last_wallpaper.txt")
+        os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+        with open(cache_file, "w") as f:
+            f.write(wp)
+    except Exception: pass
+
+print(wp)
 `
         fetchWpProcess.command = ["python3", "-c", pyScript]
         fetchWpProcess.running = true
@@ -197,46 +233,55 @@ print(get_wallpaper())
         locked: true
 
         WlSessionLockSurface {
+            id: lockSurface
+
+            // Check if current screen is the Primary screen
+            readonly property bool isPrimary: lockSurface.screen === Quickshell.screens[0]
+
             Item {
                 anchors.fill: parent
 
-                Image {
-                    id: bgWallpaper
-                    anchors.fill: parent
-                    source: root.wallpaperPath !== "" ? "file://" + root.wallpaperPath : ""
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    cache: false
-                    visible: status === Image.Ready
-                }
-
-                MultiEffect {
-                    anchors.fill: parent
-                    source: bgWallpaper
-                    blurEnabled: true
-                    blur: 0.5
-                    blurMax: 32
-                    brightness: -0.05
-                    saturation: 0.1
-                    visible: bgWallpaper.status === Image.Ready
-                }
-
+                // 1. Solid Fallback Background (Displayed on ALL Monitors)
                 Rectangle {
                     anchors.fill: parent
                     color: root.themeBackground
-                    visible: bgWallpaper.status !== Image.Ready
                 }
 
+                // 2. Blurred Desktop Wallpaper Image (Displayed on ALL Monitors)
+                Image {
+                    id: bgWallpaper
+                    anchors.fill: parent
+                    source: root.wallpaperPath !== "" ? (root.wallpaperPath.startsWith("file://") ? root.wallpaperPath : "file://" + root.wallpaperPath) : ""
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: false
+                    cache: true
+                    visible: status === Image.Ready
+
+                    layer.enabled: true
+                    layer.effect: MultiEffect {
+                        blurEnabled: true
+                        blur: 0.8
+                        blurMax: 32
+                        brightness: -0.05
+                        saturation: 0.1
+                    }
+                }
+
+                // 3. Dark Overlay for Readability (Displayed on ALL Monitors)
                 Rectangle {
                     anchors.fill: parent
                     color: "black"
-                    opacity: 0.55
+                    opacity: 0.45
                 }
 
+                // 4. Lock Screen Interface (ONLY Displayed on Primary Monitor)
                 ColumnLayout {
                     anchors.centerIn: parent
-                    spacing: 20
+                    spacing: 18
+                    visible: lockSurface.isPrimary
+                    enabled: lockSurface.isPrimary
 
+                    // Date & Time
                     ColumnLayout {
                         Layout.alignment: Qt.AlignHCenter
                         spacing: 2
@@ -262,7 +307,7 @@ print(get_wallpaper())
                         }
                     }
 
-                    Item { Layout.preferredHeight: 8 }
+                    Item { Layout.preferredHeight: 4 }
 
                     Text {
                         Layout.alignment: Qt.AlignHCenter
@@ -401,6 +446,167 @@ print(get_wallpaper())
                                 styleColor: Qt.rgba(0, 0, 0, 0.4)
 
                                 Behavior on opacity { NumberAnimation { duration: 150 } }
+                            }
+                        }
+                    }
+
+                    // Modern Redesigned Music Player Widget
+                    Rectangle {
+                        id: musicCard
+                        Layout.alignment: Qt.AlignHCenter
+                        width: 320
+                        height: 72
+                        radius: root.themeRounding
+                        color: Qt.rgba(0, 0, 0, 0.45)
+                        border.color: Qt.alpha(root.themeBorder, 0.25)
+                        border.width: 1
+                        visible: root.activePlayer !== null && (root.activePlayer.trackTitle !== "" || root.activePlayer.isPlaying)
+
+                        RowLayout {
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: 12
+
+                            // Album Art Container
+                            ClippingRectangle {
+                                Layout.preferredWidth: 52
+                                Layout.preferredHeight: 52
+                                radius: Math.max(6, root.themeRounding - 6)
+                                color: Qt.rgba(1, 1, 1, 0.05)
+                                border.color: Qt.rgba(1, 1, 1, 0.1)
+                                border.width: 1
+
+                                Image {
+                                    id: albumArt
+                                    anchors.fill: parent
+                                    source: root.activePlayer && root.activePlayer.trackArtUrl ? root.activePlayer.trackArtUrl : ""
+                                    fillMode: Image.PreserveAspectCrop
+                                    smooth: true
+                                    asynchronous: true
+                                    visible: status === Image.Ready
+                                }
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    color: Qt.rgba(0, 0, 0, 0.3)
+                                    visible: albumArt.status !== Image.Ready
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "🎵"
+                                        font.pixelSize: 22
+                                        opacity: 0.8
+                                    }
+                                }
+                            }
+
+                            // Track Info Details
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
+                                spacing: 3
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: root.activePlayer ? root.activePlayer.trackTitle : ""
+                                    color: root.themeText
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                    elide: Text.ElideRight
+                                }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: root.activePlayer ? root.activePlayer.trackArtist : "Unknown Artist"
+                                    color: root.themeTextMuted
+                                    font.pixelSize: 11
+                                    font.weight: Font.Normal
+                                    elide: Text.ElideRight
+                                }
+                            }
+
+                            // Interactive Playback Controls
+                            RowLayout {
+                                Layout.alignment: Qt.AlignVCenter
+                                spacing: 4
+
+                                // Previous Button
+                                Rectangle {
+                                    width: 30
+                                    height: 30
+                                    radius: 15
+                                    color: prevBtnMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : "transparent"
+
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "⏮"
+                                        font.pixelSize: 12
+                                        color: prevBtnMouse.containsMouse ? root.themeBorder : Qt.alpha(root.themeText, 0.85)
+                                    }
+
+                                    MouseArea {
+                                        id: prevBtnMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: if (root.activePlayer && root.activePlayer.canGoPrevious) root.activePlayer.previous()
+                                    }
+                                }
+
+                                // Play / Pause Pill Button
+                                Rectangle {
+                                    width: 34
+                                    height: 34
+                                    radius: 17
+                                    color: Qt.alpha(root.themeBorder, playBtnMouse.containsMouse ? 0.35 : 0.2)
+                                    border.color: Qt.alpha(root.themeBorder, 0.5)
+                                    border.width: 1
+
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        anchors.horizontalCenterOffset: (root.activePlayer && root.activePlayer.isPlaying) ? 0 : 1
+                                        text: (root.activePlayer && root.activePlayer.isPlaying) ? "⏸" : "▶"
+                                        font.pixelSize: 13
+                                        color: root.themeText
+                                    }
+
+                                    MouseArea {
+                                        id: playBtnMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: if (root.activePlayer) root.activePlayer.togglePlaying()
+                                    }
+                                }
+
+                                // Next Button
+                                Rectangle {
+                                    width: 30
+                                    height: 30
+                                    radius: 15
+                                    color: nextBtnMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.12) : "transparent"
+
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "⏭"
+                                        font.pixelSize: 12
+                                        color: nextBtnMouse.containsMouse ? root.themeBorder : Qt.alpha(root.themeText, 0.85)
+                                    }
+
+                                    MouseArea {
+                                        id: nextBtnMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: if (root.activePlayer && root.activePlayer.canGoNext) root.activePlayer.next()
+                                    }
+                                }
                             }
                         }
                     }

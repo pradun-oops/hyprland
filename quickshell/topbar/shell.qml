@@ -17,6 +17,8 @@ Scope {
     property int themeRounding: 12
     property int themeBorderSize: 1
     property real themeBgAlpha: 0.5
+    property bool animEnabled: true
+    property int animDuration: 380
     
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
@@ -24,10 +26,11 @@ Scope {
     QtObject {
         id: style
         property int moduleSpacing: 8
-        property int animDuration: 480         
-        property int fadeDuration: 380         
-        property var defaultEasing: Easing.OutQuint
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
         property var fadeEasing: Easing.OutCubic
+        property real overshoot: 1.2
         property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.08)
         property color separatorColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.18)
     }
@@ -55,6 +58,20 @@ Scope {
 
     property int barY: 5 
     property int islandHeight: 36
+
+    function switchToWorkspace(wsId) {
+        if (!wsId) return
+        root.activeWs = wsId
+        let targetId = String(wsId)
+        let luaCmd = "hl.dsp.focus({ workspace = \"" + targetId + "\" })"
+
+        try {
+            Hyprland.dispatch(luaCmd)
+        } catch(e) {}
+
+        Quickshell.execDetached(["hyprctl", "dispatch", luaCmd])
+        Quickshell.execDetached(["hyprctl", "dispatch", "workspace", targetId])
+    }
 
     FileView {
         id: colorFile
@@ -93,6 +110,23 @@ Scope {
         }
     }
 
+    FileView {
+        id: animConfigFile
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
+            } catch (e) {}
+        }
+    }
+
     function updateClock() {
         let now = new Date()
         let rawHours = now.getHours()
@@ -110,6 +144,7 @@ Scope {
         updateClock()
         colorFile.reload()
         generalFile.reload()
+        animConfigFile.reload()
     }
 
     Process { id: execProcess }
@@ -358,7 +393,7 @@ print(json.dumps({
             WlrLayershell.namespace: "qs-bar" 
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             
-            exclusiveZone: 46
+            exclusiveZone: 40
 
             anchors {
                 top: true
@@ -390,8 +425,9 @@ print(json.dumps({
                     
                     Behavior on width { 
                         NumberAnimation { 
-                            duration: style.animDuration
-                            easing.type: style.defaultEasing 
+                            duration: root.animEnabled ? style.animDuration : 0
+                            easing.type: style.bounceEasing
+                            easing.overshoot: style.overshoot
                         } 
                     }
 
@@ -420,6 +456,7 @@ print(json.dumps({
                         anchors.centerIn: parent
                         spacing: 8
                         opacity: barIsland.isExpanded ? 0.0 : 1.0
+                        scale: barIsland.isExpanded ? 0.90 : 1.0
                         visible: opacity > 0.01
 
                         Behavior on opacity { 
@@ -427,6 +464,13 @@ print(json.dumps({
                                 duration: style.fadeDuration
                                 easing.type: style.fadeEasing 
                             } 
+                        }
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: root.animEnabled ? style.animDuration : 0
+                                easing.type: style.bounceEasing
+                                easing.overshoot: style.overshoot
+                            }
                         }
 
                         Row {
@@ -471,6 +515,7 @@ print(json.dumps({
                         anchors.centerIn: parent
                         spacing: 12
                         opacity: barIsland.isExpanded ? 1.0 : 0.0
+                        scale: barIsland.isExpanded ? 1.0 : 0.94
                         visible: opacity > 0.01
 
                         Behavior on opacity { 
@@ -478,6 +523,13 @@ print(json.dumps({
                                 duration: style.fadeDuration
                                 easing.type: style.fadeEasing 
                             } 
+                        }
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: root.animEnabled ? style.animDuration : 0
+                                easing.type: style.bounceEasing
+                                easing.overshoot: style.overshoot
+                            }
                         }
 
                         Row {
@@ -493,22 +545,34 @@ print(json.dumps({
                                 Repeater {
                                     model: root.activeWorkspaces
                                     delegate: Rectangle {
-                                        width: modelData === root.activeWs ? 24 : 20
-                                        height: 20
-                                        radius: 10
+                                        id: wsPill
+                                        width: modelData === root.activeWs ? 25 : 25
+                                        height: 25
+                                        radius: 12
                                         anchors.verticalCenter: parent.verticalCenter
-                                        color: modelData === root.activeWs ? root.themePrimary : Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.15)
+                                        color: modelData === root.activeWs ? root.themePrimary : (wsMouse.containsMouse ? Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.28) : Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.15))
+
+                                        scale: wsMouse.containsMouse ? 1.15 : 1.0
+
+                                        Behavior on scale { 
+                                            NumberAnimation { 
+                                                duration: root.animEnabled ? style.animDuration : 0
+                                                easing.type: style.bounceEasing
+                                                easing.overshoot: style.overshoot
+                                            } 
+                                        }
 
                                         Behavior on width { 
                                             NumberAnimation { 
-                                                duration: 380
-                                                easing.type: Easing.OutQuint 
+                                                duration: root.animEnabled ? style.animDuration : 0
+                                                easing.type: style.bounceEasing
+                                                easing.overshoot: style.overshoot
                                             } 
                                         }
                                         Behavior on color { 
                                             ColorAnimation { 
-                                                duration: 320
-                                                easing.type: Easing.OutCubic 
+                                                duration: style.fadeDuration
+                                                easing.type: style.fadeEasing
                                             } 
                                         }
 
@@ -520,8 +584,16 @@ print(json.dumps({
                                             anchors.centerIn: parent
 
                                             Behavior on color { 
-                                                ColorAnimation { duration: 280; easing.type: Easing.OutCubic } 
+                                                ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } 
                                             }
+                                        }
+
+                                        MouseArea {
+                                            id: wsMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.switchToWorkspace(modelData)
                                         }
                                     }
                                 }
@@ -572,6 +644,15 @@ print(json.dumps({
                             height: parent.height
                             implicitWidth: centerRow.implicitWidth + 8
 
+                            scale: centerMouse.containsMouse ? 1.05 : 1.0
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? style.animDuration : 0
+                                    easing.type: style.bounceEasing
+                                    easing.overshoot: style.overshoot
+                                }
+                            }
+
                             Row {
                                 id: centerRow
                                 anchors.centerIn: parent
@@ -611,7 +692,9 @@ print(json.dumps({
                             }
 
                             MouseArea {
+                                id: centerMouse
                                 anchors.fill: parent
+                                hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: (mouse) => {
                                     if (mouse.button === Qt.LeftButton) {
@@ -672,6 +755,15 @@ print(json.dumps({
                                 height: root.islandHeight
                                 width: 56
 
+                                scale: volMouse.containsMouse ? 1.08 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? style.animDuration : 0
+                                        easing.type: style.bounceEasing
+                                        easing.overshoot: style.overshoot
+                                    }
+                                }
+
                                 Row {
                                     anchors.centerIn: parent
                                     spacing: 4
@@ -681,13 +773,15 @@ print(json.dumps({
                                         font.pixelSize: 14
                                         anchors.verticalCenter: parent.verticalCenter
 
-                                        Behavior on color { ColorAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                                        Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
                                     }
                                     Text { text: root.volumePct + "%"; color: root.themeText; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                                 }
 
                                 MouseArea {
+                                    id: volMouse
                                     anchors.fill: parent
+                                    hoverEnabled: true
                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: (mouse) => {
@@ -715,6 +809,15 @@ print(json.dumps({
                                 height: root.islandHeight
                                 width: 56
 
+                                scale: batMouse.containsMouse ? 1.08 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? style.animDuration : 0
+                                        easing.type: style.bounceEasing
+                                        easing.overshoot: style.overshoot
+                                    }
+                                }
+
                                 Row {
                                     anchors.centerIn: parent
                                     spacing: 4
@@ -724,13 +827,15 @@ print(json.dumps({
                                         font.pixelSize: 14
                                         anchors.verticalCenter: parent.verticalCenter
 
-                                        Behavior on color { ColorAnimation { duration: 300; easing.type: Easing.OutCubic } }
+                                        Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
                                     }
                                     Text { text: root.batCap + "%"; color: root.themeText; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
                                 }
 
                                 MouseArea {
+                                    id: batMouse
                                     anchors.fill: parent
+                                    hoverEnabled: true
                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: (mouse) => {
@@ -764,11 +869,12 @@ print(json.dumps({
                                 visible: root.runningAppsList.length > 0
                                 anchors.verticalCenter: parent.verticalCenter
 
-                                Behavior on width {
+                                Behavior on width { 
                                     NumberAnimation { 
-                                        duration: style.animDuration
-                                        easing.type: style.defaultEasing 
-                                    }
+                                        duration: root.animEnabled ? style.animDuration : 0
+                                        easing.type: style.bounceEasing
+                                        easing.overshoot: style.overshoot
+                                    } 
                                 }
 
                                 HoverHandler { id: appsHover }
@@ -784,7 +890,15 @@ print(json.dumps({
                                         font.pixelSize: 13
                                         anchors.verticalCenter: parent.verticalCenter
 
-                                        Behavior on color { ColorAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                                        scale: appsHover.hovered ? 1.15 : 1.0
+                                        Behavior on scale { 
+                                            NumberAnimation { 
+                                                duration: root.animEnabled ? style.animDuration : 0
+                                                easing.type: style.bounceEasing
+                                                easing.overshoot: style.overshoot
+                                            } 
+                                        }
+                                        Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
                                     }
 
                                     Row {
@@ -792,6 +906,7 @@ print(json.dumps({
                                         spacing: 6
                                         anchors.verticalCenter: parent.verticalCenter
                                         opacity: appsHover.hovered ? 1.0 : 0.0
+                                        scale: appsHover.hovered ? 1.0 : 0.88
                                         visible: opacity > 0.01
 
                                         Behavior on opacity { 
@@ -800,12 +915,28 @@ print(json.dumps({
                                                 easing.type: style.fadeEasing 
                                             } 
                                         }
+                                        Behavior on scale { 
+                                            NumberAnimation { 
+                                                duration: root.animEnabled ? style.animDuration : 0
+                                                easing.type: style.bounceEasing
+                                                easing.overshoot: style.overshoot
+                                            } 
+                                        }
 
                                         Repeater {
                                             model: root.runningAppsList
                                             delegate: Item {
                                                 width: 20; height: 20
                                                 anchors.verticalCenter: parent.verticalCenter
+
+                                                scale: appItemMouse.containsMouse ? 1.25 : 1.0
+                                                Behavior on scale { 
+                                                    NumberAnimation { 
+                                                duration: root.animEnabled ? style.animDuration : 0
+                                                easing.type: style.bounceEasing
+                                                easing.overshoot: style.overshoot
+                                            } 
+                                                }
 
                                                 Image {
                                                     anchors.centerIn: parent
@@ -816,7 +947,9 @@ print(json.dumps({
                                                 }
 
                                                 MouseArea {
+                                                    id: appItemMouse
                                                     anchors.fill: parent
+                                                    hoverEnabled: true
                                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                                     cursorShape: Qt.PointingHandCursor
                                                     onClicked: (mouse) => {
@@ -846,13 +979,23 @@ print(json.dumps({
                                 Item {
                                     width: 24; height: 24
                                     anchors.verticalCenter: parent.verticalCenter
+
+                                    scale: netMouse.containsMouse ? 1.18 : 1.0
+                                    Behavior on scale { 
+                                        NumberAnimation { 
+                                            duration: root.animEnabled ? style.animDuration : 0
+                                            easing.type: style.bounceEasing
+                                            easing.overshoot: style.overshoot
+                                        } 
+                                    }
+
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰖩"
                                         color: root.themePrimary
                                         font.pixelSize: 15
 
-                                        Behavior on color { ColorAnimation { duration: 250; easing.type: Easing.OutCubic } }
+                                        Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
                                     }
                                     MouseArea {
                                         id: netMouse
@@ -866,13 +1009,23 @@ print(json.dumps({
                                 Item {
                                     width: 24; height: 24
                                     anchors.verticalCenter: parent.verticalCenter
+
+                                    scale: pwrBarMouse.containsMouse ? 1.18 : 1.0
+                                    Behavior on scale { 
+                                        NumberAnimation { 
+                                            duration: root.animEnabled ? style.animDuration : 0
+                                            easing.type: style.bounceEasing
+                                            easing.overshoot: style.overshoot
+                                        } 
+                                    }
+
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰐥"
                                         color: pwrBarMouse.containsMouse ? "#FF453A" : root.themePrimary
                                         font.pixelSize: 15
 
-                                        Behavior on color { ColorAnimation { duration: 280; easing.type: Easing.OutCubic } }
+                                        Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
                                     }
                                     MouseArea {
                                         id: pwrBarMouse

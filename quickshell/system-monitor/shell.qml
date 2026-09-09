@@ -46,6 +46,8 @@ Scope {
     property int themeRounding: 22
     property int themeBorderSize: 1
     property real themeBgAlpha: 0.65
+    property bool animEnabled: true
+    property int animDuration: 380
     
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.05) 
@@ -54,6 +56,15 @@ Scope {
     property color themePrimary: "#ffb3af"
     property color themeText: "#ffffff"
     property color themeTextMuted: "#a1a1aa"
+
+    QtObject {
+        id: animStyle
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
+        property var fadeEasing: Easing.OutCubic
+        property real overshoot: 1.4
+    }
 
     FileView {
         id: colorFile
@@ -89,6 +100,23 @@ Scope {
                 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+            } catch (e) {}
+        }
+    }
+
+    FileView {
+        id: animConfigFile
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
             } catch (e) {}
         }
     }
@@ -225,6 +253,7 @@ Scope {
 
         colorFile.reload()
         generalConfigFile.reload()
+        animConfigFile.reload()
         initHistories()
 
         let pyScript = `import json, time, subprocess, os
@@ -408,6 +437,26 @@ while True:
                     height: Math.min(740, parent.height - 80)
                     anchors.centerIn: parent
 
+                    property bool shown: false
+                    Component.onCompleted: shown = true
+
+                    scale: shown ? 1.0 : 0.90
+                    opacity: shown ? 1.0 : 0.0
+
+                    Behavior on scale {
+                        NumberAnimation {
+                            duration: root.animEnabled ? animStyle.animDuration : 0
+                            easing.type: animStyle.bounceEasing
+                            easing.overshoot: animStyle.overshoot
+                        }
+                    }
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: animStyle.fadeDuration
+                            easing.type: animStyle.fadeEasing
+                        }
+                    }
+
                     radius: root.themeRounding
                     border.width: root.themeBorderSize
                     border.color: Qt.alpha(root.themeBorder, 0.40)
@@ -463,11 +512,26 @@ while True:
                                 columnSpacing: 16
                                 rowSpacing: 16
 
+                                // Processor Card
                                 Rectangle {
+                                    id: cpuCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
                                     radius: Math.max(4, root.themeRounding - 6)
                                     color: root.themeSurface
-                                    border.width: 1; border.color: Qt.alpha(root.themeBorder, 0.15)
+                                    border.width: 1
+                                    border.color: cpuCardHover.hovered ? Qt.alpha(root.themePrimary, 0.45) : Qt.alpha(root.themeBorder, 0.15)
+
+                                    scale: cpuCardHover.hovered ? 1.02 : 1.0
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                    HoverHandler { id: cpuCardHover }
 
                                     ColumnLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
@@ -492,7 +556,7 @@ while True:
                                                     Rectangle {
                                                         width: parent.width; height: Math.max(4, (model.value / 100) * parent.height)
                                                         anchors.bottom: parent.bottom; radius: 3; color: root.themePrimary; opacity: 0.8
-                                                        Behavior on height { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+                                                        Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                                     }
                                                 }
                                             }
@@ -500,11 +564,26 @@ while True:
                                     }
                                 }
 
+                                // Graphics Card
                                 Rectangle {
+                                    id: gpuCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
                                     radius: Math.max(4, root.themeRounding - 6)
                                     color: root.themeSurface
-                                    border.width: 1; border.color: Qt.alpha(root.themeBorder, 0.15)
+                                    border.width: 1
+                                    border.color: gpuCardHover.hovered ? Qt.alpha(root.themePrimary, 0.45) : Qt.alpha(root.themeBorder, 0.15)
+
+                                    scale: gpuCardHover.hovered ? 1.02 : 1.0
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                    HoverHandler { id: gpuCardHover }
 
                                     ColumnLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
@@ -534,7 +613,7 @@ while True:
                                                     Rectangle {
                                                         width: parent.width; height: Math.max(4, (model.value / 100) * parent.height)
                                                         anchors.bottom: parent.bottom; radius: 3; color: root.themePrimary; opacity: 0.8
-                                                        Behavior on height { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+                                                        Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                                     }
                                                 }
                                             }
@@ -542,11 +621,26 @@ while True:
                                     }
                                 }
 
+                                // Memory Card
                                 Rectangle {
+                                    id: ramCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
                                     radius: Math.max(4, root.themeRounding - 6)
                                     color: root.themeSurface
-                                    border.width: 1; border.color: Qt.alpha(root.themeBorder, 0.15)
+                                    border.width: 1
+                                    border.color: ramCardHover.hovered ? Qt.alpha(root.themePrimary, 0.45) : Qt.alpha(root.themeBorder, 0.15)
+
+                                    scale: ramCardHover.hovered ? 1.02 : 1.0
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                    HoverHandler { id: ramCardHover }
 
                                     ColumnLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
@@ -572,7 +666,7 @@ while True:
                                                     Rectangle {
                                                         width: parent.width; height: Math.max(4, (model.value / 100) * parent.height)
                                                         anchors.bottom: parent.bottom; radius: 3; color: root.themePrimary; opacity: 0.8
-                                                        Behavior on height { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+                                                        Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                                     }
                                                 }
                                             }
@@ -580,11 +674,26 @@ while True:
                                     }
                                 }
 
+                                // Storage & NVMe Card
                                 Rectangle {
+                                    id: diskCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
                                     radius: Math.max(4, root.themeRounding - 6)
                                     color: root.themeSurface
-                                    border.width: 1; border.color: Qt.alpha(root.themeBorder, 0.15)
+                                    border.width: 1
+                                    border.color: diskCardHover.hovered ? Qt.alpha(root.themePrimary, 0.45) : Qt.alpha(root.themeBorder, 0.15)
+
+                                    scale: diskCardHover.hovered ? 1.02 : 1.0
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                    HoverHandler { id: diskCardHover }
 
                                     ColumnLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
@@ -602,16 +711,37 @@ while True:
                                         Item { Layout.fillHeight: true }
                                         Rectangle {
                                             Layout.fillWidth: true; height: 8; radius: 4; color: Qt.rgba(1, 1, 1, 0.1)
-                                            Rectangle { width: parent.width * (root.sysDiskPerc / 100); height: parent.height; radius: 4; color: root.themePrimary; Behavior on width { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } } }
+                                            Rectangle { 
+                                                width: parent.width * (root.sysDiskPerc / 100)
+                                                height: parent.height
+                                                radius: 4
+                                                color: root.themePrimary
+                                                Behavior on width { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } } 
+                                            }
                                         }
                                     }
                                 }
 
+                                // Network IO Card
                                 Rectangle {
+                                    id: netCard
                                     Layout.fillWidth: true; Layout.columnSpan: 2; Layout.preferredHeight: 80
                                     radius: Math.max(4, root.themeRounding - 6)
                                     color: root.themeSurface
-                                    border.width: 1; border.color: Qt.alpha(root.themeBorder, 0.15)
+                                    border.width: 1
+                                    border.color: netCardHover.hovered ? Qt.alpha(root.themePrimary, 0.45) : Qt.alpha(root.themeBorder, 0.15)
+
+                                    scale: netCardHover.hovered ? 1.015 : 1.0
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                    HoverHandler { id: netCardHover }
 
                                     RowLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 20
@@ -627,13 +757,13 @@ while True:
                                                     Rectangle {
                                                         width: parent.width; height: Math.max(3, (model.rx / root.maxNetRate) * parent.height)
                                                         anchors.bottom: parent.bottom; radius: 2; color: "#38bdf8"; opacity: 0.6
-                                                        Behavior on height { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+                                                        Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                                     }
                                                     Rectangle {
                                                         width: parent.width * 0.6; height: Math.max(3, (model.tx / root.maxNetRate) * parent.height)
                                                         anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter
                                                         radius: 2; color: "#fb7185"; opacity: 0.8
-                                                        Behavior on height { NumberAnimation { duration: 500; easing.type: Easing.OutCubic } }
+                                                        Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                                     }
                                                 }
                                             }
@@ -664,7 +794,7 @@ while True:
                         ColumnLayout {
                             Layout.fillHeight: true
                             Layout.preferredWidth: 400
-                            spacing: 12
+                            spacing: 10
 
                             RowLayout {
                                 Layout.fillWidth: true
@@ -676,32 +806,117 @@ while True:
                                         Rectangle {
                                             Layout.preferredHeight: 30; Layout.preferredWidth: 120
                                             radius: 6
-                                            color: root.procTab === "user" ? Qt.alpha(root.themePrimary, 0.2) : "transparent"
+                                            color: root.procTab === "user" ? Qt.alpha(root.themePrimary, 0.2) : (userTabMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
+                                            scale: userTabMouse.containsMouse ? 1.05 : 1.0
+
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
                                             Text { anchors.centerIn: parent; text: "User Procs"; font.pixelSize: 12; font.weight: Font.Bold; color: root.procTab === "user" ? root.themePrimary : root.themeTextMuted }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.procTab = "user" }
+                                            MouseArea { id: userTabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.procTab = "user" }
                                         }
 
                                         Rectangle {
                                             Layout.preferredHeight: 30; Layout.preferredWidth: 120
                                             radius: 6
-                                            color: root.procTab === "system" ? Qt.alpha(root.themePrimary, 0.2) : "transparent"
+                                            color: root.procTab === "system" ? Qt.alpha(root.themePrimary, 0.2) : (sysTabMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
+                                            scale: sysTabMouse.containsMouse ? 1.05 : 1.0
+
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
                                             Text { anchors.centerIn: parent; text: "System Procs"; font.pixelSize: 12; font.weight: Font.Bold; color: root.procTab === "system" ? root.themePrimary : root.themeTextMuted }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.procTab = "system" }
+                                            MouseArea { id: sysTabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.procTab = "system" }
                                         }
                                         
                                         Item { Layout.fillWidth: true }
                                         
                                         Rectangle {
                                             width: 28; height: 28; radius: 6
-                                            color: Qt.alpha(root.themeText, 0.08)
-                                            Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 14; color: root.themeText }
+                                            color: closeHover.containsMouse ? "#ff4b6e" : Qt.alpha(root.themeText, 0.08)
+                                            scale: closeHover.containsMouse ? 1.12 : 1.0
+
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                            Text { 
+                                                anchors.centerIn: parent
+                                                text: "󰅖"
+                                                font.pixelSize: 14
+                                                color: closeHover.containsMouse ? "#ffffff" : root.themeText 
+                                            }
+
                                             MouseArea {
+                                                id: closeHover
                                                 anchors.fill: parent
+                                                hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
                                                 onClicked: Qt.quit()
                                             }
                                         }
                                     }
+                                }
+                            }
+
+                            // Process Table Column Headings
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Layout.leftMargin: 12
+                                Layout.rightMargin: 8
+                                Layout.topMargin: 2
+                                Layout.bottomMargin: 2
+                                spacing: 10
+
+                                Text {
+                                    text: "PROCESS"
+                                    font.pixelSize: 10
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.1
+                                    color: root.themeTextMuted
+                                    Layout.fillWidth: true
+                                }
+
+                                Text {
+                                    Layout.preferredWidth: 50
+                                    text: "CPU"
+                                    font.pixelSize: 10
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.1
+                                    color: root.themeTextMuted
+                                    horizontalAlignment: Text.AlignRight
+                                }
+
+                                Text {
+                                    Layout.preferredWidth: 50
+                                    text: "MEM"
+                                    font.pixelSize: 10
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.1
+                                    color: root.themeTextMuted
+                                    horizontalAlignment: Text.AlignRight
+                                }
+
+                                Item {
+                                    width: 32
+                                    height: 1
                                 }
                             }
 
@@ -714,14 +929,31 @@ while True:
                                 clip: true
 
                                 delegate: Rectangle {
+                                    id: procRow
                                     width: processList.width
                                     height: 44
                                     radius: 8
-                                    color: Qt.rgba(1, 1, 1, 0.02)
+                                    color: procRowMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : Qt.rgba(1, 1, 1, 0.02)
                                     border.width: 1
-                                    border.color: killHover.containsMouse ? Qt.alpha("#ff4b6e", 0.4) : "transparent"
+                                    border.color: killHover.containsMouse ? Qt.alpha("#ff4b6e", 0.4) : (procRowMouse.containsMouse ? Qt.alpha(root.themeBorder, 0.2) : "transparent")
 
-                                    Behavior on border.color { ColorAnimation { duration: 150 } }
+                                    scale: procRowMouse.containsMouse ? 1.015 : 1.0
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                    MouseArea {
+                                        id: procRowMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                    }
 
                                     RowLayout {
                                         anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 10
@@ -732,21 +964,38 @@ while True:
                                             Text { text: "PID: " + model.pid; color: root.themeTextMuted; font.pixelSize: 10 }
                                         }
 
-                                        ColumnLayout {
-                                            Layout.preferredWidth: 45; spacing: 2; Layout.alignment: Qt.AlignRight
-                                            Text { text: model.cpu + "%"; color: root.themePrimary; font.pixelSize: 11; font.weight: Font.Bold }
-                                            Text { text: "CPU"; color: root.themeTextMuted; font.pixelSize: 9 }
+                                        Text {
+                                            Layout.preferredWidth: 50
+                                            text: model.cpu + "%"
+                                            color: root.themePrimary
+                                            font.pixelSize: 12
+                                            font.weight: Font.Bold
+                                            horizontalAlignment: Text.AlignRight
+                                            Layout.alignment: Qt.AlignVCenter
                                         }
 
-                                        ColumnLayout {
-                                            Layout.preferredWidth: 45; spacing: 2; Layout.alignment: Qt.AlignRight
-                                            Text { text: model.mem + "%"; color: "#38bdf8"; font.pixelSize: 11; font.weight: Font.Bold }
-                                            Text { text: "MEM"; color: root.themeTextMuted; font.pixelSize: 9 }
+                                        Text {
+                                            Layout.preferredWidth: 50
+                                            text: model.mem + "%"
+                                            color: "#38bdf8"
+                                            font.pixelSize: 12
+                                            font.weight: Font.Bold
+                                            horizontalAlignment: Text.AlignRight
+                                            Layout.alignment: Qt.AlignVCenter
                                         }
 
                                         Rectangle {
                                             width: 32; height: 32; radius: 8
                                             color: killHover.containsMouse ? "#ff4b6e" : Qt.rgba(1, 1, 1, 0.05)
+                                            scale: killHover.containsMouse ? 1.15 : 1.0
+
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
                                             Behavior on color { ColorAnimation { duration: 150 } }
 
                                             Text { 

@@ -19,16 +19,19 @@ Scope {
     property int themeRounding: 16
     property int themeBorderSize: 1
     property real themeBgAlpha: 0.5
+    property bool animEnabled: true
+    property int animDuration: 380
     
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
 
     QtObject {
-        id: style
-        property int animDuration: 480         
-        property int fadeDuration: 380         
-        property var defaultEasing: Easing.OutQuint
+        id: animStyle
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
         property var fadeEasing: Easing.OutCubic
+        property real overshoot: 0.1
         property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.12)
     }
 
@@ -69,9 +72,27 @@ Scope {
         }
     }
 
+    FileView {
+        id: animConfigFile
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
+                if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
+            } catch (e) {}
+        }
+    }
+
     Component.onCompleted: {
         colorFile.reload()
         generalFile.reload()
+        animConfigFile.reload()
     }
 
     function getFocusedMonitorName() {
@@ -213,8 +234,9 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
 
             Behavior on implicitHeight {
                 NumberAnimation { 
-                    duration: style.animDuration
-                    easing.type: style.defaultEasing 
+                    duration: root.animEnabled ? animStyle.animDuration : 0
+                    easing.type: animStyle.bounceEasing
+                    easing.overshoot: animStyle.overshoot
                 }
             }
 
@@ -231,15 +253,24 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                             property: "opacity"
                             from: 0
                             to: 1
-                            duration: style.fadeDuration
-                            easing.type: style.fadeEasing 
+                            duration: animStyle.fadeDuration
+                            easing.type: animStyle.fadeEasing 
                         }
                         NumberAnimation { 
                             property: "scale"
                             from: 0.88
-                            to: 1
-                            duration: style.animDuration
-                            easing.type: style.defaultEasing 
+                            to: 1.0
+                            duration: root.animEnabled ? animStyle.animDuration : 0
+                            easing.type: animStyle.bounceEasing
+                            easing.overshoot: animStyle.overshoot
+                        }
+                        NumberAnimation {
+                            property: "y"
+                            from: -20
+                            to: 0
+                            duration: root.animEnabled ? animStyle.animDuration : 0
+                            easing.type: animStyle.bounceEasing
+                            easing.overshoot: animStyle.overshoot
                         }
                     }
                 }
@@ -249,14 +280,14 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                         NumberAnimation { 
                             property: "opacity"
                             to: 0
-                            duration: style.fadeDuration
-                            easing.type: style.fadeEasing 
+                            duration: animStyle.fadeDuration
+                            easing.type: animStyle.fadeEasing 
                         }
                         NumberAnimation { 
                             property: "scale"
                             to: 0.88
-                            duration: style.fadeDuration
-                            easing.type: style.fadeEasing 
+                            duration: animStyle.fadeDuration
+                            easing.type: animStyle.fadeEasing 
                         }
                     }
                 }
@@ -264,8 +295,9 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                 displaced: Transition {
                     NumberAnimation { 
                         properties: "x,y"
-                        duration: style.animDuration
-                        easing.type: style.defaultEasing 
+                        duration: root.animEnabled ? animStyle.animDuration : 0
+                        easing.type: animStyle.bounceEasing
+                        easing.overshoot: animStyle.overshoot
                     }
                 }
 
@@ -283,18 +315,34 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                         border.color: Qt.alpha(root.themeBorder, 0.45)
                         clip: true
 
+                        scale: cardMouse.containsMouse ? 1.0 : 1.0
+
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                easing.type: animStyle.bounceEasing
+                                easing.overshoot: animStyle.overshoot
+                            }
+                        }
+
                         Behavior on color {
-                            ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing }
+                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                         }
 
                         Behavior on border.color {
-                            ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing }
+                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                         }
 
                         Timer {
                             interval: 4000
                             running: true
                             onTriggered: root.closePopup(localPopupModel, model.notifId)
+                        }
+
+                        MouseArea {
+                            id: cardMouse
+                            anchors.fill: parent
+                            hoverEnabled: true
                         }
 
                         RowLayout {
@@ -374,12 +422,22 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                                 Layout.preferredHeight: 24
                                 Layout.alignment: Qt.AlignTop
                                 radius: 12
-                                color: closeMouse.containsMouse ? style.hoverColor : "transparent"
+                                color: closeMouse.containsMouse ? animStyle.hoverColor : "transparent"
+
+                                scale: closeMouse.containsMouse ? 1.15 : 1.0
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                        easing.type: animStyle.bounceEasing
+                                        easing.overshoot: animStyle.overshoot
+                                    }
+                                }
 
                                 Behavior on color { 
                                     ColorAnimation { 
-                                        duration: style.fadeDuration
-                                        easing.type: style.fadeEasing 
+                                        duration: animStyle.fadeDuration
+                                        easing.type: animStyle.fadeEasing 
                                     } 
                                 }
 
@@ -391,8 +449,8 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
 
                                     Behavior on color { 
                                         ColorAnimation { 
-                                            duration: style.fadeDuration
-                                            easing.type: style.fadeEasing 
+                                            duration: animStyle.fadeDuration
+                                            easing.type: animStyle.fadeEasing 
                                         } 
                                     }
                                 }

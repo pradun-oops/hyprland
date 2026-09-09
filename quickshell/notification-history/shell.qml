@@ -24,11 +24,20 @@ Scope {
     property int themeBorderSize: 1
     property real themeBgAlpha: 0.72
     property bool animEnabled: true
-    property int animDuration: 220
+    property int animDuration: 380
     
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.04) 
     property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.08)
+
+    QtObject {
+        id: animStyle
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
+        property var fadeEasing: Easing.OutCubic
+        property real overshoot: 0.1
+    }
 
     property string targetMonitorName: ""
 
@@ -104,11 +113,11 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
 
                 let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
-                if (speedMatch && speedMatch[1]) root.animDuration = parseFloat(speedMatch[1]) * 100
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
             } catch (e) {}
         }
     }
@@ -155,19 +164,6 @@ Scope {
     function clearAllHistory() {
         let path = Quickshell.env("HOME") + "/.config/quickshell/notification_history.json"
         exec("echo '[]' > " + path)
-    }
-
-    function removeNotification(idx) {
-        if (idx >= 0 && idx < historyModel.count) {
-            historyModel.remove(idx)
-            let arr = []
-            for (let i = 0; i < historyModel.count; i++) {
-                arr.push(historyModel.get(i))
-            }
-            let path = Quickshell.env("HOME") + "/.config/quickshell/notification_history.json"
-            let jsonStr = JSON.stringify(arr).replace(/"/g, '\\"')
-            exec("echo \"" + jsonStr + "\" > " + path)
-        }
     }
 
     function formatTimeAgo(timestamp) {
@@ -252,6 +248,38 @@ Scope {
                     border.width: root.themeBorderSize
                     border.color: Qt.alpha(root.themeBorder, 0.35)
 
+                    property bool shown: false
+                    Component.onCompleted: shown = true
+
+                    scale: shown ? 1.0 : 0.90
+                    opacity: shown ? 1.0 : 0.0
+
+                    transform: Translate {
+                        x: container.shown ? 0 : 20
+                        Behavior on x {
+                            NumberAnimation {
+                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                easing.type: animStyle.bounceEasing
+                                easing.overshoot: animStyle.overshoot
+                            }
+                        }
+                    }
+
+                    Behavior on scale {
+                        NumberAnimation {
+                            duration: root.animEnabled ? animStyle.animDuration : 0
+                            easing.type: animStyle.bounceEasing
+                            easing.overshoot: animStyle.overshoot
+                        }
+                    }
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: animStyle.fadeDuration
+                            easing.type: animStyle.fadeEasing
+                        }
+                    }
+
                     ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 18
@@ -299,6 +327,15 @@ Scope {
                                         border.width: 1
                                         border.color: Qt.alpha(root.themePrimary, 0.4)
 
+                                        scale: historyModel.count > 0 ? 1.0 : 0.8
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                                easing.type: animStyle.bounceEasing
+                                                easing.overshoot: animStyle.overshoot
+                                            }
+                                        }
+
                                         Text {
                                             id: badgeText
                                             anchors.centerIn: parent
@@ -328,8 +365,16 @@ Scope {
                                 border.width: 1
                                 border.color: clearBtnArea.containsMouse ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1, 1, 1, 0.1)
 
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                                Behavior on border.color { ColorAnimation { duration: 150 } }
+                                scale: clearBtnArea.containsMouse ? 1.08 : 1.0
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                        easing.type: animStyle.bounceEasing
+                                        easing.overshoot: animStyle.overshoot
+                                    }
+                                }
+                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                 RowLayout {
                                     id: clearRow
@@ -420,141 +465,205 @@ Scope {
                                 spacing: 10
                                 clip: true
 
-                                delegate: Rectangle {
-                                    id: card
+                                add: Transition {
+                                    ParallelAnimation {
+                                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                        NumberAnimation {
+                                            property: "scale"
+                                            from: 0.90; to: 1.0
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                        NumberAnimation {
+                                            property: "x"
+                                            from: 18; to: 0
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+                                }
+
+                                remove: Transition {
+                                    ParallelAnimation {
+                                        NumberAnimation { property: "opacity"; to: 0; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                        NumberAnimation { property: "scale"; to: 0.88; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                    }
+                                }
+
+                                displaced: Transition {
+                                    NumberAnimation {
+                                        properties: "y,x"
+                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                        easing.type: animStyle.bounceEasing
+                                        easing.overshoot: animStyle.overshoot
+                                    }
+                                }
+
+                                delegate: Item {
+                                    id: delegateRoot
                                     width: historyList.width
-                                    
-                                    property bool isExpanded: false
-                                    property bool hasBody: model.body !== undefined && model.body.trim() !== ""
+                                    height: card.height
 
-                                    implicitHeight: notifCardLayout.implicitHeight + 24
-                                    height: implicitHeight
+                                    Rectangle {
+                                        id: card
+                                        width: parent.width - 12
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        
+                                        property bool isExpanded: false
+                                        property bool hasBody: model.body !== undefined && model.body.trim() !== ""
 
-                                    radius: Math.max(4, root.themeRounding - 6)
-                                    color: cardArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                    border.width: 1
-                                    border.color: cardArea.containsMouse ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1, 1, 1, 0.08)
+                                        implicitHeight: notifCardLayout.implicitHeight + 24
+                                        height: implicitHeight
 
-                                    Behavior on height {
-                                        NumberAnimation { 
-                                            duration: root.animEnabled ? root.animDuration : 0
-                                            easing.type: Easing.OutCubic 
-                                        }
-                                    }
-                                    Behavior on border.color { ColorAnimation { duration: 150 } }
-                                    Behavior on color { ColorAnimation { duration: 150 } }
+                                        radius: Math.max(4, root.themeRounding - 6)
+                                        color: cardArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                                        border.width: 1
+                                        border.color: cardArea.containsMouse ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1, 1, 1, 0.08)
 
-                                    MouseArea {
-                                        id: cardArea
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: card.hasBody ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                        onClicked: {
-                                            if (card.hasBody) {
-                                                card.isExpanded = !card.isExpanded
-                                            }
-                                        }
-                                    }
+                                        scale: cardArea.containsMouse ? 1.0 : 1.0
 
-                                    RowLayout {
-                                        id: notifCardLayout
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-                                        anchors.top: parent.top
-                                        anchors.margins: 12
-                                        spacing: 12
-
-                                        Rectangle {
-                                            Layout.alignment: Qt.AlignTop
-                                            Layout.topMargin: 2
-                                            width: 36
-                                            height: 36
-                                            radius: 10
-                                            color: Qt.alpha(root.themePrimary, 0.12)
-                                            border.width: 1
-                                            border.color: Qt.alpha(root.themePrimary, 0.25)
-
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: root.getAppGlyph(model.appName, model.summary)
-                                                color: root.themePrimary
-                                                font.pixelSize: 17
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                                easing.type: animStyle.bounceEasing
+                                                easing.overshoot: animStyle.overshoot
                                             }
                                         }
 
-                                        ColumnLayout {
-                                            Layout.fillWidth: true
-                                            spacing: 4
+                                        Behavior on height {
+                                            NumberAnimation { 
+                                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                                easing.type: animStyle.bounceEasing
+                                                easing.overshoot: 1.2
+                                            }
+                                        }
+                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
-                                            RowLayout {
-                                                Layout.fillWidth: true
-                                                spacing: 6
+                                        MouseArea {
+                                            id: cardArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: card.hasBody ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                            onClicked: {
+                                                if (card.hasBody) {
+                                                    card.isExpanded = !card.isExpanded
+                                                }
+                                            }
+                                        }
+
+                                        RowLayout {
+                                            id: notifCardLayout
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.top: parent.top
+                                            anchors.margins: 12
+                                            spacing: 12
+
+                                            Rectangle {
+                                                Layout.alignment: Qt.AlignTop
+                                                Layout.topMargin: 2
+                                                width: 36
+                                                height: 36
+                                                radius: 10
+                                                color: Qt.alpha(root.themePrimary, 0.12)
+                                                border.width: 1
+                                                border.color: Qt.alpha(root.themePrimary, 0.25)
 
                                                 Text {
-                                                    text: (model.appName || "System").toUpperCase()
+                                                    anchors.centerIn: parent
+                                                    text: root.getAppGlyph(model.appName, model.summary)
                                                     color: root.themePrimary
-                                                    font.pixelSize: 10
-                                                    font.weight: Font.Bold
-                                                    font.letterSpacing: 0.8
+                                                    font.pixelSize: 17
                                                 }
+                                            }
 
-                                                Text {
-                                                    text: "•"
-                                                    color: Qt.alpha(root.themeTextMuted, 0.4)
-                                                    font.pixelSize: 10
-                                                }
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 4
 
-                                                Text {
-                                                    text: root.formatTimeAgo(model.time)
-                                                    color: root.themeTextMuted
-                                                    font.pixelSize: 10
+                                                RowLayout {
                                                     Layout.fillWidth: true
-                                                }
-
-                                                Rectangle {
-                                                    visible: card.hasBody
-                                                    width: 22
-                                                    height: 22
-                                                    radius: 6
-                                                    color: expandHover.containsMouse ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
+                                                    spacing: 6
 
                                                     Text {
-                                                        anchors.centerIn: parent
-                                                        text: card.isExpanded ? "󰅃" : "󰅀"
-                                                        color: card.isExpanded ? root.themePrimary : root.themeTextMuted
-                                                        font.pixelSize: 11
+                                                        text: (model.appName || "System").toUpperCase()
+                                                        color: root.themePrimary
+                                                        font.pixelSize: 10
+                                                        font.weight: Font.Bold
+                                                        font.letterSpacing: 0.8
                                                     }
 
-                                                    MouseArea {
-                                                        id: expandHover
-                                                        anchors.fill: parent
-                                                        hoverEnabled: true
-                                                        onClicked: card.isExpanded = !card.isExpanded
+                                                    Text {
+                                                        text: "•"
+                                                        color: Qt.alpha(root.themeTextMuted, 0.4)
+                                                        font.pixelSize: 10
+                                                    }
+
+                                                    Text {
+                                                        text: root.formatTimeAgo(model.time)
+                                                        color: root.themeTextMuted
+                                                        font.pixelSize: 10
+                                                        Layout.fillWidth: true
+                                                    }
+
+                                                    Rectangle {
+                                                        visible: card.hasBody
+                                                        width: 22
+                                                        height: 22
+                                                        radius: 6
+                                                        color: expandHover.containsMouse ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
+
+                                                        scale: expandHover.containsMouse ? 1.15 : 1.0
+                                                        Behavior on scale {
+                                                            NumberAnimation {
+                                                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                                                easing.type: animStyle.bounceEasing
+                                                                easing.overshoot: animStyle.overshoot
+                                                            }
+                                                        }
+                                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                                        Text {
+                                                            anchors.centerIn: parent
+                                                            text: card.isExpanded ? "󰅃" : "󰅀"
+                                                            color: card.isExpanded ? root.themePrimary : root.themeTextMuted
+                                                            font.pixelSize: 11
+                                                        }
+
+                                                        MouseArea {
+                                                            id: expandHover
+                                                            anchors.fill: parent
+                                                            hoverEnabled: true
+                                                            onClicked: card.isExpanded = !card.isExpanded
+                                                        }
                                                     }
                                                 }
-                                            }
 
-                                            Text {
-                                                text: model.summary || ""
-                                                color: root.themeText
-                                                font.pixelSize: 13
-                                                font.weight: Font.Bold
-                                                Layout.fillWidth: true
-                                                wrapMode: Text.WordWrap
-                                                maximumLineCount: 2
-                                                elide: Text.ElideRight
-                                            }
+                                                Text {
+                                                    text: model.summary || ""
+                                                    color: root.themeText
+                                                    font.pixelSize: 13
+                                                    font.weight: Font.Bold
+                                                    Layout.fillWidth: true
+                                                    wrapMode: Text.WordWrap
+                                                    maximumLineCount: 2
+                                                    elide: Text.ElideRight
+                                                }
 
-                                            Text {
-                                                visible: card.hasBody
-                                                text: model.body || ""
-                                                color: root.themeTextMuted
-                                                font.pixelSize: 11
-                                                lineHeight: 1.25
-                                                Layout.fillWidth: true
-                                                wrapMode: Text.WordWrap
-                                                maximumLineCount: card.isExpanded ? 12 : 1
-                                                elide: Text.ElideRight
+                                                Text {
+                                                    visible: card.hasBody
+                                                    text: model.body || ""
+                                                    color: root.themeTextMuted
+                                                    font.pixelSize: 11
+                                                    lineHeight: 1.25
+                                                    Layout.fillWidth: true
+                                                    wrapMode: Text.WordWrap
+                                                    maximumLineCount: card.isExpanded ? 12 : 1
+                                                    elide: Text.ElideRight
+                                                }
                                             }
                                         }
                                     }

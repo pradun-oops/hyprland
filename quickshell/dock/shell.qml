@@ -19,16 +19,18 @@ Scope {
     property int themeBorderSize: 1
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
+    property int animDuration: 380
     
     property color themeBackground: "#141416" 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
 
     QtObject {
         id: style
-        property int animDuration: 480         
-        property int fadeDuration: 380         
-        property var defaultEasing: Easing.OutQuint
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
         property var fadeEasing: Easing.OutCubic
+        property real overshoot: 1.5
         property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.12)
     }
 
@@ -84,7 +86,6 @@ Scope {
         pinnedAppsModel.append({ name: "Calculator", iconName: "org.gnome.Calculator", cmd: "gnome-calculator", wmClass: "org.gnome.calculator", process: "gnome-calculator", filePath: "" })
         pinnedAppsModel.append({ name: "Disks", iconName: "org.gnome.DiskUtility", cmd: "gnome-disks", wmClass: "org.gnome.diskutility", process: "gnome-disks", filePath: "" })
         pinnedAppsModel.append({ name: "Document Viewer", iconName: "org.gnome.Evince", cmd: "evince", wmClass: "org.gnome.evince", process: "evince", filePath: "" })
-        pinnedAppsModel.append({ name: "Settings", iconName: "org.gnome.Settings", cmd: "gnome-control-center", wmClass: "org.gnome.settings", process: "gnome-control-center", filePath: "" })
         pinnedAppsModel.append({ name: "Easy Effects", iconName: "com.github.wwmm.easyeffects", cmd: "easyeffects", wmClass: "com.github.wwmm.easyeffects", process: "easyeffects", filePath: "" })
         root.savePinnedApps()
     }
@@ -221,6 +222,9 @@ Scope {
                 let content = text()
                 let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
             } catch (e) {}
         }
     }
@@ -476,7 +480,7 @@ except Exception:
                     id: sharedTooltip
                     height: 26
                     width: tooltipLabel.implicitWidth + 20
-                    radius: 6
+                    radius: 15
                     color: Qt.alpha(root.themeBackground, 0.95)
                     border.width: 1
                     border.color: Qt.alpha(root.themeBorder, 0.3)
@@ -487,11 +491,24 @@ except Exception:
                     
                     property real targetX: dockWindow.activeTooltipX - (width / 2)
                     x: Math.max(0, Math.min(targetX, rootContainer.width - width))
-                    Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                    Behavior on x { NumberAnimation { duration: 180; easing.type: style.fadeEasing } }
                     
                     opacity: dockWindow.activeTooltipText !== "" ? 1.0 : 0.0
+                    scale: dockWindow.activeTooltipText !== "" ? 1.0 : 1.0
                     visible: opacity > 0
-                    Behavior on opacity { NumberAnimation { duration: 150 } }
+       Behavior on opacity {
+    NumberAnimation {
+        duration: 250 
+        easing.type: Easing.OutQuart
+    }
+}
+                    Behavior on scale { 
+                        NumberAnimation { 
+                            duration: root.animEnabled ? style.animDuration : 0
+                            easing.type: style.bounceEasing
+                            easing.overshoot: style.overshoot
+                        } 
+                    }
                     
                     Text {
                         id: tooltipLabel
@@ -507,15 +524,26 @@ except Exception:
                     id: dockContainer
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.bottom: parent.bottom
+                    transformOrigin: Item.Bottom
                     
                     anchors.bottomMargin: dockWindow.dockShouldBeVisible ? 8 : -(dockContainer.height + 20)
                     Behavior on anchors.bottomMargin { 
                         NumberAnimation { 
                             duration: root.animEnabled ? style.animDuration : 0
-                            easing.type: style.defaultEasing 
+                            easing.type: style.bounceEasing
+                            easing.overshoot: style.overshoot
                         } 
                     }
                     
+                    scale: dockWindow.dockShouldBeVisible ? 1.0 : 1.0
+                    Behavior on scale { 
+                        NumberAnimation { 
+                            duration: root.animEnabled ? style.animDuration : 0
+                            easing.type: style.bounceEasing
+                            easing.overshoot: style.overshoot
+                        } 
+                    }
+
                     width: masterDockLayout.implicitWidth + 28
                     height: 84
                     radius: root.themeRounding
@@ -558,8 +586,20 @@ except Exception:
                             scale: launcherMouse.containsMouse ? 1.15 : 1.0
                             anchors.verticalCenterOffset: launcherMouse.containsMouse ? -4 : 0
                             
-                            Behavior on scale { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.defaultEasing } }
-                            Behavior on anchors.verticalCenterOffset { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.defaultEasing } }
+                            Behavior on scale { 
+                                NumberAnimation { 
+                                    duration: root.animEnabled ? style.animDuration : 0
+                                    easing.type: style.bounceEasing
+                                    easing.overshoot: style.overshoot
+                                } 
+                            }
+                            Behavior on anchors.verticalCenterOffset { 
+                                NumberAnimation { 
+                                    duration: root.animEnabled ? style.animDuration : 0
+                                    easing.type: style.bounceEasing
+                                    easing.overshoot: style.overshoot
+                                } 
+                            }
 
                             Rectangle {
                                 anchors.fill: parent
@@ -629,17 +669,28 @@ except Exception:
                             add: Transition {
                                 ParallelAnimation {
                                     NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: style.fadeDuration; easing.type: style.fadeEasing }
-                                    NumberAnimation { properties: "scale"; from: 0; to: 1; duration: style.animDuration; easing.type: style.defaultEasing }
+                                    NumberAnimation { 
+                                        properties: "scale"
+                                        from: 0; to: 1
+                                        duration: root.animEnabled ? style.animDuration : 0
+                                        easing.type: style.bounceEasing
+                                        easing.overshoot: style.overshoot 
+                                    }
                                 }
                             }
                             remove: Transition {
                                 ParallelAnimation {
                                     NumberAnimation { properties: "opacity"; to: 0; duration: style.fadeDuration; easing.type: style.fadeEasing }
-                                    NumberAnimation { properties: "scale"; to: 0; duration: style.fadeDuration; easing.type: style.defaultEasing }
+                                    NumberAnimation { properties: "scale"; to: 0; duration: style.fadeDuration; easing.type: style.fadeEasing }
                                 }
                             }
                             displaced: Transition {
-                                NumberAnimation { properties: "x,y"; duration: style.animDuration; easing.type: style.defaultEasing }
+                                NumberAnimation { 
+                                    properties: "x,y"
+                                    duration: root.animEnabled ? style.animDuration : 0
+                                    easing.type: style.bounceEasing
+                                    easing.overshoot: style.overshoot 
+                                }
                             }
 
                             model: DelegateModel {
@@ -682,8 +733,20 @@ except Exception:
                                         scale: itemMouse.containsMouse && !Drag.active ? 1.15 : (Drag.active ? 1.05 : 1.0)
                                         anchors.verticalCenterOffset: itemMouse.containsMouse && !Drag.active ? -4 : 0
                                         
-                                        Behavior on scale { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.defaultEasing } }
-                                        Behavior on anchors.verticalCenterOffset { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.defaultEasing } }
+                                        Behavior on scale { 
+                                            NumberAnimation { 
+                                                duration: root.animEnabled ? style.animDuration : 0
+                                                easing.type: style.bounceEasing
+                                                easing.overshoot: style.overshoot 
+                                            } 
+                                        }
+                                        Behavior on anchors.verticalCenterOffset { 
+                                            NumberAnimation { 
+                                                duration: root.animEnabled ? style.animDuration : 0
+                                                easing.type: style.bounceEasing
+                                                easing.overshoot: style.overshoot 
+                                            } 
+                                        }
 
                                         states: [
                                             State {
@@ -847,8 +910,20 @@ except Exception:
                                 scale: unpinnedMouse.containsMouse ? 1.15 : 1.0
                                 anchors.verticalCenterOffset: unpinnedMouse.containsMouse ? -4 : 0
                                 
-                                Behavior on scale { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.defaultEasing } }
-                                Behavior on anchors.verticalCenterOffset { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.defaultEasing } }
+                                Behavior on scale { 
+                                    NumberAnimation { 
+                                        duration: root.animEnabled ? style.animDuration : 0
+                                        easing.type: style.bounceEasing
+                                        easing.overshoot: style.overshoot 
+                                    } 
+                                }
+                                Behavior on anchors.verticalCenterOffset { 
+                                    NumberAnimation { 
+                                        duration: root.animEnabled ? style.animDuration : 0
+                                        easing.type: style.bounceEasing
+                                        easing.overshoot: style.overshoot 
+                                    } 
+                                }
 
                                 Rectangle {
                                     anchors.fill: parent

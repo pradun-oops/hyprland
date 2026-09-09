@@ -19,6 +19,17 @@ Scope {
     property int themeRounding: 16
     property int themeBorderSize: 1
     property real themeBgAlpha: 0.7
+    property bool animEnabled: true
+    property int animDuration: 380
+
+    QtObject {
+        id: animStyle
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
+        property var fadeEasing: Easing.OutCubic
+        property real overshoot: 1.4
+    }
 
     property string mediaTitle: "No media playing"
     property string mediaArtist: "Unknown Artist"
@@ -118,9 +129,27 @@ Scope {
         }
     }
 
+    FileView {
+        id: animConfigFile
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
+                if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
+            } catch (e) {}
+        }
+    }
+
     Component.onCompleted: {
         colorFile.reload()
         generalConfigFile.reload()
+        animConfigFile.reload()
         posConfigFile.reload()
         audioPollProcess.running = true
     }
@@ -314,10 +343,11 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
             required property var modelData
             screen: modelData
 
-            visible: root.mediaStatus.toLowerCase() !== "stopped" && root.mediaTitle !== "No media playing" && modelData !== null
+            property bool shouldShow: root.mediaStatus.toLowerCase() !== "stopped" && root.mediaTitle !== "No media playing" && modelData !== null
+            visible: shouldShow || widgetCard.opacity > 0.01
 
             WlrLayershell.layer: WlrLayer.Bottom
-            WlrLayershell.namespace: "dms:desktop-widget:player"
+            WlrLayershell.namespace: "qs-desktop-dashboard"
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             exclusiveZone: -1
 
@@ -332,7 +362,26 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
             color: "transparent"
 
             Item {
+                id: widgetCard
                 anchors.fill: parent
+
+                scale: playerWindow.shouldShow ? 1.0 : 0.90
+                opacity: playerWindow.shouldShow ? 1.0 : 0.0
+
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: root.animEnabled ? animStyle.animDuration : 0
+                        easing.type: animStyle.bounceEasing
+                        easing.overshoot: animStyle.overshoot
+                    }
+                }
+
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: animStyle.fadeDuration
+                        easing.type: animStyle.fadeEasing
+                    }
+                }
 
                 Rectangle {
                     anchors.fill: parent
@@ -370,7 +419,7 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                     anchors.fill: parent
                     radius: root.themeRounding
                     color: root.mediaArtUrl !== "" ? Qt.rgba(0, 0, 0, 0.75) : "transparent"
-                    Behavior on color { ColorAnimation { duration: 300 } }
+                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                     antialiasing: true
                 }
 
@@ -445,11 +494,21 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                         Item { Layout.fillWidth: true }
 
                         Rectangle {
+                            id: playerBtn
                             Layout.preferredWidth: 36; Layout.preferredHeight: 36
                             radius: 18
                             color: playerMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.3) : Qt.alpha(root.themeText, 0.12)
                             border.width: 1; border.color: Qt.alpha(root.themePrimary, 0.4)
-                            Behavior on color { ColorAnimation { duration: 150 } }
+                            
+                            scale: playerMouse.containsMouse ? 1.12 : 1.0
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
+                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                             Text { anchors.centerIn: parent; text: "🎵"; font.pixelSize: 14 }
 
@@ -461,11 +520,21 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                         }
 
                         Rectangle {
+                            id: sinkBtn
                             Layout.preferredWidth: 36; Layout.preferredHeight: 36
                             radius: 18
                             color: sinkMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.3) : Qt.alpha(root.themeText, 0.12)
                             border.width: 1; border.color: Qt.alpha(root.themePrimary, 0.4)
-                            Behavior on color { ColorAnimation { duration: 150 } }
+                            
+                            scale: sinkMouse.containsMouse ? 1.12 : 1.0
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
+                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                             Text { anchors.centerIn: parent; text: "🔊"; font.pixelSize: 14 }
 
@@ -674,7 +743,7 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                                 height: parent.height
                                 radius: parent.radius
                                 color: root.themePrimary
-                                Behavior on width { NumberAnimation { duration: 350; easing.type: Easing.OutCubic } }
+                                Behavior on width { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                             }
                         }
 
@@ -694,6 +763,7 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                         Item { Layout.fillWidth: true }
 
                         Rectangle {
+                            id: volDownBtn
                             property bool isMinVol: root.currentVolume <= 0
 
                             Layout.preferredWidth: 38; Layout.preferredHeight: 38
@@ -701,7 +771,16 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                             color: isMinVol ? Qt.alpha("#ef4444", 0.3) : (volDownMouse.containsMouse ? Qt.alpha(root.themeText, 0.18) : Qt.alpha(root.themeText, 0.08))
                             border.width: isMinVol ? 1 : 0
                             border.color: "#ef4444"
-                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            scale: volDownMouse.containsMouse ? 1.12 : 1.0
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
+                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                             Text { 
                                 anchors.centerIn: parent
@@ -719,10 +798,20 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                         }
 
                         Rectangle {
+                            id: prevBtn
                             Layout.preferredWidth: 38; Layout.preferredHeight: 38
                             radius: 19
                             color: prevMouse.containsMouse ? Qt.alpha(root.themeText, 0.18) : "transparent"
-                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            scale: prevMouse.containsMouse ? 1.14 : 1.0
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
+                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                             Text { anchors.centerIn: parent; text: "⏮"; color: root.themeText; font.pixelSize: 20 }
 
@@ -734,10 +823,20 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                         }
 
                         Rectangle {
+                            id: playBtn
                             Layout.preferredWidth: 52; Layout.preferredHeight: 52
                             radius: 26
                             color: playMouse.containsMouse ? Qt.darker(root.themePrimary, 1.15) : root.themePrimary
-                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            scale: playMouse.containsMouse ? 1.10 : 1.0
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
+                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                             Text {
                                 anchors.centerIn: parent
@@ -755,10 +854,20 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                         }
 
                         Rectangle {
+                            id: nextBtn
                             Layout.preferredWidth: 38; Layout.preferredHeight: 38
                             radius: 19
                             color: nextMouse.containsMouse ? Qt.alpha(root.themeText, 0.18) : "transparent"
-                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            scale: nextMouse.containsMouse ? 1.14 : 1.0
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
+                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                             Text { anchors.centerIn: parent; text: "⏭"; color: root.themeText; font.pixelSize: 20 }
 
@@ -770,6 +879,7 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                         }
 
                         Rectangle {
+                            id: volUpBtn
                             property bool isMaxVol: root.currentVolume >= 100
 
                             Layout.preferredWidth: 38; Layout.preferredHeight: 38
@@ -777,7 +887,16 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                             color: isMaxVol ? Qt.alpha("#ef4444", 0.3) : (volUpMouse.containsMouse ? Qt.alpha(root.themeText, 0.18) : Qt.alpha(root.themeText, 0.08))
                             border.width: isMaxVol ? 1 : 0
                             border.color: "#ef4444"
-                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                            scale: volUpMouse.containsMouse ? 1.12 : 1.0
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
+                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                             Text { 
                                 anchors.centerIn: parent

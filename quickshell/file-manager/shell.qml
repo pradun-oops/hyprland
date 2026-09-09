@@ -61,11 +61,23 @@ Scope {
     property int themeRounding: 16
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.88
+    property bool animEnabled: true
+    property int animDuration: 380
+
     property color themeBackground: "#121318"
     property color themeBorder: "#ffb3af"
     property color themeText: "#FFFFFF"
     property color themeTextMuted: "#9EA3B0"
     property color themePrimary: "#ffb3af"
+
+    QtObject {
+        id: animStyle
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
+        property var fadeEasing: Easing.OutCubic
+        property real overshoot: 1.4
+    }
 
     FileView {
         id: colorFile
@@ -98,6 +110,23 @@ Scope {
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+            } catch (e) {}
+        }
+    }
+
+    FileView {
+        id: animConfigFile
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
+                if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
             } catch (e) {}
         }
     }
@@ -234,6 +263,7 @@ Scope {
         if (root.targetMonitorName === "") fallbackMonitorTimer.start()
         colorFile.reload()
         generalConfigFile.reload()
+        animConfigFile.reload()
         bookmarkConfigFile.reload()
     }
 
@@ -360,6 +390,26 @@ Scope {
                 border.color: Qt.alpha(root.themeBorder, 0.35)
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
 
+                property bool shown: false
+                Component.onCompleted: shown = true
+
+                scale: shown ? 1.0 : 0.90
+                opacity: shown ? 1.0 : 0.0
+
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: root.animEnabled ? animStyle.animDuration : 0
+                        easing.type: animStyle.bounceEasing
+                        easing.overshoot: animStyle.overshoot
+                    }
+                }
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: animStyle.fadeDuration
+                        easing.type: animStyle.fadeEasing
+                    }
+                }
+
                 MouseArea {
                     anchors.fill: parent
                     onClicked: {
@@ -384,6 +434,16 @@ Scope {
                             border.width: 1
                             border.color: Qt.rgba(1, 1, 1, 0.1)
 
+                            scale: upMouse.containsMouse ? 1.08 : 1.0
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
+                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
                             Text {
                                 anchors.centerIn: parent
                                 text: "▲"
@@ -407,6 +467,8 @@ Scope {
                             border.width: 1
                             border.color: pathInput.activeFocus ? root.themePrimary : Qt.rgba(1, 1, 1, 0.08)
 
+                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
                             RowLayout {
                                 anchors.fill: parent
                                 anchors.leftMargin: 8; anchors.rightMargin: 8
@@ -424,6 +486,16 @@ Scope {
                                             width: segText.implicitWidth + 14
                                             radius: 6
                                             color: segMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.3) : Qt.rgba(1, 1, 1, 0.06)
+
+                                            scale: segMouse.containsMouse ? 1.06 : 1.0
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                             Text {
                                                 id: segText
@@ -472,6 +544,14 @@ Scope {
                                     width: 26; height: 26
                                     radius: 5
                                     color: copyPathBtn.containsMouse ? Qt.rgba(1, 1, 1, 0.2) : Qt.rgba(1, 1, 1, 0.06)
+                                    scale: copyPathBtn.containsMouse ? 1.10 : 1.0
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
                                     Text { anchors.centerIn: parent; text: "📋"; font.pixelSize: 12 }
                                     MouseArea {
                                         id: copyPathBtn
@@ -508,6 +588,8 @@ Scope {
                             color: Qt.rgba(0, 0, 0, 0.25)
                             border.width: 1
                             border.color: searchInput.activeFocus ? root.themePrimary : Qt.rgba(1, 1, 1, 0.1)
+
+                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                             RowLayout {
                                 anchors.fill: parent
@@ -611,6 +693,17 @@ Scope {
                                             border.width: isActive ? 1 : 0
                                             border.color: root.themePrimary
 
+                                            scale: bmMouse.containsMouse ? 1.03 : 1.0
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
                                             RowLayout {
                                                 anchors.fill: parent
                                                 anchors.leftMargin: 10; anchors.rightMargin: 10
@@ -699,6 +792,17 @@ Scope {
                                         color: isSelected ? Qt.alpha(root.themePrimary, 0.22) : (itemMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.07) : Qt.rgba(1, 1, 1, 0.025))
                                         border.width: 1
                                         border.color: isSelected ? root.themePrimary : (itemMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : "transparent")
+
+                                        scale: itemMouse.containsMouse ? 1.04 : 1.0
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                                easing.type: animStyle.bounceEasing
+                                                easing.overshoot: animStyle.overshoot
+                                            }
+                                        }
+                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                         ColumnLayout {
                                             anchors.fill: parent
@@ -894,6 +998,17 @@ Scope {
                     border.color: Qt.alpha(root.themeBorder, 0.4)
                     z: 999
 
+                    opacity: visible ? 1.0 : 0.0
+                    scale: visible ? 1.0 : 0.92
+                    Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                    Behavior on scale {
+                        NumberAnimation {
+                            duration: root.animEnabled ? animStyle.animDuration : 0
+                            easing.type: animStyle.bounceEasing
+                            easing.overshoot: animStyle.overshoot
+                        }
+                    }
+
                     ColumnLayout {
                         id: menuColumn
                         anchors.fill: parent
@@ -1056,6 +1171,8 @@ Scope {
                     radius: root.themeRounding
                     color: Qt.rgba(0, 0, 0, 0.65)
                     visible: root.createDialogVisible
+                    opacity: visible ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                     z: 1000
 
                     MouseArea {
@@ -1071,6 +1188,15 @@ Scope {
                         color: Qt.alpha(root.themeBackground, 0.98)
                         border.width: 1
                         border.color: Qt.alpha(root.themeBorder, 0.4)
+
+                        scale: createModal.visible ? 1.0 : 0.90
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                easing.type: animStyle.bounceEasing
+                                easing.overshoot: animStyle.overshoot
+                            }
+                        }
 
                         MouseArea {
                             anchors.fill: parent
@@ -1137,6 +1263,15 @@ Scope {
                                     border.width: 1
                                     border.color: Qt.rgba(1, 1, 1, 0.15)
 
+                                    scale: cancelCreateMouse.containsMouse ? 1.05 : 1.0
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+
                                     Text {
                                         anchors.centerIn: parent
                                         text: "Cancel"
@@ -1156,6 +1291,15 @@ Scope {
                                     width: 80; height: 32
                                     radius: 6
                                     color: confirmCreateMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.85) : Qt.alpha(root.themePrimary, 0.65)
+
+                                    scale: confirmCreateMouse.containsMouse ? 1.05 : 1.0
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
 
                                     Text {
                                         anchors.centerIn: parent
@@ -1193,6 +1337,8 @@ Scope {
                     radius: root.themeRounding
                     color: Qt.rgba(0, 0, 0, 0.65)
                     visible: root.deleteDialogVisible
+                    opacity: visible ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                     z: 1000
 
                     MouseArea {
@@ -1208,6 +1354,15 @@ Scope {
                         color: Qt.alpha(root.themeBackground, 0.98)
                         border.width: 1
                         border.color: Qt.rgba(0.9, 0.2, 0.2, 0.5)
+
+                        scale: deleteModal.visible ? 1.0 : 0.90
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                easing.type: animStyle.bounceEasing
+                                easing.overshoot: animStyle.overshoot
+                            }
+                        }
 
                         MouseArea {
                             anchors.fill: parent
@@ -1253,6 +1408,15 @@ Scope {
                                     border.width: 1
                                     border.color: Qt.rgba(1, 1, 1, 0.15)
 
+                                    scale: cancelMouse.containsMouse ? 1.05 : 1.0
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+
                                     Text {
                                         anchors.centerIn: parent
                                         text: "Cancel"
@@ -1272,6 +1436,15 @@ Scope {
                                     width: 75; height: 30
                                     radius: 6
                                     color: deleteMouse.containsMouse ? Qt.rgba(0.9, 0.2, 0.2, 0.85) : Qt.rgba(0.9, 0.2, 0.2, 0.65)
+
+                                    scale: deleteMouse.containsMouse ? 1.05 : 1.0
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
 
                                     Text {
                                         anchors.centerIn: parent
@@ -1312,6 +1485,8 @@ Scope {
         radius: 5
         opacity: enabled ? 1.0 : 0.4
         color: itemArea.containsMouse && enabled ? (isDanger ? Qt.rgba(0.9, 0.2, 0.2, 0.3) : Qt.alpha(root.themePrimary, 0.25)) : "transparent"
+
+        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
         RowLayout {
             anchors.fill: parent

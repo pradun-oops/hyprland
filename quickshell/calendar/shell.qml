@@ -9,6 +9,15 @@ import QtQuick.Controls
 Scope {
     id: root
 
+    QtObject {
+        id: animStyle
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
+        property var fadeEasing: Easing.OutCubic
+        property real overshoot: 1.4
+    }
+
     property color themeBackground: "#141416"
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08)
     property color themePrimary: "#a2d398"
@@ -19,6 +28,8 @@ Scope {
     property int themeRounding: 15
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.7
+    property bool animEnabled: true
+    property int animDuration: 380
 
     FileView {
         id: colorsLuaFile
@@ -51,6 +62,23 @@ Scope {
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
             } catch(e) {}
+        }
+    }
+
+    FileView {
+        id: animConfigFile
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
+            } catch (e) {}
         }
     }
 
@@ -167,6 +195,9 @@ Scope {
         if (root.targetMonitorName === "") {
             fallbackMonitorTimer.start()
         }
+        colorsLuaFile.reload()
+        generalLuaFile.reload()
+        animConfigFile.reload()
     }
 
     FileView {
@@ -384,8 +415,21 @@ Scope {
                             spacing: 8
 
                             Rectangle {
-                                width: 34; height: 34; radius: 17
+                                Layout.preferredWidth: 34
+                                Layout.preferredHeight: 34
+                                radius: 17
                                 color: prevNav.containsMouse ? Qt.rgba(1.0, 1.0, 1.0, 0.15) : root.themeSurface
+
+                                scale: prevNav.pressed ? 0.90 : (prevNav.containsMouse ? 1.08 : 1.0)
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                        easing.type: animStyle.bounceEasing
+                                        easing.overshoot: animStyle.overshoot
+                                    }
+                                }
+                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                 Text {
                                     anchors.centerIn: parent
@@ -411,8 +455,21 @@ Scope {
                             }
 
                             Rectangle {
-                                width: 34; height: 34; radius: 17
+                                Layout.preferredWidth: 34
+                                Layout.preferredHeight: 34
+                                radius: 17
                                 color: todayNav.containsMouse ? Qt.rgba(1.0, 1.0, 1.0, 0.15) : root.themeSurface
+
+                                scale: todayNav.pressed ? 0.90 : (todayNav.containsMouse ? 1.08 : 1.0)
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                        easing.type: animStyle.bounceEasing
+                                        easing.overshoot: animStyle.overshoot
+                                    }
+                                }
+                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                 Text {
                                     anchors.centerIn: parent
@@ -437,8 +494,21 @@ Scope {
                             }
 
                             Rectangle {
-                                width: 34; height: 34; radius: 17
+                                Layout.preferredWidth: 34
+                                Layout.preferredHeight: 34
+                                radius: 17
                                 color: nextNav.containsMouse ? Qt.rgba(1.0, 1.0, 1.0, 0.15) : root.themeSurface
+
+                                scale: nextNav.pressed ? 0.90 : (nextNav.containsMouse ? 1.08 : 1.0)
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                        easing.type: animStyle.bounceEasing
+                                        easing.overshoot: animStyle.overshoot
+                                    }
+                                }
+                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                 Text {
                                     anchors.centerIn: parent
@@ -493,8 +563,8 @@ Scope {
                             property: "opacity" 
                             from: 0.0 
                             to: 1.0 
-                            duration: 300 
-                            easing.type: Easing.OutCubic 
+                            duration: animStyle.fadeDuration
+                            easing.type: animStyle.fadeEasing 
                         }
 
                         Repeater {
@@ -513,6 +583,18 @@ Scope {
 
                                 border.color: dayInfo.isSelected && !dayInfo.isToday ? root.themePrimary : "transparent"
                                 border.width: 1.5
+
+                                scale: cellHover.pressed ? 0.92 : (cellHover.containsMouse ? 1.06 : 1.0)
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                        easing.type: animStyle.bounceEasing
+                                        easing.overshoot: animStyle.overshoot
+                                    }
+                                }
+                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                 ColumnLayout {
                                     anchors.centerIn: parent
@@ -583,6 +665,7 @@ Scope {
                         }
 
                         ScrollView {
+                            id: eventsScrollView
                             Layout.fillWidth: true
                             Layout.maximumHeight: 150
                             Layout.preferredHeight: Math.min(eventListCol.implicitHeight, 150)
@@ -591,7 +674,7 @@ Scope {
 
                             ColumnLayout {
                                 id: eventListCol
-                                width: parent.width
+                                width: eventsScrollView.availableWidth > 0 ? eventsScrollView.availableWidth : eventsScrollView.width
                                 spacing: 8
 
                                 property var activeEvents: root.getEventsForDate(root.selectedDate)
@@ -607,31 +690,46 @@ Scope {
                                     model: parent.activeEvents
                                     delegate: Rectangle {
                                         Layout.fillWidth: true
-                                        implicitHeight: 32
+                                        height: 34
                                         radius: 6
-                                        color: modelData.type === "holiday" ? Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.15) : "transparent"
+                                        color: modelData.type === "holiday" ? Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.15) : Qt.rgba(1.0, 1.0, 1.0, 0.04)
                                         border.color: modelData.type === "holiday" ? root.themePrimary : "transparent"
                                         border.width: modelData.type === "holiday" ? 1 : 0
 
                                         RowLayout {
                                             anchors.fill: parent
-                                            anchors.leftMargin: modelData.type === "holiday" ? 10 : 0
-                                            anchors.rightMargin: 4
+                                            anchors.leftMargin: modelData.type === "holiday" ? 10 : 8
+                                            anchors.rightMargin: 8
                                             spacing: 8
 
                                             Text {
-                                                text: modelData.type === "holiday" ? ("🇮🇳 " + modelData.text) : ("•  " + modelData.text)
+                                                text: modelData.type === "holiday" ? ("🇮🇳 " + modelData.text) : ("• " + modelData.text)
                                                 color: modelData.type === "holiday" ? root.themePrimary : root.themeText
                                                 font.pixelSize: 13
                                                 font.weight: modelData.type === "holiday" ? Font.Bold : Font.Normal
                                                 elide: Text.ElideRight
                                                 Layout.fillWidth: true
+                                                Layout.alignment: Qt.AlignVCenter
                                             }
 
                                             Rectangle {
-                                                width: 24; height: 24; radius: 12
-                                                color: delBtnMouse.containsMouse ? Qt.rgba(1.0, 0.3, 0.3, 0.15) : "transparent"
+                                                Layout.preferredWidth: 24
+                                                Layout.preferredHeight: 24
+                                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                                radius: 12
+                                                color: delBtnMouse.containsMouse ? Qt.rgba(1.0, 0.3, 0.3, 0.2) : "transparent"
                                                 visible: modelData.type === "todo"
+
+                                                scale: delBtnMouse.pressed ? 0.88 : (delBtnMouse.containsMouse ? 1.15 : 1.0)
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                                        easing.type: animStyle.bounceEasing
+                                                        easing.overshoot: animStyle.overshoot
+                                                    }
+                                                }
+                                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                                 Text {
                                                     anchors.centerIn: parent
@@ -667,6 +765,8 @@ Scope {
                                 border.color: taskInputField.activeFocus ? root.themeAccent : "transparent"
                                 border.width: 1
 
+                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
                                 TextInput {
                                     id: taskInputField
                                     anchors.fill: parent
@@ -693,8 +793,21 @@ Scope {
                             }
 
                             Rectangle {
-                                width: 38; height: 38; radius: 8
+                                Layout.preferredWidth: 38
+                                Layout.preferredHeight: 38
+                                radius: 8
                                 color: addBtnMouse.containsMouse ? Qt.rgba(root.themeAccent.r, root.themeAccent.g, root.themeAccent.b, 0.8) : root.themeAccent
+
+                                scale: addBtnMouse.pressed ? 0.90 : (addBtnMouse.containsMouse ? 1.08 : 1.0)
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                        easing.type: animStyle.bounceEasing
+                                        easing.overshoot: animStyle.overshoot
+                                    }
+                                }
+                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                 Text {
                                     anchors.centerIn: parent
