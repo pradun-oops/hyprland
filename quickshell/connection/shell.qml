@@ -70,6 +70,14 @@ Scope {
     property string connectingSsid: ""
     property string errorSsid: ""
     property string connectErrorMsg: ""
+    
+    // Core network properties with default 'true' to prevent off-to-on flickering on load
+    property bool wifiEnabled: true
+    property bool ethEnabled: true
+    property bool ethConnected: false
+    property string ethDev: ""
+    property bool isScanning: false
+    property bool liveStateFetched: false
 
     FileView {
         id: colorFile
@@ -126,6 +134,30 @@ Scope {
         }
     }
 
+    // Instantly load the previously fetched networks from cache so it doesn't show a blank space
+    FileView {
+        id: cacheReader
+        path: Quickshell.env("HOME") + "/.cache/qs_network_cache.json"
+        onLoaded: {
+            try {
+                let data = JSON.parse(text())
+                if (!root.liveStateFetched) {
+                    root.wifiEnabled = data.wifi_enabled === true
+                    root.ethEnabled = data.eth_enabled === true
+                    root.ethConnected = data.eth_connected === true
+                    if (data.eth_dev) root.ethDev = data.eth_dev
+                }
+                
+                // Only load cached networks if our model is currently empty
+                if (wifiModel.count === 0 && data.networks) {
+                    for (let i = 0; i < data.networks.length; i++) {
+                        wifiModel.append(data.networks[i])
+                    }
+                }
+            } catch(e) {}
+        }
+    }
+
     Component.onCompleted: {
         root.updateTargetMonitor()
         if (root.targetMonitorName === "") {
@@ -135,7 +167,10 @@ Scope {
         colorFile.reload()
         generalConfigFile.reload()
         animConfigFile.reload()
-        fetchNetworkStatus()
+        cacheReader.reload()
+        
+        fetchFastState() // Lightning-fast check for just the ON/OFF switches
+        fetchNetworkStatus() // Slower comprehensive scan
     }
 
     Process { id: execProcess }
@@ -145,13 +180,55 @@ Scope {
         execProcess.running = true
     }
 
-    property bool wifiEnabled: false
-    property bool ethEnabled: false
-    property bool ethConnected: false
-    property string ethDev: ""
-    property bool isScanning: false
-
     ListModel { id: wifiModel }
+
+    // Fast state fetcher (takes milliseconds instead of seconds)
+    Process {
+        id: fastStateFetcher
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    let data = JSON.parse(text)
+                    root.wifiEnabled = data.wifi_enabled
+                    root.ethEnabled = data.eth_enabled
+                    root.ethConnected = data.eth_connected
+                    root.ethDev = data.eth_dev
+                    root.liveStateFetched = true
+                } catch(e) {}
+            }
+        }
+    }
+
+    function fetchFastState() {
+        fastStateFetcher.running = false
+        let fastPyScript = `import subprocess, json
+def get_fast():
+    wifi_on = True
+    eth_on = False
+    eth_conn = False
+    eth_dev = ""
+    try:
+        r = subprocess.check_output(["nmcli", "radio", "wifi"], text=True, timeout=2).strip()
+        wifi_on = (r == "enabled")
+    except: pass
+    try:
+        devs = subprocess.check_output(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "dev"], text=True, timeout=2).strip().split('\\n')
+        for d in devs:
+            parts = d.split(':')
+            if len(parts) >= 3 and parts[1] == 'ethernet':
+                eth_dev = parts[0]
+                state = parts[2].lower()
+                if state in ['connected', 'connecting']:
+                    eth_conn = True; eth_on = True
+                else:
+                    eth_conn = False; eth_on = False
+    except: pass
+    return {"wifi_enabled": wifi_on, "eth_enabled": eth_on, "eth_connected": eth_conn, "eth_dev": eth_dev}
+print(json.dumps(get_fast()))
+`
+        fastStateFetcher.command = ["python3", "-c", fastPyScript]
+        fastStateFetcher.running = true
+    }
 
     Process {
         id: netFetcher
@@ -176,8 +253,8 @@ Scope {
 
     function fetchNetworkStatus() {
         root.isScanning = true
-        netFetcher.running = false // Ensure any running process halts to avoid overlap
-        let pyScript = `import subprocess, json
+        netFetcher.running = false
+        let pyScript = `import subprocess, json, os
 def get_net():
     wifi_on = False
     eth_on = False
@@ -192,12 +269,10 @@ def get_net():
     except: pass
 
     try:
-        # Extract exclusively wireless connection profiles
         c_out = subprocess.check_output(["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"], text=True, errors="ignore", timeout=3).strip().split('\\n')
         for line in c_out:
             if not line: continue
             if 'wireless' in line or '802-11-wireless' in line:
-                # FIX 1: Removed .strip() to preserve potential trailing spaces in saved connections
                 saved_conns.add(line.split(':')[0]) 
     except: pass
 
@@ -226,10 +301,7 @@ def get_net():
                 parts = [p.replace('___COLON___', ':') for p in parts]
                 if len(parts) >= 4:
                     in_use = (parts[0] == '*')
-                    
-                    # FIX 2: Removed .strip() here! Now NetworkManager will get the exact string.
                     ssid = parts[1] 
-                    
                     if not ssid: continue
                     signal = int(parts[2]) if parts[2].isdigit() else 0
                     sec = parts[3].strip()
@@ -246,13 +318,23 @@ def get_net():
             networks.sort(key=lambda x: (not x["in_use"], not x["saved"], -x["signal"]))
         except: pass
 
-    return {
+    res = {
         "wifi_enabled": wifi_on,
         "eth_enabled": eth_on,
         "eth_connected": eth_conn,
         "eth_dev": eth_dev,
         "networks": networks
     }
+    
+    # Save cache so it displays instantly on the next open
+    try:
+        cache_dir = os.path.expanduser("~/.cache")
+        os.makedirs(cache_dir, exist_ok=True)
+        with open(os.path.join(cache_dir, "qs_network_cache.json"), "w") as f:
+            json.dump(res, f)
+    except: pass
+
+    return res
 
 print(json.dumps(get_net()))
 `
@@ -305,11 +387,9 @@ print(json.dumps(get_net()))
 
         let cmd = ""
         if (safePass.length > 0) {
-            // Delete specifically named old connections to force update of secrets cleanly, wrapped with 20s timeout
             cmd = "nmcli connection delete id '" + safeSsid + "' 2>/dev/null; " +
                   "timeout 20 nmcli dev wifi connect '" + safeSsid + "' password '" + safePass + "'"
         } else {
-            // Native fallback for saved connections & open connections
             cmd = "timeout 20 nmcli dev wifi connect '" + safeSsid + "'"
         }
 
@@ -336,7 +416,7 @@ print(json.dumps(get_net()))
     }
 
     function toggleEthernet() {
-        if (!root.ethDev) return // Stop execution if no eth adapter exists, preventing catastrophic network-down state
+        if (!root.ethDev) return
         
         if (root.ethConnected || root.ethEnabled) {
             root.ethConnected = false
@@ -699,7 +779,7 @@ print(json.dumps(get_net()))
 
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
-                                    text: !root.wifiEnabled ? "Wi-Fi is turned off" : "No Networks Available"
+                                    text: !root.wifiEnabled ? "Wi-Fi is turned off" : (root.isScanning ? "Scanning for networks..." : "No Networks Available")
                                     color: root.themeTextMuted
                                     font.pixelSize: 13
                                     font.weight: Font.Medium
