@@ -28,9 +28,8 @@ Scope {
         id: style
         property int animDuration: root.animDuration > 0 ? root.animDuration : 380
         property int fadeDuration: 280
-        property var bounceEasing: Easing.OutBack
+        property var smoothEasing: Easing.OutCubic
         property var fadeEasing: Easing.OutCubic
-        property real overshoot: 1.5
         property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.12)
     }
 
@@ -586,23 +585,9 @@ except Exception:
                     x: Math.max(0, Math.min(targetX, rootContainer.width - width))
                     Behavior on x { NumberAnimation { duration: 180; easing.type: style.fadeEasing } }
                     
-                    opacity: dockWindow.activeTooltipText !== "" ? 1.0 : 0.0
-                    scale: dockWindow.activeTooltipText !== "" ? 1.0 : 1.0
-                    visible: opacity > 0
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: 250 
-                            easing.type: Easing.OutQuart
-                        }
-                    }
-                    Behavior on scale { 
-                        NumberAnimation { 
-                            duration: root.animEnabled ? style.animDuration : 0
-                            easing.type: style.bounceEasing
-                            easing.overshoot: style.overshoot
-                        } 
-                    }
-                    
+                    visible: dockWindow.activeTooltipText !== ""
+                    opacity: visible ? 1.0 : 0.0
+
                     Text {
                         id: tooltipLabel
                         anchors.centerIn: parent
@@ -623,19 +608,11 @@ except Exception:
                     Behavior on anchors.bottomMargin { 
                         NumberAnimation { 
                             duration: root.animEnabled ? style.animDuration : 0
-                            easing.type: style.bounceEasing
-                            easing.overshoot: style.overshoot
+                            easing.type: style.smoothEasing
                         } 
                     }
                     
-                    scale: dockWindow.dockShouldBeVisible ? 1.0 : 1.0
-                    Behavior on scale { 
-                        NumberAnimation { 
-                            duration: root.animEnabled ? style.animDuration : 0
-                            easing.type: style.bounceEasing
-                            easing.overshoot: style.overshoot
-                        } 
-                    }
+                    scale: 1.0
 
                     width: masterDockLayout.implicitWidth + 28
                     height: 84
@@ -682,15 +659,13 @@ except Exception:
                             Behavior on scale { 
                                 NumberAnimation { 
                                     duration: root.animEnabled ? style.animDuration : 0
-                                    easing.type: style.bounceEasing
-                                    easing.overshoot: style.overshoot
+                                    easing.type: style.smoothEasing
                                 } 
                             }
                             Behavior on anchors.verticalCenterOffset { 
                                 NumberAnimation { 
                                     duration: root.animEnabled ? style.animDuration : 0
-                                    easing.type: style.bounceEasing
-                                    easing.overshoot: style.overshoot
+                                    easing.type: style.smoothEasing
                                 } 
                             }
 
@@ -766,8 +741,7 @@ except Exception:
                                         properties: "scale"
                                         from: 0; to: 1
                                         duration: root.animEnabled ? style.animDuration : 0
-                                        easing.type: style.bounceEasing
-                                        easing.overshoot: style.overshoot 
+                                        easing.type: style.smoothEasing
                                     }
                                 }
                             }
@@ -781,8 +755,7 @@ except Exception:
                                 NumberAnimation { 
                                     properties: "x,y"
                                     duration: root.animEnabled ? style.animDuration : 0
-                                    easing.type: style.bounceEasing
-                                    easing.overshoot: style.overshoot 
+                                    easing.type: style.smoothEasing
                                 }
                             }
 
@@ -829,15 +802,13 @@ except Exception:
                                         Behavior on scale { 
                                             NumberAnimation { 
                                                 duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.bounceEasing
-                                                easing.overshoot: style.overshoot 
+                                                easing.type: style.smoothEasing
                                             } 
                                         }
                                         Behavior on anchors.verticalCenterOffset { 
                                             NumberAnimation { 
                                                 duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.bounceEasing
-                                                easing.overshoot: style.overshoot 
+                                                easing.type: style.smoothEasing
                                             } 
                                         }
 
@@ -1006,15 +977,13 @@ except Exception:
                                 Behavior on scale { 
                                     NumberAnimation { 
                                         duration: root.animEnabled ? style.animDuration : 0
-                                        easing.type: style.bounceEasing
-                                        easing.overshoot: style.overshoot 
+                                        easing.type: style.smoothEasing
                                     } 
                                 }
                                 Behavior on anchors.verticalCenterOffset { 
                                     NumberAnimation { 
                                         duration: root.animEnabled ? style.animDuration : 0
-                                        easing.type: style.bounceEasing
-                                        easing.overshoot: style.overshoot 
+                                        easing.type: style.smoothEasing
                                     } 
                                 }
 
