@@ -1,23 +1,40 @@
+-- ==========================================================
+-- 🎨 Dynamic Color Theming Configuration
+-- Injects Material / System palette colors into window borders 
+-- and tabbed window groups.
+-- ==========================================================
 hl.config({
+    -- ======================================================
+    -- 🪟 General Window Borders
+    -- Default outline colors for focused and unfocused windows.
+    -- ======================================================
     general = {
         col = {
-            active_border = "rgb(d6bbfb)",
-            inactive_border = "rgb(4a454e)",
+            active_border   = "rgb(9dcbfc)",
+            inactive_border = "rgb(42474e)",
         },
     },
+
+    -- ======================================================
+    -- 📑 Window Groups (Tabbed Mode)
+    -- Accent states for grouped containers and title bars.
+    -- ======================================================
     group = {
+        -- Container border colors
         col = {
-            border_active = "rgb(d6bbfb)",
-            border_inactive = "rgb(4a454e)",
-            border_locked_active = "rgb(f2b7c2)",
-            border_locked_inactive = "rgb(4a454e)",
+            border_active          = "rgb(9dcbfc)",
+            border_inactive        = "rgb(42474e)",
+            border_locked_active   = "rgb(d4bee6)",
+            border_locked_inactive = "rgb(42474e)",
         },
+
+        -- Top tab indicator / titlebar colors
         groupbar = {
             col = {
-                active = "rgb(d6bbfb)",
-                inactive = "rgb(4a454e)",
-                locked_active = "rgb(f2b7c2)",
-                locked_inactive = "rgb(4a454e)",
+                active          = "rgb(9dcbfc)",
+                inactive        = "rgb(42474e)",
+                locked_active   = "rgb(d4bee6)",
+                locked_inactive = "rgb(42474e)",
             },
         },
     },

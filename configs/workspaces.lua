@@ -1,11 +1,21 @@
-hl.workspace_rule({ workspace = "1", monitor = "HDMI-A-1" })
-hl.workspace_rule({ workspace = "2", monitor = "HDMI-A-1" })
-hl.workspace_rule({ workspace = "3", monitor = "HDMI-A-1" })
-hl.workspace_rule({ workspace = "4", monitor = "HDMI-A-1" })
-hl.workspace_rule({ workspace = "5", monitor = "HDMI-A-1" })
+-- ==========================================================
+-- 🖥️ Workspace-to-Monitor Binding Rules
+-- Maps dedicated virtual workspaces across multi-display setups:
+-- External Display (1-5) & Built-in Laptop Display (6-10).
+-- ==========================================================
 
-hl.workspace_rule({ workspace = "6", monitor = "eDP-1" })
-hl.workspace_rule({ workspace = "7", monitor = "eDP-1" })
-hl.workspace_rule({ workspace = "8", monitor = "eDP-1" })
-hl.workspace_rule({ workspace = "9", monitor = "eDP-1" })
-hl.workspace_rule({ workspace = "10", monitor = "eDP-1" })
+-- ==========================================================
+-- 🖥️ Main Display (HDMI-A-1)
+-- Workspaces 1 through 5 assigned to the primary external monitor.
+-- ==========================================================
+for ws = 1, 5 do
+    hl.workspace_rule({ workspace = tostring(ws), monitor = "HDMI-A-1" })
+end
+
+-- ==========================================================
+-- 💻 Secondary Display (eDP-1)
+-- Workspaces 6 through 10 assigned to the internal laptop screen.
+-- ==========================================================
+for ws = 6, 10 do
+    hl.workspace_rule({ workspace = tostring(ws), monitor = "eDP-1" })
+end

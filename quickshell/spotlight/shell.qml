@@ -255,15 +255,19 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                 if (debounceSearchTimer.pendingQuery.trim().toLowerCase() !== root.activeSearchQuery) return
 
                 let lines = text.split('\n')
+                let activeQ = root.activeSearchQuery.toLowerCase()
+
                 for (let i = 0; i < lines.length; i++) {
                     let line = lines[i].trim()
                     if (line !== "") {
                         let parts = line.split('|')
                         if (parts.length >= 4) {
                             let fname = parts[2].trim()
+                            let fnameLower = fname.toLowerCase()
+                            let cleanFname = fnameLower.replace(/^\./, '')
                             
-                            // Aggressive prefix match check for safety
-                            if (fname.toLowerCase().startsWith(root.activeSearchQuery)) {
+                            // Aggressive match: includes substring or matches hidden file names
+                            if (fnameLower.includes(activeQ) || cleanFname.includes(activeQ)) {
                                 searchResultsModel.append({
                                     "itemType": parts[0],
                                     "filePath": parts[1],
@@ -312,8 +316,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
             if (fName.endsWith(".desktop")) fName = fName.slice(0, -8)
             let baseFile = fName.split(".").pop()
 
-            // Aggressive Prefix Match: App must strictly START with the searched letter
-            if (dName.startsWith(q) || fName.startsWith(q) || baseFile.startsWith(q)) {
+            if (dName.includes(q) || fName.includes(q) || baseFile.includes(q)) {
                 searchResultsModel.append(app)
                 count++
             }
@@ -324,17 +327,17 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                 fileSearchProcess.running = false
             }
 
-            // Bash search explicitly uses $q* enforcing string to begin with the query
+            // Aggressive Search: Searches across $HOME including hidden folders/files with wildcard matching
             let bashCmd = `
                 q='` + q.replace(/'/g, "'\\''") + `'
-                find "$HOME/Documents" "$HOME/Downloads" "$HOME/Pictures" "$HOME/Videos" "$HOME/Desktop" "$HOME" -maxdepth 3 -type f -not -path '*/.*' -iname "$q*" 2>/dev/null | grep -v -E "(\\.desktop|\\.cache|\\.local|\\.git|node_modules)" | head -n 10 | while read -r f; do
+                find "$HOME" -maxdepth 5 -type f -iname "*$q*" 2>/dev/null | head -n 20 | while read -r f; do
                     fname=$(basename "$f")
                     ext="\${fname##*.}"
                     case "\${ext,,}" in
                         pdf) icon="application-pdf" ;;
                         png|jpg|jpeg|webp|gif|svg) icon="image-x-generic" ;;
                         zip|tar|gz|xz|7z|bz2|iso) icon="package-x-generic" ;;
-                        txt|md|log|csv|json|py|sh|c|cpp|rs|qml|html|js) icon="text-x-generic" ;;
+                        txt|md|log|csv|json|py|sh|c|cpp|rs|qml|html|js|lua|conf|cfg) icon="text-x-generic" ;;
                         mp3|flac|wav|ogg|m4a) icon="audio-x-generic" ;;
                         mp4|mkv|mov|avi) icon="video-x-generic" ;;
                         doc|docx|odt|xls|xlsx|ppt|pptx) icon="x-office-document" ;;
@@ -389,7 +392,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                 property real targetHeight: mainLayout.implicitHeight + 28
                 height: targetHeight
                 
-                // Safe and strictly mathematical check to ensure box physically reached its goal before fading items in
                 property bool isFullyExpanded: height >= (targetHeight - 5)
                 
                 anchors.top: parent.top
@@ -575,7 +577,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         height: 1
                         color: Qt.alpha(root.themeBorder, 0.20)
                         
-                        // Layout is preserved independently of animation to prevent engine layout loops
                         visible: searchResultsModel.count > 0 || searchInput.text.trim() !== ""
                         opacity: searchContainer.isFullyExpanded ? 1.0 : 0.0
 
@@ -608,7 +609,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             }
 
                             Text {
-                                text: "No results found starting with \"" + searchInput.text + "\""
+                                text: "No results found matching \"" + searchInput.text + "\""
                                 color: root.themeTextMuted
                                 font.pixelSize: 13
                                 font.weight: Font.Medium
@@ -626,7 +627,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         spacing: 4
                         boundsBehavior: Flickable.StopAtBounds
 
-                        // Items pop in smoothly ONLY after the container physically catches up
                         opacity: searchContainer.isFullyExpanded ? 1.0 : 0.0
                         scale: searchContainer.isFullyExpanded ? 1.0 : 0.96
 

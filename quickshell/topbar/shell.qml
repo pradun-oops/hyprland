@@ -28,9 +28,8 @@ Scope {
         property int moduleSpacing: 8
         property int animDuration: root.animDuration > 0 ? root.animDuration : 380
         property int fadeDuration: 280
-        property var bounceEasing: Easing.OutBack
+        property var smoothEasing: Easing.OutCubic
         property var fadeEasing: Easing.OutCubic
-        property real overshoot: 1.2
         property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.08)
         property color separatorColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.18)
     }
@@ -169,14 +168,14 @@ Scope {
     }
 
     Timer {
-        interval: 1500
+        interval: 3000
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: {
             if (!runningAppsProcess.running) {
                 let py = `
-import subprocess, json, os, glob
+import subprocess, json, os
 
 app_defs = [
     {"process": "easyeffects", "icon_names": ["easyeffects", "audio-adjust", "com.github.wwmm.easyeffects"]},
@@ -192,21 +191,18 @@ def get_icon_path(icon_names):
             p = f"/usr/share/pixmaps/{name}{ext}"
             if os.path.exists(p):
                 return "file://" + p
-        for root_dir in ["/usr/share/icons/hicolor", "/usr/share/icons/Adwaita", "/usr/share/icons/Papirus", "/usr/share/icons/breeze"]:
-            for ext in ['png', 'svg']:
-                found = glob.glob(f"{root_dir}/**/{name}.{ext}", recursive=True)
-                if found:
-                    return "file://" + found[0]
-        for ext in ['png', 'svg']:
-            found = glob.glob(f"/usr/share/icons/*/*/*/*/{name}.{ext}", recursive=True)
-            if found:
-                return "file://" + found[0]
+        for root_dir in ["/usr/share/icons/hicolor", "/usr/share/icons/Papirus", "/usr/share/icons/Breeze", "/usr/share/icons/Adwaita"]:
+            for sub in ["scalable/apps", "48x48/apps", "64x64/apps", "128x128/apps", "32x32/apps", "symbolic/apps"]:
+                for ext in ['svg', 'png']:
+                    p = f"{root_dir}/{sub}/{name}.{ext}"
+                    if os.path.exists(p):
+                        return "file://" + p
     return ""
 
 running = []
 for app in app_defs:
     try:
-        res = subprocess.run(["pgrep", "-x", app["process"]], stdout=subprocess.PIPE)
+        res = subprocess.run(["pgrep", "-x", app["process"]], stdout=subprocess.DEVNULL)
         if res.returncode == 0:
             ipath = get_icon_path(app["icon_names"])
             running.append({"process": app["process"], "icon": ipath})
@@ -231,13 +227,13 @@ print(json.dumps(running))
     }
 
     Timer {
-        interval: 1000
+        interval: 2000
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: {
             if (!mediaProcess.running) {
-                mediaProcess.command = ["bash", "-c", "playerctl status 2>/dev/null || echo 'Stopped'"]
+                mediaProcess.command = ["playerctl", "status"]
                 mediaProcess.running = true
             }
         }
@@ -257,10 +253,10 @@ print(json.dumps(running))
             onStreamFinished: {
                 let out = text.trim()
                 if (out.includes("Volume:")) {
-                    let parts = out.split(" ")
+                    let parts = out.split(/\s+/)
                     if (parts.length >= 2) {
-                        root.volumePct = Math.min(100, parseInt(parseFloat(parts[1]) * 100) || 0)
-                        root.isMuted = out.includes("MUTED")
+                        root.volumePct = Math.min(100, Math.round(parseFloat(parts[1]) * 100) || 0)
+                        root.isMuted = out.includes("[MUTED]") || out.includes("MUTED")
                     }
                 }
             }
@@ -268,13 +264,13 @@ print(json.dumps(running))
     }
     
     Timer {
-        interval: 250
+        interval: 500
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: {
             if (!volProcess.running) {
-                volProcess.command = ["bash", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null"]
+                volProcess.command = ["wpctl", "get-volume", "@DEFAULT_AUDIO_SINK@"]
                 volProcess.running = true
             }
         }
@@ -294,14 +290,30 @@ print(json.dumps(running))
     }
 
     Timer {
-        interval: 200
+        interval: 400
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: {
             if (!wsProcess.running) {
-                let wsCmd = "python3 -c \"import subprocess, json; a=json.loads(subprocess.check_output('hyprctl activeworkspace -j', shell=True) or '{}'); w=json.loads(subprocess.check_output('hyprctl workspaces -j', shell=True) or '[]'); active=a.get('id', 1); ws=set(range(1, 6)); ws.add(active); [ws.add(x['id']) for x in w if x.get('id', 0) > 0]; print(json.dumps({'active': active, 'list': sorted(list(ws))}))\" 2>/dev/null"
-                wsProcess.command = ["bash", "-c", wsCmd]
+                let pyScript = `
+import subprocess, json
+try:
+    a_raw = subprocess.run(["hyprctl", "activeworkspace", "-j"], capture_output=True, text=True).stdout
+    w_raw = subprocess.run(["hyprctl", "workspaces", "-j"], capture_output=True, text=True).stdout
+    a = json.loads(a_raw) if a_raw else {}
+    w = json.loads(w_raw) if w_raw else []
+    active = a.get('id', 1)
+    ws = set(range(1, 6))
+    ws.add(active)
+    for x in w:
+        if x.get('id', 0) > 0:
+            ws.add(x['id'])
+    print(json.dumps({'active': active, 'list': sorted(list(ws))}))
+except:
+    print(json.dumps({'active': 1, 'list': [1, 2, 3, 4, 5]}))
+`
+                wsProcess.command = ["python3", "-c", pyScript]
                 wsProcess.running = true
             }
         }
@@ -337,17 +349,14 @@ print(json.dumps(running))
     }
 
     Timer {
-        interval: 1000
+        interval: 1500
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: {
             if (!hardwareProcess.running) {
                 let pyScript = `
-import glob, json, subprocess
-def cmd(c):
-    try: return subprocess.check_output(c, shell=True, text=True).strip()
-    except: return ""
+import glob, json, os, subprocess
 
 cpu = 0
 for tz in glob.glob('/sys/class/thermal/thermal_zone*'):
@@ -360,19 +369,52 @@ for tz in glob.glob('/sys/class/thermal/thermal_zone*'):
                     break
     except: pass
 if cpu == 0:
-    c_str = cmd("cat /sys/class/thermal/thermal_zone0/temp 2>/dev/null")
-    cpu = int(c_str)//1000 if c_str else 0
+    try:
+        with open('/sys/class/thermal/thermal_zone0/temp') as f:
+            cpu = int(f.read().strip()) // 1000
+    except: cpu = 0
 
-gpu = cmd("nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader 2>/dev/null") or "0"
-bat = cmd("cat /sys/class/power_supply/BAT*/capacity | head -1") or "100"
-charging = "Charging" in cmd("cat /sys/class/power_supply/BAT*/status | head -1")
+gpu = "0"
+try:
+    res = subprocess.run(["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader"], capture_output=True, text=True)
+    if res.returncode == 0 and res.stdout.strip():
+        gpu = res.stdout.strip()
+except: pass
 
-rx = cmd("cat /sys/class/net/[ew]*/statistics/rx_bytes | awk '{s+=$1} END {print s}'") or "0"
-tx = cmd("cat /sys/class/net/[ew]*/statistics/tx_bytes | awk '{s+=$1} END {print s}'") or "0"
+bat = "100"
+for b in glob.glob('/sys/class/power_supply/BAT*/capacity'):
+    try:
+        with open(b) as f:
+            bat = f.read().strip()
+            break
+    except: pass
+
+charging = False
+for s in glob.glob('/sys/class/power_supply/BAT*/status'):
+    try:
+        with open(s) as f:
+            if "Charging" in f.read():
+                charging = True
+                break
+    except: pass
+
+rx = 0
+tx = 0
+for path in glob.glob('/sys/class/net/[ew]*/statistics/rx_bytes'):
+    try:
+        with open(path) as f:
+            rx += int(f.read().strip())
+    except: pass
+
+for path in glob.glob('/sys/class/net/[ew]*/statistics/tx_bytes'):
+    try:
+        with open(path) as f:
+            tx += int(f.read().strip())
+    except: pass
 
 print(json.dumps({
     "cpu": str(cpu), "gpu": gpu, "bat": bat, "charging": charging, 
-    "rx": int(rx), "tx": int(tx)
+    "rx": rx, "tx": tx
 }))
 `
                 hardwareProcess.command = ["python3", "-c", pyScript]
@@ -426,8 +468,7 @@ print(json.dumps({
                     Behavior on width { 
                         NumberAnimation { 
                             duration: root.animEnabled ? style.animDuration : 0
-                            easing.type: style.bounceEasing
-                            easing.overshoot: style.overshoot
+                            easing.type: style.smoothEasing
                         } 
                     }
 
@@ -468,8 +509,7 @@ print(json.dumps({
                         Behavior on scale {
                             NumberAnimation {
                                 duration: root.animEnabled ? style.animDuration : 0
-                                easing.type: style.bounceEasing
-                                easing.overshoot: style.overshoot
+                                easing.type: style.smoothEasing
                             }
                         }
 
@@ -487,7 +527,7 @@ print(json.dumps({
                                     anchors.verticalCenter: parent.verticalCenter
 
                                     SequentialAnimation on height {
-                                        running: root.isPlaying
+                                        running: root.isPlaying && !barIsland.isExpanded
                                         loops: Animation.Infinite
                                         NumberAnimation { to: 4 + ((index * 3) % 8); duration: 320 + index * 50; easing.type: Easing.InOutSine }
                                         NumberAnimation { to: 13 - ((index * 2) % 6); duration: 380 - index * 40; easing.type: Easing.InOutSine }
@@ -527,8 +567,7 @@ print(json.dumps({
                         Behavior on scale {
                             NumberAnimation {
                                 duration: root.animEnabled ? style.animDuration : 0
-                                easing.type: style.bounceEasing
-                                easing.overshoot: style.overshoot
+                                easing.type: style.smoothEasing
                             }
                         }
 
@@ -552,21 +591,19 @@ print(json.dumps({
                                         anchors.verticalCenter: parent.verticalCenter
                                         color: modelData === root.activeWs ? root.themePrimary : (wsMouse.containsMouse ? Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.28) : Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.15))
 
-                                        scale: wsMouse.containsMouse ? 1.15 : 1.0
+                                        scale: wsMouse.containsMouse ? 1.08 : 1.0
 
                                         Behavior on scale { 
                                             NumberAnimation { 
                                                 duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.bounceEasing
-                                                easing.overshoot: style.overshoot
+                                                easing.type: style.smoothEasing
                                             } 
                                         }
 
                                         Behavior on width { 
                                             NumberAnimation { 
                                                 duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.bounceEasing
-                                                easing.overshoot: style.overshoot
+                                                easing.type: style.smoothEasing
                                             } 
                                         }
                                         Behavior on color { 
@@ -644,12 +681,11 @@ print(json.dumps({
                             height: parent.height
                             implicitWidth: centerRow.implicitWidth + 8
 
-                            scale: centerMouse.containsMouse ? 1.05 : 1.0
+                            scale: centerMouse.containsMouse ? 1.03 : 1.0
                             Behavior on scale {
                                 NumberAnimation {
                                     duration: root.animEnabled ? style.animDuration : 0
-                                    easing.type: style.bounceEasing
-                                    easing.overshoot: style.overshoot
+                                    easing.type: style.smoothEasing
                                 }
                             }
 
@@ -672,7 +708,7 @@ print(json.dumps({
                                             anchors.verticalCenter: parent.verticalCenter
 
                                             SequentialAnimation on height {
-                                                running: root.isPlaying
+                                                running: root.isPlaying && barIsland.isExpanded
                                                 loops: Animation.Infinite
                                                 NumberAnimation { to: 4 + ((index * 4) % 10); duration: 320 + index * 50; easing.type: Easing.InOutSine }
                                                 NumberAnimation { to: 15 - ((index * 3) % 8); duration: 380 - index * 40; easing.type: Easing.InOutSine }
@@ -755,12 +791,11 @@ print(json.dumps({
                                 height: root.islandHeight
                                 width: 56
 
-                                scale: volMouse.containsMouse ? 1.08 : 1.0
+                                scale: volMouse.containsMouse ? 1.05 : 1.0
                                 Behavior on scale {
                                     NumberAnimation {
                                         duration: root.animEnabled ? style.animDuration : 0
-                                        easing.type: style.bounceEasing
-                                        easing.overshoot: style.overshoot
+                                        easing.type: style.smoothEasing
                                     }
                                 }
 
@@ -809,12 +844,11 @@ print(json.dumps({
                                 height: root.islandHeight
                                 width: 56
 
-                                scale: batMouse.containsMouse ? 1.08 : 1.0
+                                scale: batMouse.containsMouse ? 1.05 : 1.0
                                 Behavior on scale {
                                     NumberAnimation {
                                         duration: root.animEnabled ? style.animDuration : 0
-                                        easing.type: style.bounceEasing
-                                        easing.overshoot: style.overshoot
+                                        easing.type: style.smoothEasing
                                     }
                                 }
 
@@ -872,8 +906,7 @@ print(json.dumps({
                                 Behavior on width { 
                                     NumberAnimation { 
                                         duration: root.animEnabled ? style.animDuration : 0
-                                        easing.type: style.bounceEasing
-                                        easing.overshoot: style.overshoot
+                                        easing.type: style.smoothEasing
                                     } 
                                 }
 
@@ -890,12 +923,11 @@ print(json.dumps({
                                         font.pixelSize: 13
                                         anchors.verticalCenter: parent.verticalCenter
 
-                                        scale: appsHover.hovered ? 1.15 : 1.0
+                                        scale: appsHover.hovered ? 1.08 : 1.0
                                         Behavior on scale { 
                                             NumberAnimation { 
                                                 duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.bounceEasing
-                                                easing.overshoot: style.overshoot
+                                                easing.type: style.smoothEasing
                                             } 
                                         }
                                         Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
@@ -906,7 +938,7 @@ print(json.dumps({
                                         spacing: 6
                                         anchors.verticalCenter: parent.verticalCenter
                                         opacity: appsHover.hovered ? 1.0 : 0.0
-                                        scale: appsHover.hovered ? 1.0 : 0.88
+                                        scale: appsHover.hovered ? 1.0 : 0.92
                                         visible: opacity > 0.01
 
                                         Behavior on opacity { 
@@ -918,8 +950,7 @@ print(json.dumps({
                                         Behavior on scale { 
                                             NumberAnimation { 
                                                 duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.bounceEasing
-                                                easing.overshoot: style.overshoot
+                                                easing.type: style.smoothEasing
                                             } 
                                         }
 
@@ -929,13 +960,12 @@ print(json.dumps({
                                                 width: 20; height: 20
                                                 anchors.verticalCenter: parent.verticalCenter
 
-                                                scale: appItemMouse.containsMouse ? 1.25 : 1.0
+                                                scale: appItemMouse.containsMouse ? 1.10 : 1.0
                                                 Behavior on scale { 
                                                     NumberAnimation { 
-                                                duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.bounceEasing
-                                                easing.overshoot: style.overshoot
-                                            } 
+                                                        duration: root.animEnabled ? style.animDuration : 0
+                                                        easing.type: style.smoothEasing
+                                                    } 
                                                 }
 
                                                 Image {
@@ -980,12 +1010,11 @@ print(json.dumps({
                                     width: 24; height: 24
                                     anchors.verticalCenter: parent.verticalCenter
 
-                                    scale: netMouse.containsMouse ? 1.18 : 1.0
+                                    scale: netMouse.containsMouse ? 1.08 : 1.0
                                     Behavior on scale { 
                                         NumberAnimation { 
                                             duration: root.animEnabled ? style.animDuration : 0
-                                            easing.type: style.bounceEasing
-                                            easing.overshoot: style.overshoot
+                                            easing.type: style.smoothEasing
                                         } 
                                     }
 
@@ -1010,12 +1039,11 @@ print(json.dumps({
                                     width: 24; height: 24
                                     anchors.verticalCenter: parent.verticalCenter
 
-                                    scale: pwrBarMouse.containsMouse ? 1.18 : 1.0
+                                    scale: pwrBarMouse.containsMouse ? 1.08 : 1.0
                                     Behavior on scale { 
                                         NumberAnimation { 
                                             duration: root.animEnabled ? style.animDuration : 0
-                                            easing.type: style.bounceEasing
-                                            easing.overshoot: style.overshoot
+                                            easing.type: style.smoothEasing
                                         } 
                                     }
 

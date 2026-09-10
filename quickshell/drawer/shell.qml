@@ -59,122 +59,110 @@ Scope {
 
     property string searchQuery: ""
     property string searchMode: "apps"
+    property string activeSearchQuery: ""
 
     function filterApps() {
         drawerModel.clear()
         let q = searchQuery.trim().toLowerCase()
         for (let i = 0; i < root.allApps.length; i++) {
             let app = root.allApps[i]
-            if (q === "" || app.displayName.toLowerCase().startsWith(q)) {
+            let dName = (app.displayName || "").trim().toLowerCase()
+            let fName = (app.fileName || "").trim().toLowerCase()
+            if (fName.endsWith(".desktop")) fName = fName.slice(0, -8)
+            let baseFile = fName.split(".").pop()
+
+            if (q === "" || dName.includes(q) || fName.includes(q) || baseFile.includes(q)) {
                 drawerModel.append(app)
             }
         }
     }
 
-    function triggerFileSearch() {
-        if (root.searchQuery.trim() === "") {
-            fileModel.clear()
-            return
+    Timer {
+        id: debounceSearchTimer
+        interval: 80
+        repeat: false
+        property string pendingQuery: ""
+        onTriggered: {
+            performFileSearch(pendingQuery)
         }
-        fileSearchRunner.running = false
-        fileSearchRunner.command = ["python3", "-c", `
-import os, sys, json
-
-query = "${root.searchQuery.replace(/"/g, '\\"')}".strip().lower()
-results = []
-
-if query:
-    home = os.path.expanduser("~")
-    search_dirs = [
-        home,
-        os.path.join(home, "Desktop"),
-        os.path.join(home, "Documents"),
-        os.path.join(home, "Downloads"),
-        os.path.join(home, "Pictures"),
-        os.path.join(home, "Videos"),
-        os.path.join(home, "Music"),
-        os.path.join(home, ".config")
-    ]
-    seen = set()
-
-    for base in search_dirs:
-        if not os.path.exists(base): continue
-        try:
-            for entry in os.scandir(base):
-                if entry.name.startswith('.'): continue
-                name_l = entry.name.lower()
-                if name_l.startswith(query):
-                    path = entry.path
-                    if path not in seen:
-                        seen.add(path)
-                        is_dir = entry.is_dir()
-                        results.append({
-                            'itemType': 'file',
-                            'filePath': path,
-                            'displayName': entry.name,
-                            'isDir': is_dir,
-                            'iconName': 'folder' if is_dir else 'document-open'
-                        })
-                        if len(results) >= 80: break
-        except Exception: pass
-        if len(results) >= 80: break
-
-    if len(results) < 50:
-        for base in [os.path.join(home, "Documents"), os.path.join(home, "Downloads"), os.path.join(home, "Desktop")]:
-            if not os.path.exists(base): continue
-            for root_d, dirs, files in os.walk(base):
-                rel = os.path.relpath(root_d, base)
-                if rel.count(os.sep) > 2:
-                    dirs.clear()
-                    continue
-                dirs[:] = [d for d in dirs if not d.startswith('.')]
-                for f in files:
-                    if f.startswith('.'): continue
-                    if f.lower().startswith(query):
-                        p = os.path.join(root_d, f)
-                        if p not in seen:
-                            seen.add(p)
-                            results.append({
-                                'itemType': 'file',
-                                'filePath': p,
-                                'displayName': f,
-                                'isDir': False,
-                                'iconName': 'document-open'
-                            })
-                            if len(results) >= 80: break
-                if len(results) >= 80: break
-
-os.makedirs(os.path.expanduser('~/.config/quickshell/json'), exist_ok=True)
-with open(os.path.expanduser('~/.config/quickshell/json/file_search.json'), 'w') as out:
-    json.dump(results, out)
-`]
-        fileSearchRunner.running = true
     }
 
     Process {
-        id: fileSearchRunner
-        onExited: {
-            fileSearchCache.reload()
+        id: fileSearchProcess
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (debounceSearchTimer.pendingQuery.trim().toLowerCase() !== root.activeSearchQuery) return
+
+                let lines = text.split('\n')
+                let activeQ = root.activeSearchQuery.toLowerCase()
+
+                for (let i = 0; i < lines.length; i++) {
+                    let line = lines[i].trim()
+                    if (line !== "") {
+                        let parts = line.split('|')
+                        if (parts.length >= 4) {
+                            let fname = parts[2].trim()
+                            let fnameLower = fname.toLowerCase()
+                            let cleanFname = fnameLower.replace(/^\./, '')
+
+                            if (fnameLower.includes(activeQ) || cleanFname.includes(activeQ)) {
+                                fileModel.append({
+                                    "itemType": parts[0],
+                                    "filePath": parts[1],
+                                    "displayName": parts[2],
+                                    "fileName": parts[1].split('/').pop(),
+                                    "iconName": parts[3],
+                                    "isDir": false
+                                })
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
-    FileView {
-        id: fileSearchCache
-        path: Quickshell.env("HOME") + "/.config/quickshell/json/file_search.json"
-        watchChanges: true
-        onFileChanged: reload()
-        onLoaded: {
-            try {
-                let content = text().trim()
-                if (content !== "") {
-                    let parsedFiles = JSON.parse(content)
-                    fileModel.clear()
-                    for (let i = 0; i < parsedFiles.length; i++) {
-                        fileModel.append(parsedFiles[i])
-                    }
-                }
-            } catch (e) {}
+    function triggerFileSearch() {
+        debounceSearchTimer.pendingQuery = root.searchQuery
+        debounceSearchTimer.restart()
+    }
+
+    function performFileSearch(query) {
+        let q = query ? query.trim().toLowerCase() : ""
+        root.activeSearchQuery = q
+        fileModel.clear()
+
+        if (q === "") {
+            if (fileSearchProcess.running) {
+                fileSearchProcess.running = false
+            }
+            return
         }
+
+        if (fileSearchProcess.running) {
+            fileSearchProcess.running = false
+        }
+
+        let bashCmd = `
+            q='` + q.replace(/'/g, "'\\''") + `'
+            find "$HOME" -maxdepth 5 -type f -iname "*$q*" 2>/dev/null | head -n 60 | while read -r f; do
+                fname=$(basename "$f")
+                ext="\${fname##*.}"
+                case "\${ext,,}" in
+                    pdf) icon="application-pdf" ;;
+                    png|jpg|jpeg|webp|gif|svg) icon="image-x-generic" ;;
+                    zip|tar|gz|xz|7z|bz2|iso) icon="package-x-generic" ;;
+                    txt|md|log|csv|json|py|sh|c|cpp|rs|qml|html|js|lua|conf|cfg) icon="text-x-generic" ;;
+                    mp3|flac|wav|ogg|m4a) icon="audio-x-generic" ;;
+                    mp4|mkv|mov|avi) icon="video-x-generic" ;;
+                    doc|docx|odt|xls|xlsx|ppt|pptx) icon="x-office-document" ;;
+                    *) icon="text-x-generic" ;;
+                esac
+                echo "file|$f|$fname|$icon"
+            done
+        `
+        fileSearchProcess.command = ["bash", "-c", bashCmd]
+        fileSearchProcess.running = true
     }
 
     FileView {
@@ -802,7 +790,24 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                     anchors.rightMargin: 16
                                     spacing: 14
 
+                                    ToolButton {
+                                        Layout.preferredWidth: 26
+                                        Layout.preferredHeight: 26
+                                        Layout.alignment: Qt.AlignVCenter
+                                        visible: model.iconName !== undefined && model.iconName !== ""
+                                        icon.name: model.iconName ? (model.iconName.indexOf("/") === 0 ? "" : model.iconName) : ""
+                                        icon.source: model.iconName && model.iconName.indexOf("/") === 0 ? "file://" + model.iconName : ""
+                                        icon.width: 26
+                                        icon.height: 26
+                                        icon.color: "transparent"
+                                        background: Item {}
+                                        hoverEnabled: false
+                                        down: false
+                                        padding: 0
+                                    }
+
                                     Text {
+                                        visible: !model.iconName
                                         text: model.isDir ? "📁" : "📄"
                                         font.pixelSize: 22
                                         Layout.alignment: Qt.AlignVCenter

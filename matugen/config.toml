@@ -1,23 +1,48 @@
+# ==========================================================
+# 🎨 Matugen Configuration (config.toml)
+# Material You dynamic palette engine mapping source templates
+# to target application config files across Hyprland, GTK, and Qt.
+# ==========================================================
+
+# ==========================================================
+# 🖼️ Wallpaper Integration Engine
+# Command invoked by tools like Waypaper to update the background.
+# ==========================================================
 [config]
-# This ensures Matugen updates Waypaper's daemon alongside generating colors
 wallpaper_command = "swww img"
 
+# ==========================================================
+# 🪟 Hyprland Dynamic Palette Mapping
+# Exports stripped/raw hex colors directly into Lua config.
+# ==========================================================
 [templates.hyprland]
-input_path = "~/.config/matugen/templates/colors.lua"
+input_path  = "~/.config/matugen/templates/colors.lua"
 output_path = "~/.config/hypr/configs/colors.lua"
 
+# ==========================================================
+# 🎨 GTK Application Stylesheets
+# Injects CSS variables for GTK3 legacy apps and GTK4 / Libadwaita.
+# ==========================================================
+# GTK 3.0 theme override
 [templates.gtk3]
-input_path = "~/.config/matugen/templates/gtk.css"
+input_path  = "~/.config/matugen/templates/gtk.css"
 output_path = "~/.config/gtk-3.0/gtk.css"
 
+# GTK 4.0 / Libadwaita theme override
 [templates.gtk4]
-input_path = "~/.config/matugen/templates/gtk.css"
+input_path  = "~/.config/matugen/templates/gtk.css"
 output_path = "~/.config/gtk-4.0/gtk.css"
 
+# ==========================================================
+# ⚙️ Qt Appearance Configuration (qt5ct / qt6ct)
+# Exports the 22-color palette tuple into active color schemes.
+# ==========================================================
+# Qt5 styling palette
 [templates.qt5]
-input_path = "~/.config/matugen/templates/qtct.conf"
+input_path  = "~/.config/matugen/templates/qtct.conf"
 output_path = "~/.config/qt5ct/colors/matugen.conf"
 
+# Qt6 styling palette
 [templates.qt6]
-input_path = "~/.config/matugen/templates/qtct.conf"
+input_path  = "~/.config/matugen/templates/qtct.conf"
 output_path = "~/.config/qt6ct/colors/matugen.conf"

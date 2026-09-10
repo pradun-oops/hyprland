@@ -71,9 +71,9 @@ Scope {
         { category: "Widgets & Launchers", keys: "SUPER + ALT + C", desc: "Toggle Control Center" },
         { category: "Widgets & Launchers", keys: "SUPER + SHIFT + C", desc: "Calendar Widget" },
         { category: "Widgets & Launchers", keys: "SUPER + N", desc: "Notification History" },
-        { category: "Widgets & Launchers", keys: "SUPER + K", desc: "Keybinds Cheatsheet" },
+        { category: "Widgets & Launchers", keys: "SUPER + /", desc: "Keybinds Cheatsheet" }, // Fixed conflict (was SUPER+K)
         { category: "Widgets & Launchers", keys: "SUPER + Tab", desc: "Window Overview" },
-        { category: "Widgets & Launchers", keys: "SUPER + L", desc: "Lockscreen" },
+        { category: "Widgets & Launchers", keys: "SUPER + ALT + L", desc: "Lockscreen" }, // Fixed conflict (was SUPER+SHIFT+L)
         { category: "Widgets & Launchers", keys: "SUPER + W", desc: "Wallpaper Picker" },
         { category: "Widgets & Launchers", keys: "SUPER + SHIFT + B", desc: "Bluetooth Settings" },
         { category: "Widgets & Launchers", keys: "SUPER + M", desc: "System Monitor" },
@@ -82,6 +82,7 @@ Scope {
         { category: "Widgets & Launchers", keys: "SUPER + SHIFT + CTRL + C", desc: "Calculator Widget" },
         { category: "Widgets & Launchers", keys: "SUPER + ALT + E", desc: "File Manager Widget" },
         { category: "Widgets & Launchers", keys: "SUPER + V", desc: "Clipboard History" },
+        { category: "Widgets & Launchers", keys: "SUPER + ALT + B", desc: "Toggle Topbar" }, // Added from Lua
 
         { category: "Audio & Media", keys: "XF86AudioRaiseVolume", desc: "Raise Volume" },
         { category: "Audio & Media", keys: "XF86AudioLowerVolume", desc: "Lower Volume" },

@@ -570,22 +570,9 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                 anchors.fill: parent
                 visible: isTargetMonitor
 
-                Rectangle {
+                MouseArea {
                     anchors.fill: parent
-                    color: "#000000"
-                    opacity: root.isOpened && !root.isClosing ? 0.65 : 0.0
-
-                    Behavior on opacity { 
-                        NumberAnimation { 
-                            duration: root.animEnabled ? style.fadeDuration : 0 
-                            easing.type: style.fadeEasing 
-                        } 
-                    }
-
-                    MouseArea {
-                        anchors.fill: parent
-                        onClicked: root.dismissMenu()
-                    }
+                    onClicked: root.dismissMenu()
                 }
 
                 Item {
@@ -638,7 +625,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                         anchors.fill: parent
 
                         radius: root.themeRounding
-                        color: root.themeBackground
+                        color: Qt.alpha(root.themeBackground, 0.78)
                         border.width: root.themeBorderSize
                         border.color: Qt.alpha(root.themeBorder, 0.45)
 
@@ -737,7 +724,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                                             Rectangle {
                                                 anchors.fill: parent
-                                                color: root.themeBackground
+                                                color: Qt.alpha(root.themeBackground, 0.6)
                                             }
 
                                             Image {

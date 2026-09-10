@@ -34,6 +34,10 @@ Scope {
         property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.12)
     }
 
+    function escapeShell(arg) {
+        return "'" + String(arg).replace(/'/g, "'\\''") + "'"
+    }
+
     Process { id: rootExecProcess }
     function exec(cmd) {
         rootExecProcess.running = false
@@ -114,8 +118,8 @@ Scope {
             let pCmd = (item.cmd || "").toLowerCase()
             
             if (targetPath && pPath && targetPath === pPath) return true
-            if (targetClass && pClass && targetClass === pClass) return true
-            if (targetCmd && pCmd && targetCmd === pCmd) return true
+            if (targetClass && pClass && (targetClass === pClass || targetClass.includes(pClass) || pClass.includes(targetClass))) return true
+            if (targetCmd && pCmd && (targetCmd === pCmd || targetCmd.includes(pCmd) || pCmd.includes(targetCmd))) return true
         }
         return false
     }
@@ -137,9 +141,9 @@ Scope {
             let isMatch = false
             if (targetPath && pPath && targetPath === pPath) {
                 isMatch = true
-            } else if (targetClass && pClass && targetClass === pClass) {
+            } else if (targetClass && pClass && (targetClass === pClass || targetClass.includes(pClass) || pClass.includes(targetClass))) {
                 isMatch = true
-            } else if (targetCmd && pCmd && targetCmd === pCmd) {
+            } else if (targetCmd && pCmd && (targetCmd === pCmd || targetCmd.includes(pCmd) || pCmd.includes(targetCmd))) {
                 isMatch = true
             }
             
@@ -326,7 +330,59 @@ Scope {
 
             function launchApp(app) {
                 if (!app) return
-                launchProcess.command = ["bash", "-c", app.cmd + " >/dev/null 2>&1 & disown"]
+                
+                let filePath = (app.filePath || "").trim()
+                let cmd = (app.cmd || "").trim()
+                let wmClass = (app.wmClass || "").trim()
+
+                let bashScript = `
+                    fp=${root.escapeShell(filePath)}
+                    c=${root.escapeShell(cmd)}
+                    w=${root.escapeShell(wmClass)}
+
+                    # 1. Desktop file launch via GIO
+                    if [ -n "$fp" ] && [ -f "$fp" ]; then
+                        gio launch "$fp" 2>/dev/null && exit 0
+                        gtk-launch "$(basename "$fp" .desktop)" 2>/dev/null && exit 0
+                    fi
+
+                    # 2. gtk-launch resolution across possible desktop IDs
+                    for target in "$w" "$c" "$(basename "$fp" 2>/dev/null)"; do
+                        if [ -n "$target" ]; then
+                            clean="\${target%.desktop}"
+                            gtk-launch "$clean" 2>/dev/null && exit 0
+                        fi
+                    done
+
+                    # 3. Handle reverse-DNS IDs (e.g. org.gnome.Software -> gnome-software, org.gnome.baobab -> baobab)
+                    for target in "$w" "$c"; do
+                        if [[ "$target" == *.* ]]; then
+                            base="\${target##*.}"
+                            base_lower="\${base,,}"
+                            if command -v "gnome-$base_lower" >/dev/null 2>&1; then
+                                "gnome-$base_lower" >/dev/null 2>&1 & disown
+                                exit 0
+                            elif command -v "$base_lower" >/dev/null 2>&1; then
+                                "$base_lower" >/dev/null 2>&1 & disown
+                                exit 0
+                            fi
+                        fi
+                    done
+
+                    # 4. Standard executable in PATH
+                    if [ -n "$c" ] && command -v "$c" >/dev/null 2>&1; then
+                        "$c" >/dev/null 2>&1 & disown
+                        exit 0
+                    fi
+
+                    # 5. Raw fallback
+                    if [ -n "$c" ]; then
+                        eval "$c" >/dev/null 2>&1 & disown
+                        exit 0
+                    fi
+                `
+                launchProcess.running = false
+                launchProcess.command = ["bash", "-c", bashScript]
                 launchProcess.running = true
             }
 
@@ -412,7 +468,38 @@ Scope {
                 triggeredOnStart: true
                 onTriggered: {
                     let pyScript = `
-import json, subprocess, sys
+import json, subprocess, sys, os, glob, re
+
+def resolve_desktop_meta(cls):
+    if not cls: return "", cls, cls.capitalize(), cls
+    search_ids = [cls, cls + ".desktop", cls.lower(), cls.lower() + ".desktop"]
+    if "." in cls:
+        stem = cls.split(".")[-1]
+        search_ids.extend([stem, stem.lower(), "gnome-" + stem.lower(), "org.gnome." + stem])
+    
+    candidate_dirs = [
+        "/usr/share/applications",
+        os.path.expanduser("~/.local/share/applications"),
+        "/var/lib/flatpak/exports/share/applications",
+        os.path.expanduser("~/.local/share/flatpak/exports/share/applications")
+    ]
+    
+    for d in candidate_dirs:
+        for s in search_ids:
+            target_path = os.path.join(d, s if s.endswith(".desktop") else s + ".desktop")
+            if os.path.exists(target_path):
+                try:
+                    with open(target_path, "r", encoding="utf-8") as f:
+                        raw = f.read()
+                        exec_l = next((l.split("=", 1)[1].strip() for l in raw.split("\\n") if l.startswith("Exec=")), "")
+                        name_l = next((l.split("=", 1)[1].strip() for l in raw.split("\\n") if l.startswith("Name=")), "")
+                        icon_l = next((l.split("=", 1)[1].strip() for l in raw.split("\\n") if l.startswith("Icon=")), "")
+                        clean_cmd = re.sub(r'%[fFuUikKc]', '', exec_l).strip()
+                        return target_path, clean_cmd if clean_cmd else cls, name_l if name_l else cls, icon_l if icon_l else cls
+                except Exception:
+                    pass
+    return "", cls, cls.split(".")[-1].capitalize(), cls
+
 try:
     target_mon_name = sys.argv[1] if len(sys.argv) > 1 else ""
     mon_data = json.loads(subprocess.check_output(["hyprctl", "monitors", "-j"], text=True))
@@ -433,15 +520,21 @@ try:
         if not c.get("mapped") or c.get("hidden"): continue
         cls = str(c.get("class", ""))
         initial_cls = str(c.get("initialClass", ""))
-        icon_name = initial_cls if initial_cls else cls
+        lookup_target = initial_cls if initial_cls else cls
         
         if cls:
             classes.append(cls.lower())
             if cls.lower() not in seen:
                 seen.add(cls.lower())
-                disp = initial_cls if initial_cls else cls.capitalize()
-                disp = disp.split(".")[-1] 
-                running_info.append({"name": disp.capitalize(), "wmClass": cls, "process": cls, "cmd": cls, "iconName": icon_name})
+                fpath, cmd_clean, disp_name, icon_name = resolve_desktop_meta(lookup_target)
+                running_info.append({
+                    "name": disp_name,
+                    "wmClass": cls,
+                    "process": cls,
+                    "cmd": cmd_clean,
+                    "iconName": icon_name,
+                    "filePath": fpath
+                })
         
         if c.get("workspace", {}).get("id") == my_ws_id:
             if c.get("fullscreen"):
@@ -496,12 +589,12 @@ except Exception:
                     opacity: dockWindow.activeTooltipText !== "" ? 1.0 : 0.0
                     scale: dockWindow.activeTooltipText !== "" ? 1.0 : 1.0
                     visible: opacity > 0
-       Behavior on opacity {
-    NumberAnimation {
-        duration: 250 
-        easing.type: Easing.OutQuart
-    }
-}
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: 250 
+                            easing.type: Easing.OutQuart
+                        }
+                    }
                     Behavior on scale { 
                         NumberAnimation { 
                             duration: root.animEnabled ? style.animDuration : 0

@@ -16,7 +16,7 @@ Scope {
 
     property int themeRounding: 14
     property int themeBorderSize: 2
-    property real themeBgAlpha: 1.0
+    property real themeBgAlpha: 0.75
     property bool internalChange: false
     property string searchQuery: ""
     
@@ -388,7 +388,7 @@ Scope {
             visible: root.targetMonitorName !== "" && isTargetMonitor
 
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
-            WlrLayershell.namespace: "qs-config-noblur"
+            WlrLayershell.namespace: "qs-config"
             WlrLayershell.layer: WlrLayer.Overlay
             exclusiveZone: -1
 
@@ -410,7 +410,6 @@ Scope {
 
             ParallelAnimation {
                 id: mainCloseAnim
-                NumberAnimation { target: backdropOverlay; property: "opacity"; to: 0; duration: 220; easing.type: Easing.OutCubic }
                 NumberAnimation { target: mainCard; property: "scale"; to: 0.88; duration: 220; easing.type: Easing.InBack }
                 NumberAnimation { target: mainCard; property: "opacity"; to: 0; duration: 180; easing.type: Easing.OutCubic }
                 onFinished: Qt.quit()
@@ -424,12 +423,7 @@ Scope {
             Rectangle {
                 id: backdropOverlay
                 anchors.fill: parent
-                color: Qt.rgba(0, 0, 0, 0.65)
-                opacity: 0
-
-                NumberAnimation on opacity {
-                    from: 0; to: 1; duration: 300; easing.type: Easing.OutCubic
-                }
+                color: "transparent"
 
                 MouseArea {
                     anchors.fill: parent
@@ -457,7 +451,7 @@ Scope {
                     radius: root.themeRounding
                     border.width: root.themeBorderSize
                     border.color: Qt.alpha(root.themeBorder, 0.40)
-                    color: root.themeBackground
+                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
 
                     scale: 0.85
                     opacity: 0
@@ -849,7 +843,7 @@ Scope {
 
                     Rectangle {
                         anchors.fill: parent
-                        color: Qt.rgba(0, 0, 0, 0.75)
+                        color: "transparent"
 
                         MouseArea {
                             anchors.fill: parent
@@ -864,7 +858,7 @@ Scope {
                         height: Math.min(500, parent.height - 70)
                         anchors.centerIn: parent
                         radius: root.themeRounding
-                        color: root.themeBackground
+                        color: Qt.alpha(root.themeBackground, 0.85)
                         border.width: root.themeBorderSize
                         border.color: Qt.alpha(root.themeBorder, 0.5)
 
@@ -1032,7 +1026,7 @@ Scope {
 
                     Rectangle {
                         anchors.fill: parent
-                        color: Qt.rgba(0, 0, 0, 0.75)
+                        color: "transparent"
 
                         MouseArea {
                             anchors.fill: parent
@@ -1047,7 +1041,7 @@ Scope {
                         height: Math.min(500, parent.height - 70)
                         anchors.centerIn: parent
                         radius: root.themeRounding
-                        color: root.themeBackground
+                        color: Qt.alpha(root.themeBackground, 0.85)
                         border.width: root.themeBorderSize
                         border.color: Qt.alpha(root.themeBorder, 0.5)
 

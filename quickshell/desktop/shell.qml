@@ -5,7 +5,6 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
-import Qt5Compat.GraphicalEffects
 
 Scope {
     id: root
@@ -94,6 +93,153 @@ Scope {
     property int diskPercent: 0
     property int gpuPercent: 0
 
+    property int cpuTemp: 0
+    property int ramTemp: 0
+    property int gpuTemp: 0
+    property int diskTemp: 0
+
+    property var prevCpuTimes: [0, 0]
+
+    property var audioSinks: []
+    property string currentSinkName: "Audio"
+    property string currentSinkFullName: "Detecting audio..."
+    property string currentSinkIcon: "󰕾"
+    property string currentSinkId: ""
+
+    function getSinkInfo(name, desc) {
+        let raw = (desc || name || "").trim()
+        let lower = raw.toLowerCase()
+
+        let shortName = raw
+        let icon = "󰕾"
+
+        if (lower.indexOf("hdmi") !== -1 || lower.indexOf("displayport") !== -1 || lower.indexOf("acer") !== -1) {
+            icon = "󰍹"
+            shortName = "Monitor"
+        } else if (lower.indexOf("headphone") !== -1 || lower.indexOf("headset") !== -1 || lower.indexOf("ear") !== -1 || lower.indexOf("buds") !== -1 || lower.indexOf("iem") !== -1 || lower.indexOf("usb") !== -1 || lower.indexOf("dac") !== -1 || lower.indexOf("type-c") !== -1) {
+            icon = "󰋋"
+            shortName = "IEMs"
+        } else if (lower.indexOf("analog") !== -1 || lower.indexOf("speaker") !== -1 || lower.indexOf("built-in") !== -1 || lower.indexOf("pci") !== -1) {
+            icon = "󰓃"
+            shortName = "Speakers"
+        } else {
+            let words = raw.split(/\s+/)
+            shortName = words.length > 2 ? words.slice(0, 2).join(" ") : raw
+        }
+
+        return { shortName: shortName, icon: icon }
+    }
+
+    Process {
+        id: audioPollProcess
+        command: ["bash", "-c", "def=$(pactl get-default-sink 2>/dev/null); pactl list sinks 2>/dev/null | awk -v d=\"$def\" '/Name:/ {n=$2} /Description:/ {sub(/^[ \t]*Description:[ \t]*/, \"\"); print n \"\\t\" $0 \"\\t\" (n==d?1:0)}'"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    let lines = text.trim().split("\n")
+                    if (lines.length === 0) return
+                    let sinks = []
+                    for (let i = 0; i < lines.length; i++) {
+                        let p = lines[i].split("\t")
+                        if (p.length >= 3) {
+                            let sName = p[0]
+                            let sDesc = p[1]
+                            let isDef = (p[2] === "1")
+
+                            let lower = (sDesc + " " + sName).toLowerCase()
+                            if (lower.indexOf("easyeffects") !== -1 || lower.indexOf("easy effects") !== -1) {
+                                continue
+                            }
+
+                            let info = root.getSinkInfo(sName, sDesc)
+                            sinks.push({
+                                name: sName,
+                                desc: sDesc,
+                                is_def: isDef,
+                                shortName: info.shortName,
+                                icon: info.icon
+                            })
+                        }
+                    }
+                    root.audioSinks = sinks
+
+                    if (sinks.length > 0) {
+                        let active = sinks.find(s => s.is_def)
+                        if (!active && root.currentSinkId) {
+                            active = sinks.find(s => s.name === root.currentSinkId)
+                        }
+                        if (!active) {
+                            active = sinks[0]
+                        }
+
+                        root.currentSinkId = active.name
+                        root.currentSinkName = active.shortName
+                        root.currentSinkFullName = active.desc
+                        root.currentSinkIcon = active.icon
+                    } else {
+                        root.currentSinkName = "No Sinks"
+                        root.currentSinkFullName = "No audio sinks found"
+                        root.currentSinkIcon = "󰝟"
+                    }
+                } catch(e) {}
+            }
+        }
+    }
+
+    function refreshAudio() {
+        if (!audioPollProcess.running) {
+            audioPollProcess.running = true
+        }
+    }
+
+    Timer {
+        id: audioDebounceTimer
+        interval: 100
+        repeat: false
+        onTriggered: refreshAudio()
+    }
+
+    Process {
+        id: pactlSubscriber
+        command: ["pactl", "subscribe"]
+        running: true
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => {
+                if (data.indexOf("sink") !== -1) {
+                    audioDebounceTimer.restart()
+                }
+            }
+        }
+    }
+
+    function cycleAudioSink() {
+        if (!root.audioSinks || root.audioSinks.length <= 1) {
+            refreshAudio()
+            return
+        }
+
+        let currIdx = root.audioSinks.findIndex(s => s.is_def || s.name === root.currentSinkId)
+        if (currIdx === -1) currIdx = 0
+
+        let nextIdx = (currIdx + 1) % root.audioSinks.length
+        let target = root.audioSinks[nextIdx]
+
+        let safeDesc = target.desc.replace(/'/g, "'\\''")
+        root.exec("pactl set-default-sink " + target.name + " && notify-send -a 'Audio Switcher' 'Output Changed' '" + safeDesc + "'")
+
+        root.currentSinkId = target.name
+        root.currentSinkName = target.shortName
+        root.currentSinkFullName = target.desc
+        root.currentSinkIcon = target.icon
+
+        for (let i = 0; i < root.audioSinks.length; i++) {
+            root.audioSinks[i].is_def = (i === nextIdx)
+        }
+
+        refreshAudio()
+    }
+
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -141,7 +287,7 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
 
                 let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
@@ -155,6 +301,10 @@ Scope {
         generalConfigFile.reload()
         animConfigFile.reload()
         posConfigFile.reload() 
+        procStatFile.reload()
+        procMemFile.reload()
+        metricsProcess.running = true
+        refreshAudio()
     }
 
     Process { id: execProcess }
@@ -187,53 +337,114 @@ Scope {
         }
     }
 
+    FileView {
+        id: procStatFile
+        path: "/proc/stat"
+        onLoaded: {
+            try {
+                let firstLine = text().split("\n")[0]
+                let parts = firstLine.trim().split(/\s+/).slice(1).map(Number)
+                let idle = parts[3] + (parts[4] || 0)
+                let total = parts.reduce((a, b) => a + b, 0)
+
+                if (root.prevCpuTimes[1] > 0) {
+                    let totalDiff = total - root.prevCpuTimes[1]
+                    let idleDiff = idle - root.prevCpuTimes[0]
+                    if (totalDiff > 0) {
+                        root.cpuPercent = Math.max(0, Math.min(100, Math.round(100 * (1 - idleDiff / totalDiff))))
+                    }
+                }
+                root.prevCpuTimes = [idle, total]
+            } catch(e) {}
+        }
+    }
+
+    FileView {
+        id: procMemFile
+        path: "/proc/meminfo"
+        onLoaded: {
+            try {
+                let lines = text().split("\n")
+                let totalKb = 0
+                let availKb = 0
+                for (let i = 0; i < lines.length; i++) {
+                    if (lines[i].startsWith("MemTotal:")) totalKb = parseInt(lines[i].replace(/\D/g, ""))
+                    else if (lines[i].startsWith("MemAvailable:")) availKb = parseInt(lines[i].replace(/\D/g, ""))
+                    if (totalKb > 0 && availKb > 0) break
+                }
+                if (totalKb > 0) {
+                    let usedKb = totalKb - availKb
+                    let totalGb = totalKb / 1048576
+                    let usedGb = usedKb / 1048576
+                    root.ramPercent = Math.max(0, Math.min(100, Math.round((usedKb / totalKb) * 100)))
+                    root.ramUsedTotal = usedGb.toFixed(1) + " / " + totalGb.toFixed(1) + " GB"
+                }
+            } catch(e) {}
+        }
+    }
+
     Process {
-        id: statProcess
+        id: metricsProcess
+        command: [
+            "python3", "-c",
+            "import os, subprocess, json\n" +
+            "data = {'cpu_t': 0, 'ram_t': 0, 'gpu_t': 0, 'disk_t': 0, 'disk_p': 0, 'gpu_u': 0}\n" +
+            "try:\n" +
+            "    for hw in os.listdir('/sys/class/hwmon/'):\n" +
+            "        path = os.path.join('/sys/class/hwmon', hw)\n" +
+            "        try:\n" +
+            "            with open(os.path.join(path, 'name')) as f: name = f.read().strip()\n" +
+            "            if 'coretemp' in name or 'k10temp' in name:\n" +
+            "                with open(os.path.join(path, 'temp1_input')) as f: data['cpu_t'] = int(f.read().strip()) // 1000\n" +
+            "            elif 'spd5118' in name:\n" +
+            "                with open(os.path.join(path, 'temp1_input')) as f: data['ram_t'] = int(f.read().strip()) // 1000\n" +
+            "            elif 'nvme' in name:\n" +
+            "                with open(os.path.join(path, 'temp1_input')) as f: data['disk_t'] = int(f.read().strip()) // 1000\n" +
+            "        except: pass\n" +
+            "except: pass\n" +
+            "if data['cpu_t'] == 0:\n" +
+            "    try:\n" +
+            "        with open('/sys/class/thermal/thermal_zone0/temp') as f: data['cpu_t'] = int(f.read().strip()) // 1000\n" +
+            "    except: pass\n" +
+            "try:\n" +
+            "    gpu = subprocess.check_output('nvidia-smi --query-gpu=utilization.gpu,temperature.gpu --format=csv,noheader,nounits 2>/dev/null', shell=True).decode().split(',')\n" +
+            "    if len(gpu) >= 2:\n" +
+            "        data['gpu_u'] = int(gpu[0].strip())\n" +
+            "        data['gpu_t'] = int(gpu[1].strip())\n" +
+            "except: pass\n" +
+            "try:\n" +
+            "    st = os.statvfs('/')\n" +
+            "    data['disk_p'] = int((st.f_blocks - st.f_bavail) / st.f_blocks * 100)\n" +
+            "except: pass\n" +
+            "print(json.dumps(data))"
+        ]
         stdout: StdioCollector {
             onStreamFinished: {
-                let parts = text.trim().split('|')
-                if (parts.length >= 5) {
-                    root.cpuPercent = parseInt(parts[0]) || 0;
-                    root.ramUsedTotal = parts[1] + " GB";
-                    root.ramPercent = parseInt(parts[2]) || 0;
-                    root.diskPercent = parseInt(parts[3]) || 0;
-                    root.gpuPercent = parseInt(parts[4]) || 0;
-                }
+                try {
+                    let d = JSON.parse(text.trim())
+                    root.cpuTemp = d.cpu_t || 0
+                    root.ramTemp = d.ram_t || 0
+                    root.gpuTemp = d.gpu_t || 0
+                    root.diskTemp = d.disk_t || 0
+                    root.diskPercent = d.disk_p || 0
+                    root.gpuPercent = d.gpu_u || 0
+                } catch(e) {}
             }
         }
     }
 
     Timer {
-        interval: 2500 
+        interval: 3000
         running: true
         repeat: true
         triggeredOnStart: true
         onTriggered: {
-            let pyScript = `
-import os, time, subprocess
-def get_cpu():
-    with open('/proc/stat') as f: p1 = [int(x) for x in f.readline().split()[1:8]]
-    time.sleep(0.1)
-    with open('/proc/stat') as f: p2 = [int(x) for x in f.readline().split()[1:8]]
-    t1, t2 = sum(p1), sum(p2)
-    return int(100 - (p2[3]-p1[3])/(t2-t1)*100) if t2 > t1 else 0
-
-def get_mem():
-    with open('/proc/meminfo') as f: l = f.readlines()
-    t = int(l[0].split()[1]); a = int(l[2].split()[1]); u = t - a
-    return u, t
-
-c = get_cpu()
-mu, mt = get_mem()
-st = os.statvfs('/')
-dp = int((st.f_blocks - st.f_bavail) / st.f_blocks * 100)
-try: gp = int(subprocess.check_output("nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits 2>/dev/null", shell=True))
-except: gp = 0
-
-print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
-`
-            statProcess.command = ["python3", "-c", pyScript]
-            statProcess.running = true
+            procStatFile.reload()
+            procMemFile.reload()
+            if (!metricsProcess.running) {
+                metricsProcess.running = true
+            }
+            refreshAudio()
         }
     }
 
@@ -302,31 +513,39 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
     component CircularGauge : Item {
         id: gaugeRoot
         property string label: "CPU"
-        property real percent: 0
+        property real value: 0
+        property string unit: "%"
         
-        property real animatedPercent: 0
-        onPercentChanged: animatedPercent = percent
-        onAnimatedPercentChanged: canvas.requestPaint()
+        property real animatedValue: 0
+        onValueChanged: animatedValue = value
+        onAnimatedValueChanged: canvas.requestPaint()
 
         function getTlpColor(val) {
-            if (val < 60) return "#4ade80"       
-            if (val < 85) return "#facc15"       
-            return "#f87171"                     
+            if (gaugeRoot.unit === "°C") {
+                if (val < 55) return "#4ade80"       
+                if (val < 80) return "#facc15"       
+                return "#f87171"   
+            } else {
+                if (val < 60) return "#4ade80"       
+                if (val < 85) return "#facc15"       
+                return "#f87171"                     
+            }
         }
 
-        Behavior on animatedPercent {
+        Behavior on animatedValue {
             NumberAnimation {
                 duration: root.animEnabled ? root.animDuration : 0
                 easing.type: Easing.OutQuint
             }
         }
         
-        width: 70
-        height: 70
+        width: 78
+        height: 78
 
         Canvas {
             id: canvas
             anchors.fill: parent
+            renderTarget: Canvas.FramebufferObject
             onPaint: {
                 var ctx = getContext("2d");
                 ctx.reset();
@@ -342,9 +561,11 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                 ctx.stroke();
                 
                 ctx.beginPath();
-                ctx.arc(centerX, centerY, radius, -Math.PI / 2, -Math.PI / 2 + (2 * Math.PI * Math.min(Math.max(gaugeRoot.animatedPercent / 100, 0), 1)));
+                var maxVal = 100;
+                var fillRatio = Math.min(Math.max(gaugeRoot.animatedValue / maxVal, 0), 1);
+                ctx.arc(centerX, centerY, radius, -Math.PI / 2, -Math.PI / 2 + (2 * Math.PI * fillRatio));
                 ctx.lineWidth = 6;
-                ctx.strokeStyle = gaugeRoot.getTlpColor(gaugeRoot.animatedPercent);
+                ctx.strokeStyle = gaugeRoot.getTlpColor(gaugeRoot.animatedValue);
                 ctx.lineCap = "round";
                 ctx.stroke();
             }
@@ -352,19 +573,19 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
         
         ColumnLayout {
             anchors.centerIn: parent
-            spacing: 0
+            spacing: 2
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                text: gaugeRoot.percent.toFixed(0) + "%"
+                text: gaugeRoot.value.toFixed(0) + gaugeRoot.unit
                 color: root.themeText
-                font.pixelSize: 14
+                font.pixelSize: 13
                 font.weight: Font.Bold
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: gaugeRoot.label
                 color: root.themeTextMuted
-                font.pixelSize: 10
+                font.pixelSize: 9
                 font.weight: Font.DemiBold
             }
         }
@@ -389,7 +610,7 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
             margins { top: root.savedMarginTop; right: root.savedMarginRight }
 
             implicitWidth: 440
-            implicitHeight: cardLayout.implicitHeight + 48
+            implicitHeight: cardLayout.implicitHeight + 64
             
             color: "transparent"
 
@@ -501,6 +722,7 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                                 anchors.fill: parent
                                 anchors.margins: root.themeBorderSize 
                                 antialiasing: true
+                                renderTarget: Canvas.FramebufferObject
                                 
                                 onImageLoaded: requestPaint()
                                 onPaint: {
@@ -546,6 +768,66 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
                         }
                         
                         Item { Layout.fillWidth: true } 
+
+                        Rectangle {
+                            id: audioSwitchBtn
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.preferredHeight: 32
+                            Layout.preferredWidth: audioBtnLayout.implicitWidth + 22
+                            radius: 16
+                            color: audioBtnMouse.containsMouse ? Qt.rgba(1.0, 1.0, 1.0, 0.14) : root.themeSurface
+                            border.width: 1
+                            border.color: audioBtnMouse.containsMouse ? root.themePrimary : Qt.alpha(root.themeBorder, 0.25)
+                            scale: audioBtnMouse.pressed ? 0.94 : (audioBtnMouse.containsMouse ? 1.04 : 1.0)
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? 180 : 0
+                                    easing.type: Easing.OutBack
+                                }
+                            }
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                            RowLayout {
+                                id: audioBtnLayout
+                                anchors.centerIn: parent
+                                spacing: 6
+
+                                Text {
+                                    text: root.currentSinkIcon
+                                    font.pixelSize: 14
+                                    color: root.themePrimary
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                Text {
+                                    text: root.currentSinkName
+                                    color: root.themeText
+                                    font.pixelSize: 12
+                                    font.weight: Font.DemiBold
+                                    Layout.maximumWidth: 100
+                                    elide: Text.ElideRight
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+
+                                Text {
+                                    text: "⇄"
+                                    color: root.themeTextMuted
+                                    font.pixelSize: 11
+                                    font.weight: Font.Bold
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+                            }
+
+                            MouseArea {
+                                id: audioBtnMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.cycleAudioSink()
+                            }
+                        }
                     }
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: root.themeSurface }
@@ -664,17 +946,29 @@ print(f"{c}|{mu/1048576:.1f} / {mt/1048576:.1f}|{int((mu/mt)*100)}|{dp}|{gp}")
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.topMargin: 4
+                        Layout.topMargin: 8
                         spacing: 0 
 
-                        Item { Layout.fillWidth: true; height: 70; CircularGauge { anchors.centerIn: parent; label: "CPU"; percent: root.cpuPercent } }
-                        Item { Layout.fillWidth: true; height: 70; CircularGauge { anchors.centerIn: parent; label: "RAM"; percent: root.ramPercent } }
-                        Item { Layout.fillWidth: true; height: 70; CircularGauge { anchors.centerIn: parent; label: "GPU"; percent: root.gpuPercent } }
-                        Item { Layout.fillWidth: true; height: 70; CircularGauge { anchors.centerIn: parent; label: "DISK"; percent: root.diskPercent } }
+                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "CPU"; value: root.cpuPercent; unit: "%" } }
+                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "RAM"; value: root.ramPercent; unit: "%" } }
+                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "GPU"; value: root.gpuPercent; unit: "%" } }
+                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "DISK"; value: root.diskPercent; unit: "%" } }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 0
+                        spacing: 0 
+
+                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "CPU TEMP"; value: root.cpuTemp; unit: "°C" } }
+                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "RAM TEMP"; value: root.ramTemp; unit: "°C" } }
+                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "GPU TEMP"; value: root.gpuTemp; unit: "°C" } }
+                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "DISK TEMP"; value: root.diskTemp; unit: "°C" } }
                     }
                     
                     Text {
                         Layout.alignment: Qt.AlignHCenter
+                        Layout.topMargin: 8
                         text: "Memory Used: " + root.ramUsedTotal
                         color: root.themeTextMuted
                         font.pixelSize: 11

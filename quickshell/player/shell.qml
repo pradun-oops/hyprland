@@ -42,7 +42,6 @@ Scope {
     property real trackPosition: 0
     property real trackLength: 0
 
-    property var audioSinks: []
     property int currentVolume: 50
 
     property int savedMarginTop: 420
@@ -151,7 +150,7 @@ Scope {
         generalConfigFile.reload()
         animConfigFile.reload()
         posConfigFile.reload()
-        audioPollProcess.running = true
+        refreshAudio()
     }
 
     Process { id: execProcess }
@@ -181,40 +180,30 @@ Scope {
         exec("playerctl -p " + nextPlayer + " play 2>/dev/null && notify-send -a 'Media Switcher' 'Switched Player' '" + nextPlayer + "'");
     }
 
-    function switchAudioSink() {
-        if (!root.audioSinks || root.audioSinks.length <= 1) return;
-        let currIdx = root.audioSinks.findIndex(d => d.is_def);
-        let nextIdx = (currIdx + 1) % root.audioSinks.length;
-        let nextDev = root.audioSinks[nextIdx];
-        exec("pactl set-default-sink " + nextDev.name + " && notify-send -a 'Audio Switcher' 'Output Changed' '" + nextDev.desc + "'");
-        audioPollProcess.running = true;
-    }
-
     function adjustVolume(percent) {
         exec("pactl set-sink-volume @DEFAULT_SINK@ " + percent)
-        audioPollTimer.restart()
-    }
-
-    Timer {
-        id: audioPollTimer
-        interval: 100
-        repeat: false
-        onTriggered: audioPollProcess.running = true
+        audioDebounceTimer.restart()
     }
 
     Process {
-        id: mediaStateProcess
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    let lines = text.trim().split('\n')
-                    let data = JSON.parse(lines[lines.length - 1])
+        id: mediaMetadataProcess
+        command: ["playerctl", "metadata", "--format", "{{status}}\t{{playerName}}\t{{title}}\t{{artist}}\t{{album}}\t{{mpris:artUrl}}\t{{position}}\t{{mpris:length}}", "-F"]
+        running: true
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => {
+                let line = data.trim()
+                if (!line) return
+                let parts = line.split("\t")
+                if (parts.length >= 8) {
+                    root.mediaStatus = parts[0] || "Stopped"
+                    root.isPlaying = root.mediaStatus.toLowerCase() === "playing"
+                    root.playerName = parts[1] || ""
+                    root.mediaTitle = parts[2] || "No media playing"
+                    root.mediaArtist = parts[3] || "Unknown Artist"
+                    root.mediaAlbum = parts[4] || ""
                     
-                    root.mediaTitle = data.title || "No media playing"
-                    root.mediaArtist = data.artist || "Unknown Artist"
-                    root.mediaAlbum = data.album || ""
-                    
-                    let art = data.artUrl || ""
+                    let art = parts[5] || ""
                     if (art.startsWith("file://") || art.startsWith("http://") || art.startsWith("https://")) {
                         root.mediaArtUrl = art
                     } else if (art.length > 0) {
@@ -222,118 +211,94 @@ Scope {
                     } else {
                         root.mediaArtUrl = ""
                     }
-                    
-                    root.playerName = data.playerName || ""
-                    root.activePlayerList = data.allPlayers || []
-                    root.mediaStatus = data.status || "Stopped"
-                    root.isPlaying = data.status.toLowerCase() === "playing"
-                    root.trackPosition = data.position || 0
-                    root.trackLength = data.length || 0
-                } catch(e) {}
+
+                    root.trackPosition = (parseFloat(parts[6]) || 0) / 1000000.0
+                    root.trackLength = (parseFloat(parts[7]) || 0) / 1000000.0
+                }
             }
         }
     }
 
     Timer {
-        interval: 500; running: true; repeat: true; triggeredOnStart: true
+        interval: 1000
+        running: root.isPlaying
+        repeat: true
         onTriggered: {
-            let py = `
-import subprocess, json
-def cmd(c):
-    try: return subprocess.check_output(c, shell=True, text=True).strip()
-    except: return ""
+            if (root.trackLength > 0 && root.trackPosition < root.trackLength) {
+                root.trackPosition += 1
+            }
+        }
+    }
 
-players = [p.strip() for p in cmd("playerctl -l 2>/dev/null").splitlines() if p.strip()]
-active_player = ""
+    Process {
+        id: playerListProcess
+        command: ["playerctl", "-l"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let lines = text.trim().split("\n").filter(p => p.trim().length > 0)
+                root.activePlayerList = lines
+            }
+        }
+    }
 
-for p in players:
-    if cmd(f"playerctl -p {p} status 2>/dev/null").lower() == "playing":
-        active_player = p; break
-if not active_player:
-    for p in players:
-        if cmd(f"playerctl -p {p} status 2>/dev/null").lower() == "paused":
-            active_player = p; break
-if not active_player and players: active_player = players[0]
-
-title = "No media playing"
-artist, album, art_url, status = "Unknown Artist", "", "", "Stopped"
-position, length = 0.0, 0.0
-
-if active_player:
-    title = cmd(f"playerctl -p {active_player} metadata xesam:title 2>/dev/null") or "No media playing"
-    artist = cmd(f"playerctl -p {active_player} metadata xesam:artist 2>/dev/null") or "Unknown Artist"
-    album = cmd(f"playerctl -p {active_player} metadata xesam:album 2>/dev/null") or ""
-    art_url = cmd(f"playerctl -p {active_player} metadata mpris:artUrl 2>/dev/null") or ""
-    status = cmd(f"playerctl -p {active_player} status 2>/dev/null") or "Stopped"
-    
-    try:
-        pos_str = cmd(f"playerctl -p {active_player} position 2>/dev/null")
-        if pos_str: position = float(pos_str)
-        len_str = cmd(f"playerctl -p {active_player} metadata mpris:length 2>/dev/null")
-        length = float(len_str)/1000000.0 if len_str else float(cmd(f"playerctl -p {active_player} metadata xesam:duration 2>/dev/null") or 0) / 1000000.0
-    except: pass
-
-print(json.dumps({
-    "title": title, 
-    "artist": artist, 
-    "album": album, 
-    "artUrl": art_url, 
-    "playerName": active_player, 
-    "allPlayers": players,
-    "status": status, 
-    "position": position, 
-    "length": length
-}))
-`
-            mediaStateProcess.command = ["python3", "-c", py]
-            mediaStateProcess.running = true
+    Timer {
+        interval: 5000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: {
+            if (!playerListProcess.running) {
+                playerListProcess.running = true
+            }
         }
     }
 
     Process {
         id: audioPollProcess
+        command: ["bash", "-c", "pactl get-sink-volume @DEFAULT_SINK@ 2>/dev/null | grep -o '[0-9]\\+%' | head -1 | tr -d '%'"]
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    let d = JSON.parse(text.trim())
-                    root.audioSinks = d.sinks || []
-                    if (d.volume !== undefined) root.currentVolume = d.volume
+                    let vol = parseInt(text.trim())
+                    if (!isNaN(vol)) root.currentVolume = vol
                 } catch(e) {}
             }
         }
     }
 
-    Timer {
-        interval: 1500; running: true; repeat: true
-        onTriggered: {
-            let py = `
-import subprocess, json, re
-def get_list(typ):
-    try:
-        default = subprocess.check_output(f"pactl get-default-{typ}", shell=True, text=True).strip()
-        lines = subprocess.check_output(f"pactl list {typ}s", shell=True, text=True).splitlines()
-        res = []
-        cur_name = ""
-        for l in lines:
-            if "Name:" in l: cur_name = l.split("Name:")[1].strip()
-            elif "Description:" in l:
-                desc = l.split("Description:")[1].strip()
-                res.append({"name": cur_name, "desc": desc, "is_def": cur_name == default})
-        return res
-    except: return []
-
-def get_vol():
-    try:
-        out = subprocess.check_output("pactl get-sink-volume @DEFAULT_SINK@", shell=True, text=True)
-        m = re.search(r'(\d+)%', out)
-        return int(m.group(1)) if m else 50
-    except: return 50
-
-print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
-`
-            audioPollProcess.command = ["python3", "-c", py]
+    function refreshAudio() {
+        if (!audioPollProcess.running) {
             audioPollProcess.running = true
         }
+    }
+
+    Timer {
+        id: audioDebounceTimer
+        interval: 100
+        repeat: false
+        onTriggered: refreshAudio()
+    }
+
+    Process {
+        id: pactlSubscriber
+        command: ["pactl", "subscribe"]
+        running: true
+        stdout: SplitParser {
+            splitMarker: "\n"
+            onRead: data => {
+                if (data.indexOf("sink") !== -1) {
+                    audioDebounceTimer.restart()
+                }
+            }
+        }
+    }
+
+    property real visualizerTick: 0
+    Timer {
+        interval: 120
+        running: root.isPlaying
+        repeat: true
+        onTriggered: root.visualizerTick = Math.random()
     }
 
     Variants {
@@ -518,32 +483,6 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                                 onClicked: root.switchMediaPlayer()
                             }
                         }
-
-                        Rectangle {
-                            id: sinkBtn
-                            Layout.preferredWidth: 36; Layout.preferredHeight: 36
-                            radius: 18
-                            color: sinkMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.3) : Qt.alpha(root.themeText, 0.12)
-                            border.width: 1; border.color: Qt.alpha(root.themePrimary, 0.4)
-                            
-                            scale: sinkMouse.containsMouse ? 1.12 : 1.0
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                    easing.type: animStyle.bounceEasing
-                                    easing.overshoot: animStyle.overshoot
-                                }
-                            }
-                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-
-                            Text { anchors.centerIn: parent; text: "🔊"; font.pixelSize: 14 }
-
-                            MouseArea {
-                                id: sinkMouse
-                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: root.switchAudioSink()
-                            }
-                        }
                     }
 
                     ColumnLayout {
@@ -588,27 +527,15 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                                 Repeater {
                                     model: 20
                                     delegate: Rectangle {
-                                        id: barLeft
                                         width: 2.5
                                         radius: 1.25
                                         color: root.themePrimary
                                         anchors.bottom: parent.bottom
 
-                                        property real targetHeight: 4
-                                        height: root.isPlaying ? targetHeight : 4
+                                        height: root.isPlaying ? Math.max(4, Math.min(22, Math.floor(Math.abs(Math.sin((index + 1) * 0.7 + root.visualizerTick * 10)) * 18) + 4)) : 4
 
                                         Behavior on height {
                                             NumberAnimation { duration: 110; easing.type: Easing.InOutQuad }
-                                        }
-
-                                        Timer {
-                                            interval: 60 + ((index % 7) * 25)
-                                            running: root.isPlaying
-                                            repeat: true
-                                            triggeredOnStart: true
-                                            onTriggered: {
-                                                barLeft.targetHeight = Math.floor(Math.random() * 18) + 4
-                                            }
                                         }
                                     }
                                 }
@@ -693,27 +620,15 @@ print(json.dumps({"sinks": get_list("sink"), "volume": get_vol()}))
                                 Repeater {
                                     model: 20
                                     delegate: Rectangle {
-                                        id: barRight
                                         width: 2.5
                                         radius: 1.25
                                         color: root.themePrimary
                                         anchors.bottom: parent.bottom
 
-                                        property real targetHeight: 4
-                                        height: root.isPlaying ? targetHeight : 4
+                                        height: root.isPlaying ? Math.max(4, Math.min(22, Math.floor(Math.abs(Math.cos((20 - index) * 0.7 + root.visualizerTick * 10)) * 18) + 4)) : 4
 
                                         Behavior on height {
                                             NumberAnimation { duration: 110; easing.type: Easing.InOutQuad }
-                                        }
-
-                                        Timer {
-                                            interval: 70 + (((19 - index) % 7) * 25)
-                                            running: root.isPlaying
-                                            repeat: true
-                                            triggeredOnStart: true
-                                            onTriggered: {
-                                                barRight.targetHeight = Math.floor(Math.random() * 18) + 4
-                                            }
                                         }
                                     }
                                 }
