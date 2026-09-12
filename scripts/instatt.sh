@@ -33,6 +33,9 @@ sudo dnf install -y --allowerasing \
     playerctl \
     pavucontrol \
     grim \
+    hypridle \
+    hyprlock \
+    brightnessctl \
     slurp \
     wl-clipboard \
     libnotify \

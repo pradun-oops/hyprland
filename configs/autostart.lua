@@ -21,13 +21,16 @@ hl.on("hyprland.start", function()
 
     -- ==========================================================
     -- 🛠️ Background Services & Utilities
-    -- Initializes your wallpaper, clipboard manager, and watchers.
+    -- Initializes your wallpaper, clipboard manager, idle daemon, and watchers.
     -- ==========================================================
     -- Start animated wallpaper daemon
     hl.exec_cmd("awww-daemon &")
     
     -- Start clipboard history listener
     hl.exec_cmd("wl-paste --watch cliphist store &")
+
+    -- Start Hyprland idle management daemon
+    hl.exec_cmd("hypridle &")
     
     -- Live theme reloader (watches colors.lua and applies presets)
     hl.exec_cmd(

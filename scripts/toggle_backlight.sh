@@ -1,69 +1,48 @@
 #!/usr/bin/env bash
 
-# ==========================================================
-# 💡 LegionAura RGB Backlight Power Toggle (toggle_backlight.sh)
-# Manages keyboard backlight ON/OFF state transitions, restoring the
-# last active lighting preset on power-up and stopping daemons on shutdown.
-# ==========================================================
+# ==============================================================================
+# Script Name: Legion RGB Power Toggle Utility
+# Description: Toggles the keyboard backlight power state globally. Flips between 
+#              active (restoring the default preset 0) and off.
+# ==============================================================================
 
 set -euo pipefail
 
-# ==========================================================
-# 📁 Paths & Hardware State Configurations
-# ==========================================================
-SCRIPT_DIR="$HOME/.config/hypr/scripts"
-STATE_FILE="/tmp/rgb_power_state"              # Hardware power state (1=ON, 0=OFF)
-PRESET_FILE="/tmp/rgb_current_preset"          # Cached profile index (0-9)
-WATCHER_PID_FILE="/tmp/rgb_watcher.pid"        # Dynamic color sync daemon PID
-BRIGHTNESS=2                                   # Default fallback hardware brightness
+# --- Configuration & Environment Paths ---
+SCRIPT_DIR="$HOME/.config/hypr/scripts" # Directory containing preset management scripts
+STATE_FILE="/tmp/rgb_power_state"          # Tracks global RGB power toggle state (0 = Off, 1 = On)
+BRIGHTNESS=2                               # Default keyboard backlight intensity for fallbacks
 
-# ==========================================================
-# 🔍 Dependency Verification
-# ==========================================================
+# --- Dependency Verification ---
 command -v legionaura >/dev/null 2>&1 || {
-    echo "Error: legionaura not found" >&2
+    echo "Error: legionaura not found"
     exit 1
 }
 
-# Ensure the state file exists with a default power state (0 = OFF)
+# --- Initialize State File ---
+# Create the state tracking file with a default 'off' state (0) if it doesn't exist
 if [ ! -f "$STATE_FILE" ]; then
     echo 0 > "$STATE_FILE"
 fi
 
+# Read current power state safely
 STATE="$(cat "$STATE_FILE" 2>/dev/null || echo 0)"
 
-# ==========================================================
-# ⚡ Power State Toggle Logic
-# ==========================================================
+# --- Toggle Logic ---
 if [ "$STATE" = "0" ]; then
-    # ------------------------------------------------------
-    # 🟢 Action: Turn Backlight ON
-    # ------------------------------------------------------
+    # Currently OFF: Turn ON and apply default theme preset (0)
     echo 1 > "$STATE_FILE"
-    
-    # Retrieve the last active profile (defaults to Preset 0 / Adaptive Theme Sync)
-    CURRENT_PRESET="$(cat "$PRESET_FILE" 2>/dev/null || echo 0)"
 
-    # Restore the preset using the dispatcher script, with static white fallback
+    # Execute preset script if executable, fallback to direct execution or plain white
     if [ -x "$SCRIPT_DIR/apply_preset.sh" ]; then
-        "$SCRIPT_DIR/apply_preset.sh" "$CURRENT_PRESET"
+        "$SCRIPT_DIR/apply_preset.sh" 0
     elif [ -f "$SCRIPT_DIR/apply_preset.sh" ]; then
-        bash "$SCRIPT_DIR/apply_preset.sh" "$CURRENT_PRESET"
+        bash "$SCRIPT_DIR/apply_preset.sh" 0
     else
         legionaura static ffffff --brightness "$BRIGHTNESS"
     fi
 else
-    # ------------------------------------------------------
-    # 🔴 Action: Turn Backlight OFF
-    # ------------------------------------------------------
-    echo 0 > "$STATE_FILE"
-    
-    # Terminate background theme auto-sync daemon to free resources
-    if [ -f "$WATCHER_PID_FILE" ]; then
-        kill "$(cat "$WATCHER_PID_FILE")" 2>/dev/null || true
-        rm -f "$WATCHER_PID_FILE"
-    fi
-    
-    # Send hardware turn-off command
+    # Currently ON: Turn OFF completely and update state to 0
     legionaura off
+    echo 0 > "$STATE_FILE"
 fi

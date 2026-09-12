@@ -10,8 +10,8 @@ hl.config({
     -- ======================================================
     general = {
         col = {
-            active_border   = "rgb(a2d398)",
-            inactive_border = "rgb(42493f)",
+            active_border   = "rgb(afd18c)",
+            inactive_border = "rgb(44483e)",
         },
     },
 
@@ -22,19 +22,19 @@ hl.config({
     group = {
         -- Container border colors
         col = {
-            border_active          = "rgb(a2d398)",
-            border_inactive        = "rgb(42493f)",
-            border_locked_active   = "rgb(a0cfd3)",
-            border_locked_inactive = "rgb(42493f)",
+            border_active          = "rgb(afd18c)",
+            border_inactive        = "rgb(44483e)",
+            border_locked_active   = "rgb(a0cfcd)",
+            border_locked_inactive = "rgb(44483e)",
         },
 
         -- Top tab indicator / titlebar colors
         groupbar = {
             col = {
-                active          = "rgb(a2d398)",
-                inactive        = "rgb(42493f)",
-                locked_active   = "rgb(a0cfd3)",
-                locked_inactive = "rgb(42493f)",
+                active          = "rgb(afd18c)",
+                inactive        = "rgb(44483e)",
+                locked_active   = "rgb(a0cfcd)",
+                locked_inactive = "rgb(44483e)",
             },
         },
     },
