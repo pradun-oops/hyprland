@@ -17,7 +17,7 @@ Scope {
     
     property int themeRounding: 20
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.5
+    property real themeBgAlpha: 0.8
     property bool animEnabled: true
     property int animDuration: 380
     
@@ -339,13 +339,11 @@ Scope {
                     c=${root.escapeShell(cmd)}
                     w=${root.escapeShell(wmClass)}
 
-                    # 1. Desktop file launch via GIO
                     if [ -n "$fp" ] && [ -f "$fp" ]; then
                         gio launch "$fp" 2>/dev/null && exit 0
                         gtk-launch "$(basename "$fp" .desktop)" 2>/dev/null && exit 0
                     fi
 
-                    # 2. gtk-launch resolution across possible desktop IDs
                     for target in "$w" "$c" "$(basename "$fp" 2>/dev/null)"; do
                         if [ -n "$target" ]; then
                             clean="\${target%.desktop}"
@@ -353,7 +351,6 @@ Scope {
                         fi
                     done
 
-                    # 3. Handle reverse-DNS IDs (e.g. org.gnome.Software -> gnome-software, org.gnome.baobab -> baobab)
                     for target in "$w" "$c"; do
                         if [[ "$target" == *.* ]]; then
                             base="\${target##*.}"
@@ -368,13 +365,11 @@ Scope {
                         fi
                     done
 
-                    # 4. Standard executable in PATH
                     if [ -n "$c" ] && command -v "$c" >/dev/null 2>&1; then
                         "$c" >/dev/null 2>&1 & disown
                         exit 0
                     fi
 
-                    # 5. Raw fallback
                     if [ -n "$c" ]; then
                         eval "$c" >/dev/null 2>&1 & disown
                         exit 0

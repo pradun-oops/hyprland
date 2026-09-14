@@ -1,21 +1,24 @@
--- ==========================================================
--- 🖥️ Workspace-to-Monitor Binding Rules
--- Maps dedicated virtual workspaces across multi-display setups:
--- External Display (1-5) & Built-in Laptop Display (6-10).
--- ==========================================================
+--- @diagnostic disable: undefined-global
 
--- ==========================================================
--- 🖥️ Main Display (HDMI-A-1)
--- Workspaces 1 through 5 assigned to the primary external monitor.
--- ==========================================================
-for ws = 1, 5 do
-    hl.workspace_rule({ workspace = tostring(ws), monitor = "HDMI-A-1" })
-end
+-- ============================================================================
+-- 🖥️ WORKSPACE MONITOR BINDING CONFIGURATION
+-- ============================================================================
+-- Maps virtual workspaces to specific physical displays in a multi-monitor setup:
+--   • External Monitor (HDMI-A-1) : Workspaces 1 – 5 (Primary Display)
+--   • Laptop Display   (eDP-1)    : Workspaces 6 – 10 (Secondary Display)
+-- ============================================================================
 
--- ==========================================================
--- 💻 Secondary Display (eDP-1)
--- Workspaces 6 through 10 assigned to the internal laptop screen.
--- ==========================================================
-for ws = 6, 10 do
-    hl.workspace_rule({ workspace = tostring(ws), monitor = "eDP-1" })
+local monitor_bindings = {
+    { monitor = "HDMI-A-1", start_ws = 1, end_ws = 5 },
+    { monitor = "eDP-1",    start_ws = 6, end_ws = 10 },
+}
+
+-- Dynamically apply workspace-to-monitor rules from configuration table
+for _, binding in ipairs(monitor_bindings) do
+    for ws = binding.start_ws, binding.end_ws do
+        hl.workspace_rule({
+            workspace = tostring(ws),
+            monitor   = binding.monitor,
+        })
+    end
 end

@@ -1,18 +1,22 @@
--- ==========================================================
--- 🛠️ Miscellaneous & Debug Settings
--- Manages power management triggers, window swallow rules,
--- rendering flags, and session branding.
--- ==========================================================
+--- @diagnostic disable: undefined-global
+
+-- ============================================================================
+-- 🛠️ MISCELLANEOUS & DEBUG CONFIGURATION
+-- ============================================================================
+-- Manages compositor runtime behavior, power management triggers, window 
+-- swallowing rules, rendering flags, and debugging options.
+-- ============================================================================
+
 hl.config({
-    -- ======================================================
-    -- ⚙️ Compositor Misc Behavior
-    -- UX interactions, window swallowing, and display sleep logic.
-    -- ======================================================
+    -- ========================================================================
+    -- ⚙️ COMPOSITOR MISCELLANEOUS BEHAVIOR
+    -- ========================================================================
+    -- Fine-tunes user experience interactions, window swallowing, and display sleep logic.
     misc = {
         -- Adaptive Sync / Variable Refresh Rate (0 = off, 1 = on, 2 = fullscreen only)
         vrr                         = 0,
 
-        -- Smooth window geometry transitions during user actions
+        -- Smooth window geometry transitions during manual user adjustments
         animate_manual_resizes      = true,
         animate_mouse_windowdragging = true,
 
@@ -20,16 +24,16 @@ hl.config({
         focus_on_activate           = true, -- Shift focus when an app demands attention
         initial_workspace_tracking  = 1,    -- Open new apps on the workspace they were called from
 
-        -- Window swallowing (embed GUI apps launched from Kitty)
+        -- Window swallowing (embed GUI apps launched from your terminal emulator)
         enable_swallow              = true,
-        swallow_regex               = "^(kitty)$",
+        swallow_regex               = "^(org\\.wezfurlong\\.wezterm|kitty)$",
 
         -- Branding & default splashes
-        force_default_wallpaper     = 0,    -- 0 = disable default anime wallpapers
+        force_default_wallpaper     = 0,    -- 0 = disable default anime/stock wallpapers
         disable_hyprland_logo       = true, -- Suppress default Hyprland watermark
         disable_splash_rendering    = true, -- Hide splash text on blank workspaces
 
-        -- Wake from DPMS (screen sleep)
+        -- Wake from DPMS (screen sleep triggers)
         mouse_move_enables_dpms     = true, -- Wake monitor on cursor motion
         key_press_enables_dpms      = true, -- Wake monitor on keypress
 
@@ -37,10 +41,10 @@ hl.config({
         middle_click_paste          = true, -- Paste primary selection on middle mouse click
     },
 
-    -- ======================================================
-    -- 🐞 Debugging & Refresh Controls
+    -- ========================================================================
+    -- 🐞 DEBUGGING & REFRESH CONTROLS
+    -- ========================================================================
     -- Low-level compositor frame timing and diagnostic options.
-    -- ======================================================
     debug = {
         -- Variable Frame Rate (false = render at fixed display refresh rate)
         vfr = false,

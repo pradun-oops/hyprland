@@ -3,7 +3,7 @@
 # ==============================================================================
 # Script Name: Legion RGB Power Toggle Utility
 # Description: Toggles the keyboard backlight power state globally. Flips between 
-#              active (restoring the default preset 0) and off.
+#              active (restoring the real-time adaptive theme preset 0) and off.
 # ==============================================================================
 
 set -euo pipefail
@@ -15,7 +15,7 @@ BRIGHTNESS=2                               # Default keyboard backlight intensit
 
 # --- Dependency Verification ---
 command -v legionaura >/dev/null 2>&1 || {
-    echo "Error: legionaura not found"
+    echo "Error: legionaura not found" >&2
     exit 1
 }
 
@@ -30,10 +30,10 @@ STATE="$(cat "$STATE_FILE" 2>/dev/null || echo 0)"
 
 # --- Toggle Logic ---
 if [ "$STATE" = "0" ]; then
-    # Currently OFF: Turn ON and apply default theme preset (0)
+    # Currently OFF: Turn ON and apply real-time adaptive theme preset (0)
     echo 1 > "$STATE_FILE"
 
-    # Execute preset script if executable, fallback to direct execution or plain white
+    # Execute preset script to pull live colors from colors.lua in real time
     if [ -x "$SCRIPT_DIR/apply_preset.sh" ]; then
         "$SCRIPT_DIR/apply_preset.sh" 0
     elif [ -f "$SCRIPT_DIR/apply_preset.sh" ]; then

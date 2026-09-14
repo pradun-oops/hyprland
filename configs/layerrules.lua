@@ -1,41 +1,47 @@
--- ==========================================================
--- 🪟 Layer Surface Rules & Backdrop Effects
--- Manages rendering behaviors, animations, and background 
--- blur sampling for Quickshell UI components.
--- ==========================================================
+--- @diagnostic disable: undefined-global
 
--- ==========================================================
--- 🚫 Animation Overrides
--- Disables default compositor transitions on base shell surfaces
--- to prevent flickering and let Quickshell handle internal motions.
--- ==========================================================
+-- ============================================================================
+-- 🪟 LAYER SURFACE RULES & BACKDROP EFFECTS
+-- ============================================================================
+-- Manages rendering behaviors, animations, and background blur sampling 
+-- across all custom Quickshell UI components and layer shell surfaces.
+-- ============================================================================
+
+-- ============================================================================
+-- 🚫 LAYER ANIMATION OVERRIDES
+-- ============================================================================
+-- Disables default compositor transitions on base shell surfaces to prevent 
+-- flickering and let Quickshell handle smooth internal motion transitions.
 hl.layer_rule({
     name    = "quickshell-no-anim",
     match   = { namespace = "^(quickshell)$" },
     no_anim = true,
 })
 
--- ==========================================================
--- 🛠️ Layer Blur Helper
--- Batch applies backdrop blur and alpha thresholds across
--- groups of matching layer-shell namespaces.
--- ==========================================================
-local function apply_blur(namespaces, alpha)
+
+-- ============================================================================
+-- 🛠️ LAYER BLUR HELPER FUNCTION
+-- ============================================================================
+-- Dynamically batch-applies backdrop blur, xray, and alpha threshold settings 
+-- across groups of matching layer-shell namespaces to eliminate code duplication.
+-- ============================================================================
+local function apply_blur(namespaces, alpha_threshold)
     for _, ns in ipairs(namespaces) do
         hl.layer_rule({
             name         = ns .. "-blur",
             match        = { namespace = "^(" .. ns .. ")$" },
             blur         = true,
             xray         = false,
-            ignore_alpha = alpha, -- Transparent cut-off threshold for sampling blur
+            ignore_alpha = alpha_threshold, -- Transparent cut-off threshold for sampling blur
         })
     end
 end
 
--- ==========================================================
--- 🧊 Standard Frosted Surfaces (Alpha Threshold: 0.01)
--- Core widgets, dialogs, status overlays, and system HUDs.
--- ==========================================================
+
+-- ============================================================================
+-- 🧊 STANDARD FROSTED SURFACES (Alpha Threshold: 0.01)
+-- ============================================================================
+-- Core widgets, OSDs, status bars, notification centers, and control panels.
 apply_blur({
     -- On-Screen Displays (OSD)
     "qs-brightness-osd",
@@ -52,7 +58,7 @@ apply_blur({
     "notification-center",
     "qs-notification-center",
 
-    -- Launchers & Cheatsheets
+    -- Launchers, Spotlights & Cheatsheets
     "qs-spotlight",
     "spotlight",
     "qs-keybinds",
@@ -76,8 +82,11 @@ apply_blur({
     "qs-clipboard",
 }, 0.01)
 
--- ==========================================================
--- ⚡ Session & Power Surfaces (Alpha Threshold: 0.02)
--- Elevated blur threshold for deep translucent power menus.
--- ==========================================================
-apply_blur({ "qs-power-menu" }, 0.02)
+
+-- ============================================================================
+-- ⚡ SESSION & POWER SURFACES (Alpha Threshold: 0.02)
+-- ============================================================================
+-- Elevated blur threshold tailored specifically for deep translucent power menus.
+apply_blur({
+    "qs-power-menu",
+}, 0.02)

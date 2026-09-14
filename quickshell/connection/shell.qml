@@ -58,7 +58,7 @@ Scope {
     
     property int themeRounding: 22
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.7
+    property real themeBgAlpha: 0.8
     property bool animEnabled: true
     property int animDuration: 220
     
@@ -71,7 +71,6 @@ Scope {
     property string errorSsid: ""
     property string connectErrorMsg: ""
     
-    // Core network properties with default 'true' to prevent off-to-on flickering on load
     property bool wifiEnabled: true
     property bool ethEnabled: true
     property bool ethConnected: false
@@ -134,7 +133,6 @@ Scope {
         }
     }
 
-    // Instantly load the previously fetched networks from cache so it doesn't show a blank space
     FileView {
         id: cacheReader
         path: Quickshell.env("HOME") + "/.cache/qs_network_cache.json"
@@ -169,8 +167,8 @@ Scope {
         animConfigFile.reload()
         cacheReader.reload()
         
-        fetchFastState() // Lightning-fast check for just the ON/OFF switches
-        fetchNetworkStatus() // Slower comprehensive scan
+        fetchFastState() 
+        fetchNetworkStatus() 
     }
 
     Process { id: execProcess }
@@ -182,7 +180,6 @@ Scope {
 
     ListModel { id: wifiModel }
 
-    // Fast state fetcher (takes milliseconds instead of seconds)
     Process {
         id: fastStateFetcher
         stdout: StdioCollector {

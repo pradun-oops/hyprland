@@ -181,7 +181,6 @@ Scope {
                 return modelData.name === target;
             }
 
-            // Immediately unmap surface on close to vanish blur without delay
             visible: root.showOSD && isTargetMonitor
 
             WlrLayershell.layer: WlrLayer.Overlay
