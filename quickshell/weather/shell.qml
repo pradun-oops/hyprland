@@ -45,7 +45,7 @@ Scope {
 
     property int themeRounding: 22
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.72
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 500
     
@@ -504,7 +504,7 @@ except Exception as e:
                                 spacing: 2
                                 Layout.alignment: Qt.AlignVCenter
                                 Text { text: "Weather Telemetry"; font.pixelSize: 18; font.weight: Font.Bold; color: root.themeText }
-                                RowLayout {                                
+                                RowLayout {                                        
                                     Text { text: root.isFetchingApi ? "Updating telemetry..." : root.locName; font.pixelSize: 12; color: root.themeTextMuted }
                                     spacing: 10
                                      Rectangle {
@@ -923,7 +923,6 @@ except Exception as e:
                                         columnSpacing: 12
                                         rowSpacing: 12
 
-                                        // Wind Card
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: windHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
@@ -983,7 +982,6 @@ except Exception as e:
                                             }
                                         }
 
-                                        // UV Card
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: uvHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
@@ -1043,7 +1041,6 @@ except Exception as e:
                                             }
                                         }
 
-                                        // Humidity Card
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: humHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
@@ -1103,7 +1100,6 @@ except Exception as e:
                                             }
                                         }
 
-                                        // Pressure Card
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: pressHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
@@ -1163,7 +1159,6 @@ except Exception as e:
                                             }
                                         }
 
-                                        // Clouds Card
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: cloudsHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
@@ -1223,7 +1218,6 @@ except Exception as e:
                                             }
                                         }
 
-                                        // Sun Schedule Card
                                         Rectangle {
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: sunHover.containsMouse ? root.themeSurfaceHover : root.themeSurface

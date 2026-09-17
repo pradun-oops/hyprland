@@ -45,7 +45,7 @@ Scope {
 
     property int themeRounding: 14
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.7
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
 
@@ -180,8 +180,8 @@ for d in app_dirs:
             with open(f, 'r', encoding='utf-8') as file:
                 content = file.read()
                 if 'NoDisplay=true' in content or 'Hidden=true' in content: continue
-                name = next((l.split('=',1)[1].strip() for l in content.split('\\n') if l.startswith('Name=')), '')
-                icon = next((l.split('=',1)[1].strip() for l in content.split('\\n') if l.startswith('Icon=')), 'application-x-executable')
+                name = next((l.split('=',1)[1].strip() for l in content.split('\n') if l.startswith('Name=')), '')
+                icon = next((l.split('=',1)[1].strip() for l in content.split('\n') if l.startswith('Icon=')), 'application-x-executable')
                 
                 if not icon.startswith('/'):
                     if icon.lower().endswith(('.png', '.svg', '.xpm')): icon = icon.rsplit('.', 1)[0]
@@ -266,7 +266,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             let fnameLower = fname.toLowerCase()
                             let cleanFname = fnameLower.replace(/^\./, '')
                             
-                            // Aggressive match: includes substring or matches hidden file names
                             if (fnameLower.includes(activeQ) || cleanFname.includes(activeQ)) {
                                 searchResultsModel.append({
                                     "itemType": parts[0],
@@ -327,7 +326,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                 fileSearchProcess.running = false
             }
 
-            // Aggressive Search: Searches across $HOME including hidden folders/files with wildcard matching
             let bashCmd = `
                 q='` + q.replace(/'/g, "'\\''") + `'
                 find "$HOME" -maxdepth 5 -type f -iname "*$q*" 2>/dev/null | head -n 20 | while read -r f; do

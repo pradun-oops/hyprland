@@ -58,7 +58,7 @@ Scope {
     
     property int themeRounding: 22
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.8
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 220
     
@@ -146,7 +146,6 @@ Scope {
                     if (data.eth_dev) root.ethDev = data.eth_dev
                 }
                 
-                // Only load cached networks if our model is currently empty
                 if (wifiModel.count === 0 && data.networks) {
                     for (let i = 0; i < data.networks.length; i++) {
                         wifiModel.append(data.networks[i])

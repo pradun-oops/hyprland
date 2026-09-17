@@ -43,7 +43,7 @@ hl.config({
         -- Frosted glass backdrop blur (optimized for your custom Hyprland setup)
         blur = {
             enabled           = true,
-            size              = 5,    -- Blur radius / spread size
+            size              = 6,    -- Blur radius / spread size
             passes            = 3,    -- Number of sampling passes for a smoother frosted look
             ignore_opacity    = true, -- Blurs background regardless of individual window alpha
             new_optimizations = true, -- Caches blur textures for reduced GPU overhead

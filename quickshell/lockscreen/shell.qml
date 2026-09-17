@@ -54,7 +54,6 @@ ShellRoot {
         }
     }
 
-    // Fast initial wallpaper load from cache
     FileView {
         path: Quickshell.env("HOME") + "/.cache/quickshell_last_wallpaper.txt"
         watchChanges: false
@@ -235,19 +234,16 @@ print(wp)
         WlSessionLockSurface {
             id: lockSurface
 
-            // Check if current screen is the Primary screen
             readonly property bool isPrimary: lockSurface.screen === Quickshell.screens[0]
 
             Item {
                 anchors.fill: parent
 
-                // 1. Solid Fallback Background (Displayed on ALL Monitors)
                 Rectangle {
                     anchors.fill: parent
                     color: root.themeBackground
                 }
 
-                // 2. Blurred Desktop Wallpaper Image (Displayed on ALL Monitors)
                 Image {
                     id: bgWallpaper
                     anchors.fill: parent
@@ -267,14 +263,12 @@ print(wp)
                     }
                 }
 
-                // 3. Dark Overlay for Readability (Displayed on ALL Monitors)
                 Rectangle {
                     anchors.fill: parent
                     color: "black"
                     opacity: 0.45
                 }
 
-                // 4. Lock Screen Interface (ONLY Displayed on Primary Monitor)
                 ColumnLayout {
                     anchors.centerIn: parent
                     spacing: 18
@@ -450,7 +444,6 @@ print(wp)
                         }
                     }
 
-                    // Modern Redesigned Music Player Widget
                     Rectangle {
                         id: musicCard
                         Layout.alignment: Qt.AlignHCenter
@@ -467,7 +460,6 @@ print(wp)
                             anchors.margins: 10
                             spacing: 12
 
-                            // Album Art Container
                             ClippingRectangle {
                                 Layout.preferredWidth: 52
                                 Layout.preferredHeight: 52
@@ -500,7 +492,6 @@ print(wp)
                                 }
                             }
 
-                            // Track Info Details
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 Layout.alignment: Qt.AlignVCenter
@@ -525,7 +516,6 @@ print(wp)
                                 }
                             }
 
-                            // Interactive Playback Controls
                             RowLayout {
                                 Layout.alignment: Qt.AlignVCenter
                                 spacing: 4

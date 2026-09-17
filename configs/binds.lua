@@ -57,6 +57,7 @@ hl.bind("SUPER + V", run_script("qs_dialog.sh clipboard-history open"))
 hl.bind("SUPER + ALT + space", run_script("toggle_backlight.sh"))
 hl.bind("SUPER + ALT + B", run_script("toggle_topbar.sh"))
 hl.bind("SUPER + SHIFT + T", run_script("toggle_float.sh"))
+hl.bind("SUPER + ALT + Q", hl.dsp.exec_cmd("bash -c 'killall quickshell; quickshell -c " .. home .. "/.config/hypr/quickshell/ &'"))
 
 
 -- ============================================================================

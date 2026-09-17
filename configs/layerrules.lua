@@ -80,6 +80,7 @@ apply_blur({
     "qs-calculator",
     "qs-filemanager",
     "qs-clipboard",
+    "qs-analog-clock",
 }, 0.01)
 
 

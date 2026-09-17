@@ -45,7 +45,7 @@ Scope {
 
     property int themeRounding: 22
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.65
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
     
@@ -512,7 +512,6 @@ while True:
                                 columnSpacing: 16
                                 rowSpacing: 16
 
-                                // Processor Card
                                 Rectangle {
                                     id: cpuCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
@@ -564,7 +563,6 @@ while True:
                                     }
                                 }
 
-                                // Graphics Card
                                 Rectangle {
                                     id: gpuCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
@@ -621,7 +619,6 @@ while True:
                                     }
                                 }
 
-                                // Memory Card
                                 Rectangle {
                                     id: ramCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
@@ -674,7 +671,6 @@ while True:
                                     }
                                 }
 
-                                // Storage & NVMe Card
                                 Rectangle {
                                     id: diskCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
@@ -722,7 +718,6 @@ while True:
                                     }
                                 }
 
-                                // Network IO Card
                                 Rectangle {
                                     id: netCard
                                     Layout.fillWidth: true; Layout.columnSpan: 2; Layout.preferredHeight: 80
@@ -876,7 +871,6 @@ while True:
                                 }
                             }
 
-                            // Process Table Column Headings
                             RowLayout {
                                 Layout.fillWidth: true
                                 Layout.leftMargin: 12

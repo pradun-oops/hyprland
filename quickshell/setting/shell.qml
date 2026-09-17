@@ -16,7 +16,7 @@ Scope {
 
     property int themeRounding: 14
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.75
+    property real themeBgAlpha: 0.5
     property bool internalChange: false
     property string searchQuery: ""
     

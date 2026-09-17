@@ -17,7 +17,7 @@ Scope {
     
     property int themeRounding: 24
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.8
+    property real themeBgAlpha: 0.5
     
     property color themeBackground: Qt.rgba(0.08, 0.08, 0.09, themeBgAlpha) 
     property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08) 

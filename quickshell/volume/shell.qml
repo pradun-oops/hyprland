@@ -196,7 +196,6 @@ Scope {
                 return modelData.name === target;
             }
 
-            // Immediately unmap surface on close to vanish blur without delay
             visible: root.showOSD && isTargetMonitor
 
             WlrLayershell.layer: WlrLayer.Overlay
@@ -220,7 +219,6 @@ Scope {
                 border.width: root.themeBorderSize
                 border.color: Qt.alpha(root.themeBorder, 0.45)
                 
-                // Enables smooth GPU layer scaling to eliminate sub-pixel border stroke misalignment during bounce animations
                 layer.enabled: root.animEnabled
                 layer.smooth: true
 
