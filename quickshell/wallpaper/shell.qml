@@ -67,7 +67,7 @@ Scope {
     property int cacheEpoch: 0
 
     readonly property string cachePythonScript: `
-import os, sys, hashlib, subprocess
+import os, sys, hashlib, subprocess, json
 from concurrent.futures import ThreadPoolExecutor
 
 CACHE_DIR = os.path.expanduser("~/.cache/qs_wallpaper_thumbs")
@@ -75,6 +75,7 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 
 target_dir = sys.argv[1] if len(sys.argv) > 1 else ""
 if not target_dir or not os.path.isdir(target_dir):
+    print("[]")
     sys.exit(0)
 
 has_pil = False
@@ -86,30 +87,42 @@ except ImportError:
 
 EXTS = ('.png', '.jpg', '.jpeg', '.webp', '.gif')
 
-def make_thumb(filepath):
+def process_image(filepath):
     try:
-        if not os.path.isfile(filepath):
-            return
         h = hashlib.md5(filepath.encode('utf-8')).hexdigest()
         out_file = os.path.join(CACHE_DIR, f"{h}.jpg")
+        filename = os.path.basename(filepath)
+        name_no_ext = os.path.splitext(filename)[0].replace('_', ' ').replace('-', ' ').title()
         
         mtime = os.path.getmtime(filepath)
-        if os.path.exists(out_file) and os.path.getmtime(out_file) >= mtime:
-            return
-            
-        if has_pil:
-            with Image.open(filepath) as img:
-                img.thumbnail((360, 240))
-                if img.mode != "RGB":
-                    img = img.convert("RGB")
-                img.save(out_file, "JPEG", quality=75)
-        else:
-            cmd = ["ffmpeg", "-y", "-loglevel", "quiet", "-i", filepath, "-vf", "scale=360:-1", "-vframes", "1", "-q:v", "5", out_file]
-            r = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            if r.returncode != 0:
-                subprocess.run(["magick", filepath, "-resize", "360x240^", "-gravity", "center", "-extent", "360x240", "-quality", "75", out_file], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        needs_update = not os.path.exists(out_file) or os.path.getmtime(out_file) < mtime
+        
+        if needs_update:
+            if has_pil:
+                with Image.open(filepath) as img:
+                    if img.mode != "RGB":
+                        img = img.convert("RGB")
+                    img.thumbnail((360, 240))
+                    img.save(out_file, "JPEG", quality=75)
+            else:
+                cmd = ["ffmpeg", "-y", "-loglevel", "quiet", "-i", filepath, "-vf", "scale=360:-1", "-vframes", "1", "-q:v", "5", out_file]
+                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        
+        color_hex = "#444444"
+        if has_pil and os.path.exists(out_file):
+            with Image.open(out_file) as thumb:
+                thumb_1x1 = thumb.resize((1, 1))
+                color = thumb_1x1.getpixel((0, 0))
+                color_hex = "#{:02x}{:02x}{:02x}".format(color[0], color[1], color[2])
+                
+        return {
+            "name": name_no_ext,
+            "fullPath": filepath,
+            "thumbFile": out_file,
+            "colorPlate": color_hex
+        }
     except Exception:
-        pass
+        return None
 
 files = []
 try:
@@ -119,18 +132,39 @@ try:
 except Exception:
     pass
 
+results = []
 if files:
     with ThreadPoolExecutor(max_workers=8) as executor:
-        list(executor.map(make_thumb, files))
+        res = list(executor.map(process_image, files))
+        results = [r for r in res if r is not None]
+
+results.sort(key=lambda x: x['name'])
+print(json.dumps(results))
 `
+
+    ListModel {
+        id: dynamicThemeModel
+    }
 
     Process {
         id: cacheGeneratorProcess
         property string folderPath: ""
         running: false
         command: ["python3", "-c", root.cachePythonScript, cacheGeneratorProcess.folderPath]
-        onExited: {
-            root.cacheEpoch++
+        
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    let data = JSON.parse(this.text.trim());
+                    dynamicThemeModel.clear();
+                    for (let i = 0; i < data.length; i++) {
+                        dynamicThemeModel.append(data[i]);
+                    }
+                } catch (e) {
+                    console.log("Failed to parse themes JSON: " + e);
+                }
+                root.cacheEpoch++;
+            }
         }
     }
 
@@ -236,14 +270,23 @@ if files:
     Process {
         id: applyWallpaper
         property string imagePath: ""
+        property string mode: "dark"
         running: false
         
         command: [
-            "sh",
+            "bash",
             "-c",
             "ENGINE=\"$1\"\n" +
             "IMG=\"$2\"\n" +
             "ANIM=\"$3\"\n" +
+            "MODE=\"$4\"\n" +
+            "export PATH=\"$PATH:$HOME/.cargo/bin:$HOME/.local/bin\"\n" + 
+            "if [ ! -f \"$IMG\" ]; then exit 0; fi\n" + 
+            "if command -v matugen >/dev/null 2>&1; then\n" +
+            "    mkdir -p \"$HOME/.config/qt5ct/colors\" \"$HOME/.config/qt6ct/colors\" \"$HOME/.config/gtk-3.0\" \"$HOME/.config/gtk-4.0\" \"$HOME/.config/hypr/configs\"\n" +
+            "    matugen image \"$IMG\" -m \"$MODE\" --source-color-index 0\n" +
+            "    cp -a \"$HOME/.config/qt5ct/colors/.\" \"$HOME/.config/qt6ct/colors/\" 2>/dev/null || true\n" +
+            "fi\n" +
             "if [ \"$ENGINE\" = \"awww\" ]; then\n" +
             "    if awww -h 2>&1 | grep -q -- '--transition-type'; then\n" +
             "        awww img \"$IMG\" --transition-type \"$ANIM\" --transition-pos 0.5,0.5 --transition-duration 0.5 2>/dev/null || " +
@@ -257,20 +300,12 @@ if files:
             "        awww img \"$IMG\" --transition-type \"$ANIM\" 2>/dev/null || awww \"$IMG\" 2>/dev/null\n" +
             "    fi\n" +
             "fi\n" +
-            "if command -v matugen >/dev/null 2>&1; then\n" +
-            "    mkdir -p \"$HOME/.config/qt5ct/colors\"\n" +
-            "    mkdir -p \"$HOME/.config/qt6ct/colors\"\n" +
-            "    mkdir -p \"$HOME/.config/gtk-3.0\"\n" +
-            "    mkdir -p \"$HOME/.config/gtk-4.0\"\n" +
-            "    mkdir -p \"$HOME/.config/hypr/configs\"\n" +
-            "    matugen image \"$IMG\" --source-color-index 0\n" +
-            "    cp -a \"$HOME/.config/qt5ct/colors/.\" \"$HOME/.config/qt6ct/colors/\" 2>/dev/null || true\n" +
-            "    hyprctl reload 2>/dev/null || true\n" +
-            "fi\n",
-            "sh",
+            "hyprctl reload 2>/dev/null || true\n",
+            "bash",
             root.selectedEngine,
             applyWallpaper.imagePath,
-            "fade"
+            "fade",
+            applyWallpaper.mode
         ]
         
         onExited: running = false
@@ -296,6 +331,10 @@ if files:
             Shortcut {
                 sequence: "Escape"
                 onActivated: Qt.quit()
+            }
+            Shortcut {
+                sequence: "Tab"
+                onActivated: mainCard.activeTab = (mainCard.activeTab === 0 ? 1 : 0)
             }
 
             anchors {
@@ -324,11 +363,14 @@ if files:
                 color: root.themeBackground
 
                 property bool shown: false
+                property int activeTab: 0 
+                
                 Component.onCompleted: shown = true
 
                 scale: shown ? 1.0 : 0.90
                 opacity: shown ? 1.0 : 0.0
 
+                // Main card retains the pop-in bounce animation
                 Behavior on scale {
                     NumberAnimation {
                         duration: root.animEnabled ? animStyle.animDuration : 0
@@ -356,21 +398,34 @@ if files:
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 10
+                        spacing: 20
 
-                        Text {
-                            text: "" 
-                            font.pixelSize: 24
-                            color: root.themePrimary
+                        RowLayout {
+                            spacing: 10
+                            opacity: mainCard.activeTab === 0 ? 1.0 : 0.5
+                            Text { text: ""; font.pixelSize: 24; color: root.themePrimary }
+                            Text { text: "Wallpapers"; font.pixelSize: 18; font.weight: Font.Bold; color: root.themeText }
+                            
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: mainCard.activeTab = 0
+                            }
                         }
 
-                        Text {
-                            text: "Wallpaper Selector"
-                            font.pixelSize: 18
-                            font.weight: Font.Bold
-                            color: root.themeText
+                        RowLayout {
+                            spacing: 10
+                            opacity: mainCard.activeTab === 1 ? 1.0 : 0.5
+                            Text { text: "🎨"; font.pixelSize: 24; color: root.themePrimary }
+                            Text { text: "Themes"; font.pixelSize: 18; font.weight: Font.Bold; color: root.themeText }
+                            
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: mainCard.activeTab = 1
+                            }
                         }
-
+                        
                         Item { Layout.fillWidth: true }
                     }
 
@@ -384,163 +439,245 @@ if files:
                         Layout.fillWidth: true
                         Layout.fillHeight: true
 
-                        Text {
-                            anchors.centerIn: parent
-                            visible: folderModel.count === 0
-                            text: "No images found in:\n" + String(root.currentFolder).replace("file://", "")
-                            horizontalAlignment: Text.AlignHCenter
-                            color: root.themeTextMuted
-                            font.pixelSize: 14
-                            lineHeight: 1.4
+                        // --- VIEW 0: WALLPAPERS ---
+                        Item {
+                            anchors.fill: parent
+                            visible: mainCard.activeTab === 0
+                            
+                            Text {
+                                anchors.centerIn: parent
+                                visible: folderModel.count === 0
+                                text: "No images found in:\n" + String(root.currentFolder).replace("file://", "")
+                                horizontalAlignment: Text.AlignHCenter
+                                color: root.themeTextMuted
+                                font.pixelSize: 14
+                                lineHeight: 1.4
+                            }
+
+                            GridView {
+                                id: imageGrid
+                                anchors.fill: parent
+                                clip: true
+                                cacheBuffer: 600
+                                
+                                focus: mainCard.activeTab === 0
+                                keyNavigationEnabled: true
+                                keyNavigationWraps: true
+                                
+                                Keys.onPressed: (event) => {
+                                    if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                        if (currentItem) {
+                                            root.activeWallpaperPath = currentItem.fullPath;
+                                            if (applyWallpaper.running) applyWallpaper.running = false;
+                                            applyWallpaper.imagePath = currentItem.fullPath;
+                                            applyWallpaper.mode = "dark";
+                                            applyWallpaper.running = true;
+                                        }
+                                        event.accepted = true;
+                                    }
+                                }
+                                
+                                readonly property int columns: Math.max(1, Math.floor(width / 230))
+                                cellWidth: width > 0 ? Math.floor(width / columns) : 230
+                                cellHeight: Math.floor(cellWidth * 0.65)
+
+                                // REMOVED flashy `add` and `displaced` transitions
+
+                                model: FolderListModel {
+                                    id: folderModel
+                                    folder: root.currentFolder
+                                    nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp"]
+                                    showDirs: false
+                                    caseSensitive: false
+                                    sortField: FolderListModel.Time
+                                    sortReversed: true
+                                }
+
+                                ScrollBar.vertical: ScrollBar {
+                                    active: imageGrid.moving || imageGrid.flicking
+                                    policy: ScrollBar.AsNeeded
+                                }
+
+                                delegate: Item {
+                                    id: cardDelegate
+                                    width: imageGrid.cellWidth
+                                    height: imageGrid.cellHeight
+
+                                    property string fullPath: model.filePath ? model.filePath : (model.fileUrl ? model.fileUrl.toString().replace("file://", "") : "")
+                                    property string thumbFile: Quickshell.env("HOME") + "/.cache/qs_wallpaper_thumbs/" + Qt.md5(fullPath) + ".jpg"
+                                    
+                                    property bool isActive: root.activeWallpaperPath === fullPath
+                                    property bool isHovered: itemMouse.containsMouse || GridView.isCurrentItem
+
+                                    scale: isHovered ? 1.03 : 1.0
+                                    
+                                    // FIXED: Changed to OutCubic to remove jitter/bouncing on fast hover
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: 180
+                                            easing.type: Easing.OutCubic
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        anchors.margins: 8
+                                        radius: 0
+                                        color: Qt.rgba(1, 1, 1, 0.04)
+                                        clip: true
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "󰋩"
+                                            font.pixelSize: 24
+                                            color: Qt.rgba(1, 1, 1, 0.08)
+                                            visible: imgItem.status !== Image.Ready
+                                        }
+
+                                        Image {
+                                            id: imgItem
+                                            anchors.fill: parent
+                                            fillMode: Image.PreserveAspectCrop
+                                            asynchronous: true
+                                            cache: true
+                                            sourceSize: Qt.size(280, 180)
+                                            smooth: true
+
+                                            property bool fallbackToOriginal: false
+                                            source: fallbackToOriginal ? ("file://" + fullPath) : ("file://" + thumbFile)
+
+                                            onStatusChanged: {
+                                                if (status === Image.Error && !fallbackToOriginal) {
+                                                    fallbackToOriginal = true
+                                                }
+                                            }
+
+                                            Connections {
+                                                target: root
+                                                function onCacheEpochChanged() {
+                                                    if (imgItem.fallbackToOriginal) {
+                                                        imgItem.fallbackToOriginal = false
+                                                    }
+                                                }
+                                            }
+                                            
+                                            // Simplified opacity to prevent flashes when scrolling
+                                            opacity: isHovered ? 0.85 : 1.0
+                                            Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                                        }
+                                        
+                                        // DEDICATED SELECTION OVERLAY RECTANGLE
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            color: "transparent"
+                                            radius: 0
+                                            
+                                            // FIXED: No Behavior on border.width to prevent geometry recalculation flashes
+                                            border.width: isActive ? 4 : (isHovered ? 2 : 0)
+                                            border.color: isActive ? root.themePrimary : (isHovered ? Qt.alpha(root.themePrimary, 0.6) : "transparent")
+                                            
+                                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                                        }
+
+                                        MouseArea {
+                                            id: itemMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                imageGrid.currentIndex = index;
+                                                root.activeWallpaperPath = fullPath;
+                                                if (applyWallpaper.running) {
+                                                    applyWallpaper.running = false;
+                                                }
+                                                applyWallpaper.imagePath = fullPath;
+                                                applyWallpaper.mode = "dark"; 
+                                                applyWallpaper.running = true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
 
+                        // --- VIEW 1: DYNAMIC THEMES (COLOR PLATES) ---
                         GridView {
-                            id: imageGrid
+                            id: themeGrid
                             anchors.fill: parent
+                            visible: mainCard.activeTab === 1
                             clip: true
-                            cacheBuffer: 600
+                            
+                            focus: mainCard.activeTab === 1
+                            keyNavigationEnabled: true
+                            keyNavigationWraps: true
+                            
+                            Keys.onPressed: (event) => {
+                                if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                    if (currentItem) {
+                                        root.activeWallpaperPath = currentItem.fullPath;
+                                        if (applyWallpaper.running) applyWallpaper.running = false;
+                                        applyWallpaper.imagePath = currentItem.fullPath;
+                                        applyWallpaper.mode = "dark";
+                                        applyWallpaper.running = true;
+                                    }
+                                    event.accepted = true;
+                                }
+                            }
                             
                             readonly property int columns: Math.max(1, Math.floor(width / 230))
                             cellWidth: width > 0 ? Math.floor(width / columns) : 230
                             cellHeight: Math.floor(cellWidth * 0.65)
                             
-                            add: Transition {
-                                ParallelAnimation {
-                                    NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
-                                    NumberAnimation { 
-                                        properties: "scale"
-                                        from: 0.88; to: 1.0
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot 
-                                    }
-                                }
-                            }
-
-                            displaced: Transition {
-                                NumberAnimation { 
-                                    properties: "x,y"
-                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                    easing.type: animStyle.bounceEasing
-                                    easing.overshoot: animStyle.overshoot 
-                                }
-                            }
-
-                            model: FolderListModel {
-                                id: folderModel
-                                folder: root.currentFolder
-                                nameFilters: ["*.png", "*.jpg", "*.jpeg", "*.gif", "*.webp"]
-                                showDirs: false
-                                caseSensitive: false
-                                sortField: FolderListModel.Time
-                                sortReversed: true
-                            }
-
-                            ScrollBar.vertical: ScrollBar {
-                                active: imageGrid.moving || imageGrid.flicking
-                                policy: ScrollBar.AsNeeded
-                            }
-
+                            model: dynamicThemeModel
+                            
                             delegate: Item {
-                                id: cardDelegate
-                                width: imageGrid.cellWidth
-                                height: imageGrid.cellHeight
+                                id: themeDelegate
+                                width: themeGrid.cellWidth
+                                height: themeGrid.cellHeight
 
-                                property string fullPath: model.filePath ? model.filePath : (model.fileUrl ? model.fileUrl.toString().replace("file://", "") : "")
-                                property string displayName: model.fileName ? model.fileName : ""
-                                property string thumbFile: Quickshell.env("HOME") + "/.cache/qs_wallpaper_thumbs/" + Qt.md5(fullPath) + ".jpg"
+                                property string fullPath: model.fullPath
+                                property bool isActive: root.activeWallpaperPath === model.fullPath
+                                property bool isHovered: themeMouse.containsMouse || GridView.isCurrentItem
 
-                                scale: itemMouse.containsMouse ? 1.04 : 1.0
+                                scale: isHovered ? 1.03 : 1.0
                                 Behavior on scale {
                                     NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
+                                        duration: 180
+                                        easing.type: Easing.OutCubic
                                     }
                                 }
 
                                 Rectangle {
                                     anchors.fill: parent
                                     anchors.margins: 8
-                                    radius: Math.max(4, root.themeRounding - 6)
-                                    color: Qt.rgba(1, 1, 1, 0.04)
-                                    border.width: 2
-                                    
-                                    property bool isActive: root.activeWallpaperPath === fullPath
-                                    border.color: isActive ? root.themePrimary : (itemMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.5) : "transparent")
-                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                    
+                                    radius: 0
+                                    color: model.colorPlate
                                     clip: true
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "󰋩"
-                                        font.pixelSize: 24
-                                        color: Qt.rgba(1, 1, 1, 0.08)
-                                        visible: imgItem.status !== Image.Ready
-                                    }
-
-                                    Image {
-                                        id: imgItem
-                                        anchors.fill: parent
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                        cache: true
-                                        sourceSize: Qt.size(280, 180)
-                                        smooth: true
-
-                                        property bool fallbackToOriginal: false
-
-                                        source: fallbackToOriginal ? ("file://" + fullPath) : ("file://" + thumbFile)
-
-                                        onStatusChanged: {
-                                            if (status === Image.Error && !fallbackToOriginal) {
-                                                fallbackToOriginal = true
-                                            }
-                                        }
-
-                                        Connections {
-                                            target: root
-                                            function onCacheEpochChanged() {
-                                                if (imgItem.fallbackToOriginal) {
-                                                    imgItem.fallbackToOriginal = false
-                                                }
-                                            }
-                                        }
-
-                                        opacity: status === Image.Ready ? (itemMouse.containsMouse ? 0.85 : 1.0) : 0.0
-                                        Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                    }
                                     
+                                    // DEDICATED SELECTION OVERLAY RECTANGLE
                                     Rectangle {
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-                                        anchors.bottom: parent.bottom
-                                        height: 32
-                                        color: Qt.rgba(0, 0, 0, 0.78)
-                                        opacity: itemMouse.containsMouse ? 1.0 : 0.0
-                                        Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                        anchors.fill: parent
+                                        color: "transparent"
+                                        radius: 0
+                                        border.width: isActive ? 4 : (isHovered ? 2 : 0)
+                                        border.color: isActive ? "#FFFFFF" : (isHovered ? Qt.alpha("#FFFFFF", 0.6) : "transparent")
                                         
-                                        Text {
-                                            anchors.fill: parent
-                                            anchors.leftMargin: 10
-                                            anchors.rightMargin: 10
-                                            text: displayName
-                                            color: "#FFFFFF"
-                                            font.pixelSize: 11
-                                            verticalAlignment: Text.AlignVCenter
-                                            elide: Text.ElideRight
-                                        }
+                                        Behavior on border.color { ColorAnimation { duration: 150 } }
                                     }
 
                                     MouseArea {
-                                        id: itemMouse
+                                        id: themeMouse
                                         anchors.fill: parent
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
-                                            root.activeWallpaperPath = fullPath;
-                                            applyWallpaper.imagePath = fullPath;
+                                            themeGrid.currentIndex = index;
+                                            root.activeWallpaperPath = model.fullPath;
+                                            if (applyWallpaper.running) {
+                                                applyWallpaper.running = false;
+                                            }
+                                            applyWallpaper.imagePath = model.fullPath;
+                                            applyWallpaper.mode = "dark"; 
                                             applyWallpaper.running = true;
                                         }
                                     }
@@ -561,7 +698,7 @@ if files:
                             anchors.rightMargin: 14
 
                             Text {
-                                text: folderModel.count + " wallpapers in " + String(root.currentFolder).replace("file://", "")
+                                text: (mainCard.activeTab === 0 ? folderModel.count : dynamicThemeModel.count) + " wallpapers in " + String(root.currentFolder).replace("file://", "")
                                 font.pixelSize: 12
                                 color: root.themeTextMuted
                                 elide: Text.ElideRight
@@ -570,11 +707,17 @@ if files:
 
                             RowLayout {
                                 spacing: 8
-                                Rectangle {
-                                    width: 32; height: 20; radius: 4
-                                    color: Qt.alpha(root.themeText, 0.12)
-                                    Text { anchors.centerIn: parent; text: "ESC"; font.pixelSize: 10; color: root.themeTextMuted; font.weight: Font.Bold }
-                                }
+                                
+                                Rectangle { width: 34; height: 20; radius: 4; color: Qt.alpha(root.themeText, 0.12)
+                                    Text { anchors.centerIn: parent; text: "TAB"; font.pixelSize: 10; color: root.themeTextMuted; font.weight: Font.Bold } }
+                                Text { text: "Tab"; font.pixelSize: 12; color: root.themeTextMuted }
+                                
+                                Rectangle { width: 34; height: 20; radius: 4; color: Qt.alpha(root.themeText, 0.12)
+                                    Text { anchors.centerIn: parent; text: "⮐"; font.pixelSize: 14; color: root.themeTextMuted; font.weight: Font.Bold; anchors.verticalCenterOffset: -2 } }
+                                Text { text: "Apply"; font.pixelSize: 12; color: root.themeTextMuted }
+
+                                Rectangle { width: 34; height: 20; radius: 4; color: Qt.alpha(root.themeText, 0.12)
+                                    Text { anchors.centerIn: parent; text: "ESC"; font.pixelSize: 10; color: root.themeTextMuted; font.weight: Font.Bold } }
                                 Text { text: "Close"; font.pixelSize: 12; color: root.themeTextMuted }
                             }
                         }

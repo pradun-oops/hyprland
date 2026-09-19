@@ -14,9 +14,9 @@ Scope {
     property color themeText: "#ffffff"
     property color themeTextMuted: "#a1a1aa"
     
-    property int themeRounding: 12
+    property int themeRounding: 18 // Slightly higher for a better pill shape
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.5
+    property real themeBgAlpha: 0.65 // Slightly more opaque for better text contrast
     property bool animEnabled: true
     property int animDuration: 380
     
@@ -25,20 +25,22 @@ Scope {
 
     QtObject {
         id: style
-        property int moduleSpacing: 8
+        property int moduleSpacing: 6
         property int animDuration: root.animDuration > 0 ? root.animDuration : 380
-        property int fadeDuration: 280
-        property var smoothEasing: Easing.OutCubic
+        property int fadeDuration: 250
+        property var smoothEasing: Easing.OutQuart
         property var fadeEasing: Easing.OutCubic
-        property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.08)
-        property color separatorColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.18)
+        property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.12)
+        property color separatorColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.15)
     }
 
     property string currentTime: ""
     property string currentDate: ""
     
-    property string rxSpeed: "0 KB/s"
-    property string txSpeed: "0 KB/s"
+    property string rxSpeed: "0"
+    property string rxUnit: "KB/s"
+    property string txSpeed: "0"
+    property string txUnit: "KB/s"
     property real lastRx: 0
     property real lastTx: 0
     
@@ -55,8 +57,27 @@ Scope {
 
     property var runningAppsList: []
 
-    property int barY: 5 
-    property int islandHeight: 36
+    property int barY: 8 
+    property int islandHeight: 38
+
+    // --- Helper Functions for Dynamic Icons ---
+    function getBatIcon(pct, charging) {
+        if (charging) return "󰂄"
+        if (pct > 90) return "󰁹"
+        if (pct > 80) return "󰂂"
+        if (pct > 60) return "󰁿"
+        if (pct > 40) return "󰁽"
+        if (pct > 20) return "󰁻"
+        return "󰂃"
+    }
+
+    function getVolIcon(pct, muted) {
+        if (muted || pct === 0) return "󰖁"
+        if (pct > 60) return ""
+        if (pct > 25) return ""
+        return ""
+    }
+    // ------------------------------------------
 
     function switchToWorkspace(wsId) {
         if (!wsId) return
@@ -337,8 +358,11 @@ except:
                         let rxDiff = Math.max(0, data.rx - root.lastRx) / 1024
                         let txDiff = Math.max(0, data.tx - root.lastTx) / 1024
                         
-                        root.rxSpeed = (rxDiff > 1024 ? (rxDiff / 1024).toFixed(1) + " MB/s" : rxDiff.toFixed(0) + " KB/s")
-                        root.txSpeed = (txDiff > 1024 ? (txDiff / 1024).toFixed(1) + " MB/s" : txDiff.toFixed(0) + " KB/s")
+                        root.rxSpeed = rxDiff > 1024 ? (rxDiff / 1024).toFixed(1) : rxDiff.toFixed(0)
+                        root.rxUnit  = rxDiff > 1024 ? "MB/s" : "KB/s"
+                        
+                        root.txSpeed = txDiff > 1024 ? (txDiff / 1024).toFixed(1) : txDiff.toFixed(0)
+                        root.txUnit  = txDiff > 1024 ? "MB/s" : "KB/s"
                     }
                     root.lastRx = data.rx
                     root.lastTx = data.tx
@@ -460,8 +484,8 @@ print(json.dumps({
                     property bool isPinned: false
                     property bool isExpanded: isPinned || islandHover.hovered
                     
-                    property int expandedWidth: expandedRow.implicitWidth + 28
-                    property int collapsedWidth: collapsedRow.implicitWidth + 28
+                    property int expandedWidth: expandedRow.implicitWidth + 32
+                    property int collapsedWidth: collapsedRow.implicitWidth + 32
                     
                     width: isExpanded ? expandedWidth : collapsedWidth
                     
@@ -472,13 +496,8 @@ print(json.dumps({
                         } 
                     }
 
-                    Behavior on color {
-                        ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing }
-                    }
-
-                    Behavior on border.color {
-                        ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing }
-                    }
+                    Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
+                    Behavior on border.color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
                     
                     radius: root.themeRounding
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
@@ -491,38 +510,29 @@ print(json.dumps({
                         onDoubleClicked: barIsland.isPinned = !barIsland.isPinned
                     }
 
+                    // --- COLLAPSED STATE ---
                     Row {
                         id: collapsedRow
                         height: root.islandHeight
                         anchors.centerIn: parent
-                        spacing: 8
+                        spacing: 12
                         opacity: barIsland.isExpanded ? 0.0 : 1.0
                         scale: barIsland.isExpanded ? 0.90 : 1.0
                         visible: opacity > 0.01
 
-                        Behavior on opacity { 
-                            NumberAnimation { 
-                                duration: style.fadeDuration
-                                easing.type: style.fadeEasing 
-                            } 
-                        }
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: root.animEnabled ? style.animDuration : 0
-                                easing.type: style.smoothEasing
-                            }
-                        }
+                        Behavior on opacity { NumberAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
+                        Behavior on scale { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.smoothEasing } }
 
                         Row {
-                            spacing: 2.5
+                            spacing: 3
                             visible: root.isPlaying
                             anchors.verticalCenter: parent.verticalCenter
                             Repeater {
-                                model: 5
+                                model: 4
                                 delegate: Rectangle {
-                                    width: 2.5
+                                    width: 3
                                     height: 10
-                                    radius: 1
+                                    radius: 1.5
                                     color: root.themePrimary
                                     anchors.verticalCenter: parent.verticalCenter
 
@@ -530,7 +540,7 @@ print(json.dumps({
                                         running: root.isPlaying && !barIsland.isExpanded
                                         loops: Animation.Infinite
                                         NumberAnimation { to: 4 + ((index * 3) % 8); duration: 320 + index * 50; easing.type: Easing.InOutSine }
-                                        NumberAnimation { to: 13 - ((index * 2) % 6); duration: 380 - index * 40; easing.type: Easing.InOutSine }
+                                        NumberAnimation { to: 14 - ((index * 2) % 6); duration: 380 - index * 40; easing.type: Easing.InOutSine }
                                     }
                                 }
                             }
@@ -542,187 +552,143 @@ print(json.dumps({
                             font.pixelSize: 13
                             font.weight: Font.Bold
                             anchors.verticalCenter: parent.verticalCenter
-
-                            Behavior on color {
-                                ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing }
-                            }
                         }
                     }
 
+                    // --- EXPANDED STATE ---
                     Row {
                         id: expandedRow
                         height: root.islandHeight
                         anchors.centerIn: parent
-                        spacing: 12
+                        spacing: style.moduleSpacing
                         opacity: barIsland.isExpanded ? 1.0 : 0.0
                         scale: barIsland.isExpanded ? 1.0 : 0.94
                         visible: opacity > 0.01
 
-                        Behavior on opacity { 
-                            NumberAnimation { 
-                                duration: style.fadeDuration
-                                easing.type: style.fadeEasing 
-                            } 
-                        }
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: root.animEnabled ? style.animDuration : 0
-                                easing.type: style.smoothEasing
-                            }
-                        }
+                        Behavior on opacity { NumberAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
+                        Behavior on scale { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.smoothEasing } }
 
+                        // Workspaces
                         Row {
-                            id: leftRow
-                            height: parent.height
-                            spacing: style.moduleSpacing
-
-                            Row {
-                                height: root.islandHeight
-                                spacing: 4
-                                anchors.verticalCenter: parent.verticalCenter
-
-                                Repeater {
-                                    model: root.activeWorkspaces
-                                    delegate: Rectangle {
-                                        id: wsPill
-                                        width: modelData === root.activeWs ? 25 : 25
-                                        height: 25
-                                        radius: 12
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        color: modelData === root.activeWs ? root.themePrimary : (wsMouse.containsMouse ? Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.28) : Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.15))
-
-                                        scale: wsMouse.containsMouse ? 1.08 : 1.0
-
-                                        Behavior on scale { 
-                                            NumberAnimation { 
-                                                duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.smoothEasing
-                                            } 
-                                        }
-
-                                        Behavior on width { 
-                                            NumberAnimation { 
-                                                duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.smoothEasing
-                                            } 
-                                        }
-                                        Behavior on color { 
-                                            ColorAnimation { 
-                                                duration: style.fadeDuration
-                                                easing.type: style.fadeEasing
-                                            } 
-                                        }
-
-                                        Text {
-                                            text: modelData
-                                            color: modelData === root.activeWs ? "#000000" : root.themeText
-                                            font.pixelSize: 11
-                                            font.weight: Font.Bold
-                                            anchors.centerIn: parent
-
-                                            Behavior on color { 
-                                                ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } 
-                                            }
-                                        }
-
-                                        MouseArea {
-                                            id: wsMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.switchToWorkspace(modelData)
-                                        }
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                width: 1; height: 14; color: style.separatorColor
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-
-                            Row {
-                                height: root.islandHeight
-                                spacing: 2
-
-                                Item {
-                                    width: 76
-                                    height: root.islandHeight
-                                    Row {
-                                        anchors.centerIn: parent
-                                        spacing: 3
-                                        Text { text: "↓"; color: root.themePrimary; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
-                                        Text { text: root.rxSpeed; color: root.themeText; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
-                                    }
-                                }
-
-                                Item {
-                                    width: 76
-                                    height: root.islandHeight
-                                    Row {
-                                        anchors.centerIn: parent
-                                        spacing: 3
-                                        Text { text: "↑"; color: root.themePrimary; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
-                                        Text { text: root.txSpeed; color: root.themeText; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
-                                    }
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            width: 1
-                            height: 16
-                            color: style.separatorColor
+                            height: root.islandHeight
+                            spacing: 4
                             anchors.verticalCenter: parent.verticalCenter
-                        }
 
-                        Item {
-                            id: centerBlock
-                            height: parent.height
-                            implicitWidth: centerRow.implicitWidth + 8
+                            Repeater {
+                                model: root.activeWorkspaces
+                                delegate: Rectangle {
+                                    width: 26; height: 26
+                                    radius: 13
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    color: modelData === root.activeWs ? root.themePrimary : (wsMouse.containsMouse ? style.hoverColor : "transparent")
+                                    
+                                    Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
 
-                            scale: centerMouse.containsMouse ? 1.03 : 1.0
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: root.animEnabled ? style.animDuration : 0
-                                    easing.type: style.smoothEasing
+                                    Text {
+                                        text: modelData
+                                        color: modelData === root.activeWs ? "#000000" : (wsMouse.containsMouse ? root.themeText : root.themeTextMuted)
+                                        font.pixelSize: 12
+                                        font.weight: modelData === root.activeWs ? Font.ExtraBold : Font.Bold
+                                        anchors.centerIn: parent
+                                        Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
+                                    }
+
+                                    MouseArea {
+                                        id: wsMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.switchToWorkspace(modelData)
+                                    }
                                 }
                             }
+                        }
+
+                        Rectangle { width: 4; height: 4; radius: 2; color: style.separatorColor; anchors.verticalCenter: parent.verticalCenter }
+
+                        // Network Speeds
+                        Row {
+                            height: root.islandHeight
+                            spacing: 12
+                            anchors.verticalCenter: parent.verticalCenter
+
+                            Row {
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 4
+                                Text { text: "↓"; color: root.themePrimary; font.pixelSize: 14; font.weight: Font.Black; anchors.verticalCenter: parent.verticalCenter }
+                                Row {
+                                    anchors.verticalCenter: parent.verticalCenter; spacing: 2
+                                    Text { text: root.rxSpeed; color: root.themeText; font.pixelSize: 12; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { text: root.rxUnit; color: root.themeTextMuted; font.pixelSize: 10; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter; anchors.baseline: parent.baseline }
+                                }
+                            }
+
+                            Row {
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 4
+                                Text { text: "↑"; color: root.themePrimary; font.pixelSize: 14; font.weight: Font.Black; anchors.verticalCenter: parent.verticalCenter }
+                                Row {
+                                    anchors.verticalCenter: parent.verticalCenter; spacing: 2
+                                    Text { text: root.txSpeed; color: root.themeText; font.pixelSize: 12; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { text: root.txUnit; color: root.themeTextMuted; font.pixelSize: 10; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter; anchors.baseline: parent.baseline }
+                                }
+                            }
+                        }
+
+                        Rectangle { width: 4; height: 4; radius: 2; color: style.separatorColor; anchors.verticalCenter: parent.verticalCenter }
+
+                        // Time & Date (Center Block)
+                        Rectangle {
+                            height: parent.height - 10
+                            width: centerRow.implicitWidth + 24
+                            radius: height / 2
+                            color: centerMouse.containsMouse ? style.hoverColor : "transparent"
+                            anchors.verticalCenter: parent.verticalCenter
+                            Behavior on color { ColorAnimation { duration: 150 } }
 
                             Row {
                                 id: centerRow
                                 anchors.centerIn: parent
-                                spacing: 8
+                                spacing: 10
 
                                 Row {
-                                    spacing: 2.5
+                                    spacing: 3
                                     visible: root.isPlaying
                                     anchors.verticalCenter: parent.verticalCenter
                                     Repeater {
                                         model: 5
                                         delegate: Rectangle {
-                                            width: 3
-                                            height: 12
-                                            radius: 1.5
-                                            color: root.themePrimary
+                                            width: 3.5; height: 12; radius: 1.75; color: root.themePrimary
                                             anchors.verticalCenter: parent.verticalCenter
 
                                             SequentialAnimation on height {
                                                 running: root.isPlaying && barIsland.isExpanded
                                                 loops: Animation.Infinite
                                                 NumberAnimation { to: 4 + ((index * 4) % 10); duration: 320 + index * 50; easing.type: Easing.InOutSine }
-                                                NumberAnimation { to: 15 - ((index * 3) % 8); duration: 380 - index * 40; easing.type: Easing.InOutSine }
+                                                NumberAnimation { to: 16 - ((index * 3) % 8); duration: 380 - index * 40; easing.type: Easing.InOutSine }
                                             }
                                         }
                                     }
                                 }
 
                                 Text {
-                                    id: timeText
-                                    text: (root.currentTime !== "" ? root.currentTime : "12:00 PM") + "  •  " + (root.currentDate !== "" ? root.currentDate : "Sat, 05 Sep")
+                                    text: (root.currentTime !== "" ? root.currentTime : "12:00 PM")
                                     color: root.themeText
                                     font.pixelSize: 13
-                                    font.weight: Font.Bold
+                                    font.weight: Font.ExtraBold
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: "•"
+                                    color: root.themeTextMuted
+                                    font.pixelSize: 12
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: (root.currentDate !== "" ? root.currentDate : "Sat, 05 Sep")
+                                    color: root.themeText
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
                             }
@@ -732,336 +698,258 @@ print(json.dumps({
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: (mouse) => {
-                                    if (mouse.button === Qt.LeftButton) {
-                                        root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh calendar open")
-                                    }
-                                }
-                                onDoubleClicked: (mouse) => {
-                                    if (mouse.button === Qt.LeftButton) barIsland.isPinned = !barIsland.isPinned
-                                }
+                                onClicked: (mouse) => { if (mouse.button === Qt.LeftButton) root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh calendar open") }
+                                onDoubleClicked: (mouse) => { if (mouse.button === Qt.LeftButton) barIsland.isPinned = !barIsland.isPinned }
                             }
                         }
 
-                        Rectangle {
-                            width: 1
-                            height: 16
-                            color: style.separatorColor
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
+                        Rectangle { width: 4; height: 4; radius: 2; color: style.separatorColor; anchors.verticalCenter: parent.verticalCenter }
 
+                        // Hardware (CPU/GPU)
                         Row {
-                            id: rightRow
-                            height: parent.height
-                            spacing: style.moduleSpacing
+                            height: root.islandHeight
+                            spacing: 12
+                            anchors.verticalCenter: parent.verticalCenter
 
                             Row {
-                                height: root.islandHeight
-                                spacing: 2
-
-                                Item {
-                                    width: 52
-                                    height: root.islandHeight
-                                    Row {
-                                        anchors.centerIn: parent
-                                        spacing: 3
-                                        Text { text: ""; color: root.themePrimary; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
-                                        Text { text: root.cpuTemp + "°C"; color: root.themeText; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
-                                    }
-                                }
-
-                                Item {
-                                    width: 52
-                                    height: root.islandHeight
-                                    Row {
-                                        anchors.centerIn: parent
-                                        spacing: 3
-                                        Text { text: "󰢮"; color: root.themePrimary; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
-                                        Text { text: root.gpuTemp + "°C"; color: root.themeText; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                width: 1; height: 14; color: style.separatorColor
                                 anchors.verticalCenter: parent.verticalCenter
-                            }
-
-                            Item {
-                                height: root.islandHeight
-                                width: 56
-
-                                scale: volMouse.containsMouse ? 1.05 : 1.0
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? style.animDuration : 0
-                                        easing.type: style.smoothEasing
-                                    }
-                                }
-
+                                spacing: 5
+                                Text { text: ""; color: root.themePrimary; font.pixelSize: 14; anchors.verticalCenter: parent.verticalCenter }
                                 Row {
-                                    anchors.centerIn: parent
-                                    spacing: 4
-                                    Text { 
-                                        text: root.isMuted ? "󰖁" : ""
-                                        color: root.isMuted ? "#FF453A" : root.themePrimary
-                                        font.pixelSize: 14
-                                        anchors.verticalCenter: parent.verticalCenter
-
-                                        Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
-                                    }
-                                    Text { text: root.volumePct + "%"; color: root.themeText; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
-                                }
-
-                                MouseArea {
-                                    id: volMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: (mouse) => {
-                                        if (mouse.button === Qt.RightButton) root.exec("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle")
-                                        else root.exec("pavucontrol")
-                                    }
-                                    onWheel: (wheel) => {
-                                        if (wheel.angleDelta.y > 0) {
-                                            if (root.volumePct < 100) {
-                                                root.exec("wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+")
-                                            }
-                                        } else {
-                                            root.exec("wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%-")
-                                        }
-                                    }
+                                    anchors.verticalCenter: parent.verticalCenter; spacing: 1
+                                    Text { text: root.cpuTemp; color: root.themeText; font.pixelSize: 12; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { text: "°C"; color: root.themeTextMuted; font.pixelSize: 10; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
                                 }
                             }
 
-                            Rectangle {
-                                width: 1; height: 14; color: style.separatorColor
+                            Row {
                                 anchors.verticalCenter: parent.verticalCenter
-                            }
-
-                            Item {
-                                height: root.islandHeight
-                                width: 56
-
-                                scale: batMouse.containsMouse ? 1.05 : 1.0
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? style.animDuration : 0
-                                        easing.type: style.smoothEasing
-                                    }
-                                }
-
+                                spacing: 5
+                                Text { text: "󰢮"; color: root.themePrimary; font.pixelSize: 14; anchors.verticalCenter: parent.verticalCenter }
                                 Row {
-                                    anchors.centerIn: parent
-                                    spacing: 4
-                                    Text { 
-                                        text: root.isCharging ? "󰂄" : "󰁹"
-                                        color: root.isCharging ? "#32D74B" : root.themePrimary
-                                        font.pixelSize: 14
-                                        anchors.verticalCenter: parent.verticalCenter
-
-                                        Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
-                                    }
-                                    Text { text: root.batCap + "%"; color: root.themeText; font.pixelSize: 12; font.weight: Font.DemiBold; anchors.verticalCenter: parent.verticalCenter }
-                                }
-
-                                MouseArea {
-                                    id: batMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: (mouse) => {
-                                        if (mouse.button === Qt.LeftButton) {
-                                            root.exec("gnome-power-statistics")
-                                        }
-                                    }
-                                    onDoubleClicked: (mouse) => {
-                                        if (mouse.button === Qt.RightButton) {
-                                            let profileCmd = "curr=$(powerprofilesctl get 2>/dev/null | tr -d '[:space:]' || echo 'balanced'); " +
-                                                             "if [ \"$curr\" = \"balanced\" ]; then next='performance'; " +
-                                                             "elif [ \"$curr\" = \"performance\" ]; then next='power-saver'; " +
-                                                             "else next='balanced'; fi; " +
-                                                             "powerprofilesctl set $next && notify-send 'Power Profile' \"Switched to $next\" -t 2000"
-                                            root.exec(profileCmd)
-                                        }
-                                    }
+                                    anchors.verticalCenter: parent.verticalCenter; spacing: 1
+                                    Text { text: root.gpuTemp; color: root.themeText; font.pixelSize: 12; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { text: "°C"; color: root.themeTextMuted; font.pixelSize: 10; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
                                 }
                             }
+                        }
 
-                            Rectangle {
-                                width: 1; height: 14; color: style.separatorColor
-                                anchors.verticalCenter: parent.verticalCenter
-                                visible: root.runningAppsList.length > 0
-                            }
+                        Rectangle { width: 4; height: 4; radius: 2; color: style.separatorColor; anchors.verticalCenter: parent.verticalCenter }
 
-                            Item {
-                                id: appsDrawer
-                                height: root.islandHeight
-                                width: root.runningAppsList.length > 0 ? (appsHover.hovered ? appsRow.implicitWidth + 32 : 24) : 0
-                                visible: root.runningAppsList.length > 0
-                                anchors.verticalCenter: parent.verticalCenter
+                        // Volume Module
+                        Rectangle {
+                            height: parent.height - 10
+                            width: volRow.implicitWidth + 16
+                            radius: height / 2
+                            color: volMouse.containsMouse ? style.hoverColor : "transparent"
+                            anchors.verticalCenter: parent.verticalCenter
+                            Behavior on color { ColorAnimation { duration: 150 } }
 
-                                Behavior on width { 
-                                    NumberAnimation { 
-                                        duration: root.animEnabled ? style.animDuration : 0
-                                        easing.type: style.smoothEasing
-                                    } 
-                                }
-
-                                HoverHandler { id: appsHover }
-
-                                Row {
+                            Row {
+                                id: volRow
+                                anchors.centerIn: parent
+                                spacing: 6
+                                Text { 
+                                    text: root.getVolIcon(root.volumePct, root.isMuted)
+                                    color: root.isMuted ? "#FF453A" : root.themePrimary
+                                    font.pixelSize: 14
                                     anchors.verticalCenter: parent.verticalCenter
-                                    spacing: 6
-                                    x: 4
-
-                                    Text {
-                                        text: appsHover.hovered ? "󰁔" : "󰁍"
-                                        color: root.themePrimary
-                                        font.pixelSize: 13
-                                        anchors.verticalCenter: parent.verticalCenter
-
-                                        scale: appsHover.hovered ? 1.08 : 1.0
-                                        Behavior on scale { 
-                                            NumberAnimation { 
-                                                duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.smoothEasing
-                                            } 
-                                        }
-                                        Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
-                                    }
-
-                                    Row {
-                                        id: appsRow
-                                        spacing: 6
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        opacity: appsHover.hovered ? 1.0 : 0.0
-                                        scale: appsHover.hovered ? 1.0 : 0.92
-                                        visible: opacity > 0.01
-
-                                        Behavior on opacity { 
-                                            NumberAnimation { 
-                                                duration: style.fadeDuration
-                                                easing.type: style.fadeEasing 
-                                            } 
-                                        }
-                                        Behavior on scale { 
-                                            NumberAnimation { 
-                                                duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.smoothEasing
-                                            } 
-                                        }
-
-                                        Repeater {
-                                            model: root.runningAppsList
-                                            delegate: Item {
-                                                width: 20; height: 20
-                                                anchors.verticalCenter: parent.verticalCenter
-
-                                                scale: appItemMouse.containsMouse ? 1.10 : 1.0
-                                                Behavior on scale { 
-                                                    NumberAnimation { 
-                                                        duration: root.animEnabled ? style.animDuration : 0
-                                                        easing.type: style.smoothEasing
-                                                    } 
-                                                }
-
-                                                Image {
-                                                    anchors.centerIn: parent
-                                                    width: 16; height: 16
-                                                    source: modelData.icon
-                                                    fillMode: Image.PreserveAspectFit
-                                                    smooth: true
-                                                }
-
-                                                MouseArea {
-                                                    id: appItemMouse
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                                    cursorShape: Qt.PointingHandCursor
-                                                    onClicked: (mouse) => {
-                                                        if (mouse.button === Qt.RightButton) {
-                                                            root.exec("pkill -x " + modelData.process)
-                                                        } else {
-                                                            root.exec(modelData.process)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
+                                    Behavior on color { ColorAnimation { duration: style.fadeDuration } }
+                                }
+                                Row {
+                                    anchors.verticalCenter: parent.verticalCenter; spacing: 1
+                                    Text { text: root.volumePct; color: root.themeText; font.pixelSize: 12; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { text: "%"; color: root.themeTextMuted; font.pixelSize: 10; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
                                 }
                             }
 
-                            Rectangle {
-                                width: 1; height: 14; color: style.separatorColor
-                                anchors.verticalCenter: parent.verticalCenter
+                            MouseArea {
+                                id: volMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: (mouse) => {
+                                    if (mouse.button === Qt.RightButton) root.exec("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle")
+                                    else root.exec("pavucontrol")
+                                }
+                                onWheel: (wheel) => {
+                                    if (wheel.angleDelta.y > 0) {
+                                        if (root.volumePct < 100) root.exec("wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+")
+                                    } else {
+                                        root.exec("wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%-")
+                                    }
+                                }
                             }
+                        }
+
+                        Rectangle { width: 4; height: 4; radius: 2; color: style.separatorColor; anchors.verticalCenter: parent.verticalCenter }
+
+                        // Battery Module
+                        Rectangle {
+                            height: parent.height - 10
+                            width: batRow.implicitWidth + 16
+                            radius: height / 2
+                            color: batMouse.containsMouse ? style.hoverColor : "transparent"
+                            anchors.verticalCenter: parent.verticalCenter
+                            Behavior on color { ColorAnimation { duration: 150 } }
 
                             Row {
-                                height: root.islandHeight
+                                id: batRow
+                                anchors.centerIn: parent
+                                spacing: 6
+                                Text { 
+                                    text: root.getBatIcon(parseInt(root.batCap), root.isCharging)
+                                    color: root.isCharging ? "#32D74B" : (parseInt(root.batCap) <= 20 ? "#FF453A" : root.themePrimary)
+                                    font.pixelSize: 15
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    Behavior on color { ColorAnimation { duration: style.fadeDuration } }
+                                }
+                                Row {
+                                    anchors.verticalCenter: parent.verticalCenter; spacing: 1
+                                    Text { text: root.batCap; color: root.themeText; font.pixelSize: 12; font.weight: Font.Bold; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { text: "%"; color: root.themeTextMuted; font.pixelSize: 10; font.weight: Font.Medium; anchors.verticalCenter: parent.verticalCenter }
+                                }
+                            }
+
+                            MouseArea {
+                                id: batMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: (mouse) => { if (mouse.button === Qt.LeftButton) root.exec("gnome-power-statistics") }
+                                onDoubleClicked: (mouse) => {
+                                    if (mouse.button === Qt.RightButton) {
+                                        let profileCmd = "curr=$(powerprofilesctl get 2>/dev/null | tr -d '[:space:]' || echo 'balanced'); " +
+                                                         "if [ \"$curr\" = \"balanced\" ]; then next='performance'; " +
+                                                         "elif [ \"$curr\" = \"performance\" ]; then next='power-saver'; " +
+                                                         "else next='balanced'; fi; " +
+                                                         "powerprofilesctl set $next && notify-send 'Power Profile' \"Switched to $next\" -t 2000"
+                                        root.exec(profileCmd)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Running Apps Drawer (Only visible if apps exist)
+                        Rectangle { width: 4; height: 4; radius: 2; color: style.separatorColor; anchors.verticalCenter: parent.verticalCenter; visible: root.runningAppsList.length > 0 }
+
+                        Item {
+                            id: appsDrawer
+                            height: root.islandHeight
+                            width: root.runningAppsList.length > 0 ? (appsHover.hovered ? appsRow.implicitWidth + 36 : 26) : 0
+                            visible: root.runningAppsList.length > 0
+                            anchors.verticalCenter: parent.verticalCenter
+                            clip: true
+
+                            Behavior on width { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.smoothEasing } }
+
+                            HoverHandler { id: appsHover }
+
+                            Row {
+                                anchors.verticalCenter: parent.verticalCenter
                                 spacing: 8
-                                anchors.verticalCenter: parent.verticalCenter
+                                x: 6
 
-                                Item {
-                                    width: 24; height: 24
+                                Text {
+                                    text: appsHover.hovered ? "󰁔" : "󰁍"
+                                    color: root.themePrimary
+                                    font.pixelSize: 14
                                     anchors.verticalCenter: parent.verticalCenter
-
-                                    scale: netMouse.containsMouse ? 1.08 : 1.0
-                                    Behavior on scale { 
-                                        NumberAnimation { 
-                                            duration: root.animEnabled ? style.animDuration : 0
-                                            easing.type: style.smoothEasing
-                                        } 
-                                    }
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "󰖩"
-                                        color: root.themePrimary
-                                        font.pixelSize: 15
-
-                                        Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
-                                    }
-                                    MouseArea {
-                                        id: netMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh connection open")
-                                    }
+                                    Behavior on color { ColorAnimation { duration: style.fadeDuration } }
                                 }
 
-                                Item {
-                                    width: 24; height: 24
+                                Row {
+                                    id: appsRow
+                                    spacing: 8
                                     anchors.verticalCenter: parent.verticalCenter
+                                    opacity: appsHover.hovered ? 1.0 : 0.0
+                                    visible: opacity > 0.01
 
-                                    scale: pwrBarMouse.containsMouse ? 1.08 : 1.0
-                                    Behavior on scale { 
-                                        NumberAnimation { 
-                                            duration: root.animEnabled ? style.animDuration : 0
-                                            easing.type: style.smoothEasing
-                                        } 
-                                    }
+                                    Behavior on opacity { NumberAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
 
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "󰐥"
-                                        color: pwrBarMouse.containsMouse ? "#FF453A" : root.themePrimary
-                                        font.pixelSize: 15
+                                    Repeater {
+                                        model: root.runningAppsList
+                                        delegate: Rectangle {
+                                            width: 28; height: 28; radius: 14
+                                            color: appItemMouse.containsMouse ? style.hoverColor : "transparent"
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            Behavior on color { ColorAnimation { duration: 150 } }
 
-                                        Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
+                                            Image {
+                                                anchors.centerIn: parent
+                                                width: 16; height: 16
+                                                source: modelData.icon
+                                                fillMode: Image.PreserveAspectFit
+                                                smooth: true
+                                            }
+
+                                            MouseArea {
+                                                id: appItemMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: (mouse) => {
+                                                    if (mouse.button === Qt.RightButton) root.exec("pkill -x " + modelData.process)
+                                                    else root.exec(modelData.process)
+                                                }
+                                            }
+                                        }
                                     }
-                                    MouseArea {
-                                        id: pwrBarMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh powermenu open")
-                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle { width: 4; height: 4; radius: 2; color: style.separatorColor; anchors.verticalCenter: parent.verticalCenter }
+
+                        // Quick Actions (Wifi & Power)
+                        Row {
+                            height: root.islandHeight
+                            spacing: 4
+                            anchors.verticalCenter: parent.verticalCenter
+
+                            Rectangle {
+                                width: 30; height: 30; radius: 15
+                                color: netMouse.containsMouse ? style.hoverColor : "transparent"
+                                anchors.verticalCenter: parent.verticalCenter
+                                Behavior on color { ColorAnimation { duration: 150 } }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰖩"
+                                    color: root.themePrimary
+                                    font.pixelSize: 15
+                                }
+                                MouseArea {
+                                    id: netMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh connection open")
+                                }
+                            }
+
+                            Rectangle {
+                                width: 30; height: 30; radius: 15
+                                color: pwrBarMouse.containsMouse ? "#FF453A" : "transparent"
+                                anchors.verticalCenter: parent.verticalCenter
+                                Behavior on color { ColorAnimation { duration: 150 } }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰐥"
+                                    color: pwrBarMouse.containsMouse ? "#ffffff" : root.themePrimary
+                                    font.pixelSize: 15
+                                    Behavior on color { ColorAnimation { duration: style.fadeDuration } }
+                                }
+                                MouseArea {
+                                    id: pwrBarMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh powermenu open")
                                 }
                             }
                         }

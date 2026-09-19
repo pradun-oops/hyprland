@@ -36,8 +36,8 @@ hl.config({
     -- Controls corner rounding, translucency, frosted glass effects, and depth shadows.
     decoration = {
         rounding           = 15,   -- Corner radius for smooth rounded window frames
-        active_opacity     = 0.80, -- Translucency level of currently focused window
-        inactive_opacity   = 0.80, -- Translucency level of background/unfocused windows
+        active_opacity     = 0.85, -- Translucency level of currently focused window
+        inactive_opacity   = 0.85, -- Translucency level of background/unfocused windows
         fullscreen_opacity = 1.0,  -- Solid 100% opacity when viewing fullscreen applications
 
         -- Frosted glass backdrop blur (optimized for your custom Hyprland setup)

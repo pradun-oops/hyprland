@@ -14,7 +14,7 @@ hl.config({
     -- Sets border color themes for standard focused and unfocused windows.
     general = {
         col = {
-            active_border   = "rgb(ffb3b2)",
+            active_border   = "rgb(ffb3b4)",
             inactive_border = "rgb(524343)",
         },
     },
@@ -25,16 +25,16 @@ hl.config({
     -- Controls border styling for tabbed/grouped windows and their titlebars.
     group = {
         col = {
-            border_active          = "rgb(ffb3b2)",
+            border_active          = "rgb(ffb3b4)",
             border_inactive        = "rgb(524343)",
-            border_locked_active   = "rgb(e4c18d)",
+            border_locked_active   = "rgb(e5c18d)",
             border_locked_inactive = "rgb(524343)",
         },
         groupbar = {
             col = {
-                active           = "rgb(ffb3b2)",
+                active           = "rgb(ffb3b4)",
                 inactive         = "rgb(524343)",
-                locked_active    = "rgb(e4c18d)",
+                locked_active    = "rgb(e5c18d)",
                 locked_inactive  = "rgb(524343)",
             },
         },

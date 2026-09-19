@@ -61,6 +61,64 @@ Scope {
     property string searchMode: "apps"
     property string activeSearchQuery: ""
 
+    property var pinnedApps: []
+
+    FileView {
+        id: pinnedFile
+        path: Quickshell.env("HOME") + "/.config/quickshell/json/pinned_apps.json"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text().trim()
+                if (content !== "") {
+                    let d = JSON.parse(content)
+                    if (Array.isArray(d)) root.pinnedApps = d
+                }
+            } catch(e) {}
+            root.updatePinnedModel()
+        }
+    }
+
+    Process { id: savePinnedProcess }
+    function savePinnedApps() {
+        let jsonStr = JSON.stringify(root.pinnedApps)
+        savePinnedProcess.running = false
+        savePinnedProcess.command = ["bash", "-c", "mkdir -p ~/.config/quickshell/json && echo '" + jsonStr.replace(/'/g, "'\\''") + "' > ~/.config/quickshell/json/pinned_apps.json"]
+        savePinnedProcess.running = true
+    }
+
+    function isPinned(filePath) {
+        return root.pinnedApps.indexOf(filePath) !== -1
+    }
+
+    function togglePin(filePath) {
+        let list = root.pinnedApps.slice()
+        let idx = list.indexOf(filePath)
+        if (idx !== -1) {
+            list.splice(idx, 1)
+        } else {
+            list.push(filePath)
+        }
+        root.pinnedApps = list
+        root.savePinnedApps()
+        root.updatePinnedModel()
+    }
+
+    function updatePinnedModel() {
+        pinnedModel.clear()
+        for (let p = 0; p < root.pinnedApps.length; p++) {
+            let targetPath = root.pinnedApps[p]
+            for (let i = 0; i < root.allApps.length; i++) {
+                let app = root.allApps[i]
+                if (app.filePath === targetPath || app.fileName === targetPath) {
+                    pinnedModel.append(app)
+                    break
+                }
+            }
+        }
+    }
+
     function filterApps() {
         drawerModel.clear()
         let q = searchQuery.trim().toLowerCase()
@@ -75,6 +133,7 @@ Scope {
                 drawerModel.append(app)
             }
         }
+        root.updatePinnedModel()
     }
 
     Timer {
@@ -330,6 +389,12 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         colorFile.reload()
         generalConfigFile.reload()
         animConfigFile.reload()
+        pinnedFile.reload()
+
+        let cachedPinned = readJsonSync(Quickshell.env("HOME") + "/.config/quickshell/json/pinned_apps.json", [])
+        if (Array.isArray(cachedPinned)) {
+            root.pinnedApps = cachedPinned
+        }
         
         let cachedApps = readJsonSync(Quickshell.env("HOME") + "/.config/quickshell/json/app_cache.json", [])
         if (cachedApps.length > 0) {
@@ -342,6 +407,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
     }
 
     ListModel { id: drawerModel }
+    ListModel { id: pinnedModel }
     ListModel { id: fileModel }
 
     Timer { id: closeTimer; interval: 60; onTriggered: Qt.quit() }
@@ -439,7 +505,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                     ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 28
-                        spacing: 20
+                        spacing: 16
 
                         Rectangle {
                             id: searchBarContainer
@@ -619,7 +685,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: (root.searchMode === "apps" && drawerModel.count === 0) || (root.searchMode === "files" && fileModel.count === 0)
+                            visible: (root.searchMode === "apps" && drawerModel.count === 0 && pinnedModel.count === 0) || (root.searchMode === "files" && fileModel.count === 0)
 
                             ColumnLayout {
                                 anchors.centerIn: parent
@@ -641,110 +707,320 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             }
                         }
 
-                        GridView {
-                            id: appGrid
+                        ColumnLayout {
+                            id: appsViewContainer
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: root.searchMode === "apps" && drawerModel.count > 0
-                            
-                            model: drawerModel
-                            clip: true
+                            visible: root.searchMode === "apps" && (drawerModel.count > 0 || pinnedModel.count > 0)
+                            spacing: 12
 
-                            cellWidth: 110
-                            cellHeight: 150
+                            Rectangle {
+                                id: pinnedSectionCard
+                                Layout.fillWidth: true
+                                visible: root.searchQuery === "" && pinnedModel.count > 0
+                                implicitHeight: pinnedColumn.implicitHeight + 20
+                                radius: 18
+                                color: Qt.rgba(1.0, 1.0, 1.0, 0.035)
+                                border.width: 1
+                                border.color: Qt.alpha(root.themeBorder, 0.15)
 
-                            leftMargin: Math.max(0, (width - (Math.floor(width / cellWidth) * cellWidth)) / 2)
+                                ColumnLayout {
+                                    id: pinnedColumn
+                                    anchors.fill: parent
+                                    anchors.margins: 12
+                                    spacing: 8
 
-                            ScrollBar.vertical: ScrollBar {
-                                active: appGrid.moving || appGrid.flicking
-                                policy: ScrollBar.AsNeeded
-                            }
-
-                            delegate: Item {
-                                id: gridDelegate
-                                width: appGrid.cellWidth
-                                height: appGrid.cellHeight
-
-                                Rectangle {
-                                    anchors.centerIn: parent
-                                    width: 100
-                                    height: 140
-                                    radius: 18
-                                    color: appMouseArea.containsMouse ? root.themeSurfaceHover : "transparent"
-                                    border.width: 1
-                                    border.color: appMouseArea.containsMouse ? Qt.alpha(root.themeBorder, 0.3) : "transparent"
-
-                                    scale: appMouseArea.pressed ? 0.94 : (appMouseArea.containsMouse ? 1.08 : 1.0)
-                                    
-                                    Behavior on scale { 
-                                        NumberAnimation { 
-                                            duration: root.animEnabled ? style.animDuration : 0
-                                            easing.type: style.bounceEasing
-                                            easing.overshoot: style.overshoot
-                                        } 
-                                    }
-                                    Behavior on color { 
-                                        ColorAnimation { duration: style.fadeDuration } 
-                                    }
-                                    Behavior on border.color { 
-                                        ColorAnimation { duration: style.fadeDuration } 
-                                    }
-
-                                    ColumnLayout {
-                                        anchors.fill: parent
-                                        anchors.margins: 8
+                                    RowLayout {
+                                        Layout.fillWidth: true
                                         spacing: 8
 
-                                        Item {
-                                            Layout.alignment: Qt.AlignHCenter
-                                            Layout.preferredWidth: 56
-                                            Layout.preferredHeight: 56
+                                        Text {
+                                            text: "󰤱 PINNED"
+                                            color: root.themePrimary
+                                            font.pixelSize: 11
+                                            font.weight: Font.Bold
+                                            font.letterSpacing: 1.2
+                                        }
 
-                                            ToolButton {
-                                                anchors.fill: parent
-                                                visible: !model.iconName.startsWith("/")
-                                                icon.name: !model.iconName.startsWith("/") ? model.iconName : ""
-                                                icon.width: 56
-                                                icon.height: 56
-                                                icon.color: "transparent"
-                                                background: Item {}
-                                                hoverEnabled: false
-                                                down: false
-                                                padding: 0
-                                            }
-
-                                            Image {
-                                                anchors.fill: parent
-                                                visible: model.iconName.startsWith("/")
-                                                source: model.iconName.startsWith("/") ? "file://" + model.iconName : ""
-                                                sourceSize: Qt.size(56, 56)
-                                                fillMode: Image.PreserveAspectFit
+                                        Rectangle {
+                                            width: pinnedCountText.implicitWidth + 12
+                                            height: 18
+                                            radius: 9
+                                            color: Qt.alpha(root.themePrimary, 0.15)
+                                            Text {
+                                                id: pinnedCountText
+                                                anchors.centerIn: parent
+                                                text: pinnedModel.count
+                                                color: root.themePrimary
+                                                font.pixelSize: 10
+                                                font.weight: Font.Bold
                                             }
                                         }
 
+                                        Item { Layout.fillWidth: true }
+
                                         Text {
-                                            text: model.displayName
-                                            color: root.themeText
-                                            font.pixelSize: 12
-                                            font.weight: appMouseArea.containsMouse ? Font.Bold : Font.Medium
-                                            horizontalAlignment: Text.AlignHCenter
-                                            verticalAlignment: Text.AlignTop
-                                            wrapMode: Text.WordWrap
-                                            elide: Text.ElideRight
-                                            maximumLineCount: 2 
-                                            lineHeight: 1.15
-                                            Layout.fillWidth: true
-                                            Layout.maximumWidth: 88
-                                            Layout.preferredHeight: 36
+                                            text: "Double right-click to unpin"
+                                            color: Qt.alpha(root.themeTextMuted, 0.5)
+                                            font.pixelSize: 10
                                         }
                                     }
 
-                                    MouseArea {
-                                        id: appMouseArea
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: executeItem(model.filePath)
+                                    Flickable {
+                                        id: pinnedFlickable
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 116
+                                        contentWidth: pinnedRow.implicitWidth
+                                        clip: true
+                                        boundsBehavior: Flickable.StopAtBounds
+
+                                        WheelHandler {
+                                            target: pinnedFlickable
+                                            orientation: Qt.Horizontal
+                                            rotationScale: 50
+                                        }
+
+                                        Row {
+                                            id: pinnedRow
+                                            spacing: 10
+
+                                            Repeater {
+                                                model: pinnedModel
+
+                                                delegate: Item {
+                                                    width: 92
+                                                    height: 114
+
+                                                    Rectangle {
+                                                        anchors.fill: parent
+                                                        radius: 16
+                                                        color: pMouseArea.containsMouse ? root.themeSurfaceHover : Qt.rgba(1.0, 1.0, 1.0, 0.02)
+                                                        border.width: 1
+                                                        border.color: pMouseArea.containsMouse ? Qt.alpha(root.themeBorder, 0.3) : "transparent"
+
+                                                        scale: pMouseArea.pressed ? 0.94 : (pMouseArea.containsMouse ? 1.05 : 1.0)
+
+                                                        Behavior on scale {
+                                                            NumberAnimation {
+                                                                duration: root.animEnabled ? style.animDuration : 0
+                                                                easing.type: style.bounceEasing
+                                                                easing.overshoot: style.overshoot
+                                                            }
+                                                        }
+                                                        Behavior on color { ColorAnimation { duration: style.fadeDuration } }
+                                                        Behavior on border.color { ColorAnimation { duration: style.fadeDuration } }
+
+                                                        ColumnLayout {
+                                                            anchors.fill: parent
+                                                            anchors.margins: 8
+                                                            spacing: 6
+
+                                                            Item {
+                                                                Layout.alignment: Qt.AlignHCenter
+                                                                Layout.preferredWidth: 46
+                                                                Layout.preferredHeight: 46
+
+                                                                ToolButton {
+                                                                    anchors.fill: parent
+                                                                    visible: !model.iconName.startsWith("/")
+                                                                    icon.name: !model.iconName.startsWith("/") ? model.iconName : ""
+                                                                    icon.width: 46
+                                                                    icon.height: 46
+                                                                    icon.color: "transparent"
+                                                                    background: Item {}
+                                                                    hoverEnabled: false
+                                                                    down: false
+                                                                    padding: 0
+                                                                }
+
+                                                                Image {
+                                                                    anchors.fill: parent
+                                                                    visible: model.iconName.startsWith("/")
+                                                                    source: model.iconName.startsWith("/") ? "file://" + model.iconName : ""
+                                                                    sourceSize: Qt.size(46, 46)
+                                                                    fillMode: Image.PreserveAspectFit
+                                                                }
+                                                            }
+
+                                                            Text {
+                                                                text: model.displayName
+                                                                color: root.themeText
+                                                                font.pixelSize: 11
+                                                                font.weight: pMouseArea.containsMouse ? Font.Bold : Font.Medium
+                                                                horizontalAlignment: Text.AlignHCenter
+                                                                verticalAlignment: Text.AlignTop
+                                                                wrapMode: Text.WordWrap
+                                                                elide: Text.ElideRight
+                                                                maximumLineCount: 2
+                                                                lineHeight: 1.15
+                                                                Layout.fillWidth: true
+                                                                Layout.preferredHeight: 30
+                                                            }
+                                                        }
+
+                                                        MouseArea {
+                                                            id: pMouseArea
+                                                            anchors.fill: parent
+                                                            hoverEnabled: true
+                                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                                            cursorShape: Qt.PointingHandCursor
+                                                            onClicked: (mouse) => {
+                                                                if (mouse.button === Qt.LeftButton) {
+                                                                    executeItem(model.filePath)
+                                                                }
+                                                            }
+                                                            onDoubleClicked: (mouse) => {
+                                                                if (mouse.button === Qt.RightButton) {
+                                                                    root.togglePin(model.filePath)
+                                                                } else if (mouse.button === Qt.LeftButton) {
+                                                                    executeItem(model.filePath)
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                visible: root.searchQuery === "" && pinnedModel.count > 0
+                                spacing: 8
+
+                                Text {
+                                    text: "ALL APPLICATIONS"
+                                    color: root.themeTextMuted
+                                    font.pixelSize: 11
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.2
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 1
+                                    color: Qt.alpha(root.themeBorder, 0.12)
+                                }
+                            }
+
+                            GridView {
+                                id: appGrid
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                
+                                model: drawerModel
+                                clip: true
+
+                                cellWidth: 110
+                                cellHeight: 150
+
+                                leftMargin: Math.max(0, (width - (Math.floor(width / cellWidth) * cellWidth)) / 2)
+
+                                ScrollBar.vertical: ScrollBar {
+                                    active: appGrid.moving || appGrid.flicking
+                                    policy: ScrollBar.AsNeeded
+                                }
+
+                                delegate: Item {
+                                    id: gridDelegate
+                                    width: appGrid.cellWidth
+                                    height: appGrid.cellHeight
+
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: 100
+                                        height: 140
+                                        radius: 18
+                                        color: appMouseArea.containsMouse ? root.themeSurfaceHover : "transparent"
+                                        border.width: 1
+                                        border.color: appMouseArea.containsMouse ? Qt.alpha(root.themeBorder, 0.3) : "transparent"
+
+                                        scale: appMouseArea.pressed ? 0.94 : (appMouseArea.containsMouse ? 1.06 : 1.0)
+                                        
+                                        Behavior on scale { 
+                                            NumberAnimation { 
+                                                duration: root.animEnabled ? style.animDuration : 0
+                                                easing.type: style.bounceEasing
+                                                easing.overshoot: style.overshoot
+                                            } 
+                                        }
+                                        Behavior on color { 
+                                            ColorAnimation { duration: style.fadeDuration } 
+                                        }
+                                        Behavior on border.color { 
+                                            ColorAnimation { duration: style.fadeDuration } 
+                                        }
+
+                                        ColumnLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: 8
+                                            spacing: 8
+
+                                            Item {
+                                                Layout.alignment: Qt.AlignHCenter
+                                                Layout.preferredWidth: 56
+                                                Layout.preferredHeight: 56
+
+                                                ToolButton {
+                                                    anchors.fill: parent
+                                                    visible: !model.iconName.startsWith("/")
+                                                    icon.name: !model.iconName.startsWith("/") ? model.iconName : ""
+                                                    icon.width: 56
+                                                    icon.height: 56
+                                                    icon.color: "transparent"
+                                                    background: Item {}
+                                                    hoverEnabled: false
+                                                    down: false
+                                                    padding: 0
+                                                }
+
+                                                Image {
+                                                    anchors.fill: parent
+                                                    visible: model.iconName.startsWith("/")
+                                                    source: model.iconName.startsWith("/") ? "file://" + model.iconName : ""
+                                                    sourceSize: Qt.size(56, 56)
+                                                    fillMode: Image.PreserveAspectFit
+                                                }
+                                            }
+
+                                            Text {
+                                                text: model.displayName
+                                                color: root.themeText
+                                                font.pixelSize: 12
+                                                font.weight: appMouseArea.containsMouse ? Font.Bold : Font.Medium
+                                                horizontalAlignment: Text.AlignHCenter
+                                                verticalAlignment: Text.AlignTop
+                                                wrapMode: Text.WordWrap
+                                                elide: Text.ElideRight
+                                                maximumLineCount: 2 
+                                                lineHeight: 1.15
+                                                Layout.fillWidth: true
+                                                Layout.maximumWidth: 88
+                                                Layout.preferredHeight: 36
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: appMouseArea
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: (mouse) => {
+                                                if (mouse.button === Qt.LeftButton) {
+                                                    executeItem(model.filePath)
+                                                }
+                                            }
+                                            onDoubleClicked: (mouse) => {
+                                                if (mouse.button === Qt.RightButton) {
+                                                    root.togglePin(model.filePath)
+                                                } else if (mouse.button === Qt.LeftButton) {
+                                                    executeItem(model.filePath)
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }

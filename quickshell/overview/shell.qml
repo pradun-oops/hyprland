@@ -36,6 +36,7 @@ Scope {
     property string activeCursorMonitor: ""
 
     property int selectedIndex: 0
+    property bool initialSelectionDone: false
     property var workspaceList: []
     property string wallpaperPath: ""
     property string wallpaperThumbPath: ""
@@ -172,36 +173,55 @@ except Exception:
 
     Timer { 
         id: closeTimer
-        interval: style.fadeDuration 
+        interval: 50
         onTriggered: Qt.quit() 
     }
 
     function switchToWorkspace(item) {
         if (!item || root.isClosing) return;
         root.isClosing = true;
+        root.isOpened = false;
 
         let targetId = item.id;
         let isSpecial = item.isSpecial || false;
         let specialName = item.rawSpecialName || "";
 
-        let luaCmd = isSpecial 
-            ? "hl.dsp.toggle_special_workspace({ name = \"" + specialName + "\" })"
-            : "hl.dsp.focus({ workspace = \"" + targetId + "\" })";
+        if (isSpecial) {
+            try { Hyprland.dispatch("hl.dsp.workspace.toggle_special(\"" + specialName + "\")"); } catch(e) {}
+            try { Hyprland.dispatch("hl.dsp.toggle_special_workspace({ name = \"" + specialName + "\" })"); } catch(e) {}
+            try { Hyprland.dispatch("togglespecialworkspace " + specialName); } catch(e) {}
+        } else {
+            try { Hyprland.dispatch("hl.dsp.focus({ workspace = \"" + targetId + "\" })"); } catch(e) {}
+            try { Hyprland.dispatch("hl.dsp.focus({ workspace = " + targetId + " })"); } catch(e) {}
+            try { Hyprland.dispatch("workspace " + targetId); } catch(e) {}
+        }
 
-        try {
-            Hyprland.dispatch(luaCmd);
-        } catch(e) {}
+        let envPrefix = "export HYPRLAND_INSTANCE_SIGNATURE='" + (Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") || "") + "'; " +
+                        "export WAYLAND_DISPLAY='" + (Quickshell.env("WAYLAND_DISPLAY") || "") + "'; " +
+                        "export XDG_RUNTIME_DIR='" + (Quickshell.env("XDG_RUNTIME_DIR") || "") + "'; ";
 
-        Quickshell.execDetached(["hyprctl", "dispatch", luaCmd]);
+        let bashCmd = "";
+        if (isSpecial) {
+            bashCmd = "hyprctl dispatch 'hl.dsp.workspace.toggle_special(\"" + specialName + "\")' 2>/dev/null || " +
+                      "hyprctl dispatch 'hl.dsp.toggle_special_workspace({ name = \"" + specialName + "\" })' 2>/dev/null || " +
+                      "hyprctl dispatch togglespecialworkspace '" + specialName + "' 2>/dev/null";
+        } else {
+            bashCmd = "hyprctl dispatch 'hl.dsp.focus({ workspace = \"" + targetId + "\" })' 2>/dev/null || " +
+                      "hyprctl dispatch 'hl.dsp.focus({ workspace = " + targetId + " })' 2>/dev/null || " +
+                      "hyprctl dispatch workspace '" + targetId + "' 2>/dev/null";
+        }
 
-        closeTimer.interval = style.fadeDuration;
+        Quickshell.execDetached(["bash", "-c", envPrefix + "nohup " + bashCmd + " >/dev/null 2>&1 &"]);
+
+        closeTimer.interval = 50;
         closeTimer.start();
     }
 
     function dismissMenu() {
         if (root.isClosing) return;
         root.isClosing = true;
-        closeTimer.interval = style.fadeDuration;
+        root.isOpened = false;
+        closeTimer.interval = 10;
         closeTimer.start();
     }
 
@@ -220,6 +240,15 @@ except Exception:
                     if (parsed.thumb && parsed.thumb.length > 0) {
                         if (root.wallpaperThumbPath !== parsed.thumb) {
                             root.wallpaperThumbPath = parsed.thumb
+                        }
+                    }
+                    if (!root.initialSelectionDone && root.workspaceList.length > 0) {
+                        for (let i = 0; i < root.workspaceList.length; i++) {
+                            if (root.workspaceList[i].isActive) {
+                                root.selectedIndex = i;
+                                root.initialSelectionDone = true;
+                                break;
+                            }
                         }
                     }
                     if (root.selectedIndex >= root.workspaceList.length) {
@@ -555,7 +584,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            visible: root.isOpened
+            visible: root.isOpened && !root.isClosing
 
             anchors {
                 top: true
@@ -587,36 +616,59 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                         if (isTargetMonitor) forceActiveFocus()
                     }
 
-                    Keys.onEscapePressed: root.dismissMenu()
-
-                    Keys.onLeftPressed: {
-                        if (root.workspaceList.length > 0) {
-                            root.selectedIndex = (root.selectedIndex - 1 + root.workspaceList.length) % root.workspaceList.length
-                        }
-                    }
-                    Keys.onRightPressed: {
-                        if (root.workspaceList.length > 0) {
-                            root.selectedIndex = (root.selectedIndex + 1) % root.workspaceList.length
-                        }
-                    }
-                    Keys.onUpPressed: {
-                        if (root.selectedIndex - 5 >= 0) {
-                            root.selectedIndex -= 5
-                        }
-                    }
-                    Keys.onDownPressed: {
-                        if (root.selectedIndex + 5 < root.workspaceList.length) {
-                            root.selectedIndex += 5
-                        }
-                    }
-                    Keys.onReturnPressed: {
-                        if (root.workspaceList && root.workspaceList.length > root.selectedIndex) {
-                            root.switchToWorkspace(root.workspaceList[root.selectedIndex])
-                        }
-                    }
-                    Keys.onSpacePressed: {
-                        if (root.workspaceList && root.workspaceList.length > root.selectedIndex) {
-                            root.switchToWorkspace(root.workspaceList[root.selectedIndex])
+                    Keys.onPressed: (event) => {
+                        if (event.key === Qt.Key_Escape) {
+                            root.dismissMenu();
+                            event.accepted = true;
+                        } else if (event.key === Qt.Key_Left) {
+                            if (root.workspaceList.length > 0) {
+                                root.selectedIndex = (root.selectedIndex - 1 + root.workspaceList.length) % root.workspaceList.length;
+                            }
+                            event.accepted = true;
+                        } else if (event.key === Qt.Key_Right || event.key === Qt.Key_Tab) {
+                            if (root.workspaceList.length > 0) {
+                                root.selectedIndex = (root.selectedIndex + 1) % root.workspaceList.length;
+                            }
+                            event.accepted = true;
+                        } else if (event.key === Qt.Key_Backtab) {
+                            if (root.workspaceList.length > 0) {
+                                root.selectedIndex = (root.selectedIndex - 1 + root.workspaceList.length) % root.workspaceList.length;
+                            }
+                            event.accepted = true;
+                        } else if (event.key === Qt.Key_Up) {
+                            if (root.selectedIndex - 5 >= 0) {
+                                root.selectedIndex -= 5;
+                            }
+                            event.accepted = true;
+                        } else if (event.key === Qt.Key_Down) {
+                            if (root.selectedIndex + 5 < root.workspaceList.length) {
+                                root.selectedIndex += 5;
+                            }
+                            event.accepted = true;
+                        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
+                            if (root.workspaceList && root.workspaceList.length > root.selectedIndex) {
+                                root.switchToWorkspace(root.workspaceList[root.selectedIndex]);
+                            }
+                            event.accepted = true;
+                        } else if (event.key >= Qt.Key_1 && event.key <= Qt.Key_9) {
+                            let targetNum = event.key - Qt.Key_1 + 1;
+                            for (let i = 0; i < root.workspaceList.length; i++) {
+                                if (root.workspaceList[i].id === targetNum && !root.workspaceList[i].isSpecial) {
+                                    root.selectedIndex = i;
+                                    root.switchToWorkspace(root.workspaceList[i]);
+                                    event.accepted = true;
+                                    return;
+                                }
+                            }
+                        } else if (event.key === Qt.Key_0) {
+                            for (let i = 0; i < root.workspaceList.length; i++) {
+                                if (root.workspaceList[i].id === 10 && !root.workspaceList[i].isSpecial) {
+                                    root.selectedIndex = i;
+                                    root.switchToWorkspace(root.workspaceList[i]);
+                                    event.accepted = true;
+                                    return;
+                                }
+                            }
                         }
                     }
 
@@ -733,7 +785,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                 source: root.formatFileUrl(root.wallpaperThumbPath !== "" ? root.wallpaperThumbPath : root.wallpaperPath)
                                                 fillMode: Image.PreserveAspectCrop
                                                 asynchronous: true
-                                                cache: false
+                                                cache: true
                                                 visible: status === Image.Ready && source !== ""
                                             }
 
@@ -895,17 +947,21 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                                         MouseArea {
                                             anchors.fill: parent
+                                            z: 100
                                             hoverEnabled: true
                                             cursorShape: Qt.PointingHandCursor
                                             onEntered: root.selectedIndex = index
-                                            onClicked: root.switchToWorkspace(modelData)
+                                            onClicked: {
+                                                let wsTarget = (root.workspaceList && root.workspaceList.length > index) ? root.workspaceList[index] : modelData;
+                                                root.switchToWorkspace(wsTarget);
+                                            }
                                         }
                                     }
                                 }
                             }
 
                             Text {
-                                text: "Arrow Keys / Mouse to navigate  •  Enter / Click to switch  •  Esc to exit"
+                                text: "Arrow Keys / 0-9 / Mouse to navigate  •  Enter / Click to switch  •  Esc to exit"
                                 color: root.themeTextMuted
                                 font.pixelSize: 12
                                 anchors.horizontalCenter: parent.horizontalCenter
