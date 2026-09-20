@@ -103,7 +103,6 @@ Setting up this configuration on a fresh Fedora install is completely automated.
 ├── matugen/
 ├── quickshell/
 ├── scripts/
-├── Wallpapers/
 ├── hyprland.lua
 └── README.md
 ```

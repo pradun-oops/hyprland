@@ -19,7 +19,6 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Ensures core target destination directories exist.
 # ==========================================================
 mkdir -p "$HOME/.config/hypr"
-mkdir -p "$HOME/Pictures"
 
 # ==========================================================
 # 📦 Global Configuration Deployment (~/.config/)
@@ -40,13 +39,6 @@ cp -a "$REPO_DIR/configs"      "$HOME/.config/hypr/" 2>/dev/null || true
 cp -a "$REPO_DIR/quickshell"   "$HOME/.config/hypr/" 2>/dev/null || true
 cp -a "$REPO_DIR/scripts"      "$HOME/.config/hypr/" 2>/dev/null || true
 cp -a "$REPO_DIR/hyprland.lua" "$HOME/.config/hypr/" 2>/dev/null || true
-
-# ==========================================================
-# 🖼️ Wallpaper Collection Sync (~/Pictures/Wallpapers)
-# Deploys background images used for dynamic theming and swww/awww.
-# ==========================================================
-echo ":: Deploying wallpapers..."
-cp -a "$REPO_DIR/Wallpapers" "$HOME/Pictures/" 2>/dev/null || true
 
 # ==========================================================
 # 🔑 File Permissions
