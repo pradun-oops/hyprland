@@ -31,7 +31,6 @@ ShellRoot {
     property int themeRounding: 16
     property int themeBorderSize: 2
 
-    // MPRIS Active Media Player Selection
     readonly property var activePlayer: {
         if (!Mpris || !Mpris.players) return null
         let list = Mpris.players.values || []
@@ -275,7 +274,6 @@ print(wp)
                     visible: lockSurface.isPrimary
                     enabled: lockSurface.isPrimary
 
-                    // Date & Time
                     ColumnLayout {
                         Layout.alignment: Qt.AlignHCenter
                         spacing: 2
@@ -545,7 +543,6 @@ print(wp)
                                     }
                                 }
 
-                                // Play / Pause Pill Button
                                 Rectangle {
                                     width: 34
                                     height: 34
@@ -573,7 +570,6 @@ print(wp)
                                     }
                                 }
 
-                                // Next Button
                                 Rectangle {
                                     width: 30
                                     height: 30

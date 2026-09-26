@@ -66,7 +66,18 @@ popover > contents {
     background-color: @popover_bg_color;
     color: @popover_fg_color;
     border: 1px solid @borders;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+    border-radius: 16px; /* Generous outer rounding */
+    padding: 8px; /* Internal spacing for floating effect */
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); /* Deeper, softer shadow */
+}
+
+/* Floating pill-style menu items */
+popover.menu modelbutton,
+popover.menu button {
+    border-radius: 10px; /* Rounded inner items */
+    padding: 8px 12px;
+    margin: 2px 4px; /* Separation to create the 'pill' look */
+    transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* Smooth kinetic hover */
 }
 
 /* Menu items selection / hover styling */
@@ -75,10 +86,46 @@ popover.menu modelbutton:selected,
 popover.menu button:hover {
     background-color: @accent_bg_color;
     color: @accent_fg_color;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 popover.menu modelbutton:hover label,
 popover.menu modelbutton:selected label,
 popover.menu button:hover label {
     color: @accent_fg_color;
+}
+
+/* ----------------------------------------------------------
+ * 🗂️ Cards & Dialogs (Unified Geometry)
+ * ---------------------------------------------------------- */
+card, .card {
+    background-color: @card_bg_color;
+    color: @card_fg_color;
+    border: 1px solid @card_border_color;
+    border-radius: 16px;
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+card:hover, .card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+dialog, window.dialog {
+    border-radius: 20px;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+}
+
+/* ----------------------------------------------------------
+ * 🎛️ General Elements & Buttons
+ * ---------------------------------------------------------- */
+button {
+    border-radius: 12px;
+    transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+window {
+    background-color: @window_bg_color;
+    color: @window_fg_color;
+    /* GTK internal fallback rounding; usually your Wayland compositor handles the outer crop */
+    border-radius: 16px; 
 }

@@ -1,0 +1,54 @@
+{
+    "editor.background": "{{ colors.background.default.hex }}",
+    "editor.foreground": "{{ colors.on_background.default.hex }}",
+    "activityBar.background": "{{ colors.surface_container.default.hex }}",
+    "sideBar.background": "{{ colors.surface_container_low.default.hex }}",
+    "titleBar.activeBackground": "{{ colors.surface.default.hex }}",
+    "button.background": "{{ colors.primary.default.hex }}",
+    "editor.selectionBackground": "{{ colors.primary.default.hex }}40",
+    "editorCursor.foreground": "{{ colors.primary.default.hex }}",
+    "tab.activeBackground": "{{ colors.surface_container_high.default.hex }}",
+    "tab.activeBorder": "{{ colors.primary.default.hex }}",
+    
+    "editor.tokenColorCustomizations": {
+        "textMateRules": [
+            {
+                "scope": ["comment", "punctuation.definition.comment"],
+                "settings": {
+                    "foreground": "{{ colors.outline.default.hex }}",
+                    "fontStyle": "italic"
+                }
+            },
+            {
+                "scope": ["string", "punctuation.definition.string"],
+                "settings": {
+                    "foreground": "{{ colors.secondary.default.hex }}"
+                }
+            },
+            {
+                "scope": ["keyword", "storage.type", "storage.modifier"],
+                "settings": {
+                    "foreground": "{{ colors.primary.default.hex }}"
+                }
+            },
+            {
+                "scope": ["entity.name.function", "support.function"],
+                "settings": {
+                    "foreground": "{{ colors.tertiary.default.hex }}"
+                }
+            },
+            {
+                "scope": ["variable", "entity.name.variable"],
+                "settings": {
+                    "foreground": "{{ colors.on_background.default.hex }}"
+                }
+            },
+            {
+                "scope": ["constant.numeric", "constant.language", "constant.character"],
+                "settings": {
+                    "foreground": "{{ colors.error.default.hex }}"
+                }
+            }
+        ]
+    }
+}

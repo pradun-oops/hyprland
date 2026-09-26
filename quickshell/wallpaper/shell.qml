@@ -370,7 +370,6 @@ print(json.dumps(results))
                 scale: shown ? 1.0 : 0.90
                 opacity: shown ? 1.0 : 0.0
 
-                // Main card retains the pop-in bounce animation
                 Behavior on scale {
                     NumberAnimation {
                         duration: root.animEnabled ? animStyle.animDuration : 0
@@ -439,7 +438,6 @@ print(json.dumps(results))
                         Layout.fillWidth: true
                         Layout.fillHeight: true
 
-                        // --- VIEW 0: WALLPAPERS ---
                         Item {
                             anchors.fill: parent
                             visible: mainCard.activeTab === 0
@@ -481,7 +479,6 @@ print(json.dumps(results))
                                 cellWidth: width > 0 ? Math.floor(width / columns) : 230
                                 cellHeight: Math.floor(cellWidth * 0.65)
 
-                                // REMOVED flashy `add` and `displaced` transitions
 
                                 model: FolderListModel {
                                     id: folderModel
@@ -511,7 +508,6 @@ print(json.dumps(results))
 
                                     scale: isHovered ? 1.03 : 1.0
                                     
-                                    // FIXED: Changed to OutCubic to remove jitter/bouncing on fast hover
                                     Behavior on scale {
                                         NumberAnimation {
                                             duration: 180
@@ -561,7 +557,6 @@ print(json.dumps(results))
                                                 }
                                             }
                                             
-                                            // Simplified opacity to prevent flashes when scrolling
                                             opacity: isHovered ? 0.85 : 1.0
                                             Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                                         }
@@ -572,7 +567,6 @@ print(json.dumps(results))
                                             color: "transparent"
                                             radius: 0
                                             
-                                            // FIXED: No Behavior on border.width to prevent geometry recalculation flashes
                                             border.width: isActive ? 4 : (isHovered ? 2 : 0)
                                             border.color: isActive ? root.themePrimary : (isHovered ? Qt.alpha(root.themePrimary, 0.6) : "transparent")
                                             
@@ -600,7 +594,6 @@ print(json.dumps(results))
                             }
                         }
 
-                        // --- VIEW 1: DYNAMIC THEMES (COLOR PLATES) ---
                         GridView {
                             id: themeGrid
                             anchors.fill: parent
@@ -654,7 +647,6 @@ print(json.dumps(results))
                                     color: model.colorPlate
                                     clip: true
                                     
-                                    // DEDICATED SELECTION OVERLAY RECTANGLE
                                     Rectangle {
                                         anchors.fill: parent
                                         color: "transparent"

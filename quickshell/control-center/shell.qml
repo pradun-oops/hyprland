@@ -44,13 +44,11 @@ Scope {
     property bool micMuted: false
     property bool volumeMuted: false
 
-    // Slider state
     property real volumeLevel: 0.5
     property real brightnessLevel: 0.5
     property bool isDraggingVolume: false
     property bool isDraggingBrightness: false
 
-    // Media state
     property string mediaStatus: "Stopped"
     property string mediaTitle: ""
     property string mediaArtist: ""

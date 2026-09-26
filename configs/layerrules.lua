@@ -81,6 +81,7 @@ apply_blur({
     "qs-filemanager",
     "qs-clipboard",
     "qs-analog-clock",
+    "qs-rgbcontrol",
 }, 0.01)
 
 

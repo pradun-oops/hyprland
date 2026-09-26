@@ -14,9 +14,9 @@ Scope {
     property color themeText: "#ffffff"
     property color themeTextMuted: "#a1a1aa"
     
-    property int themeRounding: 18 // Slightly higher for a better pill shape
+    property int themeRounding: 18 
     property int themeBorderSize: 1
-    property real themeBgAlpha: 0.65 // Slightly more opaque for better text contrast
+    property real themeBgAlpha: 0.65 
     property bool animEnabled: true
     property int animDuration: 380
     
@@ -60,7 +60,6 @@ Scope {
     property int barY: 8 
     property int islandHeight: 38
 
-    // --- Helper Functions for Dynamic Icons ---
     function getBatIcon(pct, charging) {
         if (charging) return "󰂄"
         if (pct > 90) return "󰁹"
@@ -510,7 +509,6 @@ print(json.dumps({
                         onDoubleClicked: barIsland.isPinned = !barIsland.isPinned
                     }
 
-                    // --- COLLAPSED STATE ---
                     Row {
                         id: collapsedRow
                         height: root.islandHeight
@@ -555,7 +553,6 @@ print(json.dumps({
                         }
                     }
 
-                    // --- EXPANDED STATE ---
                     Row {
                         id: expandedRow
                         height: root.islandHeight
@@ -568,7 +565,6 @@ print(json.dumps({
                         Behavior on opacity { NumberAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
                         Behavior on scale { NumberAnimation { duration: root.animEnabled ? style.animDuration : 0; easing.type: style.smoothEasing } }
 
-                        // Workspaces
                         Row {
                             height: root.islandHeight
                             spacing: 4
@@ -606,7 +602,6 @@ print(json.dumps({
 
                         Rectangle { width: 4; height: 4; radius: 2; color: style.separatorColor; anchors.verticalCenter: parent.verticalCenter }
 
-                        // Network Speeds
                         Row {
                             height: root.islandHeight
                             spacing: 12
@@ -637,7 +632,6 @@ print(json.dumps({
 
                         Rectangle { width: 4; height: 4; radius: 2; color: style.separatorColor; anchors.verticalCenter: parent.verticalCenter }
 
-                        // Time & Date (Center Block)
                         Rectangle {
                             height: parent.height - 10
                             width: centerRow.implicitWidth + 24
