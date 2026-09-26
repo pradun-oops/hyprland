@@ -19,6 +19,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Ensures core target destination directories exist.
 # ==========================================================
 mkdir -p "$HOME/.config/hypr"
+mkdir -p "$HOME/.config/hypr/extensions"
 
 # ==========================================================
 # 📦 Global Configuration Deployment (~/.config/)
@@ -39,6 +40,22 @@ cp -a "$REPO_DIR/configs"      "$HOME/.config/hypr/" 2>/dev/null || true
 cp -a "$REPO_DIR/quickshell"   "$HOME/.config/hypr/" 2>/dev/null || true
 cp -a "$REPO_DIR/scripts"      "$HOME/.config/hypr/" 2>/dev/null || true
 cp -a "$REPO_DIR/hyprland.lua" "$HOME/.config/hypr/" 2>/dev/null || true
+
+# ==========================================================
+# 🧩 VSCodium Extension Deployment
+# Copies the pre-packaged .vsix extension into the config folder
+# and installs it directly into VSCodium.
+# ==========================================================
+echo ":: Installing custom VSCodium theme sync extension..."
+if [ -d "$REPO_DIR/extensions" ]; then
+    cp -a "$REPO_DIR/extensions/." "$HOME/.config/hypr/extensions/" 2>/dev/null || true
+fi
+
+if [ -f "$HOME/.config/hypr/extensions/matugen-theme-sync-0.0.1.vsix" ]; then
+    codium --install-extension "$HOME/.config/hypr/extensions/matugen-theme-sync-0.0.1.vsix" --force
+else
+    echo ":: Warning: Pre-packaged VSIX file not found in extensions directory."
+fi
 
 # ==========================================================
 # 🔑 File Permissions
