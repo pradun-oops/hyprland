@@ -1,5 +1,6 @@
 /* ==========================================================
- * 🎨 Dynamic GTK / Libadwaita Material You Stylesheet
+ * 🧊 Liquid Glass GTK / Libadwaita Material You Stylesheet
+ *    (High-Contrast Frosted Edition)
  * ========================================================== */
 
 /* ----------------------------------------------------------
@@ -26,37 +27,47 @@
 @define-color error_fg_color {{colors.on_error.default.hex}};
 
 /* ----------------------------------------------------------
- * 🖼️ Window Surfaces & Canvases
+ * 🧊 Glass Window Surfaces & Canvases (Increased Opacity)
  * ---------------------------------------------------------- */
-@define-color window_bg_color {{colors.background.default.hex}};
+/* Raised from 0.45 to 0.82 for strong frosted legibility */
+@define-color window_bg_color alpha({{colors.background.default.hex}}, 0.82);
 @define-color window_fg_color {{colors.on_background.default.hex}};
 
-@define-color view_bg_color {{colors.surface.default.hex}};
+/* Raised from 0.40 to 0.75 for main content areas */
+@define-color view_bg_color alpha({{colors.surface.default.hex}}, 0.75);
 @define-color view_fg_color {{colors.on_surface.default.hex}};
 
-@define-color headerbar_bg_color {{colors.surface_container.default.hex}};
+@define-color headerbar_bg_color alpha({{colors.surface_container.default.hex}}, 0.85);
 @define-color headerbar_fg_color {{colors.on_surface.default.hex}};
-@define-color headerbar_border_color {{colors.outline_variant.default.hex}};
+@define-color headerbar_border_color alpha({{colors.outline_variant.default.hex}}, 0.45);
 @define-color headerbar_backdrop_color @window_bg_color;
-@define-color headerbar_shade_color rgba(0, 0, 0, 0.36);
+@define-color headerbar_shade_color transparent;
 
 /* ----------------------------------------------------------
- * 📑 Cards, Dialogs & Popover Menus (Libadwaita Native Tokens)
+ * 🧊 Cards, Dialogs & Popover Menus
  * ---------------------------------------------------------- */
-@define-color card_bg_color {{colors.surface_container.default.hex}};
+@define-color card_bg_color alpha({{colors.surface_container.default.hex}}, 0.65);
 @define-color card_fg_color {{colors.on_surface.default.hex}};
-@define-color card_border_color {{colors.outline_variant.default.hex}};
+@define-color card_border_color alpha({{colors.outline_variant.default.hex}}, 0.35);
 
-@define-color dialog_bg_color {{colors.surface_container_high.default.hex}};
+@define-color dialog_bg_color alpha({{colors.surface_container_high.default.hex}}, 0.90);
 @define-color dialog_fg_color {{colors.on_surface.default.hex}};
 
-@define-color popover_bg_color {{colors.surface_container_high.default.hex}};
+@define-color popover_bg_color alpha({{colors.surface_container_high.default.hex}}, 0.88);
 @define-color popover_fg_color {{colors.on_surface.default.hex}};
 @define-color popover_shade_color rgba(0, 0, 0, 0.25);
 
-/* Borders and dividers */
-@define-color borders {{colors.outline_variant.default.hex}};
-@define-color outline_color {{colors.outline.default.hex}};
+/* Light-bending edge colors */
+@define-color borders alpha({{colors.outline_variant.default.hex}}, 0.45);
+@define-color outline_color alpha({{colors.outline.default.hex}}, 0.50);
+
+/* ----------------------------------------------------------
+ * 🔤 Global Font Rendering Improvements
+ * ---------------------------------------------------------- */
+/* Apply a subtle drop shadow to text to separate it from the blurred background */
+label, .label {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+}
 
 /* ----------------------------------------------------------
  * 🪟 GTK4 Popover Structure & Menu Overrides
@@ -66,33 +77,34 @@ popover > contents {
     background-color: @popover_bg_color;
     color: @popover_fg_color;
     border: 1px solid @borders;
-    border-radius: 16px; /* Generous outer rounding */
-    padding: 8px; /* Internal spacing for floating effect */
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45); /* Deeper, softer shadow */
+    border-radius: 16px; 
+    padding: 8px; 
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 
 /* Floating pill-style menu items */
 popover.menu modelbutton,
 popover.menu button {
-    border-radius: 10px; /* Rounded inner items */
+    border-radius: 10px; 
     padding: 8px 12px;
-    margin: 2px 4px; /* Separation to create the 'pill' look */
-    transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94); /* Smooth kinetic hover */
+    margin: 2px 4px; 
+    transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94); 
 }
 
 /* Menu items selection / hover styling */
 popover.menu modelbutton:hover,
 popover.menu modelbutton:selected,
 popover.menu button:hover {
-    background-color: @accent_bg_color;
+    background-color: alpha(@accent_bg_color, 0.85); 
     color: @accent_fg_color;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.2), 0 2px 8px rgba(0,0,0,0.25);
 }
 
 popover.menu modelbutton:hover label,
 popover.menu modelbutton:selected label,
 popover.menu button:hover label {
     color: @accent_fg_color;
+    text-shadow: none; /* Remove shadow on highlighted items for sharpness */
 }
 
 /* ----------------------------------------------------------
@@ -103,16 +115,18 @@ card, .card {
     color: @card_fg_color;
     border: 1px solid @card_border_color;
     border-radius: 16px;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.08), 0 4px 12px rgba(0, 0, 0, 0.15);
     transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 card:hover, .card:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.12), 0 6px 18px rgba(0, 0, 0, 0.25);
 }
 
 dialog, window.dialog {
     border-radius: 20px;
-    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.5);
+    border: 1px solid @borders;
+    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 12px 36px rgba(0, 0, 0, 0.5);
 }
 
 /* ----------------------------------------------------------
@@ -126,6 +140,5 @@ button {
 window {
     background-color: @window_bg_color;
     color: @window_fg_color;
-    /* GTK internal fallback rounding; usually your Wayland compositor handles the outer crop */
     border-radius: 16px; 
 }

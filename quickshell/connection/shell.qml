@@ -54,17 +54,17 @@ Scope {
     property color themeBorder: "#ff4b6e"
     property color themePrimary: "#ff4b6e"
     property color themeText: "#ffffff"
-    property color themeTextMuted: "#a1a1aa"
+    property color themeTextMuted: "#D4D4D8"
     
     property int themeRounding: 22
-    property int themeBorderSize: 1
+    property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 220
     
     property color themeBackground: "#141416" 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.07) 
-    property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.12)
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.32) 
+    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)
 
     property string expandedSsid: ""
     property string connectingSsid: ""
@@ -111,7 +111,7 @@ Scope {
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -322,7 +322,6 @@ def get_net():
         "networks": networks
     }
     
-    # Save cache so it displays instantly on the next open
     try:
         cache_dir = os.path.expanduser("~/.cache")
         os.makedirs(cache_dir, exist_ok=True)
@@ -478,10 +477,7 @@ print(json.dumps(get_net()))
             }
 
             Item {
-                anchors.top: parent.top
-                anchors.right: parent.right
-                anchors.topMargin: 60
-                anchors.rightMargin: 20
+                anchors.centerIn: parent
                 implicitWidth: 430
                 implicitHeight: 640
                 focus: isTargetMonitor
@@ -503,11 +499,9 @@ print(json.dumps(get_net()))
                     radius: root.themeRounding
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themeBorder, 0.45)
+                    border.color: Qt.alpha(root.themePrimary, 0.4)
+                    antialiasing: true
                     clip: true
-
-                    layer.enabled: true
-                    layer.samples: 8
 
                     ColumnLayout {
                         anchors.fill: parent
@@ -524,6 +518,8 @@ print(json.dumps(get_net()))
                                     color: root.themeText
                                     font.pixelSize: 18
                                     font.weight: Font.Bold
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
 
                                 Rectangle {
@@ -534,6 +530,7 @@ print(json.dumps(get_net()))
                                     color: Qt.alpha(root.themePrimary, 0.25)
                                     border.width: 1
                                     border.color: Qt.alpha(root.themePrimary, 0.5)
+                                    antialiasing: true
 
                                     Text {
                                         id: badgeText
@@ -554,7 +551,8 @@ print(json.dumps(get_net()))
                                 radius: Math.max(4, root.themeRounding - 4)
                                 color: scanBtnArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                 border.width: 1
-                                border.color: Qt.rgba(1, 1, 1, 0.08)
+                                border.color: Qt.rgba(255, 255, 255, 0.12)
+                                antialiasing: true
 
                                 scale: scanBtnArea.pressed ? 0.94 : 1.0
 
@@ -589,6 +587,8 @@ print(json.dumps(get_net()))
                                         color: root.themeText
                                         font.pixelSize: 12
                                         font.weight: Font.Medium
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                     }
                                 }
 
@@ -610,9 +610,10 @@ print(json.dumps(get_net()))
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 52
                                 radius: Math.max(4, root.themeRounding - 6)
-                                color: root.wifiEnabled ? Qt.alpha(root.themePrimary, 0.16) : root.themeSurface
+                                color: root.wifiEnabled ? Qt.alpha(root.themePrimary, 0.22) : root.themeSurface
                                 border.width: root.themeBorderSize
-                                border.color: root.wifiEnabled ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.08)
+                                border.color: root.wifiEnabled ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                antialiasing: true
 
                                 scale: wifiBtnMouse.pressed ? 0.96 : 1.0
 
@@ -654,17 +655,25 @@ print(json.dumps(get_net()))
                                             color: root.themeText
                                             font.pixelSize: 12
                                             font.weight: Font.Bold
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.7)
                                         }
                                         Text {
                                             text: root.wifiEnabled ? "Enabled" : "Disabled"
                                             color: root.themeTextMuted
                                             font.pixelSize: 10
+                                            font.weight: Font.Medium
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.5)
                                         }
                                     }
 
                                     Rectangle {
                                         width: 38; height: 22; radius: 11
-                                        color: root.wifiEnabled ? root.themePrimary : Qt.rgba(1, 1, 1, 0.15)
+                                        color: root.wifiEnabled ? root.themePrimary : Qt.rgba(0, 0, 0, 0.4)
+                                        border.width: 1
+                                        border.color: Qt.rgba(255, 255, 255, 0.15)
+                                        antialiasing: true
                                         Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                         Rectangle {
@@ -672,6 +681,7 @@ print(json.dumps(get_net()))
                                             anchors.verticalCenter: parent.verticalCenter
                                             x: root.wifiEnabled ? 19 : 3
                                             color: root.wifiEnabled ? "#000000" : root.themeText
+                                            antialiasing: true
                                             Behavior on x { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                         }
                                     }
@@ -682,9 +692,10 @@ print(json.dumps(get_net()))
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 52
                                 radius: Math.max(4, root.themeRounding - 6)
-                                color: (root.ethConnected || root.ethEnabled) ? Qt.alpha(root.themePrimary, 0.16) : root.themeSurface
+                                color: (root.ethConnected || root.ethEnabled) ? Qt.alpha(root.themePrimary, 0.22) : root.themeSurface
                                 border.width: root.themeBorderSize
-                                border.color: (root.ethConnected || root.ethEnabled) ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.08)
+                                border.color: (root.ethConnected || root.ethEnabled) ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                antialiasing: true
 
                                 scale: ethBtnMouse.pressed ? 0.96 : 1.0
 
@@ -726,17 +737,25 @@ print(json.dumps(get_net()))
                                             color: root.themeText
                                             font.pixelSize: 12
                                             font.weight: Font.Bold
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.7)
                                         }
                                         Text {
                                             text: root.ethConnected ? "Connected" : (root.ethEnabled ? "Disconnected" : "Disabled")
                                             color: root.themeTextMuted
                                             font.pixelSize: 10
+                                            font.weight: Font.Medium
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.5)
                                         }
                                     }
 
                                     Rectangle {
                                         width: 38; height: 22; radius: 11
-                                        color: (root.ethConnected || root.ethEnabled) ? root.themePrimary : Qt.rgba(1, 1, 1, 0.15)
+                                        color: (root.ethConnected || root.ethEnabled) ? root.themePrimary : Qt.rgba(0, 0, 0, 0.4)
+                                        border.width: 1
+                                        border.color: Qt.rgba(255, 255, 255, 0.15)
+                                        antialiasing: true
                                         Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                         Rectangle {
@@ -744,6 +763,7 @@ print(json.dumps(get_net()))
                                             anchors.verticalCenter: parent.verticalCenter
                                             x: (root.ethConnected || root.ethEnabled) ? 19 : 3
                                             color: (root.ethConnected || root.ethEnabled) ? "#000000" : root.themeText
+                                            antialiasing: true
                                             Behavior on x { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                         }
                                     }
@@ -754,7 +774,7 @@ print(json.dumps(get_net()))
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 1
-                            color: Qt.rgba(1, 1, 1, 0.08)
+                            color: Qt.rgba(255, 255, 255, 0.1)
                         }
 
                         Item {
@@ -769,7 +789,7 @@ print(json.dumps(get_net()))
                                 Text {
                                     Layout.alignment: Qt.AlignHCenter
                                     text: !root.wifiEnabled ? "󰤭" : "󰤫"
-                                    color: Qt.rgba(1, 1, 1, 0.22)
+                                    color: Qt.rgba(255, 255, 255, 0.3)
                                     font.pixelSize: 48
                                 }
 
@@ -779,6 +799,8 @@ print(json.dumps(get_net()))
                                     color: root.themeTextMuted
                                     font.pixelSize: 13
                                     font.weight: Font.Medium
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                 }
                             }
 
@@ -806,6 +828,7 @@ print(json.dumps(get_net()))
 
                                     implicitHeight: cardCol.implicitHeight + 24
                                     height: implicitHeight
+                                    antialiasing: true
 
                                     scale: headerMouseArea.pressed ? 0.98 : 1.0
 
@@ -827,7 +850,7 @@ print(json.dumps(get_net()))
                                     radius: Math.max(4, root.themeRounding - 6)
                                     color: headerMouseArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                     border.width: root.themeBorderSize
-                                    border.color: card.hasError ? "#ff4b6e" : (card.isConnected ? Qt.alpha(root.themePrimary, 0.6) : (card.isExpanded ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1, 1, 1, 0.08)))
+                                    border.color: card.hasError ? "#ff4b6e" : (card.isConnected ? root.themePrimary : (card.isExpanded ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(255, 255, 255, 0.10)))
 
                                     Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                     Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
@@ -863,9 +886,11 @@ print(json.dumps(get_net()))
                                                         text: model.ssid
                                                         color: root.themeText
                                                         font.pixelSize: 13
-                                                        font.weight: card.isConnected ? Font.Bold : Font.Medium
+                                                        font.weight: card.isConnected ? Font.Bold : Font.DemiBold
                                                         elide: Text.ElideRight
                                                         Layout.fillWidth: true
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
                                                     }
 
                                                     RowLayout {
@@ -874,11 +899,17 @@ print(json.dumps(get_net()))
                                                             text: model.security
                                                             color: root.themeTextMuted
                                                             font.pixelSize: 10
+                                                            font.weight: Font.Medium
+                                                            style: Text.Raised
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.5)
                                                         }
                                                         Text {
                                                             text: "• " + model.signal + "%"
                                                             color: root.themeTextMuted
                                                             font.pixelSize: 10
+                                                            font.weight: Font.Medium
+                                                            style: Text.Raised
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.5)
                                                         }
                                                     }
                                                 }
@@ -887,9 +918,10 @@ print(json.dumps(get_net()))
                                                     Layout.preferredWidth: statusText.implicitWidth + 16
                                                     Layout.preferredHeight: 26
                                                     radius: 13
-                                                    color: card.hasError ? Qt.alpha("#ff4b6e", 0.22) : (card.isConnected ? Qt.alpha(root.themePrimary, 0.22) : (card.isSaved ? Qt.alpha("#38bdf8", 0.18) : Qt.rgba(1, 1, 1, 0.06)))
+                                                    color: card.hasError ? Qt.alpha("#ff4b6e", 0.3) : (card.isConnected ? Qt.alpha(root.themePrimary, 0.3) : (card.isSaved ? Qt.alpha("#38bdf8", 0.25) : Qt.rgba(0, 0, 0, 0.4)))
                                                     border.width: 1
-                                                    border.color: card.hasError ? Qt.alpha("#ff4b6e", 0.6) : (card.isConnected ? Qt.alpha(root.themePrimary, 0.5) : (card.isSaved ? Qt.alpha("#38bdf8", 0.4) : Qt.rgba(1, 1, 1, 0.1)))
+                                                    border.color: card.hasError ? "#ff4b6e" : (card.isConnected ? root.themePrimary : (card.isSaved ? "#38bdf8" : Qt.rgba(255, 255, 255, 0.15)))
+                                                    antialiasing: true
 
                                                     Text {
                                                         id: statusText
@@ -898,6 +930,8 @@ print(json.dumps(get_net()))
                                                         color: card.hasError ? "#ff4b6e" : (card.isConnected ? root.themePrimary : (card.isSaved ? "#38bdf8" : root.themeText))
                                                         font.pixelSize: 10
                                                         font.weight: Font.Bold
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                                     }
                                                 }
                                             }
@@ -938,7 +972,7 @@ print(json.dumps(get_net()))
                                             Rectangle {
                                                 Layout.fillWidth: true
                                                 Layout.preferredHeight: 1
-                                                color: Qt.rgba(1, 1, 1, 0.08)
+                                                color: Qt.rgba(255, 255, 255, 0.1)
                                             }
 
                                             RowLayout {
@@ -952,6 +986,7 @@ print(json.dumps(get_net()))
                                                     Layout.preferredHeight: 32
                                                     radius: 8
                                                     color: disconnectBtnMouse.containsMouse ? "#f43f5e" : "#e11d48"
+                                                    antialiasing: true
 
                                                     scale: disconnectBtnMouse.pressed ? 0.92 : 1.0
 
@@ -995,9 +1030,10 @@ print(json.dumps(get_net()))
                                                         Layout.fillWidth: true
                                                         Layout.preferredHeight: 36
                                                         radius: 8
-                                                        color: root.themeBackground
+                                                        color: Qt.rgba(0, 0, 0, 0.45)
                                                         border.width: 1
-                                                        border.color: card.hasError ? "#ff4b6e" : (passInput.activeFocus ? Qt.alpha(root.themePrimary, 0.6) : Qt.rgba(1, 1, 1, 0.15))
+                                                        border.color: card.hasError ? "#ff4b6e" : (passInput.activeFocus ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15))
+                                                        antialiasing: true
 
                                                         Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
@@ -1012,8 +1048,8 @@ print(json.dumps(get_net()))
                                                                 Layout.fillWidth: true
                                                                 enabled: !card.isConnecting
                                                                 placeholderText: card.isSaved ? "Re-enter password to update..." : "Password..."
-                                                                placeholderTextColor: Qt.rgba(1, 1, 1, 0.35)
-                                                                color: root.themeText
+                                                                placeholderTextColor: Qt.rgba(1, 1, 1, 0.45)
+                                                                color: "#FFFFFF"
                                                                 font.pixelSize: 12
                                                                 echoMode: card.showPassword ? TextInput.Normal : TextInput.Password
                                                                 selectByMouse: true
@@ -1061,7 +1097,8 @@ print(json.dumps(get_net()))
                                                         Layout.preferredWidth: card.isConnecting ? 100 : 84
                                                         Layout.preferredHeight: 36
                                                         radius: 8
-                                                        color: card.isConnecting ? Qt.rgba(1, 1, 1, 0.2) : (connectBtnMouse.containsMouse ? Qt.lighter(root.themePrimary, 1.1) : root.themePrimary)
+                                                        color: card.isConnecting ? Qt.rgba(255, 255, 255, 0.2) : (connectBtnMouse.containsMouse ? Qt.lighter(root.themePrimary, 1.1) : root.themePrimary)
+                                                        antialiasing: true
 
                                                         scale: connectBtnMouse.pressed ? 0.92 : 1.0
 

@@ -41,14 +41,15 @@ Scope {
     property int themeRounding: 15
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
+    
     property bool animEnabled: true
     property int animDuration: 380
     
-    property color themeBackground: Qt.rgba(0.07, 0.07, 0.08, 0.7) 
+    property color themeBackground: "#121214" 
     property color themeCardBg: Qt.rgba(0.09, 0.09, 0.12, 0.85)
     property color themeBorder: "#d6bbfb"
     property color themeText: "#FFFFFF"          
-    property color themeTextMuted: "#A1A1AA"
+    property color themeTextMuted: "#D4D4D8"
     property color themePrimary: "#d6bbfb"        
 
     QtObject {
@@ -191,12 +192,14 @@ print(json.dumps(results))
         onLoaded: {
             try {
                 let content = text()
-                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (match && match[1]) {
                     let hex = "#" + match[1]
                     root.themeBorder = hex
                     root.themePrimary = hex
                 }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) root.themeBackground = "#" + bgMatch[1]
             } catch (e) {}
         }
     }
@@ -213,7 +216,7 @@ print(json.dumps(results))
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -359,8 +362,9 @@ print(json.dumps(results))
 
                 radius: root.themeRounding
                 border.width: root.themeBorderSize
-                border.color: Qt.alpha(root.themeBorder, 0.40)
-                color: root.themeBackground
+                border.color: Qt.alpha(root.themePrimary, 0.40)
+                color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                antialiasing: true
 
                 property bool shown: false
                 property int activeTab: 0 
@@ -402,8 +406,21 @@ print(json.dumps(results))
                         RowLayout {
                             spacing: 10
                             opacity: mainCard.activeTab === 0 ? 1.0 : 0.5
-                            Text { text: ""; font.pixelSize: 24; color: root.themePrimary }
-                            Text { text: "Wallpapers"; font.pixelSize: 18; font.weight: Font.Bold; color: root.themeText }
+                            Text { 
+                                text: ""
+                                font.pixelSize: 22
+                                color: root.themePrimary
+                                Layout.alignment: Qt.AlignVCenter
+                            }
+                            Text { 
+                                text: "Wallpapers"
+                                font.pixelSize: 18
+                                font.weight: Font.Bold
+                                color: "#FFFFFF"
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                Layout.alignment: Qt.AlignVCenter
+                            }
                             
                             MouseArea {
                                 anchors.fill: parent
@@ -415,8 +432,21 @@ print(json.dumps(results))
                         RowLayout {
                             spacing: 10
                             opacity: mainCard.activeTab === 1 ? 1.0 : 0.5
-                            Text { text: "🎨"; font.pixelSize: 24; color: root.themePrimary }
-                            Text { text: "Themes"; font.pixelSize: 18; font.weight: Font.Bold; color: root.themeText }
+                            Text { 
+                                text: "🎨"
+                                font.pixelSize: 22
+                                color: root.themePrimary
+                                Layout.alignment: Qt.AlignVCenter
+                            }
+                            Text { 
+                                text: "Themes"
+                                font.pixelSize: 18
+                                font.weight: Font.Bold
+                                color: "#FFFFFF"
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                Layout.alignment: Qt.AlignVCenter
+                            }
                             
                             MouseArea {
                                 anchors.fill: parent
@@ -431,7 +461,7 @@ print(json.dumps(results))
                     Rectangle {
                         Layout.fillWidth: true
                         height: 1
-                        color: Qt.alpha(root.themeBorder, 0.20)
+                        color: Qt.rgba(255, 255, 255, 0.12)
                     }
 
                     Item {
@@ -449,7 +479,10 @@ print(json.dumps(results))
                                 horizontalAlignment: Text.AlignHCenter
                                 color: root.themeTextMuted
                                 font.pixelSize: 14
+                                font.weight: Font.Medium
                                 lineHeight: 1.4
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.75)
                             }
 
                             GridView {
@@ -478,7 +511,6 @@ print(json.dumps(results))
                                 readonly property int columns: Math.max(1, Math.floor(width / 230))
                                 cellWidth: width > 0 ? Math.floor(width / columns) : 230
                                 cellHeight: Math.floor(cellWidth * 0.65)
-
 
                                 model: FolderListModel {
                                     id: folderModel
@@ -518,15 +550,18 @@ print(json.dumps(results))
                                     Rectangle {
                                         anchors.fill: parent
                                         anchors.margins: 8
-                                        radius: 0
-                                        color: Qt.rgba(1, 1, 1, 0.04)
+                                        radius: 8
+                                        color: Qt.rgba(0, 0, 0, 0.35)
+                                        border.width: 1
+                                        border.color: Qt.rgba(255, 255, 255, 0.08)
                                         clip: true
+                                        antialiasing: true
 
                                         Text {
                                             anchors.centerIn: parent
                                             text: "󰋩"
                                             font.pixelSize: 24
-                                            color: Qt.rgba(1, 1, 1, 0.08)
+                                            color: Qt.rgba(255, 255, 255, 0.2)
                                             visible: imgItem.status !== Image.Ready
                                         }
 
@@ -538,6 +573,7 @@ print(json.dumps(results))
                                             cache: true
                                             sourceSize: Qt.size(280, 180)
                                             smooth: true
+                                            antialiasing: true
 
                                             property bool fallbackToOriginal: false
                                             source: fallbackToOriginal ? ("file://" + fullPath) : ("file://" + thumbFile)
@@ -557,18 +593,17 @@ print(json.dumps(results))
                                                 }
                                             }
                                             
-                                            opacity: isHovered ? 0.85 : 1.0
+                                            opacity: isHovered ? 0.88 : 1.0
                                             Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                                         }
                                         
-                                        // DEDICATED SELECTION OVERLAY RECTANGLE
                                         Rectangle {
                                             anchors.fill: parent
                                             color: "transparent"
-                                            radius: 0
-                                            
-                                            border.width: isActive ? 4 : (isHovered ? 2 : 0)
+                                            radius: 8
+                                            border.width: isActive ? 3 : (isHovered ? 2 : 0)
                                             border.color: isActive ? root.themePrimary : (isHovered ? Qt.alpha(root.themePrimary, 0.6) : "transparent")
+                                            antialiasing: true
                                             
                                             Behavior on border.color { ColorAnimation { duration: 150 } }
                                         }
@@ -643,16 +678,20 @@ print(json.dumps(results))
                                 Rectangle {
                                     anchors.fill: parent
                                     anchors.margins: 8
-                                    radius: 0
+                                    radius: 8
                                     color: model.colorPlate
+                                    border.width: 1
+                                    border.color: Qt.rgba(255, 255, 255, 0.12)
                                     clip: true
+                                    antialiasing: true
                                     
                                     Rectangle {
                                         anchors.fill: parent
                                         color: "transparent"
-                                        radius: 0
-                                        border.width: isActive ? 4 : (isHovered ? 2 : 0)
+                                        radius: 8
+                                        border.width: isActive ? 3 : (isHovered ? 2 : 0)
                                         border.color: isActive ? "#FFFFFF" : (isHovered ? Qt.alpha("#FFFFFF", 0.6) : "transparent")
+                                        antialiasing: true
                                         
                                         Behavior on border.color { ColorAnimation { duration: 150 } }
                                     }
@@ -681,8 +720,11 @@ print(json.dumps(results))
                     Rectangle {
                         Layout.fillWidth: true
                         height: 32
-                        color: Qt.rgba(0, 0, 0, 0.25)
+                        color: Qt.rgba(0, 0, 0, 0.35)
+                        border.width: 1
+                        border.color: Qt.rgba(255, 255, 255, 0.08)
                         radius: Math.max(4, root.themeRounding - 6)
+                        antialiasing: true
 
                         RowLayout {
                             anchors.fill: parent
@@ -692,25 +734,89 @@ print(json.dumps(results))
                             Text {
                                 text: (mainCard.activeTab === 0 ? folderModel.count : dynamicThemeModel.count) + " wallpapers in " + String(root.currentFolder).replace("file://", "")
                                 font.pixelSize: 12
+                                font.weight: Font.Medium
                                 color: root.themeTextMuted
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                             }
 
                             RowLayout {
                                 spacing: 8
                                 
-                                Rectangle { width: 34; height: 20; radius: 4; color: Qt.alpha(root.themeText, 0.12)
-                                    Text { anchors.centerIn: parent; text: "TAB"; font.pixelSize: 10; color: root.themeTextMuted; font.weight: Font.Bold } }
-                                Text { text: "Tab"; font.pixelSize: 12; color: root.themeTextMuted }
+                                Rectangle { 
+                                    width: 34; height: 20; radius: 4
+                                    color: Qt.rgba(255, 255, 255, 0.12)
+                                    border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.15)
+                                    antialiasing: true
+                                    Text { 
+                                        anchors.centerIn: parent
+                                        text: "TAB"
+                                        font.pixelSize: 10
+                                        color: "#FFFFFF"
+                                        font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                    } 
+                                }
+                                Text { 
+                                    text: "Tab"
+                                    font.pixelSize: 12
+                                    font.weight: Font.Medium
+                                    color: root.themeTextMuted
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                }
                                 
-                                Rectangle { width: 34; height: 20; radius: 4; color: Qt.alpha(root.themeText, 0.12)
-                                    Text { anchors.centerIn: parent; text: "⮐"; font.pixelSize: 14; color: root.themeTextMuted; font.weight: Font.Bold; anchors.verticalCenterOffset: -2 } }
-                                Text { text: "Apply"; font.pixelSize: 12; color: root.themeTextMuted }
+                                Rectangle { 
+                                    width: 34; height: 20; radius: 4
+                                    color: Qt.rgba(255, 255, 255, 0.12)
+                                    border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.15)
+                                    antialiasing: true
+                                    Text { 
+                                        anchors.centerIn: parent
+                                        text: "⮐"
+                                        font.pixelSize: 14
+                                        color: "#FFFFFF"
+                                        font.weight: Font.Bold
+                                        anchors.verticalCenterOffset: -2
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                    } 
+                                }
+                                Text { 
+                                    text: "Apply"
+                                    font.pixelSize: 12
+                                    font.weight: Font.Medium
+                                    color: root.themeTextMuted
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                }
 
-                                Rectangle { width: 34; height: 20; radius: 4; color: Qt.alpha(root.themeText, 0.12)
-                                    Text { anchors.centerIn: parent; text: "ESC"; font.pixelSize: 10; color: root.themeTextMuted; font.weight: Font.Bold } }
-                                Text { text: "Close"; font.pixelSize: 12; color: root.themeTextMuted }
+                                Rectangle { 
+                                    width: 34; height: 20; radius: 4
+                                    color: Qt.rgba(255, 255, 255, 0.12)
+                                    border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.15)
+                                    antialiasing: true
+                                    Text { 
+                                        anchors.centerIn: parent
+                                        text: "ESC"
+                                        font.pixelSize: 10
+                                        color: "#FFFFFF"
+                                        font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                    } 
+                                }
+                                Text { 
+                                    text: "Close"
+                                    font.pixelSize: 12
+                                    font.weight: Font.Medium
+                                    color: root.themeTextMuted
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                }
                             }
                         }
                     }

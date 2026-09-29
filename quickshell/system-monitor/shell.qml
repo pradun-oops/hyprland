@@ -44,18 +44,18 @@ Scope {
     }
 
     property int themeRounding: 22
-    property int themeBorderSize: 1
+    property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
     
     property color themeBackground: "#141416" 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.05) 
-    property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.12)
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.32) 
+    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)
     property color themeBorder: "#ffb3af"
     property color themePrimary: "#ffb3af"
-    property color themeText: "#ffffff"
-    property color themeTextMuted: "#a1a1aa"
+    property color themeText: "#FFFFFF"
+    property color themeTextMuted: "#D4D4D8"
 
     QtObject {
         id: animStyle
@@ -74,7 +74,7 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (match && match[1]) { 
                     root.themeBorder = "#" + match[1]
                     root.themePrimary = "#" + match[1] 
@@ -99,7 +99,7 @@ Scope {
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -459,8 +459,10 @@ while True:
 
                     radius: root.themeRounding
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themeBorder, 0.40)
+                    border.color: Qt.alpha(root.themePrimary, 0.42)
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                    antialiasing: true
+                    clip: true
 
                     MouseArea { anchors.fill: parent; onClicked: (mouse) => mouse.accepted = true }
 
@@ -480,30 +482,50 @@ while True:
                                 spacing: 12
                                 Text { text: ""; font.pixelSize: 24; color: root.themePrimary }
                                 ColumnLayout {
-                                    spacing: 0
-                                    Text { text: "System Monitor"; font.pixelSize: 18; font.weight: Font.Bold; color: root.themeText }
-                                    Text { text: "Uptime: " + root.sysUptime + "  •  Processes: " + root.sysProcsCount; font.pixelSize: 11; color: root.themeTextMuted }
+                                    spacing: 2
+                                    Text { 
+                                        text: "System Monitor"
+                                        font.pixelSize: 18
+                                        font.weight: Font.Bold
+                                        color: "#FFFFFF"
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                    }
+                                    Text { 
+                                        text: "Uptime: " + root.sysUptime + "  •  Processes: " + root.sysProcsCount
+                                        font.pixelSize: 11
+                                        font.weight: Font.Medium
+                                        color: root.themeTextMuted
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                    }
                                 }
                                 Item { Layout.fillWidth: true }
                                 
                                 ColumnLayout {
-                                    spacing: 0
+                                    spacing: 2
                                     Layout.alignment: Qt.AlignRight
                                     Text { 
                                         text: (root.sysBatStat === "Charging" ? "󰂄 " : "󰁹 ") + root.sysBatCap + "%"
                                         font.pixelSize: 15; font.weight: Font.Bold
-                                        color: root.sysBatStat === "Charging" ? "#a3e635" : root.themeText
+                                        color: root.sysBatStat === "Charging" ? "#a3e635" : "#FFFFFF"
                                         Layout.alignment: Qt.AlignRight
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
                                     Text { 
                                         text: root.sysBatStat
-                                        font.pixelSize: 10; color: root.themeTextMuted
+                                        font.pixelSize: 10
+                                        font.weight: Font.Medium
+                                        color: root.themeTextMuted
                                         Layout.alignment: Qt.AlignRight
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                     }
                                 }
                             }
 
-                            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.alpha(root.themeBorder, 0.15) }
+                            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(255, 255, 255, 0.12) }
 
                             GridLayout {
                                 Layout.fillWidth: true
@@ -518,7 +540,8 @@ while True:
                                     radius: Math.max(4, root.themeRounding - 6)
                                     color: root.themeSurface
                                     border.width: 1
-                                    border.color: cpuCardHover.hovered ? Qt.alpha(root.themePrimary, 0.45) : Qt.alpha(root.themeBorder, 0.15)
+                                    border.color: cpuCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                    antialiasing: true
 
                                     scale: cpuCardHover.hovered ? 1.02 : 1.0
                                     Behavior on scale {
@@ -536,12 +559,33 @@ while True:
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
                                         RowLayout {
                                             Text { text: ""; font.pixelSize: 20; color: root.themePrimary }
-                                            Text { text: "Processor"; font.pixelSize: 14; font.weight: Font.Bold; color: root.themeText }
+                                            Text { 
+                                                text: "Processor"
+                                                font.pixelSize: 14
+                                                font.weight: Font.Bold
+                                                color: "#FFFFFF"
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                            }
                                             Item { Layout.fillWidth: true }
-                                            Text { text: root.sysCpuUsage + "%"; font.pixelSize: 15; font.weight: Font.Bold; color: root.themeText }
+                                            Text { 
+                                                text: root.sysCpuUsage + "%"
+                                                font.pixelSize: 15
+                                                font.weight: Font.Bold
+                                                color: "#FFFFFF"
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                            }
                                         }
                                         RowLayout {
-                                            Text { text: "Temp: " + root.sysCpuTemp; font.pixelSize: 11; color: root.themeTextMuted }
+                                            Text { 
+                                                text: "Temp: " + root.sysCpuTemp
+                                                font.pixelSize: 11
+                                                font.weight: Font.Medium
+                                                color: root.themeTextMuted
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                            }
                                             Item { Layout.fillWidth: true }
                                         }
                                         Item { Layout.fillHeight: true }
@@ -555,6 +599,7 @@ while True:
                                                     Rectangle {
                                                         width: parent.width; height: Math.max(4, (model.value / 100) * parent.height)
                                                         anchors.bottom: parent.bottom; radius: 3; color: root.themePrimary; opacity: 0.8
+                                                        antialiasing: true
                                                         Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                                     }
                                                 }
@@ -569,7 +614,8 @@ while True:
                                     radius: Math.max(4, root.themeRounding - 6)
                                     color: root.themeSurface
                                     border.width: 1
-                                    border.color: gpuCardHover.hovered ? Qt.alpha(root.themePrimary, 0.45) : Qt.alpha(root.themeBorder, 0.15)
+                                    border.color: gpuCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                    antialiasing: true
 
                                     scale: gpuCardHover.hovered ? 1.02 : 1.0
                                     Behavior on scale {
@@ -589,16 +635,53 @@ while True:
                                             Text { text: "󰢮"; font.pixelSize: 20; color: root.themePrimary }
                                             ColumnLayout {
                                                 spacing: 2
-                                                Text { text: "Graphics"; font.pixelSize: 14; font.weight: Font.Bold; color: root.themeText }
-                                                Text { text: root.sysGpuName; font.pixelSize: 10; color: root.themeTextMuted; elide: Text.ElideRight; Layout.maximumWidth: 150 }
+                                                Text { 
+                                                    text: "Graphics"
+                                                    font.pixelSize: 14
+                                                    font.weight: Font.Bold
+                                                    color: "#FFFFFF"
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                                }
+                                                Text { 
+                                                    text: root.sysGpuName
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Medium
+                                                    color: root.themeTextMuted
+                                                    elide: Text.ElideRight
+                                                    Layout.maximumWidth: 150
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                                }
                                             }
                                             Item { Layout.fillWidth: true }
-                                            Text { text: root.sysGpuUsage + "%"; font.pixelSize: 15; font.weight: Font.Bold; color: root.themeText }
+                                            Text { 
+                                                text: root.sysGpuUsage + "%"
+                                                font.pixelSize: 15
+                                                font.weight: Font.Bold
+                                                color: "#FFFFFF"
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                            }
                                         }
                                         RowLayout {
-                                            Text { text: "VRAM: " + root.sysGpuMemUsed + "MB / " + root.sysGpuMemTotal + "MB"; font.pixelSize: 11; color: root.themeTextMuted }
+                                            Text { 
+                                                text: "VRAM: " + root.sysGpuMemUsed + "MB / " + root.sysGpuMemTotal + "MB"
+                                                font.pixelSize: 11
+                                                font.weight: Font.Medium
+                                                color: root.themeTextMuted
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                            }
                                             Item { Layout.fillWidth: true }
-                                            Text { text: root.sysGpuTemp; font.pixelSize: 12; font.weight: Font.Bold; color: "#fb7185" }
+                                            Text { 
+                                                text: root.sysGpuTemp
+                                                font.pixelSize: 12
+                                                font.weight: Font.Bold
+                                                color: "#fb7185"
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                            }
                                         }
                                         Item { Layout.fillHeight: true }
                                         
@@ -611,6 +694,7 @@ while True:
                                                     Rectangle {
                                                         width: parent.width; height: Math.max(4, (model.value / 100) * parent.height)
                                                         anchors.bottom: parent.bottom; radius: 3; color: root.themePrimary; opacity: 0.8
+                                                        antialiasing: true
                                                         Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                                     }
                                                 }
@@ -625,7 +709,8 @@ while True:
                                     radius: Math.max(4, root.themeRounding - 6)
                                     color: root.themeSurface
                                     border.width: 1
-                                    border.color: ramCardHover.hovered ? Qt.alpha(root.themePrimary, 0.45) : Qt.alpha(root.themeBorder, 0.15)
+                                    border.color: ramCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                    antialiasing: true
 
                                     scale: ramCardHover.hovered ? 1.02 : 1.0
                                     Behavior on scale {
@@ -643,14 +728,42 @@ while True:
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
                                         RowLayout {
                                             Text { text: ""; font.pixelSize: 20; color: root.themePrimary }
-                                            Text { text: "Memory"; font.pixelSize: 14; font.weight: Font.Bold; color: root.themeText }
+                                            Text { 
+                                                text: "Memory"
+                                                font.pixelSize: 14
+                                                font.weight: Font.Bold
+                                                color: "#FFFFFF"
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                            }
                                             Item { Layout.fillWidth: true }
-                                            Text { text: root.sysRamPerc + "%"; font.pixelSize: 15; font.weight: Font.Bold; color: root.themeText }
+                                            Text { 
+                                                text: root.sysRamPerc + "%"
+                                                font.pixelSize: 15
+                                                font.weight: Font.Bold
+                                                color: "#FFFFFF"
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                            }
                                         }
                                         RowLayout {
-                                            Text { text: "Used: " + root.sysRamUsed + " GB / " + root.sysRamTotal + " GB"; font.pixelSize: 11; color: root.themeTextMuted }
+                                            Text { 
+                                                text: "Used: " + root.sysRamUsed + " GB / " + root.sysRamTotal + " GB"
+                                                font.pixelSize: 11
+                                                font.weight: Font.Medium
+                                                color: root.themeTextMuted
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                            }
                                             Item { Layout.fillWidth: true }
-                                            Text { text: "Temp: " + root.sysRamTemp; font.pixelSize: 11; font.weight: Font.Bold; color: "#facc15" }
+                                            Text { 
+                                                text: "Temp: " + root.sysRamTemp
+                                                font.pixelSize: 11
+                                                font.weight: Font.Bold
+                                                color: "#facc15"
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                            }
                                         }
                                         Item { Layout.fillHeight: true }
                                         
@@ -663,6 +776,7 @@ while True:
                                                     Rectangle {
                                                         width: parent.width; height: Math.max(4, (model.value / 100) * parent.height)
                                                         anchors.bottom: parent.bottom; radius: 3; color: root.themePrimary; opacity: 0.8
+                                                        antialiasing: true
                                                         Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                                     }
                                                 }
@@ -677,7 +791,8 @@ while True:
                                     radius: Math.max(4, root.themeRounding - 6)
                                     color: root.themeSurface
                                     border.width: 1
-                                    border.color: diskCardHover.hovered ? Qt.alpha(root.themePrimary, 0.45) : Qt.alpha(root.themeBorder, 0.15)
+                                    border.color: diskCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                    antialiasing: true
 
                                     scale: diskCardHover.hovered ? 1.02 : 1.0
                                     Behavior on scale {
@@ -695,23 +810,53 @@ while True:
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
                                         RowLayout {
                                             Text { text: "󰋊"; font.pixelSize: 20; color: root.themePrimary }
-                                            Text { text: "Storage & NVMe"; font.pixelSize: 14; font.weight: Font.Bold; color: root.themeText }
+                                            Text { 
+                                                text: "Storage & NVMe"
+                                                font.pixelSize: 14
+                                                font.weight: Font.Bold
+                                                color: "#FFFFFF"
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                            }
                                             Item { Layout.fillWidth: true }
-                                            Text { text: root.sysDiskPerc + "%"; font.pixelSize: 15; font.weight: Font.Bold; color: root.themeText }
+                                            Text { 
+                                                text: root.sysDiskPerc + "%"
+                                                font.pixelSize: 15
+                                                font.weight: Font.Bold
+                                                color: "#FFFFFF"
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                            }
                                         }
                                         RowLayout {
-                                            Text { text: "Used: " + root.sysDiskUsed + " / " + root.sysDiskTotal; font.pixelSize: 11; color: root.themeTextMuted }
+                                            Text { 
+                                                text: "Used: " + root.sysDiskUsed + " / " + root.sysDiskTotal
+                                                font.pixelSize: 11
+                                                font.weight: Font.Medium
+                                                color: root.themeTextMuted
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                            }
                                             Item { Layout.fillWidth: true }
-                                            Text { text: "Temp: " + root.sysDiskTemp; font.pixelSize: 11; font.weight: Font.Bold; color: "#facc15" }
+                                            Text { 
+                                                text: "Temp: " + root.sysDiskTemp
+                                                font.pixelSize: 11
+                                                font.weight: Font.Bold
+                                                color: "#facc15"
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                            }
                                         }
                                         Item { Layout.fillHeight: true }
                                         Rectangle {
-                                            Layout.fillWidth: true; height: 8; radius: 4; color: Qt.rgba(1, 1, 1, 0.1)
+                                            Layout.fillWidth: true; height: 8; radius: 4; color: Qt.rgba(255, 255, 255, 0.12)
+                                            antialiasing: true
                                             Rectangle { 
                                                 width: parent.width * (root.sysDiskPerc / 100)
                                                 height: parent.height
                                                 radius: 4
                                                 color: root.themePrimary
+                                                antialiasing: true
                                                 Behavior on width { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } } 
                                             }
                                         }
@@ -724,7 +869,8 @@ while True:
                                     radius: Math.max(4, root.themeRounding - 6)
                                     color: root.themeSurface
                                     border.width: 1
-                                    border.color: netCardHover.hovered ? Qt.alpha(root.themePrimary, 0.45) : Qt.alpha(root.themeBorder, 0.15)
+                                    border.color: netCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                    antialiasing: true
 
                                     scale: netCardHover.hovered ? 1.015 : 1.0
                                     Behavior on scale {
@@ -741,7 +887,14 @@ while True:
                                     RowLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 20
                                         Text { text: "󰈀"; font.pixelSize: 24; color: root.themePrimary }
-                                        Text { text: "Network IO"; font.pixelSize: 14; font.weight: Font.Bold; color: root.themeText }
+                                        Text { 
+                                            text: "Network IO"
+                                            font.pixelSize: 14
+                                            font.weight: Font.Bold
+                                            color: "#FFFFFF"
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                        }
                                         
                                         RowLayout {
                                             Layout.fillWidth: true; Layout.fillHeight: true; Layout.margins: 4; spacing: 3
@@ -752,39 +905,69 @@ while True:
                                                     Rectangle {
                                                         width: parent.width; height: Math.max(3, (model.rx / root.maxNetRate) * parent.height)
                                                         anchors.bottom: parent.bottom; radius: 2; color: "#38bdf8"; opacity: 0.6
+                                                        antialiasing: true
                                                         Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                                     }
                                                     Rectangle {
                                                         width: parent.width * 0.6; height: Math.max(3, (model.tx / root.maxNetRate) * parent.height)
                                                         anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter
                                                         radius: 2; color: "#fb7185"; opacity: 0.8
+                                                        antialiasing: true
                                                         Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                                     }
                                                 }
                                             }
                                         }
                                         
-                                        Rectangle { width: 1; height: 30; color: Qt.rgba(1,1,1,0.15) }
+                                        Rectangle { width: 1; height: 30; color: Qt.rgba(255, 255, 255, 0.15) }
 
                                         ColumnLayout {
-                                            spacing: 4; Layout.preferredWidth: 100
-                                            Text { text: "󰇚 " + root.sysNetRx; font.pixelSize: 14; font.weight: Font.Bold; color: "#38bdf8" }
-                                            Text { text: "Download"; font.pixelSize: 10; color: root.themeTextMuted }
+                                            spacing: 2; Layout.preferredWidth: 100
+                                            Text { 
+                                                text: "󰇚 " + root.sysNetRx
+                                                font.pixelSize: 14
+                                                font.weight: Font.Bold
+                                                color: "#38bdf8"
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                            }
+                                            Text { 
+                                                text: "Download"
+                                                font.pixelSize: 10
+                                                font.weight: Font.Medium
+                                                color: root.themeTextMuted
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                            }
                                         }
 
-                                        Rectangle { width: 1; height: 30; color: Qt.rgba(1,1,1,0.15) }
+                                        Rectangle { width: 1; height: 30; color: Qt.rgba(255, 255, 255, 0.15) }
 
                                         ColumnLayout {
-                                            spacing: 4; Layout.preferredWidth: 100
-                                            Text { text: "󰕒 " + root.sysNetTx; font.pixelSize: 14; font.weight: Font.Bold; color: "#fb7185" }
-                                            Text { text: "Upload"; font.pixelSize: 10; color: root.themeTextMuted }
+                                            spacing: 2; Layout.preferredWidth: 100
+                                            Text { 
+                                                text: "󰕒 " + root.sysNetTx
+                                                font.pixelSize: 14
+                                                font.weight: Font.Bold
+                                                color: "#fb7185"
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                            }
+                                            Text { 
+                                                text: "Upload"
+                                                font.pixelSize: 10
+                                                font.weight: Font.Medium
+                                                color: root.themeTextMuted
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                            }
                                         }
                                     }
                                 }
                             }
                         }
 
-                        Rectangle { Layout.fillHeight: true; width: 1; color: Qt.alpha(root.themeBorder, 0.15) }
+                        Rectangle { Layout.fillHeight: true; width: 1; color: Qt.rgba(255, 255, 255, 0.12) }
 
                         ColumnLayout {
                             Layout.fillHeight: true
@@ -794,14 +977,20 @@ while True:
                             RowLayout {
                                 Layout.fillWidth: true
                                 Rectangle {
-                                    Layout.fillWidth: true; height: 42; radius: 8; color: Qt.rgba(1,1,1,0.04)
+                                    Layout.fillWidth: true; height: 42; radius: 8; color: Qt.rgba(0, 0, 0, 0.35)
+                                    border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.08)
+                                    antialiasing: true
+
                                     RowLayout {
                                         anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 12
                                         
                                         Rectangle {
                                             Layout.preferredHeight: 30; Layout.preferredWidth: 120
                                             radius: 6
-                                            color: root.procTab === "user" ? Qt.alpha(root.themePrimary, 0.2) : (userTabMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
+                                            color: root.procTab === "user" ? Qt.alpha(root.themePrimary, 0.25) : (userTabMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.1) : "transparent")
+                                            border.width: 1
+                                            border.color: root.procTab === "user" ? root.themePrimary : "transparent"
+                                            antialiasing: true
                                             scale: userTabMouse.containsMouse ? 1.05 : 1.0
 
                                             Behavior on scale {
@@ -813,14 +1002,25 @@ while True:
                                             }
                                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
-                                            Text { anchors.centerIn: parent; text: "User Procs"; font.pixelSize: 12; font.weight: Font.Bold; color: root.procTab === "user" ? root.themePrimary : root.themeTextMuted }
+                                            Text { 
+                                                anchors.centerIn: parent
+                                                text: "User Procs"
+                                                font.pixelSize: 12
+                                                font.weight: Font.Bold
+                                                color: root.procTab === "user" ? "#FFFFFF" : root.themeTextMuted
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                            }
                                             MouseArea { id: userTabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.procTab = "user" }
                                         }
 
                                         Rectangle {
                                             Layout.preferredHeight: 30; Layout.preferredWidth: 120
                                             radius: 6
-                                            color: root.procTab === "system" ? Qt.alpha(root.themePrimary, 0.2) : (sysTabMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
+                                            color: root.procTab === "system" ? Qt.alpha(root.themePrimary, 0.25) : (sysTabMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.1) : "transparent")
+                                            border.width: 1
+                                            border.color: root.procTab === "system" ? root.themePrimary : "transparent"
+                                            antialiasing: true
                                             scale: sysTabMouse.containsMouse ? 1.05 : 1.0
 
                                             Behavior on scale {
@@ -832,7 +1032,15 @@ while True:
                                             }
                                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
-                                            Text { anchors.centerIn: parent; text: "System Procs"; font.pixelSize: 12; font.weight: Font.Bold; color: root.procTab === "system" ? root.themePrimary : root.themeTextMuted }
+                                            Text { 
+                                                anchors.centerIn: parent
+                                                text: "System Procs"
+                                                font.pixelSize: 12
+                                                font.weight: Font.Bold
+                                                color: root.procTab === "system" ? "#FFFFFF" : root.themeTextMuted
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                            }
                                             MouseArea { id: sysTabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.procTab = "system" }
                                         }
                                         
@@ -841,6 +1049,9 @@ while True:
                                         Rectangle {
                                             width: 28; height: 28; radius: 6
                                             color: closeHover.containsMouse ? "#ff4b6e" : Qt.alpha(root.themeText, 0.08)
+                                            border.width: 1
+                                            border.color: closeHover.containsMouse ? "#ff4b6e" : Qt.rgba(255, 255, 255, 0.12)
+                                            antialiasing: true
                                             scale: closeHover.containsMouse ? 1.12 : 1.0
 
                                             Behavior on scale {
@@ -886,6 +1097,20 @@ while True:
                                     font.letterSpacing: 1.1
                                     color: root.themeTextMuted
                                     Layout.fillWidth: true
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                }
+
+                                Text {
+                                    Layout.preferredWidth: 62
+                                    text: "PID"
+                                    font.pixelSize: 10
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: 1.1
+                                    color: root.themeTextMuted
+                                    horizontalAlignment: Text.AlignHCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                 }
 
                                 Text {
@@ -896,6 +1121,8 @@ while True:
                                     font.letterSpacing: 1.1
                                     color: root.themeTextMuted
                                     horizontalAlignment: Text.AlignRight
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                 }
 
                                 Text {
@@ -906,6 +1133,8 @@ while True:
                                     font.letterSpacing: 1.1
                                     color: root.themeTextMuted
                                     horizontalAlignment: Text.AlignRight
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                 }
 
                                 Item {
@@ -927,9 +1156,10 @@ while True:
                                     width: processList.width
                                     height: 44
                                     radius: 8
-                                    color: procRowMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : Qt.rgba(1, 1, 1, 0.02)
+                                    color: procRowMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.08) : Qt.rgba(0, 0, 0, 0.28)
                                     border.width: 1
-                                    border.color: killHover.containsMouse ? Qt.alpha("#ff4b6e", 0.4) : (procRowMouse.containsMouse ? Qt.alpha(root.themeBorder, 0.2) : "transparent")
+                                    border.color: killHover.containsMouse ? "#ff4b6e" : (procRowMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(255, 255, 255, 0.06))
+                                    antialiasing: true
 
                                     scale: procRowMouse.containsMouse ? 1.015 : 1.0
 
@@ -952,10 +1182,28 @@ while True:
                                     RowLayout {
                                         anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 10
 
-                                        ColumnLayout {
-                                            Layout.fillWidth: true; spacing: 2
-                                            Text { text: model.name; color: root.themeText; font.pixelSize: 12; font.weight: Font.Bold; elide: Text.ElideRight; Layout.fillWidth: true }
-                                            Text { text: "PID: " + model.pid; color: root.themeTextMuted; font.pixelSize: 10 }
+                                        Text { 
+                                            text: model.name
+                                            color: "#FFFFFF"
+                                            font.pixelSize: 13
+                                            font.weight: Font.Bold
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                            Layout.alignment: Qt.AlignVCenter
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                        }
+
+                                        Text {
+                                            Layout.preferredWidth: 62
+                                            text: model.pid
+                                            color: root.themeTextMuted
+                                            font.pixelSize: 11
+                                            font.weight: Font.DemiBold
+                                            horizontalAlignment: Text.AlignHCenter
+                                            Layout.alignment: Qt.AlignVCenter
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.65)
                                         }
 
                                         Text {
@@ -966,6 +1214,8 @@ while True:
                                             font.weight: Font.Bold
                                             horizontalAlignment: Text.AlignRight
                                             Layout.alignment: Qt.AlignVCenter
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.75)
                                         }
 
                                         Text {
@@ -976,11 +1226,16 @@ while True:
                                             font.weight: Font.Bold
                                             horizontalAlignment: Text.AlignRight
                                             Layout.alignment: Qt.AlignVCenter
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.75)
                                         }
 
                                         Rectangle {
                                             width: 32; height: 32; radius: 8
-                                            color: killHover.containsMouse ? "#ff4b6e" : Qt.rgba(1, 1, 1, 0.05)
+                                            color: killHover.containsMouse ? "#ff4b6e" : Qt.rgba(255, 255, 255, 0.08)
+                                            border.width: 1
+                                            border.color: killHover.containsMouse ? "#ff4b6e" : Qt.rgba(255, 255, 255, 0.12)
+                                            antialiasing: true
                                             scale: killHover.containsMouse ? 1.15 : 1.0
 
                                             Behavior on scale {

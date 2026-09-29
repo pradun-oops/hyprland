@@ -19,11 +19,12 @@ Scope {
     }
 
     property color themeBackground: "#141416"
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08)
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.25)
+    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)
     property color themePrimary: "#a2d398"
     property color themeBorder: "#a2d398"
     property color themeText: "#FFFFFF"
-    property color themeTextMuted: "#8E8E93"
+    property color themeTextMuted: "#D4D4D8"
     property color themeAccent: "#f5a97f" 
     property int themeRounding: 15
     property int themeBorderSize: 2
@@ -60,7 +61,7 @@ Scope {
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch(e) {}
         }
     }
@@ -293,11 +294,12 @@ Scope {
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            anchors { top: true }
-            margins { top: 50 }
-
-            implicitWidth: mainCard.width
-            implicitHeight: mainCard.height
+            anchors {
+                top: true
+                bottom: true
+                left: true
+                right: true
+            }
             color: "transparent"
 
             Shortcut {
@@ -305,16 +307,31 @@ Scope {
                 onActivated: Qt.quit()
             }
 
+            MouseArea {
+                anchors.fill: parent
+                onClicked: Qt.quit()
+            }
+
             Rectangle {
                 id: mainCard
+                anchors.top: parent.top
+                anchors.topMargin: 50
+                anchors.horizontalCenter: parent.horizontalCenter
+
                 width: 440
                 height: cardLayout.implicitHeight + 48
                 radius: root.themeRounding
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
-                border.color: root.themeBorder
+                border.color: Qt.alpha(root.themePrimary, 0.4)
                 border.width: root.themeBorderSize
+                antialiasing: true
 
                 focus: true 
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: (mouse) => mouse.accepted = true
+                }
 
                 Keys.onPressed: (event) => {
                     let d = new Date(root.selectedDate)
@@ -400,12 +417,16 @@ Scope {
                                 color: root.themeText
                                 font.pixelSize: 24
                                 font.weight: Font.Bold
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.75)
                             }
                             Text {
                                 text: root.displayedDate.toLocaleDateString(Qt.locale(), "yyyy")
                                 color: root.themeTextMuted
                                 font.pixelSize: 14
-                                font.weight: Font.Medium
+                                font.weight: Font.DemiBold
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                             }
                         }
 
@@ -418,7 +439,10 @@ Scope {
                                 Layout.preferredWidth: 34
                                 Layout.preferredHeight: 34
                                 radius: 17
-                                color: prevNav.containsMouse ? Qt.rgba(1.0, 1.0, 1.0, 0.15) : root.themeSurface
+                                color: prevNav.containsMouse ? Qt.rgba(255, 255, 255, 0.18) : Qt.rgba(0, 0, 0, 0.3)
+                                border.width: 1
+                                border.color: Qt.rgba(255, 255, 255, 0.12)
+                                antialiasing: true
 
                                 scale: prevNav.pressed ? 0.90 : (prevNav.containsMouse ? 1.08 : 1.0)
 
@@ -438,6 +462,8 @@ Scope {
                                     font.pixelSize: 20
                                     font.weight: Font.Bold
                                     anchors.verticalCenterOffset: -1
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                                 }
 
                                 MouseArea {
@@ -458,7 +484,10 @@ Scope {
                                 Layout.preferredWidth: 34
                                 Layout.preferredHeight: 34
                                 radius: 17
-                                color: todayNav.containsMouse ? Qt.rgba(1.0, 1.0, 1.0, 0.15) : root.themeSurface
+                                color: todayNav.containsMouse ? Qt.rgba(255, 255, 255, 0.18) : Qt.rgba(0, 0, 0, 0.3)
+                                border.width: 1
+                                border.color: Qt.rgba(255, 255, 255, 0.12)
+                                antialiasing: true
 
                                 scale: todayNav.pressed ? 0.90 : (todayNav.containsMouse ? 1.08 : 1.0)
 
@@ -477,6 +506,8 @@ Scope {
                                     color: root.themePrimary
                                     font.pixelSize: 18
                                     font.weight: Font.Black
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                                 }
 
                                 MouseArea {
@@ -497,7 +528,10 @@ Scope {
                                 Layout.preferredWidth: 34
                                 Layout.preferredHeight: 34
                                 radius: 17
-                                color: nextNav.containsMouse ? Qt.rgba(1.0, 1.0, 1.0, 0.15) : root.themeSurface
+                                color: nextNav.containsMouse ? Qt.rgba(255, 255, 255, 0.18) : Qt.rgba(0, 0, 0, 0.3)
+                                border.width: 1
+                                border.color: Qt.rgba(255, 255, 255, 0.12)
+                                antialiasing: true
 
                                 scale: nextNav.pressed ? 0.90 : (nextNav.containsMouse ? 1.08 : 1.0)
 
@@ -517,6 +551,8 @@ Scope {
                                     font.pixelSize: 20
                                     font.weight: Font.Bold
                                     anchors.verticalCenterOffset: -1
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                                 }
 
                                 MouseArea {
@@ -535,123 +571,149 @@ Scope {
                         }
                     }
 
-                    RowLayout {
+                    Rectangle {
                         Layout.fillWidth: true
-                        spacing: 0
-                        Repeater {
-                            model: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
-                            Text {
+                        radius: Math.max(8, root.themeRounding - 4)
+                        color: Qt.rgba(0, 0, 0, 0.35)
+                        border.width: 1
+                        border.color: Qt.rgba(255, 255, 255, 0.1)
+                        antialiasing: true
+                        implicitHeight: calBoxCol.implicitHeight + 20
+
+                        ColumnLayout {
+                            id: calBoxCol
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: 12
+
+                            RowLayout {
                                 Layout.fillWidth: true
-                                horizontalAlignment: Text.AlignHCenter
-                                text: modelData
-                                color: index === 0 || index === 6 ? root.themePrimary : root.themeTextMuted
-                                font.pixelSize: 14
-                                font.weight: Font.Bold
-                            }
-                        }
-                    }
-
-                    Grid {
-                        id: daysGrid
-                        columns: 7
-                        spacing: 8
-                        Layout.alignment: Qt.AlignHCenter
-
-                        NumberAnimation { 
-                            id: gridAnim 
-                            target: daysGrid 
-                            property: "opacity" 
-                            from: 0.0 
-                            to: 1.0 
-                            duration: animStyle.fadeDuration
-                            easing.type: animStyle.fadeEasing 
-                        }
-
-                        Repeater {
-                            model: 42
-                            delegate: Rectangle {
-                                id: dayCell
-                                width: 48
-                                height: 48
-                                radius: 12
-
-                                property var dayInfo: mainCard.getDayInfo(index, root.displayedDate)
-
-                                color: dayInfo.isToday 
-                                     ? root.themePrimary 
-                                     : (dayInfo.isSelected ? Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.25) : (cellHover.containsMouse ? root.themeSurface : "transparent"))
-
-                                border.color: dayInfo.isSelected && !dayInfo.isToday ? root.themePrimary : "transparent"
-                                border.width: 1.5
-
-                                scale: cellHover.pressed ? 0.92 : (cellHover.containsMouse ? 1.06 : 1.0)
-
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
-                                    }
-                                }
-                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-
-                                ColumnLayout {
-                                    anchors.centerIn: parent
-                                    spacing: 3
-
+                                spacing: 0
+                                Repeater {
+                                    model: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
                                     Text {
-                                        Layout.alignment: Qt.AlignHCenter
-                                        text: dayCell.dayInfo.day.toString()
-                                        font.pixelSize: 15
-                                        font.weight: dayCell.dayInfo.isToday || dayCell.dayInfo.isSelected ? Font.Bold : Font.Medium
-                                        color: dayCell.dayInfo.isToday 
-                                             ? root.themeBackground 
-                                             : (dayCell.dayInfo.isCurrent ? root.themeText : Qt.rgba(1.0, 1.0, 1.0, 0.25))
-                                    }
-
-                                    Row {
-                                        Layout.alignment: Qt.AlignHCenter
-                                        spacing: 3
-
-                                        property bool hasHoliday: dayCell.dayInfo.events.some(e => e.type === "holiday")
-                                        property bool hasTodo: dayCell.dayInfo.events.some(e => e.type === "todo")
-
-                                        Rectangle {
-                                            width: 5; height: 5; radius: 2.5
-                                            color: dayCell.dayInfo.isToday ? root.themeBackground : root.themePrimary
-                                            visible: parent.hasHoliday
-                                        }
-                                        Rectangle {
-                                            width: 5; height: 5; radius: 2.5
-                                            color: dayCell.dayInfo.isToday ? root.themeBackground : root.themeAccent
-                                            visible: parent.hasTodo
-                                        }
+                                        Layout.fillWidth: true
+                                        horizontalAlignment: Text.AlignHCenter
+                                        text: modelData
+                                        color: index === 0 || index === 6 ? root.themePrimary : root.themeText
+                                        font.pixelSize: 13
+                                        font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
                                     }
                                 }
+                            }
 
-                                MouseArea {
-                                    id: cellHover
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        root.selectedDate = dayCell.dayInfo.dateObj
-                                        
-                                        if (dayCell.dayInfo.dateObj.getMonth() !== root.displayedDate.getMonth()) {
-                                            root.displayedDate = new Date(dayCell.dayInfo.dateObj.getFullYear(), dayCell.dayInfo.dateObj.getMonth(), 1)
-                                            root.fetchIndianHolidays(root.displayedDate.getFullYear())
-                                            gridAnim.restart()
+                            Grid {
+                                id: daysGrid
+                                columns: 7
+                                spacing: 4
+                                Layout.alignment: Qt.AlignHCenter
+
+                                NumberAnimation { 
+                                    id: gridAnim 
+                                    target: daysGrid 
+                                    property: "opacity" 
+                                    from: 0.0 
+                                    to: 1.0 
+                                    duration: animStyle.fadeDuration
+                                    easing.type: animStyle.fadeEasing 
+                                }
+
+                                Repeater {
+                                    model: 42
+                                    delegate: Rectangle {
+                                        id: dayCell
+                                        width: 48
+                                        height: 44
+                                        radius: 10
+                                        antialiasing: true
+
+                                        property var dayInfo: mainCard.getDayInfo(index, root.displayedDate)
+
+                                        color: dayInfo.isToday 
+                                             ? root.themePrimary 
+                                             : (dayInfo.isSelected 
+                                                ? Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.3) 
+                                                : (cellHover.containsMouse ? root.themeSurfaceHover : "transparent"))
+
+                                        border.color: dayInfo.isSelected && !dayInfo.isToday 
+                                                    ? root.themePrimary 
+                                                    : (cellHover.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : "transparent")
+                                        border.width: dayInfo.isSelected ? 2 : 1
+
+                                        scale: cellHover.pressed ? 0.92 : (cellHover.containsMouse ? 1.06 : 1.0)
+
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                                easing.type: animStyle.bounceEasing
+                                                easing.overshoot: animStyle.overshoot
+                                            }
                                         }
-                                        
-                                        taskInputField.forceActiveFocus()
+                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                        ColumnLayout {
+                                            anchors.centerIn: parent
+                                            spacing: 3
+
+                                            Text {
+                                                Layout.alignment: Qt.AlignHCenter
+                                                text: dayCell.dayInfo.day.toString()
+                                                font.pixelSize: 15
+                                                font.weight: dayCell.dayInfo.isToday || dayCell.dayInfo.isSelected ? Font.Bold : Font.DemiBold
+                                                color: dayCell.dayInfo.isToday 
+                                                     ? root.themeBackground 
+                                                     : (dayCell.dayInfo.isCurrent ? "#FFFFFF" : Qt.rgba(1.0, 1.0, 1.0, 0.45))
+                                                style: dayCell.dayInfo.isToday ? Text.Normal : Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                            }
+
+                                            Row {
+                                                Layout.alignment: Qt.AlignHCenter
+                                                spacing: 3
+
+                                                property bool hasHoliday: dayCell.dayInfo.events.some(e => e.type === "holiday")
+                                                property bool hasTodo: dayCell.dayInfo.events.some(e => e.type === "todo")
+
+                                                Rectangle {
+                                                    width: 5; height: 5; radius: 2.5
+                                                    color: dayCell.dayInfo.isToday ? root.themeBackground : root.themePrimary
+                                                    visible: parent.hasHoliday
+                                                    antialiasing: true
+                                                }
+                                                Rectangle {
+                                                    width: 5; height: 5; radius: 2.5
+                                                    color: dayCell.dayInfo.isToday ? root.themeBackground : root.themeAccent
+                                                    visible: parent.hasTodo
+                                                    antialiasing: true
+                                                }
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: cellHover
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                root.selectedDate = dayCell.dayInfo.dateObj
+                                                
+                                                if (dayCell.dayInfo.dateObj.getMonth() !== root.displayedDate.getMonth()) {
+                                                    root.displayedDate = new Date(dayCell.dayInfo.dateObj.getFullYear(), dayCell.dayInfo.dateObj.getMonth(), 1)
+                                                    root.fetchIndianHolidays(root.displayedDate.getFullYear())
+                                                    gridAnim.restart()
+                                                }
+                                                
+                                                taskInputField.forceActiveFocus()
+                                            }
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-
-                    Rectangle { Layout.fillWidth: true; height: 1; color: root.themeSurface }
 
                     ColumnLayout {
                         Layout.fillWidth: true
@@ -662,6 +724,8 @@ Scope {
                             color: root.themePrimary
                             font.pixelSize: 14
                             font.weight: Font.Bold
+                            style: Text.Raised
+                            styleColor: Qt.rgba(0, 0, 0, 0.7)
                         }
 
                         ScrollView {
@@ -683,6 +747,9 @@ Scope {
                                     text: "No events or tasks scheduled for this date."
                                     color: root.themeTextMuted
                                     font.pixelSize: 13
+                                    font.weight: Font.Medium
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                     visible: parent.activeEvents.length === 0
                                 }
 
@@ -692,9 +759,10 @@ Scope {
                                         Layout.fillWidth: true
                                         height: 34
                                         radius: 6
-                                        color: modelData.type === "holiday" ? Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.15) : Qt.rgba(1.0, 1.0, 1.0, 0.04)
-                                        border.color: modelData.type === "holiday" ? root.themePrimary : "transparent"
-                                        border.width: modelData.type === "holiday" ? 1 : 0
+                                        color: modelData.type === "holiday" ? Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.25) : Qt.rgba(0, 0, 0, 0.35)
+                                        border.color: modelData.type === "holiday" ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                        border.width: 1
+                                        antialiasing: true
 
                                         RowLayout {
                                             anchors.fill: parent
@@ -704,9 +772,11 @@ Scope {
 
                                             Text {
                                                 text: modelData.type === "holiday" ? ("🇮🇳 " + modelData.text) : ("• " + modelData.text)
-                                                color: modelData.type === "holiday" ? root.themePrimary : root.themeText
+                                                color: modelData.type === "holiday" ? root.themePrimary : "#FFFFFF"
                                                 font.pixelSize: 13
-                                                font.weight: modelData.type === "holiday" ? Font.Bold : Font.Normal
+                                                font.weight: modelData.type === "holiday" ? Font.Bold : Font.Medium
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 elide: Text.ElideRight
                                                 Layout.fillWidth: true
                                                 Layout.alignment: Qt.AlignVCenter
@@ -717,8 +787,9 @@ Scope {
                                                 Layout.preferredHeight: 24
                                                 Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
                                                 radius: 12
-                                                color: delBtnMouse.containsMouse ? Qt.rgba(1.0, 0.3, 0.3, 0.2) : "transparent"
+                                                color: delBtnMouse.containsMouse ? Qt.rgba(1.0, 0.3, 0.3, 0.25) : "transparent"
                                                 visible: modelData.type === "todo"
+                                                antialiasing: true
 
                                                 scale: delBtnMouse.pressed ? 0.88 : (delBtnMouse.containsMouse ? 1.15 : 1.0)
 
@@ -761,9 +832,10 @@ Scope {
                                 Layout.fillWidth: true
                                 implicitHeight: 38
                                 radius: 8
-                                color: root.themeSurface
-                                border.color: taskInputField.activeFocus ? root.themeAccent : "transparent"
+                                color: Qt.rgba(0, 0, 0, 0.35)
+                                border.color: taskInputField.activeFocus ? root.themeAccent : Qt.rgba(255, 255, 255, 0.15)
                                 border.width: 1
+                                antialiasing: true
 
                                 Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
@@ -773,14 +845,16 @@ Scope {
                                     anchors.leftMargin: 12
                                     anchors.rightMargin: 12
                                     verticalAlignment: Text.AlignVCenter
-                                    color: root.themeText
+                                    color: "#FFFFFF"
                                     font.pixelSize: 13
                                     clip: true
 
                                     Text {
                                         text: "Enter task for " + root.selectedDate.toLocaleDateString(Qt.locale(), "MMM d") + "..."
-                                        color: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.55)
+                                        color: Qt.rgba(1.0, 1.0, 1.0, 0.65)
                                         font.pixelSize: 13
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                         anchors.verticalCenter: parent.verticalCenter
                                         visible: !taskInputField.text && !taskInputField.activeFocus
                                     }
@@ -796,7 +870,8 @@ Scope {
                                 Layout.preferredWidth: 38
                                 Layout.preferredHeight: 38
                                 radius: 8
-                                color: addBtnMouse.containsMouse ? Qt.rgba(root.themeAccent.r, root.themeAccent.g, root.themeAccent.b, 0.8) : root.themeAccent
+                                color: addBtnMouse.containsMouse ? Qt.darker(root.themeAccent, 1.1) : root.themeAccent
+                                antialiasing: true
 
                                 scale: addBtnMouse.pressed ? 0.90 : (addBtnMouse.containsMouse ? 1.08 : 1.0)
 
@@ -812,7 +887,7 @@ Scope {
                                 Text {
                                     anchors.centerIn: parent
                                     text: "+"
-                                    color: root.themeBackground
+                                    color: "#141416"
                                     font.pixelSize: 22
                                     font.weight: Font.Bold
                                 }

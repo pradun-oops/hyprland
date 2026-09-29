@@ -44,18 +44,18 @@ Scope {
     }
 
     property int themeRounding: 22
-    property int themeBorderSize: 1
+    property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 500
     
     property color themeBackground: "#121318" 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.04) 
-    property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.08)
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.32) 
+    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)
     property color themeBorder: "#ffb3af"
     property color themePrimary: "#ffb3af"
-    property color themeText: "#ffffff"
-    property color themeTextMuted: "#94a3b8"
+    property color themeText: "#FFFFFF"
+    property color themeTextMuted: "#D4D4D8"
 
     QtObject {
         id: animStyle
@@ -74,7 +74,7 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (match && match[1]) { 
                     root.themeBorder = "#" + match[1]
                     root.themePrimary = "#" + match[1] 
@@ -99,7 +99,7 @@ Scope {
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -473,8 +473,10 @@ except Exception as e:
 
                     radius: root.themeRounding
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themeBorder, 0.30)
+                    border.color: Qt.alpha(root.themePrimary, 0.42)
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                    antialiasing: true
+                    clip: true
 
                     MouseArea { anchors.fill: parent; onClicked: (mouse) => mouse.accepted = true }
 
@@ -489,9 +491,10 @@ except Exception as e:
 
                             Rectangle {
                                 width: 42; height: 42; radius: 12
-                                color: Qt.alpha(root.themePrimary, 0.12)
-                                border.width: 1; border.color: Qt.alpha(root.themePrimary, 0.28)
+                                color: Qt.alpha(root.themePrimary, 0.16)
+                                border.width: 1; border.color: Qt.alpha(root.themePrimary, 0.35)
                                 Layout.alignment: Qt.AlignVCenter
+                                antialiasing: true
 
                                 Text { 
                                     anchors.centerIn: parent
@@ -503,17 +506,31 @@ except Exception as e:
                             ColumnLayout {
                                 spacing: 2
                                 Layout.alignment: Qt.AlignVCenter
-                                Text { text: "Weather Telemetry"; font.pixelSize: 18; font.weight: Font.Bold; color: root.themeText }
-                                RowLayout {                                        
-                                    Text { text: root.isFetchingApi ? "Updating telemetry..." : root.locName; font.pixelSize: 12; color: root.themeTextMuted }
+                                Text { 
+                                    text: "Weather Telemetry"
+                                    font.pixelSize: 18
+                                    font.weight: Font.Bold
+                                    color: "#FFFFFF"
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                }
+                                RowLayout {                                         
+                                    Text { 
+                                        text: root.isFetchingApi ? "Updating telemetry..." : root.locName
+                                        font.pixelSize: 12
+                                        font.weight: Font.Medium
+                                        color: root.themeTextMuted
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                    }
                                     spacing: 10
-                                     Rectangle {
+                                    Rectangle {
                                         width: 10; height: 10; radius: 5
                                         color: root.isFetchingApi ? "#facc15" : "#4ade80"
                                         Layout.alignment: Qt.AlignVCenter
+                                        antialiasing: true
                                         Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
                                     }
-                                    
                                 }
                             }
 
@@ -523,10 +540,11 @@ except Exception as e:
                                 width: 38; height: 38; radius: 10
                                 color: autoGpsHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                 border.width: 1
-                                border.color: autoGpsHover.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : Qt.alpha(root.themeBorder, 0.2)
+                                border.color: autoGpsHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
                                 Layout.alignment: Qt.AlignVCenter
+                                antialiasing: true
                                 
-                                scale: autoGpsHover.containsMouse ? 1.10 : 1.0
+                                scale: autoGpsHover.containsMouse ? 1.08 : 1.0
                                 Behavior on scale {
                                     NumberAnimation {
                                         duration: root.animEnabled ? animStyle.animDuration : 0
@@ -566,10 +584,11 @@ except Exception as e:
                                 Layout.preferredWidth: 260
                                 Layout.preferredHeight: 38
                                 radius: 10
-                                color: Qt.rgba(1, 1, 1, 0.05)
+                                color: Qt.rgba(0, 0, 0, 0.35)
                                 border.width: 1
-                                border.color: searchInput.activeFocus ? root.themePrimary : Qt.rgba(1, 1, 1, 0.12)
+                                border.color: searchInput.activeFocus ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
                                 Layout.alignment: Qt.AlignVCenter
+                                antialiasing: true
                                 Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
                                 RowLayout {
@@ -585,9 +604,10 @@ except Exception as e:
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
                                         font.pixelSize: 13
-                                        color: root.themeText
+                                        font.weight: Font.DemiBold
+                                        color: "#FFFFFF"
                                         placeholderText: "Type city or region..."
-                                        placeholderTextColor: Qt.alpha(root.themeTextMuted, 0.5)
+                                        placeholderTextColor: Qt.rgba(1.0, 1.0, 1.0, 0.45)
                                         verticalAlignment: TextInput.AlignVCenter
                                         background: Item {}
                                         onAccepted: {
@@ -602,10 +622,13 @@ except Exception as e:
 
                             Rectangle {
                                 width: 38; height: 38; radius: 10
-                                color: closeHover.containsMouse ? "#ff4b6e" : Qt.alpha(root.themeText, 0.08)
+                                color: closeHover.containsMouse ? "#ff4b6e" : Qt.rgba(0, 0, 0, 0.35)
+                                border.width: 1
+                                border.color: closeHover.containsMouse ? "#ff4b6e" : Qt.rgba(255, 255, 255, 0.12)
                                 Layout.alignment: Qt.AlignVCenter
+                                antialiasing: true
 
-                                scale: closeHover.containsMouse ? 1.10 : 1.0
+                                scale: closeHover.containsMouse ? 1.08 : 1.0
                                 Behavior on scale {
                                     NumberAnimation {
                                         duration: root.animEnabled ? animStyle.animDuration : 0
@@ -631,7 +654,7 @@ except Exception as e:
                             }
                         }
 
-                        Rectangle { Layout.fillWidth: true; height: 1; color: Qt.alpha(root.themeBorder, 0.15) }
+                        Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(255, 255, 255, 0.12) }
 
                         Item {
                             Layout.fillWidth: true
@@ -702,8 +725,10 @@ except Exception as e:
                                 Text {
                                     text: "Fetching live weather updates..."
                                     font.pixelSize: 14
-                                    font.weight: Font.Medium
+                                    font.weight: Font.Bold
                                     color: root.themeTextMuted
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                     Layout.alignment: Qt.AlignHCenter
                                 }
                             }
@@ -729,7 +754,15 @@ except Exception as e:
                                 anchors.centerIn: parent
                                 spacing: 12
                                 Text { text: "󰖙"; font.pixelSize: 48; color: Qt.alpha(root.themeText, 0.3); Layout.alignment: Qt.AlignHCenter }
-                                Text { text: root.fetchError; font.pixelSize: 15; color: "#fb7185"; Layout.alignment: Qt.AlignHCenter; font.weight: Font.Bold }
+                                Text { 
+                                    text: root.fetchError
+                                    font.pixelSize: 15
+                                    color: "#fb7185"
+                                    Layout.alignment: Qt.AlignHCenter
+                                    font.weight: Font.Bold
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                }
                             }
                         }
 
@@ -769,13 +802,14 @@ except Exception as e:
                                         Layout.preferredHeight: 160
                                         radius: Math.max(4, root.themeRounding - 6)
                                         gradient: Gradient {
-                                            GradientStop { position: 0.0; color: Qt.alpha(root.themePrimary, 0.08) }
+                                            GradientStop { position: 0.0; color: Qt.alpha(root.themePrimary, 0.12) }
                                             GradientStop { position: 1.0; color: root.themeSurface }
                                         }
                                         border.width: 1
-                                        border.color: Qt.alpha(root.themeBorder, 0.20)
+                                        border.color: heroHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                        antialiasing: true
 
-                                        scale: heroHover.containsMouse ? 1.0 : 1.0
+                                        scale: heroHover.containsMouse ? 1.01 : 1.0
                                         Behavior on scale {
                                             NumberAnimation {
                                                 duration: root.animEnabled ? animStyle.animDuration : 0
@@ -809,22 +843,56 @@ except Exception as e:
                                                 spacing: 6
                                                 Layout.alignment: Qt.AlignVCenter
                                                 
-                                                Text { text: root.currDesc; font.pixelSize: 22; font.weight: Font.Bold; color: root.themeText }
-                                                Text { text: "Feels like " + root.currFeel; font.pixelSize: 13; color: root.themeTextMuted }
+                                                Text { 
+                                                    text: root.currDesc
+                                                    font.pixelSize: 22
+                                                    font.weight: Font.Bold
+                                                    color: "#FFFFFF"
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                                }
+                                                Text { 
+                                                    text: "Feels like " + root.currFeel
+                                                    font.pixelSize: 13
+                                                    font.weight: Font.Medium
+                                                    color: root.themeTextMuted
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                                }
                                                 
                                                 RowLayout {
                                                     spacing: 10
                                                     Rectangle {
-                                                        radius: 6; color: Qt.alpha("#fb7185", 0.15)
-                                                        border.width: 1; border.color: Qt.alpha("#fb7185", 0.35)
+                                                        radius: 6; color: Qt.alpha("#fb7185", 0.18)
+                                                        border.width: 1; border.color: Qt.alpha("#fb7185", 0.45)
+                                                        antialiasing: true
                                                         implicitWidth: highTxt.implicitWidth + 16; implicitHeight: 24
-                                                        Text { id: highTxt; anchors.centerIn: parent; text: "󰖙 High: " + root.currHigh; font.pixelSize: 11; font.weight: Font.Bold; color: "#fb7185" }
+                                                        Text { 
+                                                            id: highTxt
+                                                            anchors.centerIn: parent
+                                                            text: "󰖙 High: " + root.currHigh
+                                                            font.pixelSize: 11
+                                                            font.weight: Font.Bold
+                                                            color: "#fb7185"
+                                                            style: Text.Raised
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                                        }
                                                     }
                                                     Rectangle {
-                                                        radius: 6; color: Qt.alpha("#38bdf8", 0.15)
-                                                        border.width: 1; border.color: Qt.alpha("#38bdf8", 0.35)
+                                                        radius: 6; color: Qt.alpha("#38bdf8", 0.18)
+                                                        border.width: 1; border.color: Qt.alpha("#38bdf8", 0.45)
+                                                        antialiasing: true
                                                         implicitWidth: lowTxt.implicitWidth + 16; implicitHeight: 24
-                                                        Text { id: lowTxt; anchors.centerIn: parent; text: "󰖔 Low: " + root.currLow; font.pixelSize: 11; font.weight: Font.Bold; color: "#38bdf8" }
+                                                        Text { 
+                                                            id: lowTxt
+                                                            anchors.centerIn: parent
+                                                            text: "󰖔 Low: " + root.currLow
+                                                            font.pixelSize: 11
+                                                            font.weight: Font.Bold
+                                                            color: "#38bdf8"
+                                                            style: Text.Raised
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                                        }
                                                     }
                                                 }
                                             }
@@ -834,7 +902,9 @@ except Exception as e:
                                             Text { 
                                                 text: root.currTemp
                                                 font.pixelSize: 62; font.weight: Font.Bold
-                                                color: root.themeText
+                                                color: "#FFFFFF"
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.9)
                                                 Layout.alignment: Qt.AlignVCenter
                                             }
                                         }
@@ -847,7 +917,9 @@ except Exception as e:
                                         Text { 
                                             text: "󱑂 Hourly Forecast (Next 16 Hours)"
                                             font.pixelSize: 13; font.weight: Font.Bold
-                                            color: root.themeText
+                                            color: "#FFFFFF"
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.8)
                                         }
 
                                         ListView {
@@ -863,11 +935,12 @@ except Exception as e:
                                                 width: 78
                                                 height: 112
                                                 radius: 12
-                                                color: hourlyHover.containsMouse ? root.themeSurfaceHover : (model.time === "Now" ? Qt.alpha(root.themePrimary, 0.09) : root.themeSurface)
+                                                color: hourlyHover.containsMouse ? root.themeSurfaceHover : (model.time === "Now" ? Qt.alpha(root.themePrimary, 0.15) : root.themeSurface)
                                                 border.width: 1
-                                                border.color: model.time === "Now" ? Qt.alpha(root.themePrimary, 0.45) : (hourlyHover.containsMouse ? Qt.alpha(root.themeBorder, 0.28) : Qt.alpha(root.themeBorder, 0.12))
+                                                border.color: model.time === "Now" ? root.themePrimary : (hourlyHover.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(255, 255, 255, 0.10))
+                                                antialiasing: true
 
-                                                scale: hourlyHover.containsMouse ? 1.0 : 1.0
+                                                scale: hourlyHover.containsMouse ? 1.02 : 1.0
                                                 Behavior on scale {
                                                     NumberAnimation {
                                                         duration: root.animEnabled ? animStyle.animDuration : 0
@@ -887,13 +960,15 @@ except Exception as e:
                                                 ColumnLayout {
                                                     anchors.fill: parent
                                                     anchors.margins: 8
-                                                    spacing: 2
+                                                    spacing: 3
 
                                                     Text { 
                                                         text: model.time
-                                                        font.pixelSize: 11; font.weight: model.time === "Now" ? Font.Bold : Font.Medium
+                                                        font.pixelSize: 11; font.weight: model.time === "Now" ? Font.Bold : Font.DemiBold
                                                         color: model.time === "Now" ? root.themePrimary : root.themeTextMuted
                                                         Layout.alignment: Qt.AlignHCenter 
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                                     }
                                                     Text { 
                                                         text: model.icon
@@ -903,14 +978,18 @@ except Exception as e:
                                                     Text { 
                                                         text: model.temp
                                                         font.pixelSize: 13; font.weight: Font.Bold
-                                                        color: root.themeText
+                                                        color: "#FFFFFF"
                                                         Layout.alignment: Qt.AlignHCenter 
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.8)
                                                     }
                                                     Text { 
                                                         text: model.pop
-                                                        font.pixelSize: 10; color: "#38bdf8"
-                                                        opacity: model.pop === "0%" ? 0.3 : 1.0
+                                                        font.pixelSize: 10; font.weight: Font.Bold; color: "#38bdf8"
+                                                        opacity: model.pop === "0%" ? 0.35 : 1.0
                                                         Layout.alignment: Qt.AlignHCenter 
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
                                                     }
                                                 }
                                             }
@@ -927,9 +1006,10 @@ except Exception as e:
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: windHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                             border.width: 1
-                                            border.color: windHover.containsMouse ? Qt.alpha("#38bdf8", 0.4) : Qt.alpha(root.themeBorder, 0.14)
+                                            border.color: windHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                            antialiasing: true
                                             
-                                            scale: windHover.containsMouse ? 1.0 : 1.0
+                                            scale: windHover.containsMouse ? 1.015 : 1.0
                                             Behavior on scale {
                                                 NumberAnimation {
                                                     duration: root.animEnabled ? animStyle.animDuration : 0
@@ -949,9 +1029,10 @@ except Exception as e:
 
                                                 Rectangle {
                                                     width: 44; height: 44; radius: 12
-                                                    color: Qt.alpha("#38bdf8", 0.12)
-                                                    border.width: 1; border.color: Qt.alpha("#38bdf8", 0.28)
+                                                    color: Qt.alpha("#38bdf8", 0.18)
+                                                    border.width: 1; border.color: Qt.alpha("#38bdf8", 0.35)
                                                     Layout.alignment: Qt.AlignVCenter
+                                                    antialiasing: true
                                                     Text { anchors.centerIn: parent; text: "󰖝"; font.pixelSize: 22; color: "#38bdf8" }
                                                 }
 
@@ -966,17 +1047,23 @@ except Exception as e:
                                                         font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
                                                         color: root.themeTextMuted
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                     }
                                                     Text { 
                                                         text: root.currWind
                                                         font.pixelSize: 18; font.weight: Font.Bold
-                                                        color: root.themeText
+                                                        color: "#FFFFFF"
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                                     }
                                                     Text { 
                                                         text: "Gusts: " + root.currWindGust
-                                                        font.pixelSize: 11; color: Qt.alpha(root.themeTextMuted, 0.85)
+                                                        font.pixelSize: 11; font.weight: Font.Medium; color: Qt.alpha(root.themeTextMuted, 0.9)
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                                     }
                                                 }
                                             }
@@ -986,9 +1073,10 @@ except Exception as e:
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: uvHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                             border.width: 1
-                                            border.color: uvHover.containsMouse ? Qt.alpha("#facc15", 0.4) : Qt.alpha(root.themeBorder, 0.14)
+                                            border.color: uvHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                            antialiasing: true
 
-                                            scale: uvHover.containsMouse ? 1.0 : 1.0
+                                            scale: uvHover.containsMouse ? 1.015 : 1.0
                                             Behavior on scale {
                                                 NumberAnimation {
                                                     duration: root.animEnabled ? animStyle.animDuration : 0
@@ -1008,9 +1096,10 @@ except Exception as e:
 
                                                 Rectangle {
                                                     width: 44; height: 44; radius: 12
-                                                    color: Qt.alpha("#facc15", 0.12)
-                                                    border.width: 1; border.color: Qt.alpha("#facc15", 0.28)
+                                                    color: Qt.alpha("#facc15", 0.18)
+                                                    border.width: 1; border.color: Qt.alpha("#facc15", 0.35)
                                                     Layout.alignment: Qt.AlignVCenter
+                                                    antialiasing: true
                                                     Text { anchors.centerIn: parent; text: "󰖙"; font.pixelSize: 22; color: "#facc15" }
                                                 }
 
@@ -1025,17 +1114,23 @@ except Exception as e:
                                                         font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
                                                         color: root.themeTextMuted
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                     }
                                                     Text { 
                                                         text: root.currUV
                                                         font.pixelSize: 18; font.weight: Font.Bold
-                                                        color: root.themeText
+                                                        color: "#FFFFFF"
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                                     }
                                                     Text { 
                                                         text: root.currUVDesc
-                                                        font.pixelSize: 11; font.weight: Font.Medium; color: "#facc15"
+                                                        font.pixelSize: 11; font.weight: Font.Bold; color: "#facc15"
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                                     }
                                                 }
                                             }
@@ -1045,9 +1140,10 @@ except Exception as e:
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: humHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                             border.width: 1
-                                            border.color: humHover.containsMouse ? Qt.alpha("#a78bfa", 0.4) : Qt.alpha(root.themeBorder, 0.14)
+                                            border.color: humHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                            antialiasing: true
 
-                                            scale: humHover.containsMouse ? 1.0 : 1.0
+                                            scale: humHover.containsMouse ? 1.015 : 1.0
                                             Behavior on scale {
                                                 NumberAnimation {
                                                     duration: root.animEnabled ? animStyle.animDuration : 0
@@ -1067,9 +1163,10 @@ except Exception as e:
 
                                                 Rectangle {
                                                     width: 44; height: 44; radius: 12
-                                                    color: Qt.alpha("#a78bfa", 0.12)
-                                                    border.width: 1; border.color: Qt.alpha("#a78bfa", 0.28)
+                                                    color: Qt.alpha("#a78bfa", 0.18)
+                                                    border.width: 1; border.color: Qt.alpha("#a78bfa", 0.35)
                                                     Layout.alignment: Qt.AlignVCenter
+                                                    antialiasing: true
                                                     Text { anchors.centerIn: parent; text: "󰖎"; font.pixelSize: 22; color: "#a78bfa" }
                                                 }
 
@@ -1084,17 +1181,23 @@ except Exception as e:
                                                         font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
                                                         color: root.themeTextMuted
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                     }
                                                     Text { 
                                                         text: root.currHum
                                                         font.pixelSize: 18; font.weight: Font.Bold
-                                                        color: root.themeText
+                                                        color: "#FFFFFF"
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                                     }
                                                     Text { 
                                                         text: "Relative Dew Point"
-                                                        font.pixelSize: 11; color: Qt.alpha(root.themeTextMuted, 0.85)
+                                                        font.pixelSize: 11; font.weight: Font.Medium; color: Qt.alpha(root.themeTextMuted, 0.9)
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                                     }
                                                 }
                                             }
@@ -1104,9 +1207,10 @@ except Exception as e:
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: pressHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                             border.width: 1
-                                            border.color: pressHover.containsMouse ? Qt.alpha("#fb923c", 0.4) : Qt.alpha(root.themeBorder, 0.14)
+                                            border.color: pressHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                            antialiasing: true
 
-                                            scale: pressHover.containsMouse ? 1.0 : 1.0
+                                            scale: pressHover.containsMouse ? 1.015 : 1.0
                                             Behavior on scale {
                                                 NumberAnimation {
                                                     duration: root.animEnabled ? animStyle.animDuration : 0
@@ -1126,9 +1230,10 @@ except Exception as e:
 
                                                 Rectangle {
                                                     width: 44; height: 44; radius: 12
-                                                    color: Qt.alpha("#fb923c", 0.12)
-                                                    border.width: 1; border.color: Qt.alpha("#fb923c", 0.28)
+                                                    color: Qt.alpha("#fb923c", 0.18)
+                                                    border.width: 1; border.color: Qt.alpha("#fb923c", 0.35)
                                                     Layout.alignment: Qt.AlignVCenter
+                                                    antialiasing: true
                                                     Text { anchors.centerIn: parent; text: "󰖜"; font.pixelSize: 22; color: "#fb923c" }
                                                 }
 
@@ -1143,17 +1248,23 @@ except Exception as e:
                                                         font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
                                                         color: root.themeTextMuted
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                     }
                                                     Text { 
                                                         text: root.currPress
                                                         font.pixelSize: 18; font.weight: Font.Bold
-                                                        color: root.themeText
+                                                        color: "#FFFFFF"
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                                     }
                                                     Text { 
                                                         text: "Barometric Sea Level"
-                                                        font.pixelSize: 11; color: Qt.alpha(root.themeTextMuted, 0.85)
+                                                        font.pixelSize: 11; font.weight: Font.Medium; color: Qt.alpha(root.themeTextMuted, 0.9)
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                                     }
                                                 }
                                             }
@@ -1163,9 +1274,10 @@ except Exception as e:
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: cloudsHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                             border.width: 1
-                                            border.color: cloudsHover.containsMouse ? Qt.alpha("#38bdf8", 0.4) : Qt.alpha(root.themeBorder, 0.14)
+                                            border.color: cloudsHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                            antialiasing: true
 
-                                            scale: cloudsHover.containsMouse ? 1.0 : 1.0
+                                            scale: cloudsHover.containsMouse ? 1.015 : 1.0
                                             Behavior on scale {
                                                 NumberAnimation {
                                                     duration: root.animEnabled ? animStyle.animDuration : 0
@@ -1185,9 +1297,10 @@ except Exception as e:
 
                                                 Rectangle {
                                                     width: 44; height: 44; radius: 12
-                                                    color: Qt.alpha("#38bdf8", 0.12)
-                                                    border.width: 1; border.color: Qt.alpha("#38bdf8", 0.28)
+                                                    color: Qt.alpha("#38bdf8", 0.18)
+                                                    border.width: 1; border.color: Qt.alpha("#38bdf8", 0.35)
                                                     Layout.alignment: Qt.AlignVCenter
+                                                    antialiasing: true
                                                     Text { anchors.centerIn: parent; text: "󰅟"; font.pixelSize: 22; color: "#38bdf8" }
                                                 }
 
@@ -1202,17 +1315,23 @@ except Exception as e:
                                                         font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
                                                         color: root.themeTextMuted
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                     }
                                                     Text { 
                                                         text: root.currClouds
                                                         font.pixelSize: 18; font.weight: Font.Bold
-                                                        color: root.themeText
+                                                        color: "#FFFFFF"
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                                     }
                                                     Text { 
                                                         text: "Sky Obscuration"
-                                                        font.pixelSize: 11; color: Qt.alpha(root.themeTextMuted, 0.85)
+                                                        font.pixelSize: 11; font.weight: Font.Medium; color: Qt.alpha(root.themeTextMuted, 0.9)
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                                     }
                                                 }
                                             }
@@ -1222,9 +1341,10 @@ except Exception as e:
                                             Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
                                             color: sunHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                             border.width: 1
-                                            border.color: sunHover.containsMouse ? Qt.alpha("#f59e0b", 0.4) : Qt.alpha(root.themeBorder, 0.14)
+                                            border.color: sunHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                            antialiasing: true
 
-                                            scale: sunHover.containsMouse ? 1.0 : 1.0
+                                            scale: sunHover.containsMouse ? 1.015 : 1.0
                                             Behavior on scale {
                                                 NumberAnimation {
                                                     duration: root.animEnabled ? animStyle.animDuration : 0
@@ -1244,9 +1364,10 @@ except Exception as e:
 
                                                 Rectangle {
                                                     width: 44; height: 44; radius: 12
-                                                    color: Qt.alpha("#f59e0b", 0.12)
-                                                    border.width: 1; border.color: Qt.alpha("#f59e0b", 0.28)
+                                                    color: Qt.alpha("#f59e0b", 0.18)
+                                                    border.width: 1; border.color: Qt.alpha("#f59e0b", 0.35)
                                                     Layout.alignment: Qt.AlignVCenter
+                                                    antialiasing: true
                                                     Text { anchors.centerIn: parent; text: "󰖚"; font.pixelSize: 22; color: "#f59e0b" }
                                                 }
 
@@ -1261,6 +1382,8 @@ except Exception as e:
                                                         font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
                                                         color: root.themeTextMuted
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                     }
                                                     
                                                     RowLayout {
@@ -1270,20 +1393,32 @@ except Exception as e:
                                                         RowLayout {
                                                             spacing: 3
                                                             Text { text: "󰅶"; font.pixelSize: 12; color: "#f59e0b" }
-                                                            Text { text: root.currSunrise; font.pixelSize: 13; font.weight: Font.Bold; color: root.themeText }
+                                                            Text { 
+                                                                text: root.currSunrise
+                                                                font.pixelSize: 13; font.weight: Font.Bold; color: "#FFFFFF" 
+                                                                style: Text.Raised
+                                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                            }
                                                         }
                                                         Text { text: "•"; font.pixelSize: 10; color: root.themeTextMuted }
                                                         RowLayout {
                                                             spacing: 3
                                                             Text { text: "󰅔"; font.pixelSize: 12; color: "#f97316" }
-                                                            Text { text: root.currSunset; font.pixelSize: 13; font.weight: Font.Bold; color: root.themeText }
+                                                            Text { 
+                                                                text: root.currSunset
+                                                                font.pixelSize: 13; font.weight: Font.Bold; color: "#FFFFFF" 
+                                                                style: Text.Raised
+                                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                            }
                                                         }
                                                     }
                                                     
                                                     Text { 
                                                         text: "Sunrise & Sunset"
-                                                        font.pixelSize: 11; color: Qt.alpha(root.themeTextMuted, 0.85)
+                                                        font.pixelSize: 11; font.weight: Font.Medium; color: Qt.alpha(root.themeTextMuted, 0.9)
                                                         Layout.alignment: Qt.AlignRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                                     }
                                                 }
                                             }
@@ -1292,7 +1427,7 @@ except Exception as e:
                                 }
                             }
 
-                            Rectangle { Layout.fillHeight: true; width: 1; color: Qt.alpha(root.themeBorder, 0.15) }
+                            Rectangle { Layout.fillHeight: true; width: 1; color: Qt.rgba(255, 255, 255, 0.12) }
 
                             ColumnLayout {
                                 Layout.fillWidth: true
@@ -1302,8 +1437,10 @@ except Exception as e:
 
                                 Text { 
                                     text: "󰸗 7-Day Extended Forecast"
-                                    font.pixelSize: 15; font.weight: Font.Bold; color: root.themeText
+                                    font.pixelSize: 15; font.weight: Font.Bold; color: "#FFFFFF"
                                     Layout.bottomMargin: 8
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
                                 }
 
                                 ListView {
@@ -1323,11 +1460,12 @@ except Exception as e:
                                         width: forecastListView.width
                                         height: 62
                                         radius: 12
-                                        color: forecastItemHover.containsMouse ? root.themeSurfaceHover : (model.day === "Today" ? Qt.rgba(1, 1, 1, 0.05) : Qt.rgba(1, 1, 1, 0.025))
+                                        color: forecastItemHover.containsMouse ? root.themeSurfaceHover : (model.day === "Today" ? Qt.alpha(root.themePrimary, 0.15) : root.themeSurface)
                                         border.width: 1
-                                        border.color: forecastItemHover.containsMouse ? Qt.alpha(root.themeBorder, 0.28) : (model.day === "Today" ? Qt.alpha(root.themeBorder, 0.22) : Qt.alpha(root.themeBorder, 0.08))
+                                        border.color: forecastItemHover.containsMouse ? root.themePrimary : (model.day === "Today" ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(255, 255, 255, 0.10))
+                                        antialiasing: true
 
-                                        scale: forecastItemHover.containsMouse ? 1.0 : 1.0
+                                        scale: forecastItemHover.containsMouse ? 1.015 : 1.0
                                         Behavior on scale {
                                             NumberAnimation {
                                                 duration: root.animEnabled ? animStyle.animDuration : 0
@@ -1353,8 +1491,19 @@ except Exception as e:
                                                 Layout.preferredWidth: 55
                                                 spacing: 2
                                                 Layout.alignment: Qt.AlignVCenter
-                                                Text { text: model.day; font.pixelSize: 13; font.weight: Font.Bold; color: model.day === "Today" ? root.themePrimary : root.themeText }
-                                                Text { text: model.date; font.pixelSize: 10; color: root.themeTextMuted }
+                                                Text { 
+                                                    text: model.day
+                                                    font.pixelSize: 13; font.weight: Font.Bold
+                                                    color: model.day === "Today" ? root.themePrimary : "#FFFFFF"
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                                }
+                                                Text { 
+                                                    text: model.date
+                                                    font.pixelSize: 10; font.weight: Font.Medium; color: root.themeTextMuted 
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                                }
                                             }
 
                                             RowLayout {
@@ -1365,10 +1514,12 @@ except Exception as e:
                                                 Text { text: model.icon; font.pixelSize: 20; color: root.themePrimary; Layout.alignment: Qt.AlignVCenter }
                                                 Text { 
                                                     text: model.desc
-                                                    font.pixelSize: 12; color: root.themeTextMuted
+                                                    font.pixelSize: 12; font.weight: Font.Medium; color: root.themeTextMuted
                                                     elide: Text.ElideRight
                                                     Layout.fillWidth: true 
                                                     Layout.alignment: Qt.AlignVCenter
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
                                             }
 
@@ -1378,25 +1529,38 @@ except Exception as e:
                                                 Layout.alignment: Qt.AlignVCenter
                                                 RowLayout {
                                                     spacing: 3
-                                                    Text { text: "󰖗"; font.pixelSize: 11; color: "#38bdf8"; opacity: model.pop === "0%" ? 0.3 : 1.0 }
-                                                    Text { text: model.pop; font.pixelSize: 11; font.weight: Font.Bold; color: root.themeText }
+                                                    Text { text: "󰖗"; font.pixelSize: 11; color: "#38bdf8"; opacity: model.pop === "0%" ? 0.35 : 1.0 }
+                                                    Text { 
+                                                        text: model.pop
+                                                        font.pixelSize: 11; font.weight: Font.Bold; color: "#FFFFFF" 
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                    }
                                                 }
-                                                Text { text: model.precip; font.pixelSize: 10; color: root.themeTextMuted }
+                                                Text { 
+                                                    text: model.precip
+                                                    font.pixelSize: 10; font.weight: Font.Medium; color: root.themeTextMuted 
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                                }
                                             }
 
                                             Text { 
                                                 text: model.min
-                                                font.pixelSize: 13; color: root.themeTextMuted
+                                                font.pixelSize: 13; font.weight: Font.Medium; color: root.themeTextMuted
                                                 Layout.preferredWidth: 26; horizontalAlignment: Text.AlignRight
                                                 Layout.alignment: Qt.AlignVCenter
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                                             }
 
                                             Rectangle {
                                                 Layout.preferredWidth: 65
                                                 Layout.preferredHeight: 6
                                                 radius: 3
-                                                color: Qt.rgba(1, 1, 1, 0.08)
+                                                color: Qt.rgba(255, 255, 255, 0.12)
                                                 Layout.alignment: Qt.AlignVCenter
+                                                antialiasing: true
 
                                                 Rectangle {
                                                     x: parent.width * model.left_ratio
@@ -1404,14 +1568,17 @@ except Exception as e:
                                                     height: parent.height
                                                     radius: 3
                                                     color: root.themePrimary
+                                                    antialiasing: true
                                                 }
                                             }
 
                                             Text { 
                                                 text: model.max
-                                                font.pixelSize: 13; font.weight: Font.Bold; color: root.themeText
+                                                font.pixelSize: 13; font.weight: Font.Bold; color: "#FFFFFF"
                                                 Layout.preferredWidth: 26
                                                 Layout.alignment: Qt.AlignVCenter
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.8)
                                             }
                                         }
                                     }

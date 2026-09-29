@@ -44,14 +44,14 @@ Scope {
     property color themeTextMuted: "#a1a1aa"
     
     property int themeRounding: 22
-    property int themeBorderSize: 1
+    property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
     
     property color themeBackground: "#141416" 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.04) 
-    property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.08)
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.25) 
+    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)
 
     property string targetMonitorName: ""
 
@@ -113,7 +113,7 @@ Scope {
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -367,7 +367,8 @@ Scope {
                     radius: root.themeRounding
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themeBorder, 0.35)
+                    border.color: Qt.alpha(root.themePrimary, 0.4)
+                    antialiasing: true
                     clip: true
 
                     RowLayout {
@@ -386,6 +387,8 @@ Scope {
                                     color: root.themeText
                                     font.pixelSize: 20
                                     font.weight: Font.Bold
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
                                     Layout.fillWidth: true
                                 }
                                 
@@ -393,7 +396,9 @@ Scope {
                                     width: 90; height: 34
                                     radius: Math.max(4, root.themeRounding - 8)
                                     color: modeArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                    border.width: 1; border.color: root.isExpertMode ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(1, 1, 1, 0.08)
+                                    border.width: 1
+                                    border.color: root.isExpertMode ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                    antialiasing: true
                                     scale: modeArea.pressed ? 1 : (modeArea.containsMouse ? 1.0 : 1.0)
                                     
                                     Behavior on scale {
@@ -411,6 +416,8 @@ Scope {
                                         text: root.isExpertMode ? "Expert" : "Basic"
                                         color: root.isExpertMode ? root.themePrimary : root.themeText
                                         font.pixelSize: 13; font.weight: Font.Medium
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
                                     }
                                     MouseArea {
                                         id: modeArea; anchors.fill: parent
@@ -423,7 +430,9 @@ Scope {
                                     width: 34; height: 34
                                     radius: Math.max(4, root.themeRounding - 8)
                                     color: histArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                    border.width: 1; border.color: root.showHistory ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(1, 1, 1, 0.08)
+                                    border.width: 1
+                                    border.color: root.showHistory ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                    antialiasing: true
                                     scale: histArea.pressed ? 1 : (histArea.containsMouse ? 1.0 : 1.0)
 
                                     Behavior on scale {
@@ -441,6 +450,8 @@ Scope {
                                         text: "󰋚"
                                         color: root.showHistory ? root.themePrimary : root.themeText
                                         font.pixelSize: 15
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
                                     }
                                     MouseArea {
                                         id: histArea; anchors.fill: parent
@@ -454,8 +465,10 @@ Scope {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 120
                                 radius: Math.max(4, root.themeRounding - 8)
-                                color: Qt.rgba(0, 0, 0, 0.25)
-                                border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.08)
+                                color: Qt.rgba(0, 0, 0, 0.35)
+                                border.width: 1
+                                border.color: Qt.rgba(255, 255, 255, 0.12)
+                                antialiasing: true
                                 
                                 ColumnLayout {
                                     anchors.fill: parent
@@ -470,6 +483,8 @@ Scope {
                                         font.pixelSize: 16
                                         horizontalAlignment: Text.AlignRight
                                         elide: Text.ElideLeft
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.5)
                                         
                                         Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                     }
@@ -485,6 +500,8 @@ Scope {
                                         horizontalAlignment: Text.AlignRight
                                         verticalAlignment: Text.AlignVCenter
                                         elide: Text.ElideLeft
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
 
                                         Behavior on font.pixelSize {
                                             NumberAnimation {
@@ -538,7 +555,7 @@ Scope {
                             visible: root.showHistory
                             Layout.preferredWidth: 1
                             Layout.fillHeight: true
-                            color: Qt.rgba(1, 1, 1, 0.08)
+                            color: Qt.rgba(255, 255, 255, 0.12)
                         }
 
                         ColumnLayout {
@@ -565,6 +582,8 @@ Scope {
                                     color: root.themeText
                                     font.pixelSize: 18
                                     font.weight: Font.Bold
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
                                     Layout.fillWidth: true
                                 }
 
@@ -573,9 +592,10 @@ Scope {
                                     width: clearRow.implicitWidth + 20
                                     height: 30
                                     radius: Math.max(4, root.themeRounding - 8)
-                                    color: trashArea.containsMouse ? Qt.alpha(root.themePrimary, 0.15) : Qt.rgba(1, 1, 1, 0.05)
+                                    color: trashArea.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.3)
                                     border.width: 1
-                                    border.color: trashArea.containsMouse ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1, 1, 1, 0.1)
+                                    border.color: trashArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
+                                    antialiasing: true
                                     scale: trashArea.pressed ? 1 : (trashArea.containsMouse ? 1.0 : 1.0)
                                     
                                     Behavior on scale {
@@ -592,8 +612,19 @@ Scope {
                                         id: clearRow
                                         anchors.centerIn: parent
                                         spacing: 6
-                                        Text { text: "󰆴"; color: trashArea.containsMouse ? root.themePrimary : root.themeTextMuted; font.pixelSize: 13 }
-                                        Text { text: "Clear"; color: trashArea.containsMouse ? root.themeText : root.themeTextMuted; font.pixelSize: 11; font.weight: Font.DemiBold }
+                                        Text { 
+                                            text: "󰆴"
+                                            color: trashArea.containsMouse ? root.themePrimary : root.themeTextMuted
+                                            font.pixelSize: 13 
+                                        }
+                                        Text { 
+                                            text: "Clear"
+                                            color: trashArea.containsMouse ? root.themeText : root.themeTextMuted
+                                            font.pixelSize: 11
+                                            font.weight: Font.DemiBold
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                        }
                                     }
                                     MouseArea {
                                         id: trashArea; anchors.fill: parent
@@ -627,9 +658,10 @@ Scope {
                                     implicitHeight: histCardLayout.implicitHeight + 24
                                     
                                     radius: Math.max(4, root.themeRounding - 6)
-                                    color: histItemArea.containsMouse ? root.themeSurfaceHover : Qt.rgba(1, 1, 1, 0.03)
+                                    color: histItemArea.containsMouse ? Qt.rgba(255, 255, 255, 0.1) : Qt.rgba(0, 0, 0, 0.3)
                                     border.width: 1
-                                    border.color: histItemArea.containsMouse ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1, 1, 1, 0.08)
+                                    border.color: histItemArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                    antialiasing: true
                                     
                                     scale: histItemArea.pressed ? 1 : (histItemArea.containsMouse ? 1.0 : 1.0)
 
@@ -657,9 +689,10 @@ Scope {
                                             width: 38
                                             height: 38
                                             radius: 10
-                                            color: Qt.alpha(root.themePrimary, 0.1)
+                                            color: Qt.alpha(root.themePrimary, 0.15)
                                             border.width: 1
-                                            border.color: Qt.alpha(root.themePrimary, 0.2)
+                                            border.color: Qt.alpha(root.themePrimary, 0.3)
+                                            antialiasing: true
                                             
                                             Text {
                                                 anchors.centerIn: parent
@@ -678,9 +711,11 @@ Scope {
                                                 
                                                 Text {
                                                     text: root.formatTimeAgo(model.time)
-                                                    color: Qt.alpha(root.themeTextMuted, 0.7)
+                                                    color: Qt.alpha(root.themeTextMuted, 0.85)
                                                     font.pixelSize: 11
                                                     font.weight: Font.Medium
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                                                 }
                                                 
                                                 Item { Layout.fillWidth: true }
@@ -691,6 +726,8 @@ Scope {
                                                     font.pixelSize: 13
                                                     horizontalAlignment: Text.AlignRight
                                                     elide: Text.ElideLeft
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                                                 }
                                             }
                                             
@@ -703,6 +740,8 @@ Scope {
                                                 font.weight: Font.Bold
                                                 horizontalAlignment: Text.AlignRight
                                                 elide: Text.ElideLeft
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                                             }
                                         }
                                     }
@@ -730,14 +769,31 @@ Scope {
                                     Rectangle {
                                         Layout.alignment: Qt.AlignHCenter
                                         width: 56; height: 56; radius: 28
-                                        color: Qt.rgba(1, 1, 1, 0.03)
-                                        border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.08)
-                                        Text { anchors.centerIn: parent; text: "󰋚"; color: Qt.alpha(root.themeTextMuted, 0.4); font.pixelSize: 26 }
+                                        color: Qt.rgba(0, 0, 0, 0.3)
+                                        border.width: 1
+                                        border.color: Qt.rgba(255, 255, 255, 0.12)
+                                        antialiasing: true
+                                        Text { anchors.centerIn: parent; text: "󰋚"; color: Qt.alpha(root.themeTextMuted, 0.5); font.pixelSize: 26 }
                                     }
                                     ColumnLayout {
                                         spacing: 3; Layout.alignment: Qt.AlignHCenter
-                                        Text { Layout.alignment: Qt.AlignHCenter; text: "No History Yet"; color: root.themeText; font.pixelSize: 14; font.weight: Font.Bold }
-                                        Text { Layout.alignment: Qt.AlignHCenter; text: "Calculations will appear here"; color: root.themeTextMuted; font.pixelSize: 11 }
+                                        Text { 
+                                            Layout.alignment: Qt.AlignHCenter
+                                            text: "No History Yet"
+                                            color: root.themeText
+                                            font.pixelSize: 14
+                                            font.weight: Font.Bold
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                        }
+                                        Text { 
+                                            Layout.alignment: Qt.AlignHCenter
+                                            text: "Calculations will appear here"
+                                            color: root.themeTextMuted
+                                            font.pixelSize: 11
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.5)
+                                        }
                                     }
                                 }
                             }
@@ -760,6 +816,7 @@ Scope {
             Layout.minimumHeight: 60
             
             radius: Math.max(4, root.themeRounding - 8)
+            antialiasing: true
             
             scale: btnArea.pressed ? 1 : (btnArea.containsMouse ? 1.0 : 1.0)
 
@@ -773,17 +830,17 @@ Scope {
 
             color: {
                 if (btnCategory === "equal") return btnArea.containsMouse ? Qt.darker(root.themePrimary, 1.1) : root.themePrimary
-                if (btnCategory === "clear") return btnArea.containsMouse ? Qt.alpha("#ef4444", 0.25) : Qt.alpha("#ef4444", 0.15)
-                if (btnCategory === "op" || btnCategory === "expert") return btnArea.containsMouse ? Qt.alpha(root.themePrimary, 0.2) : Qt.alpha(root.themePrimary, 0.1)
+                if (btnCategory === "clear") return btnArea.containsMouse ? Qt.alpha("#ef4444", 0.35) : Qt.alpha("#ef4444", 0.22)
+                if (btnCategory === "op" || btnCategory === "expert") return btnArea.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.alpha(root.themePrimary, 0.14)
                 return btnArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
             }
 
             border.width: 1
             border.color: {
                 if (btnCategory === "equal") return Qt.alpha(root.themeBorder, 0.5)
-                if (btnCategory === "clear") return Qt.alpha("#ef4444", 0.4)
-                if (btnCategory === "op" || btnCategory === "expert") return Qt.alpha(root.themePrimary, 0.35)
-                return Qt.rgba(1, 1, 1, 0.08)
+                if (btnCategory === "clear") return Qt.alpha("#ef4444", 0.45)
+                if (btnCategory === "op" || btnCategory === "expert") return Qt.alpha(root.themePrimary, 0.4)
+                return Qt.rgba(255, 255, 255, 0.12)
             }
 
             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
@@ -794,9 +851,11 @@ Scope {
                 text: modelData.t
                 font.pixelSize: (modelData.t === "⌫") ? 22 : 18
                 font.weight: (btnCategory === "equal" || btnCategory === "clear" || btnCategory === "num") ? Font.Bold : Font.Medium
+                style: btnCategory === "equal" ? Text.Normal : Text.Raised
+                styleColor: Qt.rgba(0, 0, 0, 0.65)
                 color: {
                     if (btnCategory === "equal") return "#11111b" 
-                    if (btnCategory === "clear") return "#ef4444"
+                    if (btnCategory === "clear") return "#ff6b6b"
                     if (btnCategory === "op" || btnCategory === "expert") return root.themePrimary
                     return root.themeText
                 }

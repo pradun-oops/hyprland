@@ -14,11 +14,12 @@ Scope {
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
-    property color themeTextMuted: "#a1a1aa"
+    property color themeTextMuted: "#D4D4D8"
     property color themeBackground: "#141416"
     
     property int themeRounding: 24
-    property int themeBorderSize: 1
+    property int themeBorderSize: 2
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
 
@@ -42,9 +43,9 @@ Scope {
     property string wallpaperThumbPath: ""
 
     function formatFileUrl(pathStr) {
-        if (!pathStr || pathStr.length === 0) return "";
-        if (pathStr.startsWith("file://")) return pathStr;
-        return "file://" + pathStr;
+        if (!pathStr || pathStr.length === 0) return ""
+        if (pathStr.startsWith("file://")) return pathStr
+        return "file://" + pathStr
     }
 
     FileView {
@@ -91,7 +92,7 @@ Scope {
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = Math.min(parseInt(rMatch[1]) + 8, 28)
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -117,15 +118,15 @@ Scope {
         id: cursorMonitorProcess
         stdout: StdioCollector {
             onStreamFinished: {
-                let found = text.trim();
+                let found = text.trim()
                 
                 if (found !== "") {
-                    root.activeCursorMonitor = found;
+                    root.activeCursorMonitor = found
                 } else {
                     if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
-                        root.activeCursorMonitor = Hyprland.focusedMonitor.name;
+                        root.activeCursorMonitor = Hyprland.focusedMonitor.name
                     } else if (Quickshell.screens.length > 0) {
-                        root.activeCursorMonitor = Quickshell.screens[0].name;
+                        root.activeCursorMonitor = Quickshell.screens[0].name
                     }
                 }
 
@@ -178,51 +179,51 @@ except Exception:
     }
 
     function switchToWorkspace(item) {
-        if (!item || root.isClosing) return;
-        root.isClosing = true;
-        root.isOpened = false;
+        if (!item || root.isClosing) return
+        root.isClosing = true
+        root.isOpened = false
 
-        let targetId = item.id;
-        let isSpecial = item.isSpecial || false;
-        let specialName = item.rawSpecialName || "";
+        let targetId = item.id
+        let isSpecial = item.isSpecial || false
+        let specialName = item.rawSpecialName || ""
 
         if (isSpecial) {
-            try { Hyprland.dispatch("hl.dsp.workspace.toggle_special(\"" + specialName + "\")"); } catch(e) {}
-            try { Hyprland.dispatch("hl.dsp.toggle_special_workspace({ name = \"" + specialName + "\" })"); } catch(e) {}
-            try { Hyprland.dispatch("togglespecialworkspace " + specialName); } catch(e) {}
+            try { Hyprland.dispatch("hl.dsp.workspace.toggle_special(\"" + specialName + "\")") } catch(e) {}
+            try { Hyprland.dispatch("hl.dsp.toggle_special_workspace({ name = \"" + specialName + "\" })") } catch(e) {}
+            try { Hyprland.dispatch("togglespecialworkspace " + specialName) } catch(e) {}
         } else {
-            try { Hyprland.dispatch("hl.dsp.focus({ workspace = \"" + targetId + "\" })"); } catch(e) {}
-            try { Hyprland.dispatch("hl.dsp.focus({ workspace = " + targetId + " })"); } catch(e) {}
-            try { Hyprland.dispatch("workspace " + targetId); } catch(e) {}
+            try { Hyprland.dispatch("hl.dsp.focus({ workspace = \"" + targetId + "\" })") } catch(e) {}
+            try { Hyprland.dispatch("hl.dsp.focus({ workspace = " + targetId + " })") } catch(e) {}
+            try { Hyprland.dispatch("workspace " + targetId) } catch(e) {}
         }
 
         let envPrefix = "export HYPRLAND_INSTANCE_SIGNATURE='" + (Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") || "") + "'; " +
                         "export WAYLAND_DISPLAY='" + (Quickshell.env("WAYLAND_DISPLAY") || "") + "'; " +
-                        "export XDG_RUNTIME_DIR='" + (Quickshell.env("XDG_RUNTIME_DIR") || "") + "'; ";
+                        "export XDG_RUNTIME_DIR='" + (Quickshell.env("XDG_RUNTIME_DIR") || "") + "'; "
 
-        let bashCmd = "";
+        let bashCmd = ""
         if (isSpecial) {
             bashCmd = "hyprctl dispatch 'hl.dsp.workspace.toggle_special(\"" + specialName + "\")' 2>/dev/null || " +
                       "hyprctl dispatch 'hl.dsp.toggle_special_workspace({ name = \"" + specialName + "\" })' 2>/dev/null || " +
-                      "hyprctl dispatch togglespecialworkspace '" + specialName + "' 2>/dev/null";
+                      "hyprctl dispatch togglespecialworkspace '" + specialName + "' 2>/dev/null"
         } else {
             bashCmd = "hyprctl dispatch 'hl.dsp.focus({ workspace = \"" + targetId + "\" })' 2>/dev/null || " +
                       "hyprctl dispatch 'hl.dsp.focus({ workspace = " + targetId + " })' 2>/dev/null || " +
-                      "hyprctl dispatch workspace '" + targetId + "' 2>/dev/null";
+                      "hyprctl dispatch workspace '" + targetId + "' 2>/dev/null"
         }
 
-        Quickshell.execDetached(["bash", "-c", envPrefix + "nohup " + bashCmd + " >/dev/null 2>&1 &"]);
+        Quickshell.execDetached(["bash", "-c", envPrefix + "nohup " + bashCmd + " >/dev/null 2>&1 &"])
 
-        closeTimer.interval = 50;
-        closeTimer.start();
+        closeTimer.interval = 50
+        closeTimer.start()
     }
 
     function dismissMenu() {
-        if (root.isClosing) return;
-        root.isClosing = true;
-        root.isOpened = false;
-        closeTimer.interval = 10;
-        closeTimer.start();
+        if (root.isClosing) return
+        root.isClosing = true
+        root.isOpened = false
+        closeTimer.interval = 10
+        closeTimer.start()
     }
 
     Process {
@@ -245,9 +246,9 @@ except Exception:
                     if (!root.initialSelectionDone && root.workspaceList.length > 0) {
                         for (let i = 0; i < root.workspaceList.length; i++) {
                             if (root.workspaceList[i].isActive) {
-                                root.selectedIndex = i;
-                                root.initialSelectionDone = true;
-                                break;
+                                root.selectedIndex = i
+                                root.initialSelectionDone = true
+                                break
                             }
                         }
                     }
@@ -618,55 +619,55 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                     Keys.onPressed: (event) => {
                         if (event.key === Qt.Key_Escape) {
-                            root.dismissMenu();
-                            event.accepted = true;
+                            root.dismissMenu()
+                            event.accepted = true
                         } else if (event.key === Qt.Key_Left) {
                             if (root.workspaceList.length > 0) {
-                                root.selectedIndex = (root.selectedIndex - 1 + root.workspaceList.length) % root.workspaceList.length;
+                                root.selectedIndex = (root.selectedIndex - 1 + root.workspaceList.length) % root.workspaceList.length
                             }
-                            event.accepted = true;
+                            event.accepted = true
                         } else if (event.key === Qt.Key_Right || event.key === Qt.Key_Tab) {
                             if (root.workspaceList.length > 0) {
-                                root.selectedIndex = (root.selectedIndex + 1) % root.workspaceList.length;
+                                root.selectedIndex = (root.selectedIndex + 1) % root.workspaceList.length
                             }
-                            event.accepted = true;
+                            event.accepted = true
                         } else if (event.key === Qt.Key_Backtab) {
                             if (root.workspaceList.length > 0) {
-                                root.selectedIndex = (root.selectedIndex - 1 + root.workspaceList.length) % root.workspaceList.length;
+                                root.selectedIndex = (root.selectedIndex - 1 + root.workspaceList.length) % root.workspaceList.length
                             }
-                            event.accepted = true;
+                            event.accepted = true
                         } else if (event.key === Qt.Key_Up) {
                             if (root.selectedIndex - 5 >= 0) {
-                                root.selectedIndex -= 5;
+                                root.selectedIndex -= 5
                             }
-                            event.accepted = true;
+                            event.accepted = true
                         } else if (event.key === Qt.Key_Down) {
                             if (root.selectedIndex + 5 < root.workspaceList.length) {
-                                root.selectedIndex += 5;
+                                root.selectedIndex += 5
                             }
-                            event.accepted = true;
+                            event.accepted = true
                         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
                             if (root.workspaceList && root.workspaceList.length > root.selectedIndex) {
-                                root.switchToWorkspace(root.workspaceList[root.selectedIndex]);
+                                root.switchToWorkspace(root.workspaceList[root.selectedIndex])
                             }
-                            event.accepted = true;
+                            event.accepted = true
                         } else if (event.key >= Qt.Key_1 && event.key <= Qt.Key_9) {
-                            let targetNum = event.key - Qt.Key_1 + 1;
+                            let targetNum = event.key - Qt.Key_1 + 1
                             for (let i = 0; i < root.workspaceList.length; i++) {
                                 if (root.workspaceList[i].id === targetNum && !root.workspaceList[i].isSpecial) {
-                                    root.selectedIndex = i;
-                                    root.switchToWorkspace(root.workspaceList[i]);
-                                    event.accepted = true;
-                                    return;
+                                    root.selectedIndex = i
+                                    root.switchToWorkspace(root.workspaceList[i])
+                                    event.accepted = true
+                                    return
                                 }
                             }
                         } else if (event.key === Qt.Key_0) {
                             for (let i = 0; i < root.workspaceList.length; i++) {
                                 if (root.workspaceList[i].id === 10 && !root.workspaceList[i].isSpecial) {
-                                    root.selectedIndex = i;
-                                    root.switchToWorkspace(root.workspaceList[i]);
-                                    event.accepted = true;
-                                    return;
+                                    root.selectedIndex = i
+                                    root.switchToWorkspace(root.workspaceList[i])
+                                    event.accepted = true
+                                    return
                                 }
                             }
                         }
@@ -677,9 +678,10 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                         anchors.fill: parent
 
                         radius: root.themeRounding
-                        color: Qt.alpha(root.themeBackground, 0.78)
+                        color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                         border.width: root.themeBorderSize
-                        border.color: Qt.alpha(root.themeBorder, 0.45)
+                        border.color: Qt.alpha(root.themePrimary, 0.4)
+                        antialiasing: true
 
                         opacity: root.isClosing ? 0.0 : (root.isOpened ? 1.0 : 0.0)
                         scale: root.isClosing ? 0.90 : (root.isOpened ? 1.0 : 0.90)
@@ -714,16 +716,18 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                                 Text {
                                     text: "Workspace Overview"
-                                    color: root.themeText
+                                    color: "#FFFFFF"
                                     font.pixelSize: 26
                                     font.weight: Font.Bold
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
 
                                 Rectangle {
                                     width: 1
                                     height: 20
-                                    color: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.3)
+                                    color: Qt.rgba(255, 255, 255, 0.25)
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
 
@@ -731,6 +735,9 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                     text: "ESC to close"
                                     color: root.themeTextMuted
                                     font.pixelSize: 13
+                                    font.weight: Font.Medium
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
                             }
@@ -787,6 +794,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                 asynchronous: true
                                                 cache: true
                                                 visible: status === Image.Ready && source !== ""
+                                                antialiasing: true
                                             }
 
                                             Rectangle {
@@ -820,11 +828,11 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                                                 Text {
                                                     text: modelData.name
-                                                    color: modelData.isSpecial ? "#facc15" : root.themeText
+                                                    color: modelData.isSpecial ? "#facc15" : "#FFFFFF"
                                                     font.pixelSize: 14
                                                     font.weight: Font.Bold
-                                                    style: Text.Outline
-                                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
                                                     elide: Text.ElideRight
                                                     width: parent.width - (isActiveWs ? 52 : 0)
                                                 }
@@ -835,6 +843,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                     height: 18
                                                     radius: 9
                                                     color: root.themePrimary
+                                                    antialiasing: true
                                                     anchors.verticalCenter: parent.verticalCenter
 
                                                     Text {
@@ -864,6 +873,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                         color: Qt.rgba(0, 0, 0, 0.65)
                                                         border.width: 1
                                                         border.color: Qt.rgba(255, 255, 255, 0.2)
+                                                        antialiasing: true
 
                                                         scale: iconMouse.containsMouse ? 1.15 : 1.0
                                                         Behavior on scale {
@@ -883,13 +893,14 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                             fillMode: Image.PreserveAspectFit
                                                             asynchronous: true
                                                             visible: modelData.icon !== "" && status === Image.Ready
+                                                            antialiasing: true
                                                         }
 
                                                         Text {
                                                             anchors.centerIn: parent
                                                             visible: modelData.icon === "" || imgIcon.status !== Image.Ready
                                                             text: modelData.class.substring(0, 2).toUpperCase()
-                                                            color: root.themeText
+                                                            color: "#FFFFFF"
                                                             font.pixelSize: 11
                                                             font.weight: Font.Bold
                                                         }
@@ -915,11 +926,12 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                     color: Qt.rgba(0, 0, 0, 0.75)
                                                     border.width: 1
                                                     border.color: root.themePrimary
+                                                    antialiasing: true
 
                                                     Text {
                                                         anchors.centerIn: parent
                                                         text: "+" + (modelData.windows.length - 7)
-                                                        color: root.themeText
+                                                        color: "#FFFFFF"
                                                         font.pixelSize: 11
                                                         font.weight: Font.Bold
                                                     }
@@ -934,7 +946,8 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                             border.width: cardItem.isSelected ? Math.max(2, root.themeBorderSize + 1) : Math.max(1, root.themeBorderSize)
                                             border.color: cardItem.isSelected 
                                                 ? root.themePrimary 
-                                                : (cardItem.isActiveWs ? Qt.alpha(root.themeBorder, 0.9) : Qt.alpha(root.themeBorder, 0.45))
+                                                : (cardItem.isActiveWs ? Qt.alpha(root.themePrimary, 0.9) : Qt.alpha(root.themePrimary, 0.4))
+                                            antialiasing: true
                                             z: 10
 
                                             Behavior on border.color { 
@@ -952,8 +965,8 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                             cursorShape: Qt.PointingHandCursor
                                             onEntered: root.selectedIndex = index
                                             onClicked: {
-                                                let wsTarget = (root.workspaceList && root.workspaceList.length > index) ? root.workspaceList[index] : modelData;
-                                                root.switchToWorkspace(wsTarget);
+                                                let wsTarget = (root.workspaceList && root.workspaceList.length > index) ? root.workspaceList[index] : modelData
+                                                root.switchToWorkspace(wsTarget)
                                             }
                                         }
                                     }
@@ -964,6 +977,9 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                 text: "Arrow Keys / 0-9 / Mouse to navigate  •  Enter / Click to switch  •  Esc to exit"
                                 color: root.themeTextMuted
                                 font.pixelSize: 12
+                                font.weight: Font.Medium
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                                 anchors.horizontalCenter: parent.horizontalCenter
                             }
                         }

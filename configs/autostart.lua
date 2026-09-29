@@ -31,6 +31,7 @@ hl.on("hyprland.start", function()
     -- ========================================================================
     -- 🛠️ BACKGROUND DAEMONS & UTILITIES
     -- ========================================================================
+    hl.exec_cmd("hyprpm reload -n &")
     hl.exec_cmd("awww-daemon &")                             -- Wallpaper daemon
     hl.exec_cmd("wl-paste --watch cliphist store &")         -- Clipboard manager
     hl.exec_cmd("hypridle &")                                -- Idle management

@@ -11,10 +11,10 @@ Scope {
 
     property color themeBorder: "#ffb3af"
     property color themePrimary: "#ffb3af"
-    property color themeText: "#ffffff"
-    property color themeTextMuted: "#a1a1aa"
+    property color themeText: "#FFFFFF"
+    property color themeTextMuted: "#D4D4D8"
     property color themeBackground: "#141416"
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.10)
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.30)
 
     property int themeRounding: 16
     property int themeBorderSize: 1
@@ -119,7 +119,7 @@ Scope {
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -260,11 +260,10 @@ Scope {
                 radius: root.themeRounding
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                 border.width: root.themeBorderSize
-                border.color: dragArea.isDragging ? root.themePrimary : Qt.alpha(root.themeBorder, 0.40)
+                border.color: dragArea.isDragging ? root.themePrimary : Qt.alpha(root.themePrimary, 0.40)
+                antialiasing: true
 
                 scale: dragArea.isDragging ? 1.02 : 1.0
-                layer.enabled: root.animEnabled
-                layer.smooth: true
 
                 Behavior on scale {
                     NumberAnimation {
@@ -339,9 +338,10 @@ Scope {
                         Rectangle {
                             anchors.fill: parent
                             radius: width / 2
-                            color: Qt.alpha(root.themeSurface, 0.42)
+                            color: Qt.rgba(0, 0, 0, 0.28)
                             border.width: 1
-                            border.color: Qt.alpha(root.themeBorder, 0.18)
+                            border.color: Qt.rgba(255, 255, 255, 0.12)
+                            antialiasing: true
                         }
 
                         Repeater {
@@ -356,7 +356,8 @@ Scope {
                                     width: (index % 3 === 0) ? 3.5 : 1.5
                                     height: (index % 3 === 0) ? 9 : 5
                                     radius: (index % 3 === 0) ? 1.75 : 0.75
-                                    color: (index % 3 === 0) ? root.themePrimary : Qt.alpha(root.themeText, 0.45)
+                                    color: (index % 3 === 0) ? root.themePrimary : Qt.rgba(255, 255, 255, 0.8)
+                                    antialiasing: true
 
                                     Behavior on color {
                                         ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
@@ -375,7 +376,10 @@ Scope {
                                 width: 4.5
                                 height: 50
                                 radius: 2.25
-                                color: root.themeText
+                                color: "#FFFFFF"
+                                border.width: 0.5
+                                border.color: Qt.rgba(0, 0, 0, 0.4)
+                                antialiasing: true
 
                                 Behavior on color {
                                     ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
@@ -393,7 +397,10 @@ Scope {
                                 width: 2.5
                                 height: 72
                                 radius: 1.25
-                                color: Qt.alpha(root.themeText, 0.92)
+                                color: Qt.alpha("#FFFFFF", 0.95)
+                                border.width: 0.5
+                                border.color: Qt.rgba(0, 0, 0, 0.3)
+                                antialiasing: true
 
                                 Behavior on color {
                                     ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
@@ -412,6 +419,7 @@ Scope {
                                 height: 88
                                 radius: 0.75
                                 color: root.themePrimary
+                                antialiasing: true
 
                                 Behavior on color {
                                     ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
@@ -425,6 +433,7 @@ Scope {
                                 height: 5
                                 radius: 2.5
                                 color: root.themePrimary
+                                antialiasing: true
 
                                 Behavior on color {
                                     ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
@@ -438,6 +447,7 @@ Scope {
                             height: 10
                             radius: 5
                             color: root.themePrimary
+                            antialiasing: true
 
                             Behavior on color {
                                 ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
@@ -450,6 +460,7 @@ Scope {
                             height: 4
                             radius: 2
                             color: root.themeBackground
+                            antialiasing: true
 
                             Behavior on color {
                                 ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
@@ -461,9 +472,10 @@ Scope {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 46
                         radius: Math.max(6, root.themeRounding - 4)
-                        color: root.themeSurface
+                        color: Qt.rgba(0, 0, 0, 0.35)
                         border.width: 1
-                        border.color: Qt.alpha(root.themeBorder, 0.12)
+                        border.color: Qt.rgba(255, 255, 255, 0.12)
+                        antialiasing: true
 
                         Behavior on color {
                             ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
@@ -481,6 +493,8 @@ Scope {
                                 font.pixelSize: 11
                                 font.weight: Font.DemiBold
                                 Layout.alignment: Qt.AlignVCenter
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.75)
 
                                 Behavior on color {
                                     ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
@@ -495,6 +509,8 @@ Scope {
                                 font.pixelSize: 15
                                 font.weight: Font.Bold
                                 Layout.alignment: Qt.AlignVCenter
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.8)
 
                                 Behavior on color {
                                     ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
@@ -506,9 +522,10 @@ Scope {
                                 width: 26
                                 height: 18
                                 radius: 4
-                                color: Qt.alpha(root.themePrimary, 0.20)
+                                color: Qt.alpha(root.themePrimary, 0.25)
                                 border.width: 1
                                 border.color: Qt.alpha(root.themePrimary, 0.45)
+                                antialiasing: true
 
                                 Text {
                                     anchors.centerIn: parent
@@ -516,6 +533,8 @@ Scope {
                                     color: root.themePrimary
                                     font.pixelSize: 9
                                     font.weight: Font.Bold
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                                 }
                             }
                         }

@@ -33,6 +33,7 @@ require("configs.input")
 -- ============================================================================
 -- Core aesthetics, gaps, window borders, dynamic colors, animations, and misc flags.
 require("configs.general")
+require("configs.hyprglass")
 require("configs.colors")
 require("configs.animations")
 require("configs.misc")

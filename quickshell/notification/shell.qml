@@ -13,17 +13,17 @@ Scope {
 
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
-    property color themeText: "#ffffff"
-    property color themeTextMuted: "#a1a1aa"
+    property color themeText: "#FFFFFF"
+    property color themeTextMuted: "#D4D4D8"
     
     property int themeRounding: 16
-    property int themeBorderSize: 1
+    property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
     
     property color themeBackground: "#141416" 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.32) 
 
     QtObject {
         id: animStyle
@@ -32,7 +32,7 @@ Scope {
         property var bounceEasing: Easing.OutBack
         property var fadeEasing: Easing.OutCubic
         property real overshoot: 0.1
-        property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.12)
+        property color hoverColor: Qt.rgba(255, 255, 255, 0.14)
     }
 
     FileView {
@@ -67,7 +67,7 @@ Scope {
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -310,9 +310,10 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                         width: parent.width
                         height: cardContent.implicitHeight + 20
                         radius: root.themeRounding
-                        color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                        color: Qt.rgba(root.themeBackground.r, root.themeBackground.g, root.themeBackground.b, root.themeBgAlpha)
                         border.width: root.themeBorderSize
-                        border.color: Qt.alpha(root.themeBorder, 0.45)
+                        border.color: Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.40)
+                        antialiasing: true
                         clip: true
 
                         scale: cardMouse.containsMouse ? 1.0 : 1.0
@@ -360,9 +361,10 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                                 Layout.preferredHeight: 38
                                 Layout.alignment: Qt.AlignVCenter
                                 radius: 12
-                                color: Qt.alpha(root.themePrimary, 0.12)
+                                color: Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.15)
                                 border.width: 1
-                                border.color: Qt.alpha(root.themePrimary, 0.25)
+                                border.color: Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.35)
+                                antialiasing: true
 
                                 Text {
                                     anchors.centerIn: parent
@@ -393,16 +395,20 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                                     font.letterSpacing: 0.8
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                 }
 
                                 Text {
                                     text: model.summary
-                                    color: root.themeText
+                                    color: "#FFFFFF"
                                     font.pixelSize: 13
-                                    font.weight: Font.DemiBold
+                                    font.weight: Font.Bold
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
                                     maximumLineCount: 1
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
                                 }
 
                                 Text {
@@ -410,9 +416,12 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                                     text: model.body
                                     color: root.themeTextMuted
                                     font.pixelSize: 11
+                                    font.weight: Font.Medium
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
                                     maximumLineCount: 2
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
                                 }
                             }
 
@@ -423,6 +432,7 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                                 Layout.alignment: Qt.AlignTop
                                 radius: 12
                                 color: closeMouse.containsMouse ? animStyle.hoverColor : "transparent"
+                                antialiasing: true
 
                                 scale: closeMouse.containsMouse ? 1.15 : 1.0
 
@@ -444,8 +454,10 @@ with open(path, 'w') as f: json.dump(data, f, indent=2)
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰅖"
-                                    color: closeMouse.containsMouse ? root.themeText : root.themeTextMuted
+                                    color: closeMouse.containsMouse ? "#FFFFFF" : root.themeTextMuted
                                     font.pixelSize: 12
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
 
                                     Behavior on color { 
                                         ColorAnimation { 

@@ -91,6 +91,8 @@ Scope {
                 let textContent = text()
                 let roundingMatch = textContent.match(/rounding\s*=\s*(\d+)/)
                 if (roundingMatch && roundingMatch[1]) root.themeRounding = parseInt(roundingMatch[1])
+                let bMatch = textContent.match(/border_size\s*=\s*(\d+)/)
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -217,10 +219,8 @@ Scope {
                 radius: root.themeRounding
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                 border.width: root.themeBorderSize
-                border.color: Qt.alpha(root.themeBorder, 0.45)
-                
-                layer.enabled: root.animEnabled
-                layer.smooth: true
+                border.color: Qt.alpha(root.themePrimary, 0.4)
+                antialiasing: true
 
                 opacity: root.showOSD ? 1.0 : 0.0
                 scale: root.showOSD ? 1.0 : 0.1
@@ -307,6 +307,8 @@ Scope {
                             text: root.isMuted ? "󰖁" : (root.volumePct > 50 ? "󰕾" : (root.volumePct > 0 ? "󰖀" : "󰝟"))
                             color: root.isMuted ? "#FF453A" : root.themePrimary
                             font.pixelSize: 22
+                            style: Text.Raised
+                            styleColor: Qt.rgba(0, 0, 0, 0.65)
 
                             scale: root.isMuted ? 0.92 : (mainArea.containsMouse ? 1.08 : 1.0)
 
@@ -335,6 +337,7 @@ Scope {
                             anchors.fill: parent
                             radius: 4
                             color: root.themeSurface
+                            antialiasing: true
 
                             Behavior on color { 
                                 ColorAnimation { 
@@ -350,6 +353,7 @@ Scope {
                                 anchors.bottom: parent.bottom
                                 radius: parent.radius
                                 color: root.isMuted ? "#FF453A" : root.themePrimary
+                                antialiasing: true
 
                                 Behavior on color { 
                                     ColorAnimation { 
@@ -368,6 +372,8 @@ Scope {
                         color: root.isMuted ? "#FF453A" : root.themeText
                         font.pixelSize: 12
                         font.weight: Font.Bold
+                        style: Text.Raised
+                        styleColor: Qt.rgba(0, 0, 0, 0.65)
 
                         Behavior on color { 
                             ColorAnimation { 

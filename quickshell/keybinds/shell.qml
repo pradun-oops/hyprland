@@ -55,7 +55,7 @@ Scope {
     property color themeBackground: "#141416" 
     property color themeBorder: "#ffb3af"
     property color themeText: "#FFFFFF"          
-    property color themeTextMuted: "#A1A1AA"
+    property color themeTextMuted: "#D4D4D8"
     property color themePrimary: "#ffb3af"         
 
     property var fullKeybindsList: [
@@ -212,7 +212,7 @@ Scope {
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -377,8 +377,9 @@ Scope {
 
                 radius: root.themeRounding
                 border.width: root.themeBorderSize
-                border.color: Qt.alpha(root.themeBorder, 0.40)
+                border.color: Qt.alpha(root.themePrimary, 0.40)
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                antialiasing: true
 
                 MouseArea {
                     anchors.fill: parent
@@ -404,7 +405,9 @@ Scope {
                             text: "Keybinds Cheatsheet"
                             font.pixelSize: 18
                             font.weight: Font.Bold
-                            color: root.themeText
+                            color: "#FFFFFF"
+                            style: Text.Raised
+                            styleColor: Qt.rgba(0, 0, 0, 0.8)
                         }
 
                         Item { Layout.fillWidth: true }
@@ -413,9 +416,10 @@ Scope {
                             Layout.preferredWidth: 260
                             Layout.preferredHeight: 36
                             radius: Math.max(4, root.themeRounding - 4)
-                            color: Qt.rgba(1, 1, 1, 0.06)
+                            color: Qt.rgba(0, 0, 0, 0.35)
                             border.width: 1
-                            border.color: searchInput.activeFocus ? root.themePrimary : Qt.rgba(1, 1, 1, 0.1)
+                            border.color: searchInput.activeFocus ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                            antialiasing: true
 
                             Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
@@ -436,9 +440,10 @@ Scope {
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
                                     font.pixelSize: 13
-                                    color: root.themeText
+                                    font.weight: Font.DemiBold
+                                    color: "#FFFFFF"
                                     placeholderText: "Search shortcuts..."
-                                    placeholderTextColor: Qt.alpha(root.themeTextMuted, 0.5)
+                                    placeholderTextColor: Qt.rgba(1.0, 1.0, 1.0, 0.45)
                                     verticalAlignment: TextInput.AlignVCenter
                                     background: Item {}
 
@@ -480,7 +485,7 @@ Scope {
                     Rectangle {
                         Layout.fillWidth: true
                         height: 1
-                        color: Qt.alpha(root.themeBorder, 0.20)
+                        color: Qt.rgba(255, 255, 255, 0.12)
                     }
 
                     ListView {
@@ -531,7 +536,10 @@ Scope {
                             width: keybindsList.width
                             height: 42
                             radius: Math.max(4, root.themeRounding - 6)
-                            color: ListView.isCurrentItem ? Qt.alpha(root.themePrimary, 0.15) : (rowMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.04))
+                            color: ListView.isCurrentItem ? Qt.alpha(root.themePrimary, 0.22) : (rowMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.10) : Qt.rgba(0, 0, 0, 0.28))
+                            border.width: 1
+                            border.color: ListView.isCurrentItem ? root.themePrimary : (rowMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(255, 255, 255, 0.06))
+                            antialiasing: true
 
                             scale: rowMouse.containsMouse ? 1.015 : 1.0
 
@@ -543,6 +551,7 @@ Scope {
                                 }
                             }
                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                             property string rawKeys: model.itemKeys || ""
 
@@ -562,11 +571,13 @@ Scope {
 
                                 Text {
                                     text: model.itemDesc
-                                    color: root.themeText
+                                    color: "#FFFFFF"
                                     font.pixelSize: 13
-                                    font.weight: Font.Medium
+                                    font.weight: Font.DemiBold
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
 
                                 Row {
@@ -579,9 +590,10 @@ Scope {
                                             height: 24
                                             width: keyText.implicitWidth + 12
                                             radius: 5
-                                            color: Qt.rgba(0, 0, 0, 0.55)
+                                            color: Qt.rgba(0, 0, 0, 0.65)
                                             border.width: 1
-                                            border.color: Qt.alpha(root.themePrimary, 0.4)
+                                            border.color: Qt.alpha(root.themePrimary, 0.45)
+                                            antialiasing: true
 
                                             Text {
                                                 id: keyText
@@ -589,7 +601,9 @@ Scope {
                                                 text: modelData.trim()
                                                 font.pixelSize: 11
                                                 font.weight: Font.Bold
-                                                color: root.themeText
+                                                color: "#FFFFFF"
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.8)
                                             }
                                         }
                                     }
@@ -599,7 +613,10 @@ Scope {
                                     Layout.preferredHeight: 20
                                     Layout.preferredWidth: catText.implicitWidth + 10
                                     radius: 4
-                                    color: Qt.alpha(root.themePrimary, 0.12)
+                                    color: Qt.alpha(root.themePrimary, 0.20)
+                                    border.width: 1
+                                    border.color: Qt.alpha(root.themePrimary, 0.4)
+                                    antialiasing: true
 
                                     Text {
                                         id: catText
@@ -616,9 +633,12 @@ Scope {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        height: 30
-                        color: Qt.rgba(0, 0, 0, 0.18)
+                        height: 32
+                        color: Qt.rgba(0, 0, 0, 0.35)
                         radius: Math.max(4, root.themeRounding - 6)
+                        border.width: 1
+                        border.color: Qt.rgba(255, 255, 255, 0.08)
+                        antialiasing: true
 
                         RowLayout {
                             anchors.fill: parent
@@ -628,7 +648,10 @@ Scope {
                             Text {
                                 text: filteredModel.count + " shortcuts loaded"
                                 font.pixelSize: 11
+                                font.weight: Font.Medium
                                 color: root.themeTextMuted
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                             }
 
                             Item { Layout.fillWidth: true }
@@ -636,11 +659,21 @@ Scope {
                             RowLayout {
                                 spacing: 6
                                 Rectangle {
-                                    width: 28; height: 18; radius: 4
-                                    color: Qt.alpha(root.themeText, 0.1)
-                                    Text { anchors.centerIn: parent; text: "ESC"; font.pixelSize: 9; color: root.themeTextMuted; font.weight: Font.Bold }
+                                    width: 32; height: 18; radius: 4
+                                    color: Qt.rgba(255, 255, 255, 0.12)
+                                    border.width: 1
+                                    border.color: Qt.rgba(255, 255, 255, 0.15)
+                                    antialiasing: true
+                                    Text { anchors.centerIn: parent; text: "ESC"; font.pixelSize: 9; color: "#FFFFFF"; font.weight: Font.Bold }
                                 }
-                                Text { text: "Close"; font.pixelSize: 11; color: root.themeTextMuted }
+                                Text { 
+                                    text: "Close"
+                                    font.pixelSize: 11
+                                    font.weight: Font.Medium
+                                    color: root.themeTextMuted
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                }
                             }
                         }
                     }

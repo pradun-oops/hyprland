@@ -43,18 +43,18 @@ Scope {
     }
 
     property int themeRounding: 16
-    property int themeBorderSize: 1
-    property real themeBgAlpha: 0.85
+    property int themeBorderSize: 2
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 350
     
-    property color themeBackground: "#0d0d11" 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.03) 
+    property color themeBackground: "#0d0d12" 
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.32) 
     property color themeBorder: "#ff4b6e"
     property color themePrimary: "#ff4b6e"
     property string rawThemeHex: "ff4b6e" 
-    property color themeText: "#ffffff"
-    property color themeTextMuted: "#8a8a93"
+    property color themeText: "#FFFFFF"
+    property color themeTextMuted: "#E4E4E7"
 
     QtObject {
         id: animStyle
@@ -94,7 +94,7 @@ Scope {
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -332,13 +332,10 @@ Scope {
 
                     radius: root.themeRounding > 0 ? root.themeRounding : 16
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themeBorder, 0.25)
+                    border.color: Qt.alpha(root.themePrimary, 0.40)
+                    antialiasing: true
                     
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: Qt.alpha(root.themePrimary, 0.15) }
-                        GradientStop { position: 0.4; color: Qt.alpha(root.themeBackground, root.themeBgAlpha) }
-                        GradientStop { position: 1.0; color: Qt.alpha(root.themeBackground, root.themeBgAlpha + 0.1) }
-                    }
+                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
 
                     MouseArea { anchors.fill: parent; onClicked: (mouse) => mouse.accepted = true }
 
@@ -353,24 +350,42 @@ Scope {
                             
                             Rectangle {
                                 width: 44; height: 44; radius: Math.max(8, root.themeRounding - 4)
-                                color: Qt.alpha(root.themePrimary, 0.1)
-                                border.width: root.themeBorderSize; border.color: Qt.alpha(root.themePrimary, 0.3)
+                                color: Qt.alpha(root.themePrimary, 0.15)
+                                border.width: 1; border.color: Qt.alpha(root.themePrimary, 0.4)
+                                antialiasing: true
                                 Text { anchors.centerIn: parent; text: "󰌌"; font.pixelSize: 22; color: root.themePrimary }
                             }
                             
                             ColumnLayout {
                                 spacing: 2
                                 Layout.alignment: Qt.AlignVCenter
-                                Text { text: "Lenovo LOQ RGB Controller"; font.pixelSize: 20; font.weight: Font.Bold; color: root.themeText; font.family: "sans-serif" }
-                                Text { text: "Legionaura Service Integration"; font.pixelSize: 13; color: root.themeTextMuted; font.family: "sans-serif" }
+                                Text { 
+                                    text: "Lenovo LOQ RGB Controller"
+                                    font.pixelSize: 20
+                                    font.weight: Font.Bold
+                                    color: root.themeText
+                                    font.family: "sans-serif"
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                }
+                                Text { 
+                                    text: "Legionaura Service Integration"
+                                    font.pixelSize: 13
+                                    font.weight: Font.Medium
+                                    color: root.themeTextMuted
+                                    font.family: "sans-serif"
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.5)
+                                }
                             }
                             
                             Item { Layout.fillWidth: true }
 
                             Rectangle {
                                 width: 36; height: 36; radius: 18
-                                color: addHover.containsMouse ? Qt.alpha(root.themePrimary, 0.2) : Qt.alpha(root.themeText, 0.05)
-                                border.width: 1; border.color: Qt.alpha(root.themeBorder, 0.2)
+                                color: addHover.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.3)
+                                border.width: 1; border.color: addHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
+                                antialiasing: true
                                 Text { anchors.centerIn: parent; text: "󰐕"; font.pixelSize: 18; color: addHover.containsMouse ? root.themePrimary : root.themeText }
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 MouseArea { 
@@ -381,8 +396,10 @@ Scope {
                             
                             Rectangle {
                                 width: 36; height: 36; radius: 18
-                                color: closeHover.containsMouse ? Qt.alpha(root.themePrimary, 0.2) : "transparent"
-                                Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 18; color: closeHover.containsMouse ? root.themePrimary : root.themeTextMuted }
+                                color: closeHover.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.3)
+                                border.width: 1; border.color: closeHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
+                                antialiasing: true
+                                Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 18; color: closeHover.containsMouse ? root.themePrimary : root.themeText }
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 MouseArea { id: closeHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Qt.quit() }
                             }
@@ -392,8 +409,10 @@ Scope {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 64
                             radius: root.themeRounding > 0 ? root.themeRounding : 12
-                            color: Qt.alpha(root.themeText, 0.03)
-                            border.width: root.themeBorderSize; border.color: Qt.alpha(root.themeBorder, 0.1)
+                            color: Qt.rgba(0, 0, 0, 0.25)
+                            border.width: 1
+                            border.color: Qt.rgba(255, 255, 255, 0.10)
+                            antialiasing: true
                             
                             RowLayout {
                                 anchors.fill: parent; anchors.margins: 12; spacing: 20
@@ -401,16 +420,31 @@ Scope {
                                 RowLayout {
                                     spacing: 12
                                     Text { text: "󰃠"; font.pixelSize: 20; color: root.themePrimary; Layout.alignment: Qt.AlignVCenter }
-                                    Text { text: "Brightness"; font.pixelSize: 14; font.weight: Font.DemiBold; color: root.themeText; Layout.alignment: Qt.AlignVCenter }
+                                    Text { 
+                                        text: "Brightness"
+                                        font.pixelSize: 14
+                                        font.weight: Font.Bold
+                                        color: root.themeText
+                                        Layout.alignment: Qt.AlignVCenter
+                                        style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                    }
                                     RowLayout {
                                         spacing: 6
                                         Repeater {
                                             model: [1, 2]
                                             Rectangle {
                                                 width: 40; height: 34; radius: Math.max(4, root.themeRounding - 6)
-                                                color: root.rgbBrightness === modelData ? root.themePrimary : Qt.alpha(root.themeText, 0.05)
-                                                border.width: root.themeBorderSize; border.color: root.rgbBrightness === modelData ? root.themePrimary : Qt.alpha(root.themeText, 0.1)
-                                                Text { anchors.centerIn: parent; text: modelData; font.weight: Font.Bold; font.pixelSize: 14; color: root.rgbBrightness === modelData ? "#000000" : root.themeText }
+                                                color: root.rgbBrightness === modelData ? root.themePrimary : Qt.rgba(0, 0, 0, 0.3)
+                                                border.width: 1
+                                                border.color: root.rgbBrightness === modelData ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                                antialiasing: true
+                                                Text { 
+                                                    anchors.centerIn: parent
+                                                    text: modelData
+                                                    font.weight: Font.Bold
+                                                    font.pixelSize: 14
+                                                    color: root.rgbBrightness === modelData ? "#000000" : "#FFFFFF" 
+                                                }
                                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.rgbBrightness = modelData; root.applyCurrentSettings() } }
                                                 Behavior on color { ColorAnimation { duration: 150 } }
                                             }
@@ -418,21 +452,36 @@ Scope {
                                     }
                                 }
 
-                                Rectangle { width: 1; height: 24; color: Qt.alpha(root.themeBorder, 0.15); Layout.alignment: Qt.AlignVCenter }
+                                Rectangle { width: 1; height: 24; color: Qt.rgba(255, 255, 255, 0.15); Layout.alignment: Qt.AlignVCenter }
 
                                 RowLayout {
                                     spacing: 12
                                     Text { text: "󰓅"; font.pixelSize: 20; color: root.themePrimary; Layout.alignment: Qt.AlignVCenter }
-                                    Text { text: "Speed"; font.pixelSize: 14; font.weight: Font.DemiBold; color: root.themeText; Layout.alignment: Qt.AlignVCenter }
+                                    Text { 
+                                        text: "Speed"
+                                        font.pixelSize: 14
+                                        font.weight: Font.Bold
+                                        color: root.themeText
+                                        Layout.alignment: Qt.AlignVCenter
+                                        style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                    }
                                     RowLayout {
                                         spacing: 6
                                         Repeater {
                                             model: [1, 2, 3, 4]
                                             Rectangle {
                                                 width: 40; height: 34; radius: Math.max(4, root.themeRounding - 6)
-                                                color: root.rgbSpeed === modelData ? root.themePrimary : Qt.alpha(root.themeText, 0.05)
-                                                border.width: root.themeBorderSize; border.color: root.rgbSpeed === modelData ? root.themePrimary : Qt.alpha(root.themeText, 0.1)
-                                                Text { anchors.centerIn: parent; text: modelData; font.weight: Font.Bold; font.pixelSize: 14; color: root.rgbSpeed === modelData ? "#000000" : root.themeText }
+                                                color: root.rgbSpeed === modelData ? root.themePrimary : Qt.rgba(0, 0, 0, 0.3)
+                                                border.width: 1
+                                                border.color: root.rgbSpeed === modelData ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                                antialiasing: true
+                                                Text { 
+                                                    anchors.centerIn: parent
+                                                    text: modelData
+                                                    font.weight: Font.Bold
+                                                    font.pixelSize: 14
+                                                    color: root.rgbSpeed === modelData ? "#000000" : "#FFFFFF" 
+                                                }
                                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.rgbSpeed = modelData; root.applyCurrentSettings() } }
                                                 Behavior on color { ColorAnimation { duration: 150 } }
                                             }
@@ -445,16 +494,17 @@ Scope {
                                 Rectangle {
                                     Layout.alignment: Qt.AlignVCenter
                                     width: 56; height: 36; radius: Math.max(8, root.themeRounding)
-                                    color: root.rgbPowerState ? Qt.alpha(root.themePrimary, 0.15) : Qt.alpha(root.themeText, 0.05)
-                                    border.width: root.themeBorderSize > 1 ? root.themeBorderSize : 2 
-                                    border.color: root.rgbPowerState ? root.themePrimary : Qt.alpha(root.themeText, 0.2)
+                                    color: root.rgbPowerState ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.35)
+                                    border.width: 2 
+                                    border.color: root.rgbPowerState ? root.themePrimary : Qt.rgba(255, 255, 255, 0.2)
+                                    antialiasing: true
                                     
                                     Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                     Behavior on border.color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                     
                                     Text { 
                                         anchors.centerIn: parent; text: "󰐥"; font.pixelSize: 18
-                                        color: root.rgbPowerState ? root.themePrimary : root.themeTextMuted
+                                        color: root.rgbPowerState ? root.themePrimary : "#A1A1AA"
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
                                     MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.togglePower() }
@@ -486,12 +536,13 @@ Scope {
                                         anchors.fill: parent
                                         anchors.margins: 6
                                         radius: root.themeRounding
+                                        antialiasing: true
                                         
                                         property bool isActive: root.savedName === model.name && root.rgbPowerState
                                         
-                                        color: isActive ? Qt.alpha(root.themePrimary, 0.25) : (presetMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.08) : root.themeSurface)
-                                        border.width: root.themeBorderSize
-                                        border.color: isActive ? root.themePrimary : (presetMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : Qt.alpha(root.themeBorder, 0.08))
+                                        color: isActive ? Qt.alpha(root.themePrimary, 0.30) : (presetMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.14) : root.themeSurface)
+                                        border.width: isActive ? 2 : 1
+                                        border.color: isActive ? root.themePrimary : (presetMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(255, 255, 255, 0.08))
                                         
                                         scale: presetMouse.containsMouse ? 1.03 : 1.0
 
@@ -513,7 +564,7 @@ Scope {
                                             
                                             Text { 
                                                 Layout.alignment: Qt.AlignHCenter; text: model.icon; font.pixelSize: 26
-                                                color: cardRect.isActive || presetMouse.containsMouse ? root.themePrimary : Qt.alpha(root.themePrimary, 0.8) 
+                                                color: cardRect.isActive || presetMouse.containsMouse ? root.themePrimary : Qt.alpha(root.themePrimary, 0.95)
                                                 visible: !model.isCustom 
                                                 Behavior on color { ColorAnimation { duration: 200 } }
                                             }
@@ -521,7 +572,9 @@ Scope {
                                             Text { 
                                                 Layout.alignment: Qt.AlignHCenter; text: model.name; font.pixelSize: 13
                                                 font.weight: cardRect.isActive ? Font.Bold : Font.DemiBold
-                                                color: cardRect.isActive ? root.themeText : root.themeTextMuted
+                                                color: cardRect.isActive ? "#FFFFFF" : root.themeText
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.65)
                                                 Behavior on color { ColorAnimation { duration: 200 } }
                                             }
                                         }
@@ -529,7 +582,9 @@ Scope {
                                         Rectangle {
                                             width: 24; height: 24; radius: 12
                                             anchors { top: parent.top; right: parent.right; margins: 6 }
-                                            color: delHover.containsMouse ? "#ff4b6e" : Qt.alpha(root.themeText, 0.15)
+                                            color: delHover.containsMouse ? "#ff4b6e" : Qt.rgba(0, 0, 0, 0.5)
+                                            border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.15)
+                                            antialiasing: true
                                             
                                             opacity: model.isCustom && (presetMouse.containsMouse || delHover.containsMouse) ? 1.0 : 0.0
                                             visible: opacity > 0
@@ -537,7 +592,7 @@ Scope {
                                             Behavior on opacity { NumberAnimation { duration: 150 } }
                                             Behavior on color { ColorAnimation { duration: 150 } }
 
-                                            Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 12; color: "#ffffff" }
+                                            Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 12; color: "#FFFFFF" }
 
                                             MouseArea {
                                                 id: delHover
@@ -560,7 +615,7 @@ Scope {
 
                     Rectangle {
                         anchors.fill: parent
-                        color: Qt.rgba(0, 0, 0, 0.6)
+                        color: Qt.rgba(0, 0, 0, 0.65)
                         radius: parent.radius
                         opacity: root.isEditingCustom ? 1.0 : 0.0
                         visible: opacity > 0
@@ -584,6 +639,7 @@ Scope {
                             radius: root.themeRounding
                             color: Qt.alpha(root.themeBackground, 0.95)
                             border.width: root.themeBorderSize; border.color: Qt.alpha(root.themeBorder, 0.4)
+                            antialiasing: true
                             
                             MouseArea { anchors.fill: parent } 
                             
@@ -594,12 +650,19 @@ Scope {
                                 anchors.margins: 36
                                 spacing: 24
 
-                                Text { text: "Create Custom 4-Zone Preset"; font.pixelSize: 20; font.weight: Font.Bold; color: root.themeText }
+                                Text { 
+                                    text: "Create Custom 4-Zone Preset"
+                                    font.pixelSize: 20
+                                    font.weight: Font.Bold
+                                    color: root.themeText
+                                    style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                }
 
                                 Rectangle {
                                     Layout.fillWidth: true; Layout.preferredHeight: 46
-                                    color: Qt.alpha(root.themeText, 0.05); radius: Math.max(8, root.themeRounding - 4)
-                                    border.width: 1; border.color: customNameInput.activeFocus ? root.themePrimary : Qt.alpha(root.themeText, 0.15)
+                                    color: Qt.rgba(0, 0, 0, 0.4); radius: Math.max(8, root.themeRounding - 4)
+                                    border.width: 1; border.color: customNameInput.activeFocus ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
+                                    antialiasing: true
                                     TextInput {
                                         id: customNameInput
                                         anchors.fill: parent; anchors.margins: 14
@@ -612,14 +675,20 @@ Scope {
 
                                 RowLayout {
                                     spacing: 16
-                                    Text { text: "Animation:"; color: root.themeTextMuted; font.pixelSize: 15 }
+                                    Text { text: "Animation:"; color: root.themeTextMuted; font.pixelSize: 15; font.weight: Font.DemiBold }
                                     Repeater {
                                         model: ["static", "breath"]
                                         Rectangle {
                                             width: 100; height: 38; radius: Math.max(8, root.themeRounding - 4)
-                                            color: customPresetEditor.customEffectType === modelData ? root.themePrimary : Qt.alpha(root.themeText, 0.05)
-                                            border.width: 1; border.color: customPresetEditor.customEffectType === modelData ? root.themePrimary : Qt.alpha(root.themeText, 0.15)
-                                            Text { anchors.centerIn: parent; text: modelData.charAt(0).toUpperCase() + modelData.slice(1); font.weight: Font.Bold; color: customPresetEditor.customEffectType === modelData ? "#000" : root.themeText }
+                                            color: customPresetEditor.customEffectType === modelData ? root.themePrimary : Qt.rgba(0, 0, 0, 0.3)
+                                            border.width: 1; border.color: customPresetEditor.customEffectType === modelData ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
+                                            antialiasing: true
+                                            Text { 
+                                                anchors.centerIn: parent
+                                                text: modelData.charAt(0).toUpperCase() + modelData.slice(1)
+                                                font.weight: Font.Bold
+                                                color: customPresetEditor.customEffectType === modelData ? "#000000" : root.themeText 
+                                            }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: customPresetEditor.customEffectType = modelData }
                                         }
                                     }
@@ -634,12 +703,13 @@ Scope {
                                         model: customZoneModel
                                         ColumnLayout {
                                             spacing: 12
-                                            Text { text: model.name; color: root.themeTextMuted; font.pixelSize: 14; Layout.alignment: Qt.AlignHCenter }
+                                            Text { text: model.name; color: root.themeTextMuted; font.pixelSize: 14; font.weight: Font.DemiBold; Layout.alignment: Qt.AlignHCenter }
                                             
                                             Rectangle {
                                                 width: 90; height: 50; radius: 6
                                                 color: "#" + model.colorHex
-                                                border.width: 1; border.color: Qt.alpha(root.themeText, 0.2)
+                                                border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.3)
+                                                antialiasing: true
                                                 
                                                 MouseArea {
                                                     anchors.fill: parent
@@ -666,13 +736,15 @@ Scope {
                                     spacing: 12
                                     Rectangle {
                                         width: 100; height: 42; radius: Math.max(8, root.themeRounding - 4)
-                                        color: "transparent"; border.width: 1; border.color: Qt.alpha(root.themeText, 0.2)
+                                        color: "transparent"; border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.2)
+                                        antialiasing: true
                                         Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 15; color: root.themeText }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.isEditingCustom = false }
                                     }
                                     Rectangle {
                                         width: 140; height: 42; radius: Math.max(8, root.themeRounding - 4)
                                         color: Qt.alpha(root.themePrimary, 0.2); border.width: 1; border.color: root.themePrimary
+                                        antialiasing: true
                                         Text { anchors.centerIn: parent; text: "Save Preset"; font.pixelSize: 15; font.weight: Font.Bold; color: root.themePrimary }
                                         MouseArea { 
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
@@ -703,7 +775,7 @@ Scope {
 
                     Rectangle {
                         anchors.fill: parent
-                        color: Qt.rgba(0, 0, 0, 0.7)
+                        color: Qt.rgba(0, 0, 0, 0.75)
                         radius: parent.radius
                         opacity: root.isPickingColor ? 1.0 : 0.0
                         visible: opacity > 0
@@ -718,6 +790,7 @@ Scope {
                             radius: root.themeRounding
                             color: Qt.alpha(root.themeBackground, 0.98)
                             border.width: root.themeBorderSize; border.color: Qt.alpha(root.themeBorder, 0.4)
+                            antialiasing: true
                             
                             MouseArea { anchors.fill: parent } 
                             
@@ -732,7 +805,8 @@ Scope {
                                     Rectangle {
                                         width: 60; height: 60; radius: 10
                                         color: root.pickerHex
-                                        border.width: 1; border.color: Qt.alpha(root.themeText, 0.2)
+                                        border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.3)
+                                        antialiasing: true
                                     }
                                     ColumnLayout {
                                         Layout.fillWidth: true; spacing: 4
@@ -767,6 +841,7 @@ Scope {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 x: Math.max(0, Math.min(parent.width - 22, (root.pickerR / 255) * (parent.width - 22)))
                                                 color: "#ffffff"; border.width: 2; border.color: "#333333" 
+                                                antialiasing: true
                                             }
                                             MouseArea {
                                                 anchors.fill: parent
@@ -804,6 +879,7 @@ Scope {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 x: Math.max(0, Math.min(parent.width - 22, (root.pickerG / 255) * (parent.width - 22)))
                                                 color: "#ffffff"; border.width: 2; border.color: "#333333" 
+                                                antialiasing: true
                                             }
                                             MouseArea {
                                                 anchors.fill: parent
@@ -841,6 +917,7 @@ Scope {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 x: Math.max(0, Math.min(parent.width - 22, (root.pickerB / 255) * (parent.width - 22)))
                                                 color: "#ffffff"; border.width: 2; border.color: "#333333" 
+                                                antialiasing: true
                                             }
                                             MouseArea {
                                                 anchors.fill: parent
@@ -856,19 +933,20 @@ Scope {
 
                                 Item { Layout.fillHeight: true } 
 
-                                // Actions
                                 RowLayout {
                                     Layout.fillWidth: true; Layout.alignment: Qt.AlignRight
                                     spacing: 12
                                     Rectangle {
                                         width: 100; height: 42; radius: Math.max(8, root.themeRounding - 4)
-                                        color: "transparent"; border.width: 1; border.color: Qt.alpha(root.themeText, 0.2)
+                                        color: "transparent"; border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.2)
+                                        antialiasing: true
                                         Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 15; color: root.themeText }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.isPickingColor = false }
                                     }
                                     Rectangle {
                                         width: 120; height: 42; radius: Math.max(8, root.themeRounding - 4)
                                         color: Qt.alpha(root.themePrimary, 0.2); border.width: 1; border.color: root.themePrimary
+                                        antialiasing: true
                                         Text { anchors.centerIn: parent; text: "Apply"; font.pixelSize: 15; font.weight: Font.Bold; color: root.themePrimary }
                                         MouseArea { 
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor

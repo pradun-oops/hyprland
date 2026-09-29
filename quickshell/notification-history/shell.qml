@@ -18,17 +18,17 @@ Scope {
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
-    property color themeTextMuted: "#a1a1aa"
+    property color themeTextMuted: "#D4D4D8"
     
     property int themeRounding: 22
-    property int themeBorderSize: 1
+    property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
     
     property color themeBackground: "#141416" 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.04) 
-    property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.08)
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.35) 
+    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.14)
 
     QtObject {
         id: animStyle
@@ -100,7 +100,7 @@ Scope {
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -220,10 +220,7 @@ Scope {
             }
 
             Item {
-                anchors.top: parent.top
-                anchors.right: parent.right
-                anchors.topMargin: 56
-                anchors.rightMargin: 20
+                anchors.centerIn: parent
                 implicitWidth: 440
                 implicitHeight: 680
                 
@@ -246,24 +243,15 @@ Scope {
                     radius: root.themeRounding
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themeBorder, 0.35)
+                    border.color: Qt.alpha(root.themePrimary, 0.45)
+                    antialiasing: true
+                    clip: true
 
                     property bool shown: false
                     Component.onCompleted: shown = true
 
                     scale: shown ? 1.0 : 0.90
                     opacity: shown ? 1.0 : 0.0
-
-                    transform: Translate {
-                        x: container.shown ? 0 : 20
-                        Behavior on x {
-                            NumberAnimation {
-                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                easing.type: animStyle.bounceEasing
-                                easing.overshoot: animStyle.overshoot
-                            }
-                        }
-                    }
 
                     Behavior on scale {
                         NumberAnimation {
@@ -293,9 +281,10 @@ Scope {
                                 width: 40
                                 height: 40
                                 radius: 12
-                                color: Qt.alpha(root.themePrimary, 0.12)
+                                color: Qt.alpha(root.themePrimary, 0.18)
                                 border.width: 1
-                                border.color: Qt.alpha(root.themePrimary, 0.28)
+                                border.color: Qt.alpha(root.themePrimary, 0.4)
+                                antialiasing: true
 
                                 Text {
                                     anchors.centerIn: parent
@@ -313,9 +302,11 @@ Scope {
                                     spacing: 8
                                     Text {
                                         text: "Notifications"
-                                        color: root.themeText
-                                        font.pixelSize: 17
+                                        color: "#FFFFFF"
+                                        font.pixelSize: 18
                                         font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.9)
                                     }
 
                                     Rectangle {
@@ -323,9 +314,10 @@ Scope {
                                         Layout.preferredWidth: badgeText.implicitWidth + 12
                                         Layout.preferredHeight: 18
                                         radius: 9
-                                        color: Qt.alpha(root.themePrimary, 0.2)
+                                        color: Qt.alpha(root.themePrimary, 0.28)
                                         border.width: 1
-                                        border.color: Qt.alpha(root.themePrimary, 0.4)
+                                        border.color: Qt.alpha(root.themePrimary, 0.5)
+                                        antialiasing: true
 
                                         scale: historyModel.count > 0 ? 1.0 : 0.8
                                         Behavior on scale {
@@ -350,7 +342,10 @@ Scope {
                                 Text {
                                     text: historyModel.count > 0 ? "Recent system alerts & messages" : "All caught up"
                                     color: root.themeTextMuted
-                                    font.pixelSize: 11
+                                    font.pixelSize: 12
+                                    font.weight: Font.Medium
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
                             }
 
@@ -361,9 +356,10 @@ Scope {
                                 Layout.preferredWidth: clearRow.implicitWidth + 20
                                 Layout.preferredHeight: 32
                                 radius: 10
-                                color: clearBtnArea.containsMouse ? Qt.alpha(root.themePrimary, 0.16) : Qt.rgba(1, 1, 1, 0.05)
+                                color: clearBtnArea.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.rgba(0, 0, 0, 0.35)
                                 border.width: 1
-                                border.color: clearBtnArea.containsMouse ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1, 1, 1, 0.1)
+                                border.color: clearBtnArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.18)
+                                antialiasing: true
 
                                 scale: clearBtnArea.containsMouse ? 1.08 : 1.0
                                 Behavior on scale {
@@ -389,9 +385,11 @@ Scope {
 
                                     Text {
                                         text: "Clear All"
-                                        color: clearBtnArea.containsMouse ? root.themeText : root.themeTextMuted
-                                        font.pixelSize: 11
-                                        font.weight: Font.DemiBold
+                                        color: clearBtnArea.containsMouse ? "#FFFFFF" : root.themeTextMuted
+                                        font.pixelSize: 12
+                                        font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                     }
                                 }
 
@@ -408,7 +406,7 @@ Scope {
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 1
-                            color: Qt.alpha(root.themeBorder, 0.14)
+                            color: Qt.rgba(255, 255, 255, 0.12)
                         }
 
                         Item {
@@ -425,35 +423,41 @@ Scope {
                                     width: 64
                                     height: 64
                                     radius: 32
-                                    color: Qt.rgba(1, 1, 1, 0.03)
+                                    color: Qt.rgba(0, 0, 0, 0.35)
                                     border.width: 1
-                                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                                    border.color: Qt.rgba(255, 255, 255, 0.15)
+                                    antialiasing: true
 
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰂛"
-                                        color: Qt.alpha(root.themeTextMuted, 0.4)
+                                        color: Qt.alpha(root.themeTextMuted, 0.6)
                                         font.pixelSize: 30
                                     }
                                 }
 
                                 ColumnLayout {
-                                    spacing: 3
+                                    spacing: 4
                                     Layout.alignment: Qt.AlignHCenter
 
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
                                         text: "No New Notifications"
-                                        color: root.themeText
-                                        font.pixelSize: 14
+                                        color: "#FFFFFF"
+                                        font.pixelSize: 15
                                         font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.8)
                                     }
 
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
                                         text: "Your notification center is clear"
                                         color: root.themeTextMuted
-                                        font.pixelSize: 11
+                                        font.pixelSize: 12
+                                        font.weight: Font.Medium
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                     }
                                 }
                             }
@@ -520,7 +524,8 @@ Scope {
                                         radius: Math.max(4, root.themeRounding - 6)
                                         color: cardArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                         border.width: 1
-                                        border.color: cardArea.containsMouse ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1, 1, 1, 0.08)
+                                        border.color: cardArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                        antialiasing: true
 
                                         scale: cardArea.containsMouse ? 1.0 : 1.0
 
@@ -565,18 +570,19 @@ Scope {
                                             Rectangle {
                                                 Layout.alignment: Qt.AlignTop
                                                 Layout.topMargin: 2
-                                                width: 36
-                                                height: 36
-                                                radius: 10
-                                                color: Qt.alpha(root.themePrimary, 0.12)
+                                                width: 38
+                                                height: 38
+                                                radius: 12
+                                                color: Qt.alpha(root.themePrimary, 0.18)
                                                 border.width: 1
-                                                border.color: Qt.alpha(root.themePrimary, 0.25)
+                                                border.color: Qt.alpha(root.themePrimary, 0.35)
+                                                antialiasing: true
 
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: root.getAppGlyph(model.appName, model.summary)
                                                     color: root.themePrimary
-                                                    font.pixelSize: 17
+                                                    font.pixelSize: 18
                                                 }
                                             }
 
@@ -591,30 +597,36 @@ Scope {
                                                     Text {
                                                         text: (model.appName || "System").toUpperCase()
                                                         color: root.themePrimary
-                                                        font.pixelSize: 10
+                                                        font.pixelSize: 11
                                                         font.weight: Font.Bold
-                                                        font.letterSpacing: 0.8
+                                                        font.letterSpacing: 0.9
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
                                                     }
 
                                                     Text {
                                                         text: "•"
-                                                        color: Qt.alpha(root.themeTextMuted, 0.4)
-                                                        font.pixelSize: 10
+                                                        color: Qt.alpha(root.themeTextMuted, 0.6)
+                                                        font.pixelSize: 11
                                                     }
 
                                                     Text {
                                                         text: root.formatTimeAgo(model.time)
                                                         color: root.themeTextMuted
-                                                        font.pixelSize: 10
+                                                        font.pixelSize: 11
+                                                        font.weight: Font.DemiBold
                                                         Layout.fillWidth: true
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                                     }
 
                                                     Rectangle {
                                                         visible: card.hasBody
-                                                        width: 22
-                                                        height: 22
-                                                        radius: 6
-                                                        color: expandHover.containsMouse ? Qt.rgba(1, 1, 1, 0.1) : "transparent"
+                                                        width: 24
+                                                        height: 24
+                                                        radius: 8
+                                                        color: expandHover.containsMouse ? Qt.rgba(255, 255, 255, 0.18) : "transparent"
+                                                        antialiasing: true
 
                                                         scale: expandHover.containsMouse ? 1.15 : 1.0
                                                         Behavior on scale {
@@ -630,7 +642,7 @@ Scope {
                                                             anchors.centerIn: parent
                                                             text: card.isExpanded ? "󰅃" : "󰅀"
                                                             color: card.isExpanded ? root.themePrimary : root.themeTextMuted
-                                                            font.pixelSize: 11
+                                                            font.pixelSize: 12
                                                         }
 
                                                         MouseArea {
@@ -644,25 +656,30 @@ Scope {
 
                                                 Text {
                                                     text: model.summary || ""
-                                                    color: root.themeText
-                                                    font.pixelSize: 13
+                                                    color: "#FFFFFF"
+                                                    font.pixelSize: 14
                                                     font.weight: Font.Bold
                                                     Layout.fillWidth: true
                                                     wrapMode: Text.WordWrap
                                                     maximumLineCount: 2
                                                     elide: Text.ElideRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
                                                 }
 
                                                 Text {
                                                     visible: card.hasBody
                                                     text: model.body || ""
                                                     color: root.themeTextMuted
-                                                    font.pixelSize: 11
-                                                    lineHeight: 1.25
+                                                    font.pixelSize: 12
+                                                    font.weight: Font.Medium
+                                                    lineHeight: 1.3
                                                     Layout.fillWidth: true
                                                     wrapMode: Text.WordWrap
                                                     maximumLineCount: card.isExpanded ? 12 : 1
                                                     elide: Text.ElideRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                                 }
                                             }
                                         }

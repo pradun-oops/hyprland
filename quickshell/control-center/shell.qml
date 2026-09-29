@@ -11,19 +11,19 @@ Scope {
     id: root
 
     property color themeBorder: "#ffffff"
-    property color themePrimary: "#ffffff"
+    property color themePrimary: "#a2d398"
     property color themeText: "#ffffff"
-    property color themeTextMuted: "#a1a1aa"
+    property color themeTextMuted: "#D4D4D8"
     property color themeOnPrimary: "#000000" 
     
     property int themeRounding: 24
-    property int themeBorderSize: 1
+    property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
     
-    property color themeBackground: Qt.rgba(0.08, 0.08, 0.09, themeBgAlpha) 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08) 
-    property color themeSurfaceActive: Qt.rgba(1.0, 1.0, 1.0, 0.22)
-    property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.14)
+    property color themeBackground: "#141416"
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.32) 
+    property color themeSurfaceActive: Qt.rgba(255, 255, 255, 0.22)
+    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)
 
     property bool animEnabled: true
     property int animDuration: 220
@@ -62,39 +62,20 @@ Scope {
     property string targetMonitorName: ""
 
     property int windowMarginTop: 54
-    property int windowMarginRight: 16
+    property int windowMarginRight: 20
 
     function readJsonSync(path, fallback) {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", "file://" + path, false); 
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", "file://" + path, false)
         try {
-            xhr.send();
+            xhr.send()
             if (xhr.status === 200 || xhr.status === 0) {
                 if (xhr.responseText.trim() !== "") {
-                    return JSON.parse(xhr.responseText);
+                    return JSON.parse(xhr.responseText)
                 }
             }
         } catch (e) {}
-        return fallback;
-    }
-
-    FileView {
-        id: posFile
-        path: Quickshell.env("HOME") + "/.config/quickshell/json/cc_pos.json"
-        onLoaded: {
-            try {
-                let d = JSON.parse(text())
-                if (d.top !== undefined) root.windowMarginTop = d.top
-                if (d.right !== undefined) root.windowMarginRight = d.right
-            } catch(e) {}
-        }
-    }
-
-    Process { id: savePosProcess }
-    function saveWindowPos() {
-        let jsonStr = JSON.stringify({ top: root.windowMarginTop, right: root.windowMarginRight })
-        savePosProcess.command = ["bash", "-c", "mkdir -p ~/.config/quickshell/json && echo '" + jsonStr + "' > ~/.config/quickshell/json/cc_pos.json"]
-        savePosProcess.running = true
+        return fallback
     }
 
     Process { id: saveStateProcess }
@@ -173,7 +154,7 @@ Scope {
         onFileChanged: this.reload()
         onLoaded: {
             try {
-                let match = this.text().match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                let match = this.text().match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || this.text().match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (match && match[1]) { 
                     root.themeBorder = "#" + match[1]
                     root.themePrimary = "#" + match[1] 
@@ -192,7 +173,7 @@ Scope {
                 let rMatch = text().match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 let bMatch = text().match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -218,14 +199,14 @@ Scope {
         id: cursorMonitorProcess
         stdout: StdioCollector {
             onStreamFinished: {
-                let found = text.trim();
+                let found = text.trim()
                 if (found !== "") {
-                    root.targetMonitorName = found;
+                    root.targetMonitorName = found
                 } else {
                     if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
-                        root.targetMonitorName = Hyprland.focusedMonitor.name;
+                        root.targetMonitorName = Hyprland.focusedMonitor.name
                     } else if (Quickshell.screens.length > 0) {
-                        root.targetMonitorName = Quickshell.screens[0].name;
+                        root.targetMonitorName = Quickshell.screens[0].name
                     }
                 }
             }
@@ -238,7 +219,6 @@ Scope {
         generalFile.reload()
         animConfigFile.reload()
         modsFile.reload()
-        posFile.reload()
         root.updateInactiveMods()
 
         let state = readJsonSync(Quickshell.env("HOME") + "/.config/quickshell/json/cc_state.json", {dnd: false, nightLight: false})
@@ -359,16 +339,30 @@ except Exception:
 
     function getToggleName(type) {
         switch(type) {
-            case "wifi": return "Internet"
+            case "wifi": return "Wi-Fi"
             case "bluetooth": return "Bluetooth"
             case "dnd": return "Do Not Disturb"
-            case "nightLight": return "Night Light"
-            case "micMute": return "Mic Mute"
-            case "speakerMute": return "Speaker Mute"
+            case "nightLight": return "Night Shift"
+            case "micMute": return "Microphone"
+            case "speakerMute": return "Sound"
             case "settings": return "Settings"
             case "colorPicker": return "Color Picker"
         }
         return type
+    }
+
+    function getToggleSubtext(type) {
+        switch(type) {
+            case "wifi": return root.wifiEnabled ? "Connected" : "Off"
+            case "bluetooth": return root.btEnabled ? "On" : "Off"
+            case "dnd": return root.dndEnabled ? "On" : "Off"
+            case "nightLight": return root.nightLightEnabled ? "On" : "Off"
+            case "micMute": return root.micMuted ? "Muted" : "Active"
+            case "speakerMute": return root.volumeMuted ? "Muted" : "Active"
+            case "settings": return "System"
+            case "colorPicker": return "Pipette"
+        }
+        return ""
     }
 
     function getToggleIcon(type) {
@@ -431,10 +425,10 @@ except Exception:
             case "speakerMute":
                 root.exec("wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle")
                 break
-            case "settings":
+            case "settings": 
                 root.exec(Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh setting open")
                 break
-            case "colorPicker":
+            case "colorPicker": 
                 root.exec("hyprpicker -a &")
                 Qt.quit() 
                 break
@@ -458,20 +452,9 @@ except Exception:
 
             anchors { 
                 top: true
+                bottom: true
+                left: true
                 right: true 
-            }
-            margins { 
-                top: root.windowMarginTop
-                right: root.windowMarginRight 
-            }
-
-            implicitWidth: 380
-            implicitHeight: Math.min((mainColumn.implicitHeight + 110) * 1.05, Screen.height - 70)
-            Behavior on implicitHeight {
-                NumberAnimation {
-                    duration: root.animEnabled ? animStyle.animDuration : 0
-                    easing.type: animStyle.fadeEasing
-                }
             }
 
             color: "transparent"
@@ -481,68 +464,58 @@ except Exception:
                 onActivated: Qt.quit()
             }
 
+            MouseArea {
+                anchors.fill: parent
+                onClicked: Qt.quit()
+            }
+
             Rectangle {
                 id: ccContainer
-                anchors.fill: parent
+                width: 380
+                implicitHeight: mainColumn.implicitHeight + 40
+                height: Math.min(implicitHeight, parent.height - 70)
+                
+                anchors.top: parent.top
+                anchors.right: parent.right
+                anchors.topMargin: root.windowMarginTop
+                anchors.rightMargin: root.windowMarginRight
+
                 radius: root.themeRounding
-                color: root.themeBackground
+                color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                 border.width: root.themeBorderSize
-                border.color: Qt.alpha(root.themeBorder, 0.3)
+                border.color: Qt.alpha(root.themePrimary, 0.40)
+                antialiasing: true
                 clip: true
 
                 MouseArea {
                     anchors.fill: parent
-                    acceptedButtons: Qt.RightButton
-                    cursorShape: isDragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
-
-                    property real startX: 0
-                    property real startY: 0
-                    property bool isDragging: false
-
-                    onPressed: (mouse) => {
-                        if (mouse.button === Qt.RightButton) {
-                            startX = mouse.x
-                            startY = mouse.y
-                            isDragging = true
-                        }
-                    }
-                    onPositionChanged: (mouse) => {
-                        if (isDragging) {
-                            root.windowMarginRight -= (mouse.x - startX)
-                            root.windowMarginTop += (mouse.y - startY)
-                        }
-                    }
-                    onReleased: (mouse) => {
-                        if (isDragging) {
-                            isDragging = false
-                            root.saveWindowPos()
-                        }
-                    }
+                    onClicked: (mouse) => mouse.accepted = true
                 }
 
-                Column {
-                    id: headerContainer
-                    width: parent.width
-                    z: 10
+                ScrollView {
+                    anchors.fill: parent
+                    anchors.margins: 18
+                    contentHeight: mainColumn.implicitHeight
+                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                    clip: true
 
-                    Rectangle {
+                    Column {
+                        id: mainColumn
                         width: parent.width
-                        height: 64
-                        color: "transparent"
+                        spacing: 14
 
                         RowLayout {
-                            anchors.fill: parent
-                            anchors.leftMargin: 18
-                            anchors.rightMargin: 18
+                            width: parent.width
                             spacing: 12
 
                             Rectangle {
                                 width: 44
                                 height: 44
                                 radius: 22
-                                color: root.themeSurfaceActive
+                                color: Qt.rgba(0, 0, 0, 0.4)
                                 border.width: 1
-                                border.color: Qt.alpha(root.themeBorder, 0.25)
+                                border.color: Qt.alpha(root.themePrimary, 0.35)
+                                antialiasing: true
                                 clip: true
                                 
                                 Image {
@@ -570,7 +543,8 @@ except Exception:
                                 Canvas {
                                     id: avatarCanvas
                                     anchors.fill: parent
-                                    anchors.margins: root.themeBorderSize
+                                    anchors.margins: 1
+                                    antialiasing: true
                                     
                                     onPaint: {
                                         if (profilePic.status !== Image.Ready) return
@@ -600,19 +574,23 @@ except Exception:
                             Column {
                                 Layout.fillWidth: true
                                 Layout.alignment: Qt.AlignVCenter
-                                spacing: 1
+                                spacing: 2
 
                                 Text { 
                                     text: root.userName
-                                    color: root.themeText
+                                    color: "#FFFFFF"
                                     font.pixelSize: 15
-                                    font.weight: Font.Bold 
+                                    font.weight: Font.Bold
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
                                 }
                                 Text { 
                                     text: root.systemInfo
                                     color: root.themeTextMuted
                                     font.pixelSize: 11
-                                    font.weight: Font.Medium 
+                                    font.weight: Font.Medium
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                                 }
                             }
 
@@ -621,10 +599,13 @@ except Exception:
                                 Layout.alignment: Qt.AlignVCenter
 
                                 Rectangle {
-                                    width: 36
-                                    height: 36
-                                    radius: 18
-                                    color: root.editMode ? root.themePrimary : (editMouse.containsMouse ? root.themeSurfaceHover : root.themeSurface)
+                                    width: 34
+                                    height: 34
+                                    radius: 17
+                                    color: root.editMode ? root.themePrimary : (editMouse.containsMouse ? root.themeSurfaceHover : Qt.rgba(0, 0, 0, 0.35))
+                                    border.width: 1
+                                    border.color: root.editMode ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                    antialiasing: true
                                     scale: editMouse.pressed ? 0.92 : 1.0
 
                                     Behavior on scale {
@@ -640,7 +621,7 @@ except Exception:
                                         anchors.centerIn: parent
                                         text: root.editMode ? "󰄬" : "󰏫"
                                         color: root.editMode ? root.themeOnPrimary : root.themeText
-                                        font.pixelSize: 15 
+                                        font.pixelSize: 14 
                                     }
                                     MouseArea {
                                         id: editMouse
@@ -652,10 +633,13 @@ except Exception:
                                 }
 
                                 Rectangle {
-                                    width: 36
-                                    height: 36
-                                    radius: 18
-                                    color: pwrMouse.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                                    width: 34
+                                    height: 34
+                                    radius: 17
+                                    color: pwrMouse.containsMouse ? Qt.alpha("#ef4444", 0.3) : Qt.rgba(0, 0, 0, 0.35)
+                                    border.width: 1
+                                    border.color: pwrMouse.containsMouse ? "#ef4444" : Qt.rgba(255, 255, 255, 0.12)
+                                    antialiasing: true
                                     scale: pwrMouse.pressed ? 0.92 : 1.0
 
                                     Behavior on scale {
@@ -670,8 +654,8 @@ except Exception:
                                     Text { 
                                         anchors.centerIn: parent
                                         text: "󰐥"
-                                        color: root.themeText
-                                        font.pixelSize: 15 
+                                        color: pwrMouse.containsMouse ? "#ef4444" : root.themeText
+                                        font.pixelSize: 14 
                                     }
                                     MouseArea {
                                         id: pwrMouse
@@ -686,61 +670,141 @@ except Exception:
                                 }
                             }
                         }
-                    }
 
-                    Rectangle {
-                        width: parent.width - 36
-                        height: 1
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        color: Qt.alpha(root.themeBorder, 0.15)
-                    }
-                }
-
-                Item {
-                    anchors.top: headerContainer.bottom
-                    anchors.bottom: parent.bottom
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.margins: 16
-
-                    ScrollView {
-                        anchors.fill: parent
-                        contentHeight: mainColumn.implicitHeight
-                        ScrollBar.vertical.policy: ScrollBar.AsNeeded
-                        clip: true
-
-                        Column {
-                            id: mainColumn
+                        Rectangle {
                             width: parent.width
-                            spacing: 12
+                            height: 1
+                            color: Qt.rgba(255, 255, 255, 0.1)
+                        }
 
-                            Flow {
-                                width: parent.width
-                                spacing: 10
+                        Flow {
+                            width: parent.width
+                            spacing: 10
 
-                                Repeater {
-                                    model: root.toggleMods
-                                    
-                                    DropArea {
-                                        id: toggleDropArea
-                                        width: (parent.width - 10) / 2
-                                        height: 56
-                                        keys: ["ccToggle"]
-                                        property int dragIndex: index
+                            Repeater {
+                                model: root.toggleMods
+                                
+                                DropArea {
+                                    id: toggleDropArea
+                                    width: (parent.width - 10) / 2
+                                    height: 64
+                                    keys: ["ccToggle"]
+                                    property int dragIndex: index
 
-                                        onDropped: (drag) => { 
-                                            root.moveToggle(drag.source.originIndex, dragIndex)
-                                            drag.accept(Qt.MoveAction)
+                                    onDropped: (drag) => { 
+                                        root.moveToggle(drag.source.originIndex, dragIndex)
+                                        drag.accept(Qt.MoveAction)
+                                    }
+
+                                    Rectangle {
+                                        id: dragItem
+                                        width: toggleDropArea.width
+                                        height: toggleDropArea.height 
+                                        radius: 16 
+                                        property int originIndex: index
+                                        antialiasing: true
+                                        
+                                        scale: (tMouse.pressed && !root.editMode) ? 0.96 : 1.0
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                                easing.type: animStyle.bounceEasing
+                                                easing.overshoot: animStyle.overshoot
+                                            }
+                                        }
+                                        
+                                        color: {
+                                            if (root.editMode) return Qt.rgba(0, 0, 0, 0.45)
+                                            if (root.isToggleActive(modelData)) return root.themePrimary
+                                            if (tMouse.containsMouse && !dragItem.Drag.active) return Qt.rgba(255, 255, 255, 0.14)
+                                            return Qt.rgba(0, 0, 0, 0.32)
+                                        }
+                                        
+                                        border.width: 1
+                                        border.color: (root.isToggleActive(modelData) && !root.editMode) ? root.themePrimary : (tMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.22) : Qt.rgba(255, 255, 255, 0.08))
+
+                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                        Drag.active: tMouse.dragReady && root.editMode
+                                        Drag.source: dragItem
+                                        Drag.keys: ["ccToggle"]
+                                        Drag.hotSpot.x: width / 2; Drag.hotSpot.y: height / 2
+
+                                        states: State {
+                                            when: dragItem.Drag.active
+                                            ParentChange { target: dragItem; parent: ccContainer }
+                                            PropertyChanges { target: dragItem; opacity: 0.9; scale: 1.05; z: 100 } 
+                                        }
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 12
+                                            anchors.rightMargin: 12
+                                            spacing: 12
+
+                                            Rectangle {
+                                                Layout.preferredWidth: 38
+                                                Layout.preferredHeight: 38
+                                                radius: 19
+                                                color: (root.isToggleActive(modelData) && !root.editMode) 
+                                                       ? Qt.rgba(0, 0, 0, 0.18) 
+                                                       : Qt.rgba(255, 255, 255, 0.10)
+                                                border.width: 1
+                                                border.color: (root.isToggleActive(modelData) && !root.editMode) 
+                                                              ? Qt.rgba(0, 0, 0, 0.15) 
+                                                              : Qt.rgba(255, 255, 255, 0.14)
+                                                antialiasing: true
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: root.getToggleIcon(modelData)
+                                                    color: (root.isToggleActive(modelData) && !root.editMode) ? root.themeOnPrimary : root.themeText
+                                                    font.pixelSize: 18
+                                                }
+                                            }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                Layout.alignment: Qt.AlignVCenter
+                                                spacing: 2
+
+                                                Text {
+                                                    text: root.getToggleName(modelData)
+                                                    color: (root.isToggleActive(modelData) && !root.editMode) ? root.themeOnPrimary : "#FFFFFF"
+                                                    font.pixelSize: 13
+                                                    font.weight: Font.Bold
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                    style: (root.isToggleActive(modelData) && !root.editMode) ? Text.Normal : Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                }
+
+                                                Text {
+                                                    text: root.getToggleSubtext(modelData)
+                                                    color: (root.isToggleActive(modelData) && !root.editMode) ? Qt.rgba(0, 0, 0, 0.65) : root.themeTextMuted
+                                                    font.pixelSize: 11
+                                                    font.weight: Font.Medium
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+                                            }
                                         }
 
                                         Rectangle {
-                                            id: dragItem
-                                            width: toggleDropArea.width
-                                            height: toggleDropArea.height 
-                                            radius: 16 
-                                            property int originIndex: index
-                                            
-                                            scale: (tMouse.pressed && !root.editMode) ? 0.96 : 1.0
+                                            anchors.right: parent.right
+                                            anchors.top: parent.top
+                                            anchors.margins: -4
+                                            width: 20
+                                            height: 20
+                                            radius: 10
+                                            color: "#FF453A"
+                                            visible: root.editMode
+                                            z: 10
+                                            antialiasing: true
+
+                                            scale: removeMouse.pressed ? 0.88 : 1.0
+
                                             Behavior on scale {
                                                 NumberAnimation {
                                                     duration: root.animEnabled ? animStyle.animDuration : 0
@@ -749,583 +813,524 @@ except Exception:
                                                 }
                                             }
                                             
-                                            color: {
-                                                if (root.editMode) return root.themeSurfaceHover
-                                                if (root.isToggleActive(modelData)) return root.themePrimary
-                                                if (tMouse.containsMouse && !dragItem.Drag.active) return root.themeSurfaceHover
-                                                return root.themeSurface
-                                            }
-                                            
-                                            border.width: 1
-                                            border.color: (root.isToggleActive(modelData) && !root.editMode) ? Qt.alpha(root.themePrimary, 0.5) : Qt.alpha(root.themeBorder, 0.12)
-
-                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-
-                                            Drag.active: tMouse.dragReady && root.editMode
-                                            Drag.source: dragItem
-                                            Drag.keys: ["ccToggle"]
-                                            Drag.hotSpot.x: width / 2; Drag.hotSpot.y: height / 2
-
-                                            states: State {
-                                                when: dragItem.Drag.active
-                                                ParentChange { target: dragItem; parent: ccContainer }
-                                                PropertyChanges { target: dragItem; opacity: 0.9; scale: 1.05; z: 100 } 
-                                            }
-
-                                            Item {
-                                                anchors.fill: parent
-                                                anchors.leftMargin: 14
-                                                anchors.rightMargin: 12
-
-                                                Text {
-                                                    id: tIcon
-                                                    anchors.left: parent.left
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                    text: root.getToggleIcon(modelData)
-                                                    color: (root.isToggleActive(modelData) && !root.editMode) ? root.themeOnPrimary : root.themeText
-                                                    font.pixelSize: 19
-                                                }
-
-                                                Text {
-                                                    anchors.left: tIcon.right
-                                                    anchors.leftMargin: 10
-                                                    anchors.right: parent.right
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                    text: root.getToggleName(modelData)
-                                                    color: (root.isToggleActive(modelData) && !root.editMode) ? root.themeOnPrimary : root.themeText
-                                                    font.pixelSize: 12
-                                                    font.weight: Font.DemiBold
-                                                    elide: Text.ElideRight
-                                                }
-                                            }
-
-                                            Rectangle {
-                                                anchors.right: parent.right
-                                                anchors.top: parent.top
-                                                anchors.margins: -4
-                                                width: 22
-                                                height: 22
-                                                radius: 11
-                                                color: "#FF453A"
-                                                visible: root.editMode
-                                                z: 10
-
-                                                scale: removeMouse.pressed ? 0.88 : 1.0
-
-                                                Behavior on scale {
-                                                    NumberAnimation {
-                                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                                        easing.type: animStyle.bounceEasing
-                                                        easing.overshoot: animStyle.overshoot
-                                                    }
-                                                }
-                                                
-                                                Text { anchors.centerIn: parent; text: "✕"; color: "#fff"; font.pixelSize: 10; font.weight: Font.Bold }
-                                                MouseArea {
-                                                    id: removeMouse
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    cursorShape: Qt.PointingHandCursor
-                                                    onClicked: root.removeToggle(modelData)
-                                                }
-                                            }
-
+                                            Text { anchors.centerIn: parent; text: "✕"; color: "#fff"; font.pixelSize: 9; font.weight: Font.Bold }
                                             MouseArea {
-                                                id: tMouse
+                                                id: removeMouse
                                                 anchors.fill: parent
                                                 hoverEnabled: true
-                                                cursorShape: root.editMode ? (dragReady ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.PointingHandCursor
-                                                property bool dragReady: false
-                                                
-                                                onPressAndHold: { if (root.editMode) dragReady = true; }
-                                                onReleased: { 
-                                                    if (dragReady) { 
-                                                        dragItem.Drag.drop()
-                                                        dragReady = false 
-                                                    } 
-                                                }
-                                                onClicked: { 
-                                                    if (!dragReady && !root.editMode) { 
-                                                        root.handleToggleClick(modelData) 
-                                                    } 
-                                                }
-                                                drag.target: dragReady ? dragItem : null
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: root.removeToggle(modelData)
                                             }
+                                        }
+
+                                        MouseArea {
+                                            id: tMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: root.editMode ? (dragReady ? Qt.ClosedHandCursor : Qt.OpenHandCursor) : Qt.PointingHandCursor
+                                            property bool dragReady: false
+                                            
+                                            onPressAndHold: { if (root.editMode) dragReady = true; }
+                                            onReleased: { 
+                                                if (dragReady) { 
+                                                    dragItem.Drag.drop()
+                                                    dragReady = false 
+                                                } 
+                                            }
+                                            onClicked: { 
+                                                if (!dragReady && !root.editMode) { 
+                                                    root.handleToggleClick(modelData) 
+                                                } 
+                                            }
+                                            drag.target: dragReady ? dragItem : null
                                         }
                                     }
                                 }
                             }
+                        }
 
-                            Column {
+                        Column {
+                            width: parent.width
+                            spacing: 8
+
+                            Rectangle {
+                                id: volSliderCard
                                 width: parent.width
-                                spacing: 8
+                                height: 44
+                                radius: 16
+                                color: Qt.rgba(0, 0, 0, 0.35)
+                                border.width: 1
+                                border.color: Qt.rgba(255, 255, 255, 0.1)
+                                antialiasing: true
 
-                                // Volume Slider
-                                Rectangle {
-                                    id: volSliderCard
-                                    width: parent.width
-                                    height: 38
-                                    radius: 14
-                                    color: root.themeSurface
-                                    border.width: 1
-                                    border.color: Qt.alpha(root.themeBorder, 0.12)
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 12
+                                    anchors.rightMargin: 12
+                                    spacing: 10
 
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 12
-                                        anchors.rightMargin: 12
-                                        spacing: 10
-
-                                        Rectangle {
-                                            width: 26
-                                            height: 26
-                                            radius: 13
-                                            color: volIconMouse.containsMouse ? root.themeSurfaceHover : "transparent"
-                                            
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: root.volumeMuted ? "󰖁" : (root.volumeLevel > 0.5 ? "󰕾" : (root.volumeLevel > 0 ? "󰖀" : "󰕿"))
-                                                color: root.volumeMuted ? "#ff6b6b" : root.themeText
-                                                font.pixelSize: 17
-                                            }
-                                            MouseArea {
-                                                id: volIconMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: root.handleToggleClick("speakerMute")
-                                            }
-                                        }
-
-                                        Item {
-                                            id: volTrackContainer
-                                            Layout.fillWidth: true
-                                            height: parent.height
-
-                                            Rectangle {
-                                                id: volTrough
-                                                anchors.left: parent.left
-                                                anchors.right: parent.right
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                height: 6
-                                                radius: 3
-                                                color: Qt.alpha(root.themeText, 0.12)
-
-                                                Rectangle {
-                                                    id: volActiveBar
-                                                    height: parent.height
-                                                    width: Math.max(0, Math.min(parent.width, parent.width * root.volumeLevel))
-                                                    radius: 3
-                                                    color: root.volumeMuted ? root.themeTextMuted : root.themePrimary
-
-                                                    Behavior on width {
-                                                        enabled: !root.isDraggingVolume && root.animEnabled
-                                                        NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
-                                                    }
-
-                                                    Rectangle {
-                                                        anchors.verticalCenter: parent.verticalCenter
-                                                        anchors.horizontalCenter: parent.right
-                                                        width: (volMouse.containsMouse || root.isDraggingVolume) ? 14 : 10
-                                                        height: width
-                                                        radius: width / 2
-                                                        color: "#ffffff"
-                                                        visible: root.volumeLevel > 0.02
-
-                                                        Behavior on width {
-                                                            NumberAnimation { duration: 100 }
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            MouseArea {
-                                                id: volMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-
-                                                function updateFromMouse(mouse) {
-                                                    let pct = Math.max(0.0, Math.min(1.0, mouse.x / width))
-                                                    root.setVolume(pct)
-                                                }
-
-                                                onPressed: (mouse) => {
-                                                    root.isDraggingVolume = true
-                                                    updateFromMouse(mouse)
-                                                }
-                                                onPositionChanged: (mouse) => {
-                                                    if (pressed) updateFromMouse(mouse)
-                                                }
-                                                onReleased: {
-                                                    root.isDraggingVolume = false
-                                                }
-                                            }
-                                        }
-
+                                    Rectangle {
+                                        width: 28
+                                        height: 28
+                                        radius: 14
+                                        color: volIconMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.15) : "transparent"
+                                        antialiasing: true
+                                        
                                         Text {
-                                            Layout.preferredWidth: 34
-                                            horizontalAlignment: Text.AlignRight
-                                            text: root.volumeMuted ? "0%" : Math.round(root.volumeLevel * 100) + "%"
-                                            color: root.volumeMuted ? root.themeTextMuted : root.themeText
-                                            font.pixelSize: 11
-                                            font.weight: Font.DemiBold
+                                            anchors.centerIn: parent
+                                            text: root.volumeMuted ? "󰖁" : (root.volumeLevel > 0.5 ? "󰕾" : (root.volumeLevel > 0 ? "󰖀" : "󰕿"))
+                                            color: root.volumeMuted ? "#ff6b6b" : root.themeText
+                                            font.pixelSize: 16
+                                        }
+                                        MouseArea {
+                                            id: volIconMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.handleToggleClick("speakerMute")
                                         }
                                     }
-                                }
 
-                                Rectangle {
-                                    id: brightSliderCard
-                                    width: parent.width
-                                    height: 38
-                                    radius: 14
-                                    color: root.themeSurface
-                                    border.width: 1
-                                    border.color: Qt.alpha(root.themeBorder, 0.12)
-
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 12
-                                        anchors.rightMargin: 12
-                                        spacing: 10
+                                    Item {
+                                        id: volTrackContainer
+                                        Layout.fillWidth: true
+                                        height: parent.height
 
                                         Rectangle {
-                                            width: 26
-                                            height: 26
-                                            radius: 13
-                                            color: brightIconMouse.containsMouse ? root.themeSurfaceHover : "transparent"
-                                            
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: root.brightnessLevel > 0.5 ? "󰃠" : "󰃞"
-                                                color: root.themeText
-                                                font.pixelSize: 17
-                                            }
-                                            MouseArea {
-                                                id: brightIconMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: root.setBrightness(root.brightnessLevel < 0.9 ? root.brightnessLevel + 0.15 : 0.15)
-                                            }
-                                        }
-
-                                        Item {
-                                            id: brightTrackContainer
-                                            Layout.fillWidth: true
-                                            height: parent.height
+                                            id: volTrough
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            height: 6
+                                            radius: 3
+                                            color: Qt.rgba(255, 255, 255, 0.15)
+                                            antialiasing: true
 
                                             Rectangle {
-                                                id: brightTrough
-                                                anchors.left: parent.left
-                                                anchors.right: parent.right
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                height: 6
+                                                id: volActiveBar
+                                                height: parent.height
+                                                width: Math.max(0, Math.min(parent.width, parent.width * root.volumeLevel))
                                                 radius: 3
-                                                color: Qt.alpha(root.themeText, 0.12)
+                                                color: root.volumeMuted ? root.themeTextMuted : root.themePrimary
+                                                antialiasing: true
+
+                                                Behavior on width {
+                                                    enabled: !root.isDraggingVolume && root.animEnabled
+                                                    NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
+                                                }
 
                                                 Rectangle {
-                                                    id: brightActiveBar
-                                                    height: parent.height
-                                                    width: Math.max(0, Math.min(parent.width, parent.width * root.brightnessLevel))
-                                                    radius: 3
-                                                    color: root.themePrimary
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    anchors.horizontalCenter: parent.right
+                                                    width: (volMouse.containsMouse || root.isDraggingVolume) ? 14 : 10
+                                                    height: width
+                                                    radius: width / 2
+                                                    color: "#ffffff"
+                                                    visible: root.volumeLevel > 0.02
+                                                    antialiasing: true
 
                                                     Behavior on width {
-                                                        enabled: !root.isDraggingBrightness && root.animEnabled
-                                                        NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
+                                                        NumberAnimation { duration: 100 }
                                                     }
-
-                                                    Rectangle {
-                                                        anchors.verticalCenter: parent.verticalCenter
-                                                        anchors.horizontalCenter: parent.right
-                                                        width: (brightMouse.containsMouse || root.isDraggingBrightness) ? 14 : 10
-                                                        height: width
-                                                        radius: width / 2
-                                                        color: "#ffffff"
-                                                        visible: root.brightnessLevel > 0.02
-
-                                                        Behavior on width {
-                                                            NumberAnimation { duration: 100 }
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            MouseArea {
-                                                id: brightMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-
-                                                function updateFromMouse(mouse) {
-                                                    let pct = Math.max(0.05, Math.min(1.0, mouse.x / width))
-                                                    root.setBrightness(pct)
-                                                }
-
-                                                onPressed: (mouse) => {
-                                                    root.isDraggingBrightness = true
-                                                    updateFromMouse(mouse)
-                                                }
-                                                onPositionChanged: (mouse) => {
-                                                    if (pressed) updateFromMouse(mouse)
-                                                }
-                                                onReleased: {
-                                                    root.isDraggingBrightness = false
                                                 }
                                             }
                                         }
 
-                                        Text {
-                                            Layout.preferredWidth: 34
-                                            horizontalAlignment: Text.AlignRight
-                                            text: Math.round(root.brightnessLevel * 100) + "%"
-                                            color: root.themeText
-                                            font.pixelSize: 11
-                                            font.weight: Font.DemiBold
+                                        MouseArea {
+                                            id: volMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+
+                                            function updateFromMouse(mouse) {
+                                                let pct = Math.max(0.0, Math.min(1.0, mouse.x / width))
+                                                root.setVolume(pct)
+                                            }
+
+                                            onPressed: (mouse) => {
+                                                root.isDraggingVolume = true
+                                                updateFromMouse(mouse)
+                                            }
+                                            onPositionChanged: (mouse) => {
+                                                if (pressed) updateFromMouse(mouse)
+                                            }
+                                            onReleased: {
+                                                root.isDraggingVolume = false
+                                            }
                                         }
+                                    }
+
+                                    Text {
+                                        Layout.preferredWidth: 34
+                                        horizontalAlignment: Text.AlignRight
+                                        text: root.volumeMuted ? "0%" : Math.round(root.volumeLevel * 100) + "%"
+                                        color: root.volumeMuted ? root.themeTextMuted : "#FFFFFF"
+                                        font.pixelSize: 11
+                                        font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                     }
                                 }
                             }
 
                             Rectangle {
-                                id: modernMediaCard
+                                id: brightSliderCard
                                 width: parent.width
-                                height: 150
-                                radius: 20
-                                color: root.themeSurface
-                                clip: true
-                                visible: root.mediaStatus === "Playing" || root.mediaStatus === "Paused"
+                                height: 44
+                                radius: 16
+                                color: Qt.rgba(0, 0, 0, 0.35)
+                                border.width: 1
+                                border.color: Qt.rgba(255, 255, 255, 0.1)
+                                antialiasing: true
 
-                                Item {
-                                    id: artMask
+                                RowLayout {
                                     anchors.fill: parent
-                                    layer.enabled: true
-                                    visible: false
+                                    anchors.leftMargin: 12
+                                    anchors.rightMargin: 12
+                                    spacing: 10
+
                                     Rectangle {
-                                        anchors.fill: parent
-                                        radius: 20
-                                    }
-                                }
-
-                                Image {
-                                    id: bgAlbumArt
-                                    anchors.fill: parent
-                                    source: root.mediaArt
-                                    fillMode: Image.PreserveAspectCrop
-                                    visible: false
-
-                                    onStatusChanged: {
-                                        if (status === Image.Error) {
-                                            source = ""
+                                        width: 28
+                                        height: 28
+                                        radius: 14
+                                        color: brightIconMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.15) : "transparent"
+                                        antialiasing: true
+                                        
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: root.brightnessLevel > 0.5 ? "󰃠" : "󰃞"
+                                            color: root.themeText
+                                            font.pixelSize: 16
+                                        }
+                                        MouseArea {
+                                            id: brightIconMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.setBrightness(root.brightnessLevel < 0.9 ? root.brightnessLevel + 0.15 : 0.15)
                                         }
                                     }
-                                }
 
-                                MultiEffect {
-                                    anchors.fill: parent
-                                    source: bgAlbumArt
-                                    maskEnabled: true
-                                    maskSource: artMask
-                                    opacity: 0.35
-                                    visible: bgAlbumArt.status === Image.Ready
-                                }
+                                    Item {
+                                        id: brightTrackContainer
+                                        Layout.fillWidth: true
+                                        height: parent.height
 
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: 20
-                                    gradient: Gradient {
-                                        GradientStop { position: 0.0; color: Qt.rgba(0.04, 0.06, 0.08, 0.45) }
-                                        GradientStop { position: 0.55; color: Qt.rgba(0.04, 0.06, 0.08, 0.75) }
-                                        GradientStop { position: 1.0; color: Qt.rgba(0.04, 0.06, 0.08, 0.92) }
+                                        Rectangle {
+                                            id: brightTrough
+                                            anchors.left: parent.left
+                                            anchors.right: parent.right
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            height: 6
+                                            radius: 3
+                                            color: Qt.rgba(255, 255, 255, 0.15)
+                                            antialiasing: true
+
+                                            Rectangle {
+                                                id: brightActiveBar
+                                                height: parent.height
+                                                width: Math.max(0, Math.min(parent.width, parent.width * root.brightnessLevel))
+                                                radius: 3
+                                                color: root.themePrimary
+                                                antialiasing: true
+
+                                                Behavior on width {
+                                                    enabled: !root.isDraggingBrightness && root.animEnabled
+                                                    NumberAnimation { duration: 110; easing.type: Easing.OutQuad }
+                                                }
+
+                                                Rectangle {
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    anchors.horizontalCenter: parent.right
+                                                    width: (brightMouse.containsMouse || root.isDraggingBrightness) ? 14 : 10
+                                                    height: width
+                                                    radius: width / 2
+                                                    color: "#ffffff"
+                                                    visible: root.brightnessLevel > 0.02
+                                                    antialiasing: true
+
+                                                    Behavior on width {
+                                                        NumberAnimation { duration: 100 }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            id: brightMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+
+                                            function updateFromMouse(mouse) {
+                                                let pct = Math.max(0.05, Math.min(1.0, mouse.x / width))
+                                                root.setBrightness(pct)
+                                            }
+
+                                            onPressed: (mouse) => {
+                                                root.isDraggingBrightness = true
+                                                updateFromMouse(mouse)
+                                            }
+                                            onPositionChanged: (mouse) => {
+                                                if (pressed) updateFromMouse(mouse)
+                                            }
+                                            onReleased: {
+                                                root.isDraggingBrightness = false
+                                            }
+                                        }
                                     }
-                                }
-
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: 20
-                                    color: "transparent"
-                                    border.width: 1
-                                    border.color: Qt.alpha(root.themeBorder, 0.15)
-                                    z: 5
-                                }
-
-                                Column {
-                                    z: 6
-                                    anchors.centerIn: parent
-                                    width: parent.width - 32
-                                    spacing: 4
 
                                     Text {
-                                        width: parent.width
-                                        text: root.mediaTitle !== "" ? root.mediaTitle : "Unknown Track"
-                                        color: root.themeText
-                                        font.pixelSize: 15
+                                        Layout.preferredWidth: 34
+                                        horizontalAlignment: Text.AlignRight
+                                        text: Math.round(root.brightnessLevel * 100) + "%"
+                                        color: "#FFFFFF"
+                                        font.pixelSize: 11
                                         font.weight: Font.Bold
-                                        horizontalAlignment: Text.AlignHCenter
-                                        elide: Text.ElideRight
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            id: modernMediaCard
+                            width: parent.width
+                            height: 74
+                            radius: 18
+                            color: Qt.rgba(0, 0, 0, 0.40)
+                            border.width: 1
+                            border.color: Qt.rgba(255, 255, 255, 0.12)
+                            antialiasing: true
+                            clip: true
+                            visible: root.mediaStatus === "Playing" || root.mediaStatus === "Paused"
+
+                            Image {
+                                id: bgAlbumArt
+                                anchors.fill: parent
+                                source: root.mediaArt
+                                fillMode: Image.PreserveAspectCrop
+                                opacity: 0.16
+                                visible: status === Image.Ready
+                            }
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 12
+                                anchors.rightMargin: 12
+                                anchors.topMargin: 10
+                                anchors.bottomMargin: 10
+                                spacing: 12
+
+                                Rectangle {
+                                    Layout.preferredWidth: 52
+                                    Layout.preferredHeight: 52
+                                    radius: 12
+                                    color: Qt.rgba(255, 255, 255, 0.08)
+                                    border.width: 1
+                                    border.color: Qt.rgba(255, 255, 255, 0.22)
+                                    clip: true
+                                    antialiasing: true
+
+                                    Image {
+                                        id: albumThumb
+                                        anchors.fill: parent
+                                        source: root.mediaArt
+                                        fillMode: Image.PreserveAspectCrop
+                                        visible: status === Image.Ready
                                     }
 
                                     Text {
-                                        width: parent.width
+                                        anchors.centerIn: parent
+                                        text: "🎵"
+                                        font.pixelSize: 22
+                                        visible: albumThumb.status !== Image.Ready
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                    spacing: 2
+
+                                    Text {
+                                        text: root.mediaTitle !== "" ? root.mediaTitle : "Unknown Track"
+                                        color: "#FFFFFF"
+                                        font.pixelSize: 13
+                                        font.weight: Font.Bold
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                    }
+
+                                    Text {
                                         text: root.mediaArtist !== "" ? root.mediaArtist : (root.mediaStatus === "Playing" ? "Playing" : "Paused")
                                         color: root.themeTextMuted
-                                        font.pixelSize: 12
+                                        font.pixelSize: 11
                                         font.weight: Font.Medium
-                                        horizontalAlignment: Text.AlignHCenter
                                         elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                    }
+                                }
+
+                                Row {
+                                    spacing: 6
+                                    Layout.alignment: Qt.AlignVCenter
+
+                                    Rectangle {
+                                        width: 32
+                                        height: 32
+                                        radius: 16
+                                        color: prevBtnMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.18) : Qt.rgba(255, 255, 255, 0.06)
+                                        border.width: 1
+                                        border.color: Qt.rgba(255, 255, 255, 0.1)
+                                        antialiasing: true
+                                        scale: prevBtnMouse.pressed ? 0.9 : 1.0
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "󰒮"
+                                            color: root.themeText
+                                            font.pixelSize: 15
+                                        }
+                                        MouseArea {
+                                            id: prevBtnMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.exec("playerctl previous")
+                                        }
                                     }
 
-                                    Item { width: 1; height: 10 }
+                                    Rectangle {
+                                        width: 38
+                                        height: 38
+                                        radius: 19
+                                        color: root.themePrimary
+                                        antialiasing: true
+                                        scale: playBtnMouse.pressed ? 0.92 : 1.0
 
-                                    Row {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        spacing: 20
-
-                                        Rectangle {
-                                            width: 38
-                                            height: 38
-                                            radius: 19
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            color: prevBtnMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : Qt.rgba(1, 1, 1, 0.08)
-                                            scale: prevBtnMouse.pressed ? 0.9 : 1.0
-
-                                            Behavior on scale { NumberAnimation { duration: 100 } }
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: "󰒮"
-                                                color: root.themeText
-                                                font.pixelSize: 18
-                                            }
-                                            MouseArea {
-                                                id: prevBtnMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: root.exec("playerctl previous")
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: 140
+                                                easing.type: animStyle.bounceEasing
+                                                easing.overshoot: animStyle.overshoot
                                             }
                                         }
 
+                                        Text {
+                                            anchors.centerIn: parent
+                                            anchors.horizontalCenterOffset: root.mediaStatus === "Playing" ? 0 : 1
+                                            text: root.mediaStatus === "Playing" ? "󰏤" : "󰐊"
+                                            color: root.themeOnPrimary
+                                            font.pixelSize: 19
+                                        }
+                                        MouseArea {
+                                            id: playBtnMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.exec("playerctl play-pause")
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        width: 32
+                                        height: 32
+                                        radius: 16
+                                        color: nextBtnMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.18) : Qt.rgba(255, 255, 255, 0.06)
+                                        border.width: 1
+                                        border.color: Qt.rgba(255, 255, 255, 0.1)
+                                        antialiasing: true
+                                        scale: nextBtnMouse.pressed ? 0.9 : 1.0
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "󰒭"
+                                            color: root.themeText
+                                            font.pixelSize: 15
+                                        }
+                                        MouseArea {
+                                            id: nextBtnMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.exec("playerctl next")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Column {
+                            width: parent.width
+                            spacing: 8
+                            visible: root.editMode && root.inactiveMods.length > 0
+
+                            Rectangle { width: parent.width; height: 1; color: Qt.rgba(255, 255, 255, 0.1) }
+                            Text { text: "Add to Control Center:"; color: root.themeTextMuted; font.pixelSize: 11; font.weight: Font.Medium }
+
+                            Flow {
+                                width: parent.width
+                                spacing: 10
+                                Repeater {
+                                    model: root.inactiveMods
+                                    Rectangle {
+                                        width: (parent.width - 10) / 2
+                                        height: 64
+                                        radius: 16
+                                        color: Qt.rgba(0, 0, 0, 0.35)
+                                        border.width: 1
+                                        border.color: Qt.rgba(255, 255, 255, 0.1)
+                                        antialiasing: true
+                                        
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.margins: 10
+                                            spacing: 10
+
+                                            Rectangle {
+                                                Layout.preferredWidth: 36
+                                                Layout.preferredHeight: 36
+                                                radius: 18
+                                                color: Qt.rgba(255, 255, 255, 0.08)
+                                                antialiasing: true
+                                                Text { anchors.centerIn: parent; text: root.getToggleIcon(modelData); color: root.themeTextMuted; font.pixelSize: 16 }
+                                            }
+                                            Text { Layout.fillWidth: true; text: root.getToggleName(modelData); color: root.themeTextMuted; font.pixelSize: 12; font.weight: Font.DemiBold; elide: Text.ElideRight }
+                                        }
+                                        
                                         Rectangle {
-                                            width: 48
-                                            height: 48
-                                            radius: 24
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            color: root.themePrimary
-                                            scale: playBtnMouse.pressed ? 0.92 : (playBtnMouse.containsMouse ? 1.04 : 1.0)
+                                            anchors.right: parent.right
+                                            anchors.top: parent.top
+                                            anchors.margins: -4
+                                            width: 20
+                                            height: 20
+                                            radius: 10
+                                            color: "#32D74B"
+                                            antialiasing: true
+
+                                            scale: addMouse.pressed ? 0.88 : 1.0
 
                                             Behavior on scale {
                                                 NumberAnimation {
-                                                    duration: 140
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
                                                     easing.type: animStyle.bounceEasing
                                                     easing.overshoot: animStyle.overshoot
                                                 }
                                             }
 
-                                            Text {
-                                                anchors.centerIn: parent
-                                                anchors.horizontalCenterOffset: root.mediaStatus === "Playing" ? 0 : 1
-                                                text: root.mediaStatus === "Playing" ? "󰏤" : "󰐊"
-                                                color: root.themeOnPrimary
-                                                font.pixelSize: 22
-                                            }
+                                            Text { anchors.centerIn: parent; text: "＋"; color: "#fff"; font.pixelSize: 10; font.weight: Font.Bold }
                                             MouseArea {
-                                                id: playBtnMouse
+                                                id: addMouse
                                                 anchors.fill: parent
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
-                                                onClicked: root.exec("playerctl play-pause")
-                                            }
-                                        }
-
-                                        Rectangle {
-                                            width: 38
-                                            height: 38
-                                            radius: 19
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            color: nextBtnMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.15) : Qt.rgba(1, 1, 1, 0.08)
-                                            scale: nextBtnMouse.pressed ? 0.9 : 1.0
-
-                                            Behavior on scale { NumberAnimation { duration: 100 } }
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: "󰒭"
-                                                color: root.themeText
-                                                font.pixelSize: 18
-                                            }
-                                            MouseArea {
-                                                id: nextBtnMouse
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: root.exec("playerctl next")
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            Column {
-                                width: parent.width
-                                spacing: 8
-                                visible: root.editMode && root.inactiveMods.length > 0
-
-                                Rectangle { width: parent.width; height: 1; color: Qt.alpha(root.themeBorder, 0.15) }
-                                Text { text: "Tap '+' to add to Control Center:"; color: root.themeTextMuted; font.pixelSize: 11; font.weight: Font.Medium }
-
-                                Flow {
-                                    width: parent.width
-                                    spacing: 10
-                                    Repeater {
-                                        model: root.inactiveMods
-                                        Rectangle {
-                                            width: (parent.width - 10) / 2
-                                            height: 56
-                                            radius: 16
-                                            color: Qt.alpha(root.themeSurface, 0.4)
-                                            border.width: 1
-                                            border.color: Qt.alpha(root.themeBorder, 0.2)
-                                            
-                                            Item {
-                                                anchors.fill: parent
-                                                anchors.leftMargin: 14
-                                                anchors.rightMargin: 12
-                                                Text { id: iIcon; anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; text: root.getToggleIcon(modelData); color: root.themeTextMuted; font.pixelSize: 20 }
-                                                Text { anchors.left: iIcon.right; anchors.leftMargin: 10; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter; text: root.getToggleName(modelData); color: root.themeTextMuted; font.pixelSize: 12; font.weight: Font.DemiBold; elide: Text.ElideRight }
-                                            }
-                                            
-                                            Rectangle {
-                                                anchors.right: parent.right
-                                                anchors.top: parent.top
-                                                anchors.margins: -4
-                                                width: 22
-                                                height: 22
-                                                radius: 11
-                                                color: "#32D74B"
-
-                                                scale: addMouse.pressed ? 0.88 : 1.0
-
-                                                Behavior on scale {
-                                                    NumberAnimation {
-                                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                                        easing.type: animStyle.bounceEasing
-                                                        easing.overshoot: animStyle.overshoot
-                                                    }
-                                                }
-
-                                                Text { anchors.centerIn: parent; text: "＋"; color: "#fff"; font.pixelSize: 11; font.weight: Font.Bold }
-                                                MouseArea {
-                                                    id: addMouse
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    cursorShape: Qt.PointingHandCursor
-                                                    onClicked: root.addToggle(modelData)
-                                                }
+                                                onClicked: root.addToggle(modelData)
                                             }
                                         }
                                     }

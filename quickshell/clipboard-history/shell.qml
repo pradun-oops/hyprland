@@ -37,18 +37,18 @@ Scope {
 
     property color themeBorder: "#38bdf8"
     property color themePrimary: "#38bdf8"
-    property color themeText: "#f4f4f5"
-    property color themeTextMuted: "#a1a1aa"
+    property color themeText: "#FFFFFF"
+    property color themeTextMuted: "#D4D4D8"
     
     property int themeRounding: 22
-    property int themeBorderSize: 1
+    property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
     
     property color themeBackground: "#121215" 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.04) 
-    property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.08)
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.35) 
+    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)
 
     property string iconFontFamily: "Symbols Nerd Font, JetBrainsMono Nerd Font, Font Awesome 6 Free, Noto Color Emoji, sans-serif"
 
@@ -112,7 +112,7 @@ Scope {
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -252,10 +252,7 @@ Scope {
 
             Item {
                 id: dragContainer
-                anchors.top: parent.top
-                anchors.right: parent.right
-                anchors.topMargin: 48
-                anchors.rightMargin: 24
+                anchors.centerIn: parent
                 implicitWidth: 460
                 implicitHeight: 700
                 
@@ -283,25 +280,15 @@ Scope {
                     radius: root.themeRounding
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themeBorder, 0.35)
+                    border.color: Qt.alpha(root.themePrimary, 0.4)
+                    antialiasing: true
                     clip: true
 
                     property bool shown: false
                     Component.onCompleted: shown = true
 
-                    scale: shown ? 1.0 : 0.90
+                    scale: shown ? 1.0 : 0.92
                     opacity: shown ? 1.0 : 0.0
-
-                    transform: Translate {
-                        x: container.shown ? 0 : 20
-                        Behavior on x {
-                            NumberAnimation {
-                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                easing.type: animStyle.bounceEasing
-                                easing.overshoot: animStyle.overshoot
-                            }
-                        }
-                    }
 
                     Behavior on scale {
                         NumberAnimation {
@@ -335,6 +322,7 @@ Scope {
                                 color: Qt.alpha(root.themePrimary, 0.15)
                                 border.width: 1
                                 border.color: Qt.alpha(root.themePrimary, 0.35)
+                                antialiasing: true
 
                                 Text {
                                     anchors.centerIn: parent
@@ -356,6 +344,8 @@ Scope {
                                         color: root.themeText
                                         font.pixelSize: 16
                                         font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
                                     }
 
                                     Rectangle {
@@ -363,9 +353,10 @@ Scope {
                                         Layout.preferredWidth: badgeText.implicitWidth + 12
                                         Layout.preferredHeight: 20
                                         radius: 10
-                                        color: Qt.alpha(root.themePrimary, 0.18)
+                                        color: Qt.alpha(root.themePrimary, 0.2)
                                         border.width: 1
-                                        border.color: Qt.alpha(root.themePrimary, 0.35)
+                                        border.color: Qt.alpha(root.themePrimary, 0.4)
+                                        antialiasing: true
 
                                         scale: clipboardModel.count > 0 ? 1.0 : 0.8
                                         Behavior on scale {
@@ -391,6 +382,9 @@ Scope {
                                     text: "Click item to copy • Esc to close"
                                     color: root.themeTextMuted
                                     font.pixelSize: 11
+                                    font.weight: Font.Medium
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                                 }
                             }
 
@@ -401,9 +395,10 @@ Scope {
                                 Layout.preferredWidth: clearRow.implicitWidth + 20
                                 Layout.preferredHeight: 34
                                 radius: Math.max(4, root.themeRounding - 8)
-                                color: clearBtnArea.containsMouse ? Qt.alpha("#ef4444", 0.2) : Qt.rgba(1, 1, 1, 0.05)
+                                color: clearBtnArea.containsMouse ? Qt.alpha("#ef4444", 0.3) : Qt.rgba(0, 0, 0, 0.3)
                                 border.width: 1
-                                border.color: clearBtnArea.containsMouse ? Qt.alpha("#ef4444", 0.45) : Qt.rgba(1, 1, 1, 0.1)
+                                border.color: clearBtnArea.containsMouse ? "#ef4444" : Qt.rgba(255, 255, 255, 0.12)
+                                antialiasing: true
 
                                 scale: clearBtnArea.pressed ? 0.92 : (clearBtnArea.containsMouse ? 1.05 : 1.0)
 
@@ -431,9 +426,11 @@ Scope {
 
                                     Text {
                                         text: "Clear All"
-                                        color: clearBtnArea.containsMouse ? root.themeText : root.themeTextMuted
+                                        color: clearBtnArea.containsMouse ? "#FFFFFF" : root.themeTextMuted
                                         font.pixelSize: 11
                                         font.weight: Font.DemiBold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
                                     }
                                 }
 
@@ -450,7 +447,7 @@ Scope {
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 1
-                            color: Qt.rgba(1, 1, 1, 0.08)
+                            color: Qt.rgba(255, 255, 255, 0.1)
                         }
 
                         Item {
@@ -467,15 +464,16 @@ Scope {
                                     width: 56
                                     height: 56
                                     radius: 28
-                                    color: Qt.rgba(1, 1, 1, 0.03)
+                                    color: Qt.rgba(0, 0, 0, 0.3)
                                     border.width: 1
-                                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                                    border.color: Qt.rgba(255, 255, 255, 0.12)
+                                    antialiasing: true
 
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰅢"
                                         font.family: root.iconFontFamily
-                                        color: Qt.alpha(root.themeTextMuted, 0.4)
+                                        color: Qt.alpha(root.themeTextMuted, 0.5)
                                         font.pixelSize: 26
                                     }
                                 }
@@ -490,6 +488,8 @@ Scope {
                                         color: root.themeText
                                         font.pixelSize: 14
                                         font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                     }
 
                                     Text {
@@ -497,6 +497,8 @@ Scope {
                                         text: "Copied items will appear here"
                                         color: root.themeTextMuted
                                         font.pixelSize: 11
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.5)
                                     }
                                 }
                             }
@@ -514,7 +516,7 @@ Scope {
                                         NumberAnimation { property: "opacity"; from: 0; to: 1; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                                         NumberAnimation {
                                             property: "scale"
-                                            from: 1.0 ; to: 1.0
+                                            from: 1.0; to: 1.0
                                             duration: root.animEnabled ? animStyle.animDuration : 0
                                             easing.type: animStyle.bounceEasing
                                             easing.overshoot: animStyle.overshoot
@@ -557,11 +559,12 @@ Scope {
                                         height: 74
 
                                         radius: Math.max(4, root.themeRounding - 6)
-                                        color: cardArea.containsMouse ? root.themeSurfaceHover : Qt.rgba(1, 1, 1, 0.03)
+                                        color: cardArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                         border.width: 1
-                                        border.color: cardArea.containsMouse ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1, 1, 1, 0.08)
+                                        border.color: cardArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.1)
+                                        antialiasing: true
 
-                                        scale: cardArea.pressed ? 1.0 : (cardArea.containsMouse ? 1.0 : 1.0)
+                                        scale: cardArea.pressed ? 0.98 : (cardArea.containsMouse ? 1.01 : 1.0)
 
                                         Behavior on scale {
                                             NumberAnimation {
@@ -591,9 +594,10 @@ Scope {
                                                 Layout.preferredWidth: 42
                                                 Layout.preferredHeight: 42
                                                 radius: 10
-                                                color: model.isImage ? Qt.rgba(0.95, 0.6, 0.15, 0.15) : Qt.alpha(root.themePrimary, 0.12)
+                                                color: model.isImage ? Qt.rgba(0.95, 0.6, 0.15, 0.18) : Qt.alpha(root.themePrimary, 0.18)
                                                 border.width: 1
-                                                border.color: model.isImage ? Qt.rgba(0.95, 0.6, 0.15, 0.35) : Qt.alpha(root.themePrimary, 0.25)
+                                                border.color: model.isImage ? Qt.rgba(0.95, 0.6, 0.15, 0.4) : Qt.alpha(root.themePrimary, 0.35)
+                                                antialiasing: true
 
                                                 Text {
                                                     anchors.centerIn: parent
@@ -618,6 +622,8 @@ Scope {
                                                         color: model.isImage ? "#f59e0b" : root.themePrimary
                                                         font.pixelSize: 10
                                                         font.weight: Font.Bold
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                                     }
 
                                                     Text {
@@ -630,6 +636,9 @@ Scope {
                                                         text: model.isImage ? model.content.replace("Image (", "").replace(")", "") : (model.charCount + " chars")
                                                         color: root.themeTextMuted
                                                         font.pixelSize: 11
+                                                        font.weight: Font.Medium
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
                                                     }
                                                 }
 
@@ -641,6 +650,8 @@ Scope {
                                                     Layout.fillWidth: true
                                                     elide: Text.ElideRight
                                                     maximumLineCount: 1
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
                                                 }
                                             }
 
@@ -652,9 +663,10 @@ Scope {
                                                     Layout.preferredWidth: 34
                                                     Layout.preferredHeight: 34
                                                     radius: Math.max(4, root.themeRounding - 8)
-                                                    color: copyBtnMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.2) : Qt.rgba(1, 1, 1, 0.05)
+                                                    color: copyBtnMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.3)
                                                     border.width: 1
-                                                    border.color: copyBtnMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(1, 1, 1, 0.08)
+                                                    border.color: copyBtnMouse.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                                    antialiasing: true
 
                                                     scale: copyBtnMouse.pressed ? 0.9 : (copyBtnMouse.containsMouse ? 1.08 : 1.0)
 
@@ -689,9 +701,10 @@ Scope {
                                                     Layout.preferredWidth: 34
                                                     Layout.preferredHeight: 34
                                                     radius: Math.max(4, root.themeRounding - 8)
-                                                    color: delBtnMouse.containsMouse ? Qt.alpha("#ef4444", 0.2) : Qt.rgba(1, 1, 1, 0.05)
+                                                    color: delBtnMouse.containsMouse ? Qt.alpha("#ef4444", 0.25) : Qt.rgba(0, 0, 0, 0.3)
                                                     border.width: 1
-                                                    border.color: delBtnMouse.containsMouse ? Qt.alpha("#ef4444", 0.5) : Qt.rgba(1, 1, 1, 0.08)
+                                                    border.color: delBtnMouse.containsMouse ? "#ef4444" : Qt.rgba(255, 255, 255, 0.12)
+                                                    antialiasing: true
 
                                                     scale: delBtnMouse.pressed ? 0.9 : (delBtnMouse.containsMouse ? 1.08 : 1.0)
 

@@ -43,17 +43,17 @@ Scope {
         }
     }
 
-    property int themeRounding: 14
+    property int themeRounding: 18
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
 
     property color themeBackground: "#141416" 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08)    
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.32)    
     property color themeBorder: "#ffb3af"
     property color themeText: "#FFFFFF"          
-    property color themeTextMuted: "#A1A1AA"
+    property color themeTextMuted: "#D4D4D8"
     property color themePrimary: "#ffb3af"        
 
     QtObject {
@@ -73,7 +73,7 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (match && match[1]) {
                     let hex = "#" + match[1]
                     root.themeBorder = hex
@@ -99,7 +99,7 @@ Scope {
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -123,6 +123,20 @@ Scope {
 
     property var allApps: []
     property bool isLoaded: false 
+
+    function readJsonSync(path, fallback) {
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", "file://" + path, false)
+        try {
+            xhr.send()
+            if (xhr.status === 200 || xhr.status === 0) {
+                if (xhr.responseText.trim() !== "") {
+                    return JSON.parse(xhr.responseText)
+                }
+            }
+        } catch (e) {}
+        return fallback
+    }
 
     FileView {
         id: appCacheFile
@@ -213,6 +227,14 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         colorFile.reload()
         generalConfigFile.reload()
         animConfigFile.reload()
+        
+        let cached = readJsonSync(Quickshell.env("HOME") + "/.config/quickshell/json/app_cache.json", [])
+        if (cached.length > 0) {
+            root.allApps = cached
+            performSearch("")
+            root.isLoaded = true
+        }
+
         appCacheFile.reload()
         cacheBuilder.running = true 
     }
@@ -308,7 +330,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         let maxApps = 12
         
         for (let i = 0; i < root.allApps.length; i++) {
-            if (count >= maxApps) break; 
+            if (count >= maxApps) break
             let app = root.allApps[i]
             let dName = (app.displayName || "").trim().toLowerCase()
             let fName = (app.fileName || "").trim().toLowerCase()
@@ -387,7 +409,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                 id: searchContainer
                 width: Math.min(720, parent.width - 40)
                 
-                property real targetHeight: mainLayout.implicitHeight + 28
+                property real targetHeight: mainLayout.implicitHeight + 24
                 height: targetHeight
                 
                 property bool isFullyExpanded: height >= (targetHeight - 5)
@@ -398,8 +420,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                 radius: root.themeRounding
                 border.width: root.themeBorderSize
-                border.color: Qt.alpha(root.themeBorder, 0.35)
+                border.color: Qt.alpha(root.themePrimary, 0.42)
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                antialiasing: true
+                clip: true
 
                 scale: root.isLoaded ? 1.0 : 0.90
                 opacity: root.isLoaded ? 1.0 : 0.0
@@ -431,7 +455,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                     }
                 }
 
-                Behavior on opacity {
+                Behavior on opacity { 
                     NumberAnimation { 
                         duration: animStyle.fadeDuration
                         easing.type: animStyle.fadeEasing
@@ -456,17 +480,17 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    anchors.margins: 14
-                    spacing: 10
+                    anchors.margins: 12
+                    spacing: 8
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 46
+                        Layout.preferredHeight: 48
                         spacing: 12
 
                         Text {
                             text: "" 
-                            font.pixelSize: 18
+                            font.pixelSize: 19
                             color: root.themePrimary
                             Layout.leftMargin: 8
                             Layout.alignment: Qt.AlignVCenter
@@ -481,12 +505,12 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             Layout.fillWidth: true
                             Layout.fillHeight: true
 
-                            font.pixelSize: 18
+                            font.pixelSize: 17
                             font.weight: Font.Medium
-                            color: root.themeText
+                            color: "#FFFFFF"
                             
                             placeholderText: "Search apps, documents, and files..."
-                            placeholderTextColor: Qt.alpha(root.themeTextMuted, 0.5)
+                            placeholderTextColor: Qt.rgba(1.0, 1.0, 1.0, 0.45)
                             verticalAlignment: TextInput.AlignVCenter
 
                             background: Item {}
@@ -530,12 +554,15 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         }
                         
                         Rectangle {
-                            Layout.preferredWidth: 36
-                            Layout.preferredHeight: 22
+                            Layout.preferredWidth: 38
+                            Layout.preferredHeight: 24
                             Layout.rightMargin: 4
                             radius: 6 
-                            color: escBadgeMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.08)
-                            scale: escBadgeMouse.containsMouse ? 1.10 : 1.0
+                            color: escBadgeMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.20) : Qt.rgba(0, 0, 0, 0.35)
+                            border.width: 1
+                            border.color: Qt.rgba(255, 255, 255, 0.15)
+                            antialiasing: true
+                            scale: escBadgeMouse.containsMouse ? 1.08 : 1.0
 
                             Behavior on scale {
                                 NumberAnimation {
@@ -551,13 +578,12 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             Text {
                                 anchors.centerIn: parent
                                 text: "ESC"
-                                color: escBadgeMouse.containsMouse ? root.themeText : root.themeTextMuted
+                                color: "#FFFFFF"
                                 font.pixelSize: 10
                                 font.weight: Font.Bold
-
-                                Behavior on color {
-                                    ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
-                                }
+                                font.letterSpacing: 0.8
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.75)
                             }
                             
                             MouseArea {
@@ -573,7 +599,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                     Rectangle {
                         Layout.fillWidth: true
                         height: 1
-                        color: Qt.alpha(root.themeBorder, 0.20)
+                        color: Qt.rgba(255, 255, 255, 0.10)
                         
                         visible: searchResultsModel.count > 0 || searchInput.text.trim() !== ""
                         opacity: searchContainer.isFullyExpanded ? 1.0 : 0.0
@@ -581,14 +607,11 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         Behavior on opacity {
                             NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                         }
-                        Behavior on color {
-                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
-                        }
                     }
 
                     Item {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 56
+                        Layout.preferredHeight: 52
                         visible: searchResultsModel.count === 0 && searchInput.text.trim() !== ""
                         opacity: searchContainer.isFullyExpanded ? 1.0 : 0.0
 
@@ -611,6 +634,8 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 color: root.themeTextMuted
                                 font.pixelSize: 13
                                 font.weight: Font.Medium
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.75)
                             }
                         }
                     }
@@ -618,11 +643,11 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                     ListView {
                         id: resultsList
                         Layout.fillWidth: true
-                        Layout.preferredHeight: Math.min(searchResultsModel.count * 50, 400)
+                        Layout.preferredHeight: Math.min(searchResultsModel.count * 48, 400)
                         visible: searchResultsModel.count > 0
                         model: searchResultsModel
                         clip: true
-                        spacing: 4
+                        spacing: 2
                         boundsBehavior: Flickable.StopAtBounds
 
                         opacity: searchContainer.isFullyExpanded ? 1.0 : 0.0
@@ -647,7 +672,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 NumberAnimation { property: "opacity"; from: 0; to: 1; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                                 NumberAnimation { 
                                     property: "scale"
-                                    from: 0.92; to: 1.0
+                                    from: 0.95; to: 1.0
                                     duration: root.animEnabled ? animStyle.animDuration : 0
                                     easing.type: animStyle.bounceEasing
                                     easing.overshoot: animStyle.overshoot 
@@ -658,7 +683,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         remove: Transition {
                             ParallelAnimation {
                                 NumberAnimation { property: "opacity"; to: 0; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
-                                NumberAnimation { property: "scale"; to: 0.90; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                NumberAnimation { property: "scale"; to: 0.92; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                             }
                         }
 
@@ -683,13 +708,17 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         delegate: Rectangle {
                             id: itemCard
                             width: resultsList.width
-                            height: 46
+                            height: 44
                             
-                            radius: Math.max(4, root.themeRounding - 4)
+                            radius: 10
                             property bool isSelected: ListView.isCurrentItem
 
-                            color: isSelected ? Qt.alpha(root.themePrimary, 0.16) : (itemCardMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.08) : "transparent")
-                            scale: isSelected ? 1.015 : 1.0
+                            color: isSelected ? Qt.alpha(root.themePrimary, 0.22) : (itemCardMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.08) : "transparent")
+                            border.width: isSelected ? 1 : 0
+                            border.color: isSelected ? Qt.alpha(root.themePrimary, 0.55) : "transparent"
+                            antialiasing: true
+
+                            scale: isSelected ? 1.01 : 1.0
 
                             Behavior on scale {
                                 NumberAnimation {
@@ -705,39 +734,14 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                     easing.type: animStyle.fadeEasing 
                                 }
                             }
-
-                            Rectangle {
-                                width: 3
-                                height: itemCard.isSelected ? 20 : 0
-                                radius: 1.5
-                                color: root.themePrimary
-                                anchors.left: parent.left
-                                anchors.leftMargin: 6
-                                anchors.verticalCenter: parent.verticalCenter
-                                opacity: itemCard.isSelected ? 1 : 0
-                                
-                                Behavior on height {
-                                    NumberAnimation { 
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
-                                    }
-                                }
-                                Behavior on opacity {
-                                    NumberAnimation { 
-                                        duration: animStyle.fadeDuration 
-                                        easing.type: animStyle.fadeEasing 
-                                    }
-                                }
-                                Behavior on color {
-                                    ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
-                                }
+                            Behavior on border.color {
+                                ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                             }
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: 18
-                                anchors.rightMargin: 14
+                                anchors.leftMargin: 12
+                                anchors.rightMargin: 12
                                 spacing: 12
 
                                 ToolButton {
@@ -760,12 +764,14 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                                 Text {
                                     text: model.displayName
-                                    color: itemCard.isSelected ? root.themeText : Qt.alpha(root.themeText, 0.85)
+                                    color: "#FFFFFF"
                                     font.pixelSize: 14
-                                    font.weight: itemCard.isSelected ? Font.Bold : Font.Normal
+                                    font.weight: itemCard.isSelected ? Font.Bold : Font.DemiBold
                                     elide: Text.ElideRight
                                     Layout.fillWidth: true
                                     Layout.alignment: Qt.AlignVCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
 
                                     Behavior on color {
                                         ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
@@ -773,10 +779,13 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 }
 
                                 Rectangle {
-                                    Layout.preferredHeight: 18
-                                    Layout.preferredWidth: typeText.implicitWidth + 10
-                                    radius: 4
-                                    color: model.itemType === "app" ? Qt.alpha(root.themePrimary, 0.18) : Qt.rgba(1, 1, 1, 0.08)
+                                    Layout.preferredHeight: 20
+                                    Layout.preferredWidth: typeText.implicitWidth + 12
+                                    radius: 5
+                                    color: model.itemType === "app" ? Qt.alpha(root.themePrimary, 0.22) : Qt.rgba(255, 255, 255, 0.08)
+                                    border.width: 1
+                                    border.color: model.itemType === "app" ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(255, 255, 255, 0.14)
+                                    antialiasing: true
                                     Layout.alignment: Qt.AlignVCenter
 
                                     Text {
@@ -785,34 +794,26 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                         text: model.itemType === "app" ? "APP" : "FILE"
                                         font.pixelSize: 9
                                         font.weight: Font.Bold
-                                        color: model.itemType === "app" ? root.themePrimary : root.themeTextMuted
-
-                                        Behavior on color {
-                                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
-                                        }
+                                        font.letterSpacing: 0.6
+                                        color: model.itemType === "app" ? root.themePrimary : Qt.rgba(255, 255, 255, 0.75)
                                     }
                                 }
 
-                                RowLayout {
-                                    spacing: 4
-                                    opacity: itemCard.isSelected ? 1 : 0
+                                Text {
+                                    opacity: itemCard.isSelected ? 1.0 : 0.0
+                                    visible: opacity > 0.0
+                                    text: "↵"
+                                    color: root.themePrimary
+                                    font.pixelSize: 14
+                                    font.weight: Font.Bold
                                     Layout.alignment: Qt.AlignVCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
 
                                     Behavior on opacity {
                                         NumberAnimation { 
                                             duration: animStyle.fadeDuration 
                                             easing.type: animStyle.fadeEasing 
-                                        }
-                                    }
-
-                                    Text {
-                                        text: "↵"
-                                        color: root.themePrimary
-                                        font.pixelSize: 13
-                                        font.weight: Font.Bold
-
-                                        Behavior on color {
-                                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
                                         }
                                     }
                                 }

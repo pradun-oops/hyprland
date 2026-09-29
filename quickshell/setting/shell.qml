@@ -27,7 +27,7 @@ Scope {
     property color themeBackground: "#141416"
     property color themeBorder: "#ffb3af"
     property color themeText: "#FFFFFF"
-    property color themeTextMuted: "#A1A1AA"
+    property color themeTextMuted: "#D4D4D8"
     property color themePrimary: "#ffb3af"
 
     property var presetList: [
@@ -92,6 +92,15 @@ Scope {
         function onFocusedMonitorChanged() {
             root.updateTargetMonitor()
         }
+    }
+
+    QtObject {
+        id: animStyle
+        property int animDuration: 380
+        property int fadeDuration: 280
+        property var bounceEasing: Easing.OutBack
+        property var fadeEasing: Easing.OutCubic
+        property real overshoot: 1.4
     }
 
     Process { id: bashRunner }
@@ -405,14 +414,10 @@ Scope {
                     return
                 }
                 isClosing = true
-                mainCloseAnim.start()
-            }
-
-            ParallelAnimation {
-                id: mainCloseAnim
-                NumberAnimation { target: mainCard; property: "scale"; to: 0.88; duration: 220; easing.type: Easing.InBack }
-                NumberAnimation { target: mainCard; property: "opacity"; to: 0; duration: 180; easing.type: Easing.OutCubic }
-                onFinished: Qt.quit()
+                
+                // Explicit quit instead of sequential animation on the root card,
+                // avoiding the ghost blur issue upon exit.
+                Qt.quit()
             }
 
             Shortcut { sequence: "Escape"; onActivated: controlWindow.closeWidget() }
@@ -450,8 +455,10 @@ Scope {
 
                     radius: root.themeRounding
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themeBorder, 0.40)
+                    border.color: Qt.alpha(root.themePrimary, 0.42)
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                    antialiasing: true
+                    clip: true
 
                     scale: 0.85
                     opacity: 0
@@ -474,36 +481,60 @@ Scope {
 
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 12
+                            spacing: 14
 
-                            Text { text: ""; font.pixelSize: 24; color: root.themePrimary }
-                            Text { text: "Hyprland Control Center"; font.pixelSize: 18; font.weight: Font.Bold; color: root.themeText }
+                            Rectangle {
+                                width: 42; height: 42; radius: 12
+                                color: Qt.alpha(root.themePrimary, 0.16)
+                                border.width: 1; border.color: Qt.alpha(root.themePrimary, 0.35)
+                                Layout.alignment: Qt.AlignVCenter
+                                antialiasing: true
+
+                                Text { 
+                                    anchors.centerIn: parent
+                                    text: ""
+                                    font.pixelSize: 22; color: root.themePrimary
+                                }
+                            }
+                            
+                            Text { 
+                                text: "Hyprland Control Center"
+                                font.pixelSize: 18
+                                font.weight: Font.Bold
+                                color: "#FFFFFF"
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                Layout.alignment: Qt.AlignVCenter
+                            }
+
                             Item { Layout.fillWidth: true }
 
                             Rectangle {
-                                Layout.preferredWidth: 220
-                                Layout.preferredHeight: 36
-                                radius: Math.max(4, root.themeRounding - 4)
-                                color: Qt.rgba(1, 1, 1, 0.06)
+                                Layout.preferredWidth: 240
+                                Layout.preferredHeight: 38
+                                radius: 10
+                                color: Qt.rgba(0, 0, 0, 0.35)
                                 border.width: 1
-                                border.color: searchInput.activeFocus ? root.themePrimary : Qt.rgba(1, 1, 1, 0.1)
+                                border.color: searchInput.activeFocus ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                antialiasing: true
 
                                 RowLayout {
                                     anchors.fill: parent
-                                    anchors.leftMargin: 10
-                                    anchors.rightMargin: 10
+                                    anchors.leftMargin: 12
+                                    anchors.rightMargin: 12
                                     spacing: 8
 
-                                    Text { text: ""; font.pixelSize: 13; color: root.themeTextMuted }
+                                    Text { text: ""; font.pixelSize: 14; color: searchInput.activeFocus ? root.themePrimary : root.themeTextMuted }
 
                                     TextField {
                                         id: searchInput
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
                                         font.pixelSize: 13
-                                        color: root.themeText
+                                        font.weight: Font.DemiBold
+                                        color: "#FFFFFF"
                                         placeholderText: "Search settings..."
-                                        placeholderTextColor: Qt.alpha(root.themeTextMuted, 0.5)
+                                        placeholderTextColor: Qt.alpha(1.0, 1.0, 1.0, 0.45)
                                         verticalAlignment: TextInput.AlignVCenter
                                         background: Item {}
 
@@ -519,7 +550,7 @@ Scope {
                         }
 
                         Rectangle {
-                            Layout.fillWidth: true; height: 1; color: Qt.alpha(root.themeBorder, 0.20)
+                            Layout.fillWidth: true; height: 1; color: Qt.rgba(255, 255, 255, 0.12)
                         }
 
                         ListView {
@@ -540,9 +571,12 @@ Scope {
                             delegate: Rectangle {
                                 id: delegateItem
                                 width: settingsList.width
-                                height: 52
-                                radius: Math.max(4, root.themeRounding - 6)
-                                color: ListView.isCurrentItem ? Qt.alpha(root.themePrimary, 0.15) : Qt.rgba(1, 1, 1, 0.04)
+                                height: 56
+                                radius: 12
+                                color: ListView.isCurrentItem ? Qt.alpha(root.themePrimary, 0.22) : Qt.rgba(0, 0, 0, 0.28)
+                                border.width: 1
+                                border.color: ListView.isCurrentItem ? root.themePrimary : Qt.rgba(255, 255, 255, 0.08)
+                                antialiasing: true
 
                                 RowLayout {
                                     anchors.fill: parent
@@ -552,18 +586,23 @@ Scope {
 
                                     Text {
                                         text: model.itemName
-                                        color: root.themeText
+                                        color: "#FFFFFF"
                                         font.pixelSize: 14
-                                        font.weight: Font.Medium
+                                        font.weight: ListView.isCurrentItem ? Font.Bold : Font.DemiBold
                                         Layout.preferredWidth: 170
                                         elide: Text.ElideRight
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.8)
                                     }
 
                                     Rectangle {
                                         height: 22
-                                        implicitWidth: catText.implicitWidth + 14
+                                        implicitWidth: catText.implicitWidth + 16
                                         radius: 6
-                                        color: Qt.alpha(root.themeText, 0.08)
+                                        color: ListView.isCurrentItem ? Qt.alpha(root.themePrimary, 0.3) : Qt.rgba(255, 255, 255, 0.08)
+                                        border.width: 1
+                                        border.color: ListView.isCurrentItem ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(255, 255, 255, 0.12)
+                                        antialiasing: true
 
                                         Text {
                                             id: catText
@@ -571,7 +610,7 @@ Scope {
                                             text: model.itemCategory
                                             font.pixelSize: 10
                                             font.weight: Font.Bold
-                                            color: root.themeTextMuted
+                                            color: ListView.isCurrentItem ? root.themePrimary : root.themeTextMuted
                                         }
                                     }
 
@@ -588,17 +627,18 @@ Scope {
                                             spacing: 6
 
                                             Rectangle {
-                                                width: 28; height: 28
-                                                radius: 6
-                                                color: minusMouse.containsPress ? Qt.alpha(root.themePrimary, 0.4) : (minusMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.alpha(root.themePrimary, 0.15))
-                                                border.color: Qt.alpha(root.themePrimary, 0.4)
+                                                width: 32; height: 32
+                                                radius: 8
+                                                color: minusMouse.containsPress ? Qt.alpha(root.themePrimary, 0.4) : (minusMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.alpha(root.themePrimary, 0.18))
+                                                border.color: Qt.alpha(root.themePrimary, 0.45)
                                                 border.width: 1
+                                                antialiasing: true
 
                                                 Text {
                                                     anchors.centerIn: parent
-                                                    text: "-"
-                                                    color: root.themeText
-                                                    font.pixelSize: 16
+                                                    text: "−"
+                                                    color: "#FFFFFF"
+                                                    font.pixelSize: 18
                                                     font.weight: Font.Bold
                                                 }
 
@@ -620,25 +660,28 @@ Scope {
                                             }
 
                                             Text {
-                                                Layout.preferredWidth: 42
+                                                Layout.preferredWidth: 46
                                                 horizontalAlignment: Text.AlignHCenter
                                                 text: Number(model.itemVal).toFixed(model.itemStep < 1 ? 2 : 0)
                                                 color: root.themePrimary
-                                                font.pixelSize: 13
+                                                font.pixelSize: 14
                                                 font.weight: Font.Bold
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                                             }
 
                                             Rectangle {
-                                                width: 28; height: 28
-                                                radius: 6
-                                                color: plusMouse.containsPress ? Qt.alpha(root.themePrimary, 0.4) : (plusMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.alpha(root.themePrimary, 0.15))
-                                                border.color: Qt.alpha(root.themePrimary, 0.4)
+                                                width: 32; height: 32
+                                                radius: 8
+                                                color: plusMouse.containsPress ? Qt.alpha(root.themePrimary, 0.4) : (plusMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.alpha(root.themePrimary, 0.18))
+                                                border.color: Qt.alpha(root.themePrimary, 0.45)
                                                 border.width: 1
+                                                antialiasing: true
 
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: "+"
-                                                    color: root.themeText
+                                                    color: "#FFFFFF"
                                                     font.pixelSize: 16
                                                     font.weight: Font.Bold
                                                 }
@@ -665,16 +708,18 @@ Scope {
                                             anchors.right: parent.right
                                             anchors.verticalCenter: parent.verticalCenter
                                             visible: model.itemType === "switch"
-                                            width: 42; height: 22
-                                            radius: 11
-                                            color: model.itemValBool ? root.themePrimary : Qt.rgba(1, 1, 1, 0.1)
-                                            border.color: model.itemValBool ? root.themePrimary : Qt.rgba(1, 1, 1, 0.2)
+                                            width: 46; height: 26
+                                            radius: 13
+                                            color: model.itemValBool ? root.themePrimary : Qt.rgba(0, 0, 0, 0.4)
+                                            border.color: model.itemValBool ? Qt.alpha(root.themePrimary, 0.5) : Qt.rgba(255, 255, 255, 0.15)
                                             border.width: 1
+                                            antialiasing: true
 
                                             Rectangle {
                                                 x: model.itemValBool ? parent.width - width - 3 : 3
-                                                y: 3; width: 16; height: 16; radius: 8
-                                                color: model.itemValBool ? root.themeBackground : "#FFFFFF"
+                                                y: 3; width: 20; height: 20; radius: 10
+                                                color: model.itemValBool ? "#000000" : "#FFFFFF"
+                                                antialiasing: true
                                                 Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.InOutQuad } }
                                             }
 
@@ -689,17 +734,20 @@ Scope {
                                             anchors.right: parent.right
                                             anchors.verticalCenter: parent.verticalCenter
                                             visible: model.itemType === "toggle"
-                                            width: 110; height: 28
-                                            radius: 6
-                                            color: toggleMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.alpha(root.themePrimary, 0.15)
-                                            border.color: Qt.alpha(root.themePrimary, 0.4)
+                                            width: 110; height: 30
+                                            radius: 8
+                                            color: toggleMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.alpha(root.themePrimary, 0.18)
+                                            border.color: Qt.alpha(root.themePrimary, 0.45)
                                             border.width: 1
+                                            antialiasing: true
 
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: model.itemValStr.toUpperCase()
-                                                color: root.themePrimary
+                                                color: "#FFFFFF"
                                                 font.pixelSize: 11; font.weight: Font.Bold
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.6)
                                             }
 
                                             MouseArea {
@@ -723,21 +771,24 @@ Scope {
                                             anchors.right: parent.right
                                             anchors.verticalCenter: parent.verticalCenter
                                             visible: model.itemType === "preset"
-                                            width: 130; height: 28
-                                            radius: 6
-                                            color: presetTriggerMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.alpha(root.themePrimary, 0.15)
-                                            border.color: Qt.alpha(root.themePrimary, 0.4)
+                                            width: 140; height: 30
+                                            radius: 8
+                                            color: presetTriggerMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.alpha(root.themePrimary, 0.18)
+                                            border.color: Qt.alpha(root.themePrimary, 0.45)
                                             border.width: 1
+                                            antialiasing: true
 
                                             RowLayout {
                                                 anchors.centerIn: parent
                                                 spacing: 6
                                                 Text {
                                                     text: root.currentAnimPreset
-                                                    color: root.themePrimary
-                                                    font.pixelSize: 11; font.weight: Font.Bold
+                                                    color: "#FFFFFF"
+                                                    font.pixelSize: 12; font.weight: Font.Bold
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                                                 }
-                                                Text { text: "▾"; color: root.themePrimary; font.pixelSize: 10 }
+                                                Text { text: "▾"; color: "#FFFFFF"; font.pixelSize: 10; opacity: 0.8 }
                                             }
 
                                             MouseArea {
@@ -753,23 +804,26 @@ Scope {
                                             anchors.right: parent.right
                                             anchors.verticalCenter: parent.verticalCenter
                                             visible: model.itemType === "cursor"
-                                            width: 130; height: 28
-                                            radius: 6
-                                            color: cursorTriggerMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.alpha(root.themePrimary, 0.15)
-                                            border.color: Qt.alpha(root.themePrimary, 0.4)
+                                            width: 140; height: 30
+                                            radius: 8
+                                            color: cursorTriggerMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.alpha(root.themePrimary, 0.18)
+                                            border.color: Qt.alpha(root.themePrimary, 0.45)
                                             border.width: 1
+                                            antialiasing: true
 
                                             RowLayout {
                                                 anchors.centerIn: parent
                                                 spacing: 6
                                                 Text {
                                                     text: root.currentCursorTheme
-                                                    color: root.themePrimary
-                                                    font.pixelSize: 11; font.weight: Font.Bold
+                                                    color: "#FFFFFF"
+                                                    font.pixelSize: 12; font.weight: Font.Bold
                                                     elide: Text.ElideRight
-                                                    Layout.maximumWidth: 95
+                                                    Layout.maximumWidth: 100
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                                                 }
-                                                Text { text: "▾"; color: root.themePrimary; font.pixelSize: 10 }
+                                                Text { text: "▾"; color: "#FFFFFF"; font.pixelSize: 10; opacity: 0.8 }
                                             }
 
                                             MouseArea {
@@ -787,25 +841,52 @@ Scope {
 
                         Rectangle {
                             Layout.fillWidth: true
-                            height: 30
-                            color: Qt.rgba(0, 0, 0, 0.18)
-                            radius: Math.max(4, root.themeRounding - 6)
+                            height: 36
+                            color: Qt.rgba(0, 0, 0, 0.35)
+                            border.width: 1
+                            border.color: Qt.rgba(255, 255, 255, 0.08)
+                            radius: Math.max(6, root.themeRounding - 6)
+                            antialiasing: true
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 12
+                                anchors.leftMargin: 14
+                                anchors.rightMargin: 14
 
-                                Text { text: filteredModel.count + " settings loaded"; font.pixelSize: 11; color: root.themeTextMuted }
+                                Text { 
+                                    text: filteredModel.count + " settings loaded"
+                                    font.pixelSize: 12
+                                    font.weight: Font.Medium
+                                    color: root.themeTextMuted 
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                }
                                 Item { Layout.fillWidth: true }
                                 RowLayout {
-                                    spacing: 6
+                                    spacing: 8
                                     Rectangle {
-                                        width: 28; height: 18; radius: 4
-                                        color: Qt.alpha(root.themeText, 0.1)
-                                        Text { anchors.centerIn: parent; text: "ESC"; font.pixelSize: 9; color: root.themeTextMuted; font.weight: Font.Bold }
+                                        width: 34; height: 20; radius: 4
+                                        color: Qt.rgba(255, 255, 255, 0.12)
+                                        border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.15)
+                                        antialiasing: true
+                                        Text { 
+                                            anchors.centerIn: parent
+                                            text: "ESC"
+                                            font.pixelSize: 10
+                                            color: "#FFFFFF"
+                                            font.weight: Font.Bold
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                        }
                                     }
-                                    Text { text: "Close"; font.pixelSize: 11; color: root.themeTextMuted }
+                                    Text { 
+                                        text: "Close"
+                                        font.pixelSize: 12
+                                        font.weight: Font.Medium
+                                        color: root.themeTextMuted 
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                    }
                                 }
                             }
                         }
@@ -854,13 +935,14 @@ Scope {
 
                     Rectangle {
                         id: presetCardContainer
-                        width: Math.min(540, parent.width - 60)
-                        height: Math.min(500, parent.height - 70)
+                        width: Math.min(560, parent.width - 60)
+                        height: Math.min(520, parent.height - 70)
                         anchors.centerIn: parent
                         radius: root.themeRounding
-                        color: Qt.alpha(root.themeBackground, 0.85)
+                        color: Qt.alpha(root.themeBackground, 0.95)
                         border.width: root.themeBorderSize
-                        border.color: Qt.alpha(root.themeBorder, 0.5)
+                        border.color: Qt.alpha(root.themePrimary, 0.5)
+                        antialiasing: true
 
                         MouseArea {
                             anchors.fill: parent
@@ -877,13 +959,23 @@ Scope {
                                 Layout.fillWidth: true
                                 spacing: 10
                                 Text { text: "🪄"; font.pixelSize: 22 }
-                                Text { text: "Select Animation Preset"; font.pixelSize: 16; font.weight: Font.Bold; color: root.themeText }
+                                Text { 
+                                    text: "Select Animation Preset"
+                                    font.pixelSize: 18
+                                    font.weight: Font.Bold
+                                    color: "#FFFFFF"
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                }
                                 Item { Layout.fillWidth: true }
                                 Rectangle {
-                                    width: 28; height: 28; radius: 14
-                                    color: dialogCloseMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.3) : Qt.rgba(1, 1, 1, 0.08)
+                                    width: 32; height: 32; radius: 10
+                                    color: dialogCloseMouse.containsMouse ? "#ff4b6e" : Qt.rgba(255, 255, 255, 0.08)
+                                    border.width: 1
+                                    border.color: dialogCloseMouse.containsMouse ? "#ff4b6e" : Qt.rgba(255, 255, 255, 0.12)
+                                    antialiasing: true
                                     Behavior on color { ColorAnimation { duration: 150 } }
-                                    Text { anchors.centerIn: parent; text: "✕"; color: root.themeText; font.pixelSize: 11 }
+                                    Text { anchors.centerIn: parent; text: "✕"; color: "#FFFFFF"; font.pixelSize: 11; font.weight: Font.Bold }
                                     MouseArea {
                                         id: dialogCloseMouse
                                         anchors.fill: parent
@@ -897,12 +989,15 @@ Scope {
                             Text {
                                 text: "Choose a pre-configured physics curve for window popups, transitions, and workspaces."
                                 color: root.themeTextMuted
-                                font.pixelSize: 12
+                                font.pixelSize: 13
+                                font.weight: Font.Medium
                                 Layout.fillWidth: true
                                 wrapMode: Text.WordWrap
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.65)
                             }
 
-                            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.alpha(root.themeBorder, 0.2) }
+                            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(255, 255, 255, 0.12) }
 
                             ListView {
                                 id: presetListView
@@ -920,31 +1015,49 @@ Scope {
                                 delegate: Rectangle {
                                     id: presetItem
                                     width: presetListView.width
-                                    height: 58
-                                    radius: 8
+                                    height: 60
+                                    radius: 12
                                     property bool isActive: modelData.name === root.currentAnimPreset
                                     property bool isHovered: presetCardMouse.containsMouse
 
-                                    color: isActive ? Qt.alpha(root.themePrimary, 0.22) : (isHovered ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.03))
-                                    border.color: isActive ? root.themePrimary : (isHovered ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(1, 1, 1, 0.1))
+                                    color: isActive ? Qt.alpha(root.themePrimary, 0.22) : (isHovered ? Qt.rgba(255, 255, 255, 0.08) : Qt.rgba(0, 0, 0, 0.28))
+                                    border.color: isActive ? root.themePrimary : (isHovered ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(255, 255, 255, 0.08))
                                     border.width: isActive ? 2 : 1
-                                    scale: presetCardMouse.containsPress ? 0.98 : (isHovered ? 1.01 : 1.0)
+                                    antialiasing: true
+
+                                    scale: presetCardMouse.containsPress ? 0.98 : (isHovered ? 1.015 : 1.0)
 
                                     Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
                                     Behavior on color { ColorAnimation { duration: 150 } }
 
                                     RowLayout {
                                         anchors.fill: parent
-                                        anchors.leftMargin: 14
-                                        anchors.rightMargin: 14
+                                        anchors.leftMargin: 16
+                                        anchors.rightMargin: 16
                                         spacing: 12
 
                                         ColumnLayout {
                                             spacing: 2
                                             Layout.fillWidth: true
                                             Layout.alignment: Qt.AlignVCenter
-                                            Text { text: modelData.name; color: root.themeText; font.pixelSize: 13; font.weight: Font.Bold }
-                                            Text { text: modelData.desc; color: root.themeTextMuted; font.pixelSize: 11; elide: Text.ElideRight; Layout.fillWidth: true }
+                                            Text { 
+                                                text: modelData.name
+                                                color: "#FFFFFF"
+                                                font.pixelSize: 14
+                                                font.weight: Font.Bold
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                            }
+                                            Text { 
+                                                text: modelData.desc
+                                                color: root.themeTextMuted
+                                                font.pixelSize: 11
+                                                font.weight: Font.Medium
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true 
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                            }
                                         }
 
                                         Item {
@@ -957,16 +1070,20 @@ Scope {
                                                 visible: isActive
                                                 width: 20; height: 20; radius: 10
                                                 color: root.themePrimary
-                                                Text { anchors.centerIn: parent; text: "✓"; color: root.themeBackground; font.pixelSize: 11; font.weight: Font.Bold }
+                                                antialiasing: true
+                                                Text { anchors.centerIn: parent; text: "✓"; color: "#000000"; font.pixelSize: 11; font.weight: Font.Bold }
                                             }
                                         }
 
                                         Rectangle {
                                             Layout.alignment: Qt.AlignVCenter
-                                            Layout.preferredHeight: 20
-                                            Layout.preferredWidth: tagText.implicitWidth + 10
-                                            radius: 4
-                                            color: isActive ? root.themePrimary : Qt.rgba(1, 1, 1, 0.08)
+                                            Layout.preferredHeight: 22
+                                            Layout.preferredWidth: tagText.implicitWidth + 12
+                                            radius: 6
+                                            color: isActive ? root.themePrimary : Qt.rgba(255, 255, 255, 0.1)
+                                            border.width: 1
+                                            border.color: isActive ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
+                                            antialiasing: true
 
                                             Text {
                                                 id: tagText
@@ -974,7 +1091,9 @@ Scope {
                                                 text: modelData.tag
                                                 font.pixelSize: 10
                                                 font.weight: Font.Bold
-                                                color: isActive ? root.themeBackground : root.themeTextMuted
+                                                color: isActive ? "#000000" : "#FFFFFF"
+                                                style: isActive ? Text.Normal : Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                                             }
                                         }
                                     }
@@ -1037,13 +1156,14 @@ Scope {
 
                     Rectangle {
                         id: cursorCardContainer
-                        width: Math.min(540, parent.width - 60)
-                        height: Math.min(500, parent.height - 70)
+                        width: Math.min(560, parent.width - 60)
+                        height: Math.min(520, parent.height - 70)
                         anchors.centerIn: parent
                         radius: root.themeRounding
-                        color: Qt.alpha(root.themeBackground, 0.85)
+                        color: Qt.alpha(root.themeBackground, 0.95)
                         border.width: root.themeBorderSize
-                        border.color: Qt.alpha(root.themeBorder, 0.5)
+                        border.color: Qt.alpha(root.themePrimary, 0.5)
+                        antialiasing: true
 
                         MouseArea {
                             anchors.fill: parent
@@ -1060,13 +1180,23 @@ Scope {
                                 Layout.fillWidth: true
                                 spacing: 10
                                 Text { text: "🖱️"; font.pixelSize: 22 }
-                                Text { text: "Installed Cursor Themes"; font.pixelSize: 16; font.weight: Font.Bold; color: root.themeText }
+                                Text { 
+                                    text: "Installed Cursor Themes"
+                                    font.pixelSize: 18
+                                    font.weight: Font.Bold
+                                    color: "#FFFFFF"
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                }
                                 Item { Layout.fillWidth: true }
                                 Rectangle {
-                                    width: 28; height: 28; radius: 14
-                                    color: cursorCloseMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.3) : Qt.rgba(1, 1, 1, 0.08)
+                                    width: 32; height: 32; radius: 10
+                                    color: cursorCloseMouse.containsMouse ? "#ff4b6e" : Qt.rgba(255, 255, 255, 0.08)
+                                    border.width: 1
+                                    border.color: cursorCloseMouse.containsMouse ? "#ff4b6e" : Qt.rgba(255, 255, 255, 0.12)
+                                    antialiasing: true
                                     Behavior on color { ColorAnimation { duration: 150 } }
-                                    Text { anchors.centerIn: parent; text: "✕"; color: root.themeText; font.pixelSize: 11 }
+                                    Text { anchors.centerIn: parent; text: "✕"; color: "#FFFFFF"; font.pixelSize: 11; font.weight: Font.Bold }
                                     MouseArea {
                                         id: cursorCloseMouse
                                         anchors.fill: parent
@@ -1080,11 +1210,14 @@ Scope {
                             Text {
                                 text: "System detected " + root.installedCursors.length + " installed cursor pack(s). Click to apply dynamically."
                                 color: root.themeTextMuted
-                                font.pixelSize: 12
+                                font.pixelSize: 13
+                                font.weight: Font.Medium
                                 Layout.fillWidth: true
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.65)
                             }
 
-                            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.alpha(root.themeBorder, 0.2) }
+                            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(255, 255, 255, 0.12) }
 
                             ListView {
                                 id: cursorListView
@@ -1101,15 +1234,17 @@ Scope {
 
                                 delegate: Rectangle {
                                     width: cursorListView.width
-                                    height: 48
-                                    radius: 8
+                                    height: 52
+                                    radius: 10
                                     property bool isActive: modelData === root.currentCursorTheme
                                     property bool isHovered: cursorCardMouse.containsMouse
 
-                                    color: isActive ? Qt.alpha(root.themePrimary, 0.20) : (isHovered ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.03))
-                                    border.color: isActive ? root.themePrimary : (isHovered ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(1, 1, 1, 0.1))
+                                    color: isActive ? Qt.alpha(root.themePrimary, 0.22) : (isHovered ? Qt.rgba(255, 255, 255, 0.08) : Qt.rgba(0, 0, 0, 0.28))
+                                    border.color: isActive ? root.themePrimary : (isHovered ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(255, 255, 255, 0.08))
                                     border.width: isActive ? 2 : 1
-                                    scale: cursorCardMouse.containsPress ? 0.98 : (isHovered ? 1.01 : 1.0)
+                                    antialiasing: true
+
+                                    scale: cursorCardMouse.containsPress ? 0.98 : (isHovered ? 1.015 : 1.0)
 
                                     Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack; easing.overshoot: 1.2 } }
                                     Behavior on color { ColorAnimation { duration: 150 } }
@@ -1121,7 +1256,17 @@ Scope {
                                         spacing: 12
 
                                         Text { text: "👆"; font.pixelSize: 16; Layout.alignment: Qt.AlignVCenter }
-                                        Text { text: modelData; color: root.themeText; font.pixelSize: 13; font.weight: Font.Bold; Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter; elide: Text.ElideRight }
+                                        Text { 
+                                            text: modelData
+                                            color: "#FFFFFF"
+                                            font.pixelSize: 14
+                                            font.weight: Font.Bold
+                                            Layout.fillWidth: true
+                                            Layout.alignment: Qt.AlignVCenter
+                                            elide: Text.ElideRight
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                        }
 
                                         Item {
                                             Layout.preferredWidth: 24
@@ -1133,7 +1278,8 @@ Scope {
                                                 visible: isActive
                                                 width: 20; height: 20; radius: 10
                                                 color: root.themePrimary
-                                                Text { anchors.centerIn: parent; text: "✓"; color: root.themeBackground; font.pixelSize: 11; font.weight: Font.Bold }
+                                                antialiasing: true
+                                                Text { anchors.centerIn: parent; text: "✓"; color: "#000000"; font.pixelSize: 11; font.weight: Font.Bold }
                                             }
                                         }
                                     }

@@ -41,11 +41,11 @@ Scope {
     property bool animEnabled: true
 
     property color themeBackground: "#0d0e15" 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.06)    
-    property color themeSurfaceHover: Qt.rgba(1.0, 1.0, 1.0, 0.12)    
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.35)    
+    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)    
     property color themeBorder: "#ffb3af"
     property color themeText: "#FFFFFF"          
-    property color themeTextMuted: "#A1A1AA"
+    property color themeTextMuted: "#D4D4D8"
     property color themePrimary: "#ffb3af"        
 
     QtObject {
@@ -262,7 +262,7 @@ Scope {
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -476,8 +476,9 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                     radius: root.themeRounding
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themeBorder, 0.3)
+                    border.color: Qt.alpha(root.themePrimary, 0.40)
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                    antialiasing: true
 
                     scale: window.visible ? 1.0 : 0.85
                     opacity: window.visible ? 1.0 : 0.0
@@ -512,9 +513,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             Layout.fillWidth: true
                             Layout.preferredHeight: 56
                             radius: 18
-                            color: Qt.rgba(1.0, 1.0, 1.0, 0.05)
+                            color: Qt.rgba(0, 0, 0, 0.35)
                             border.width: searchInput.activeFocus ? 2 : 1
-                            border.color: searchInput.activeFocus ? root.themePrimary : Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                            border.color: searchInput.activeFocus ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                            antialiasing: true
 
                             scale: searchInput.activeFocus ? 1.01 : 1.0
 
@@ -547,10 +549,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
                                     placeholderText: root.searchMode === "apps" ? "Search apps starting with..." : "Search files starting with..."
-                                    placeholderTextColor: root.themeTextMuted
-                                    color: root.themeText
+                                    placeholderTextColor: Qt.rgba(1.0, 1.0, 1.0, 0.45)
+                                    color: "#FFFFFF"
                                     font.pixelSize: 16
-                                    font.weight: Font.Medium
+                                    font.weight: Font.DemiBold
                                     background: Item {}
                                     focus: true
 
@@ -570,7 +572,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                     width: 28
                                     height: 28
                                     radius: 14
-                                    color: clearMouse.containsMouse ? Qt.rgba(1.0, 1.0, 1.0, 0.2) : Qt.rgba(1.0, 1.0, 1.0, 0.08)
+                                    color: clearMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.2) : Qt.rgba(0, 0, 0, 0.3)
+                                    border.width: 1
+                                    border.color: Qt.rgba(255, 255, 255, 0.12)
+                                    antialiasing: true
                                     visible: searchInput.text !== ""
                                     scale: visible ? 1.0 : 0.0
 
@@ -583,9 +588,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                                     Text {
                                         text: "✕"
-                                        color: root.themeText
+                                        color: "#FFFFFF"
                                         anchors.centerIn: parent
                                         font.pixelSize: 12
+                                        font.weight: Font.Bold
                                     }
 
                                     MouseArea {
@@ -604,9 +610,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                     Layout.preferredWidth: 160
                                     Layout.preferredHeight: 38
                                     radius: 12
-                                    color: Qt.rgba(0, 0, 0, 0.3)
+                                    color: Qt.rgba(0, 0, 0, 0.4)
                                     border.width: 1
-                                    border.color: Qt.rgba(1.0, 1.0, 1.0, 0.1)
+                                    border.color: Qt.rgba(255, 255, 255, 0.12)
+                                    antialiasing: true
 
                                     Rectangle {
                                         id: activePill
@@ -615,9 +622,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                         y: 3
                                         x: root.searchMode === "apps" ? 3 : (parent.width / 2) + 0
                                         radius: 10
-                                        color: Qt.alpha(root.themePrimary, 0.25)
+                                        color: Qt.alpha(root.themePrimary, 0.35)
                                         border.color: root.themePrimary
                                         border.width: 1
+                                        antialiasing: true
 
                                         Behavior on x {
                                             NumberAnimation {
@@ -639,9 +647,11 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: "Apps"
-                                                color: root.searchMode === "apps" ? root.themeText : root.themeTextMuted
-                                                font.weight: root.searchMode === "apps" ? Font.Bold : Font.Normal
+                                                color: root.searchMode === "apps" ? "#FFFFFF" : root.themeTextMuted
+                                                font.weight: Font.Bold
                                                 font.pixelSize: 13
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                                             }
 
                                             MouseArea {
@@ -662,9 +672,11 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: "Files"
-                                                color: root.searchMode === "files" ? root.themeText : root.themeTextMuted
-                                                font.weight: root.searchMode === "files" ? Font.Bold : Font.Normal
+                                                color: root.searchMode === "files" ? "#FFFFFF" : root.themeTextMuted
+                                                font.weight: Font.Bold
                                                 font.pixelSize: 13
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                                             }
 
                                             MouseArea {
@@ -700,8 +712,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 Text {
                                     text: root.searchMode === "apps" ? "No applications found" : (root.searchQuery === "" ? "Type to search system files..." : "No matching files found")
                                     font.pixelSize: 16
-                                    font.weight: Font.Medium
+                                    font.weight: Font.Bold
                                     color: root.themeTextMuted
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
                                     Layout.alignment: Qt.AlignHCenter
                                 }
                             }
@@ -720,9 +734,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 visible: root.searchQuery === "" && pinnedModel.count > 0
                                 implicitHeight: pinnedColumn.implicitHeight + 20
                                 radius: 18
-                                color: Qt.rgba(1.0, 1.0, 1.0, 0.035)
+                                color: Qt.rgba(0, 0, 0, 0.35)
                                 border.width: 1
-                                border.color: Qt.alpha(root.themeBorder, 0.15)
+                                border.color: Qt.rgba(255, 255, 255, 0.12)
+                                antialiasing: true
 
                                 ColumnLayout {
                                     id: pinnedColumn
@@ -740,13 +755,18 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                             font.pixelSize: 11
                                             font.weight: Font.Bold
                                             font.letterSpacing: 1.2
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.7)
                                         }
 
                                         Rectangle {
                                             width: pinnedCountText.implicitWidth + 12
                                             height: 18
                                             radius: 9
-                                            color: Qt.alpha(root.themePrimary, 0.15)
+                                            color: Qt.alpha(root.themePrimary, 0.22)
+                                            border.width: 1
+                                            border.color: Qt.alpha(root.themePrimary, 0.4)
+                                            antialiasing: true
                                             Text {
                                                 id: pinnedCountText
                                                 anchors.centerIn: parent
@@ -761,8 +781,11 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                                         Text {
                                             text: "Double right-click to unpin"
-                                            color: Qt.alpha(root.themeTextMuted, 0.5)
-                                            font.pixelSize: 10
+                                            color: root.themeTextMuted
+                                            font.pixelSize: 11
+                                            font.weight: Font.Medium
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.65)
                                         }
                                     }
 
@@ -794,9 +817,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                                     Rectangle {
                                                         anchors.fill: parent
                                                         radius: 16
-                                                        color: pMouseArea.containsMouse ? root.themeSurfaceHover : Qt.rgba(1.0, 1.0, 1.0, 0.02)
+                                                        color: pMouseArea.containsMouse ? root.themeSurfaceHover : Qt.rgba(0, 0, 0, 0.25)
                                                         border.width: 1
-                                                        border.color: pMouseArea.containsMouse ? Qt.alpha(root.themeBorder, 0.3) : "transparent"
+                                                        border.color: pMouseArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.08)
+                                                        antialiasing: true
 
                                                         scale: pMouseArea.pressed ? 0.94 : (pMouseArea.containsMouse ? 1.05 : 1.0)
 
@@ -839,14 +863,15 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                                                     source: model.iconName.startsWith("/") ? "file://" + model.iconName : ""
                                                                     sourceSize: Qt.size(46, 46)
                                                                     fillMode: Image.PreserveAspectFit
+                                                                    antialiasing: true
                                                                 }
                                                             }
 
                                                             Text {
                                                                 text: model.displayName
-                                                                color: root.themeText
+                                                                color: "#FFFFFF"
                                                                 font.pixelSize: 11
-                                                                font.weight: pMouseArea.containsMouse ? Font.Bold : Font.Medium
+                                                                font.weight: Font.Bold
                                                                 horizontalAlignment: Text.AlignHCenter
                                                                 verticalAlignment: Text.AlignTop
                                                                 wrapMode: Text.WordWrap
@@ -855,6 +880,8 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                                                 lineHeight: 1.15
                                                                 Layout.fillWidth: true
                                                                 Layout.preferredHeight: 30
+                                                                style: Text.Raised
+                                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
                                                             }
                                                         }
 
@@ -892,16 +919,18 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                                 Text {
                                     text: "ALL APPLICATIONS"
-                                    color: root.themeTextMuted
+                                    color: "#FFFFFF"
                                     font.pixelSize: 11
                                     font.weight: Font.Bold
                                     font.letterSpacing: 1.2
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
 
                                 Rectangle {
                                     Layout.fillWidth: true
                                     height: 1
-                                    color: Qt.alpha(root.themeBorder, 0.12)
+                                    color: Qt.rgba(255, 255, 255, 0.12)
                                 }
                             }
 
@@ -935,7 +964,8 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                         radius: 18
                                         color: appMouseArea.containsMouse ? root.themeSurfaceHover : "transparent"
                                         border.width: 1
-                                        border.color: appMouseArea.containsMouse ? Qt.alpha(root.themeBorder, 0.3) : "transparent"
+                                        border.color: appMouseArea.containsMouse ? root.themePrimary : "transparent"
+                                        antialiasing: true
 
                                         scale: appMouseArea.pressed ? 0.94 : (appMouseArea.containsMouse ? 1.06 : 1.0)
                                         
@@ -982,14 +1012,15 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                                     source: model.iconName.startsWith("/") ? "file://" + model.iconName : ""
                                                     sourceSize: Qt.size(56, 56)
                                                     fillMode: Image.PreserveAspectFit
+                                                    antialiasing: true
                                                 }
                                             }
 
                                             Text {
                                                 text: model.displayName
-                                                color: root.themeText
+                                                color: "#FFFFFF"
                                                 font.pixelSize: 12
-                                                font.weight: appMouseArea.containsMouse ? Font.Bold : Font.Medium
+                                                font.weight: Font.Bold
                                                 horizontalAlignment: Text.AlignHCenter
                                                 verticalAlignment: Text.AlignTop
                                                 wrapMode: Text.WordWrap
@@ -999,6 +1030,8 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                                 Layout.fillWidth: true
                                                 Layout.maximumWidth: 88
                                                 Layout.preferredHeight: 36
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
                                             }
                                         }
 
@@ -1045,9 +1078,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 width: fileListView.width
                                 height: 52
                                 radius: 14
-                                color: fileMouseArea.containsMouse ? root.themeSurfaceHover : Qt.rgba(1.0, 1.0, 1.0, 0.03)
+                                color: fileMouseArea.containsMouse ? root.themeSurfaceHover : Qt.rgba(0, 0, 0, 0.3)
                                 border.width: 1
-                                border.color: fileMouseArea.containsMouse ? Qt.alpha(root.themeBorder, 0.3) : "transparent"
+                                border.color: fileMouseArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.1)
+                                antialiasing: true
 
                                 scale: fileMouseArea.pressed ? 0.98 : (fileMouseArea.containsMouse ? 1.02 : 1.0)
 
@@ -1095,19 +1129,24 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                                         Text {
                                             text: model.displayName
-                                            color: root.themeText
+                                            color: "#FFFFFF"
                                             font.pixelSize: 14
-                                            font.weight: Font.Medium
+                                            font.weight: Font.Bold
                                             elide: Text.ElideRight
                                             Layout.fillWidth: true
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.8)
                                         }
 
                                         Text {
                                             text: model.filePath
                                             color: root.themeTextMuted
                                             font.pixelSize: 11
+                                            font.weight: Font.Medium
                                             elide: Text.ElideMiddle
                                             Layout.fillWidth: true
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.6)
                                         }
                                     }
                                 }

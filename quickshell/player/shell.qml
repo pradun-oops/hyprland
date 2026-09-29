@@ -18,7 +18,10 @@ Scope {
     
     property int themeRounding: 16
     property int themeBorderSize: 1
+    
+    // The background will now strictly follow this 50% transparency value
     property real themeBgAlpha: 0.5
+    
     property bool animEnabled: true
     property int animDuration: 380
 
@@ -352,39 +355,6 @@ Scope {
                     anchors.fill: parent
                     radius: root.themeRounding
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
-                    antialiasing: true
-                }
-
-                Image {
-                    id: bgArt
-                    anchors.fill: parent
-                    source: root.mediaArtUrl
-                    fillMode: Image.PreserveAspectCrop
-                    visible: false 
-                }
-
-                Rectangle {
-                    id: maskRect
-                    anchors.fill: parent
-                    radius: root.themeRounding
-                    color: "black"
-                    visible: false
-                    antialiasing: true
-                }
-
-                OpacityMask {
-                    anchors.fill: parent
-                    source: bgArt
-                    maskSource: maskRect
-                    visible: root.mediaArtUrl !== "" && bgArt.status === Image.Ready
-                    antialiasing: true
-                }
-
-                Rectangle {
-                    anchors.fill: parent
-                    radius: root.themeRounding
-                    color: root.mediaArtUrl !== "" ? Qt.rgba(0, 0, 0, 0.75) : "transparent"
-                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                     antialiasing: true
                 }
 

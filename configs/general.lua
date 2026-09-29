@@ -14,8 +14,8 @@ hl.config({
     -- Defines tile gaps, border thickness, layout engine, and tearing behavior.
     general = {
         gaps_in       = 5,             -- Inner spacing between adjacent windows
-        gaps_out      = 5,             -- Outer spacing between windows and screen edges
-        border_size   = 2,             -- Window border line thickness (px)
+        gaps_out      = { top = 10, right = 5, bottom = 5, left = 5 },  -- Outer spacing between windows and screen edges
+        border_size   = 1,             -- Window border line thickness (px)
         layout        = "scrolling",   -- Active layout engine (PaperWM-style scrolling flow)
         allow_tearing = false,         -- Prevent screen tearing (ideal for non-gaming stability)
     },
@@ -36,8 +36,8 @@ hl.config({
     -- Controls corner rounding, translucency, frosted glass effects, and depth shadows.
     decoration = {
         rounding           = 15,   -- Corner radius for smooth rounded window frames
-        active_opacity     = 0.85, -- Translucency level of currently focused window
-        inactive_opacity   = 0.85, -- Translucency level of background/unfocused windows
+        active_opacity     = 0.9, -- Translucency level of currently focused window
+        inactive_opacity   = 0.9, -- Translucency level of background/unfocused windows
         fullscreen_opacity = 1.0,  -- Solid 100% opacity when viewing fullscreen applications
 
         -- Frosted glass backdrop blur (optimized for Wayland rendering)

@@ -3,7 +3,8 @@
 # ==========================================================
 # 🚀 Fedora Post-Install & Hyprland Environment Setup
 # Automates packages, audio daemons, Quickshell COPR,
-# dynamic theming tools (Matugen), wallpaper engines, and RGB drivers.
+# dynamic theming tools (Matugen), wallpaper engines, RGB drivers,
+# and the Hyprglass liquid glass compositor plugin.
 # ==========================================================
 
 set -euo pipefail
@@ -18,7 +19,7 @@ sudo dnf upgrade --refresh -y
 # ==========================================================
 # 📦 Core Hyprland Desktop & Utility Dependencies
 # Installs compositor, audio framework, screenshot tools, 
-# build essentials, and runtime helpers.
+# build essentials, runtime helpers, and hyprglass build headers.
 # ==========================================================
 echo ":: Installing core desktop and development packages..."
 sudo dnf install -y --allowerasing \
@@ -56,7 +57,10 @@ sudo dnf install -y --allowerasing \
     cargo \
     gcc \
     gcc-c++ \
+    cmake \
     make \
+    pkgconf-pkg-config \
+    hyprland-devel \
     lolcat
 
 # ==========================================================
@@ -103,6 +107,16 @@ if ! command -v legionaura >/dev/null 2>&1; then
     echo ":: Installing LegionAura Python package..."
     pip3 install --user legionaura --break-system-packages
 fi
+
+# ==========================================================
+# 🧊 Hyprglass Plugin Setup (Hyprpm)
+# Initializes plugin manager headers and installs hyprglass.
+# ==========================================================
+echo ":: Setting up Hyprglass liquid glass plugin..."
+# Note: hyprpm manages plugins per user; initializing state and adding repo:
+hyprpm update || true
+hyprpm add https://github.com/hyprnux/hyprglass || true
+hyprpm enable hyprglass || true
 
 # ==========================================================
 # ⚙️ Systemd Daemons & Hardware Service Activation

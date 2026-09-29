@@ -58,7 +58,7 @@ Scope {
     property color themeBorder: "#ffb3af"
     property color themePrimary: "#ffb3af"
     property color themeText: "#FFFFFF"
-    property color themeTextMuted: "#C5C5C5" 
+    property color themeTextMuted: "#D4D4D8" 
     
     property int themeRounding: 12
     property int themeBorderSize: 2
@@ -580,13 +580,17 @@ Scope {
                 color: root.themeText
                 font.pixelSize: 13
                 font.weight: Font.Bold
+                style: Text.Raised
+                styleColor: Qt.rgba(0, 0, 0, 0.75)
             }
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: gaugeRoot.label
                 color: root.themeTextMuted
                 font.pixelSize: 9
-                font.weight: Font.DemiBold
+                font.weight: Font.Bold
+                style: Text.Raised
+                styleColor: Qt.rgba(0, 0, 0, 0.7)
             }
         }
     }
@@ -748,6 +752,8 @@ Scope {
                                 font.pixelSize: 18
                                 font.weight: Font.Bold
                                 visible: false
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                             }
                         }
                         
@@ -755,15 +761,19 @@ Scope {
                             spacing: 0
                             Text {
                                 text: "Pradun Kumar"
-                                color: root.themeText
+                                color: "#FFFFFF"
                                 font.pixelSize: 18
                                 font.weight: Font.Bold
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.85)
                             }
                             Text {
                                 text: (Quickshell.env("XDG_CURRENT_DESKTOP") || "Hyprland") + " • Fedora 43"
                                 color: root.themePrimary
                                 font.pixelSize: 12
                                 font.weight: Font.DemiBold
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                             }
                         }
                         
@@ -799,6 +809,8 @@ Scope {
                                     font.pixelSize: 14
                                     color: root.themePrimary
                                     Layout.alignment: Qt.AlignVCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                                 }
 
                                 Text {
@@ -809,6 +821,8 @@ Scope {
                                     Layout.maximumWidth: 100
                                     elide: Text.ElideRight
                                     Layout.alignment: Qt.AlignVCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
 
                                 Text {
@@ -817,6 +831,8 @@ Scope {
                                     font.pixelSize: 11
                                     font.weight: Font.Bold
                                     Layout.alignment: Qt.AlignVCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                                 }
                             }
 
@@ -846,10 +862,12 @@ Scope {
                                 spacing: 4
                                 Text {
                                     text: root.currentTimeExact
-                                    color: root.themeText
+                                    color: "#FFFFFF"
                                     font.pixelSize: 48
                                     font.weight: Font.Bold
                                     lineHeight: 0.9
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
                                 }
                                 Text {
                                     text: root.currentPeriod
@@ -858,6 +876,8 @@ Scope {
                                     font.weight: Font.Black
                                     Layout.alignment: Qt.AlignTop
                                     Layout.topMargin: 8
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                 }
                             }
                             Text {
@@ -866,6 +886,8 @@ Scope {
                                 font.pixelSize: 14
                                 font.weight: Font.DemiBold
                                 font.letterSpacing: 1.0
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.75)
                             }
                         }
 
@@ -888,16 +910,20 @@ Scope {
                                     spacing: 0
                                     Text {
                                         text: root.currentWeatherTemp + "°C"
-                                        color: root.themeText
+                                        color: "#FFFFFF"
                                         font.pixelSize: 22
                                         font.weight: Font.Bold
                                         lineHeight: 0.9
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
                                     Text {
                                         text: root.currentWeatherDesc
                                         color: root.themeTextMuted
                                         font.pixelSize: 14
                                         font.weight: Font.Medium
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                     }
                                 }
                             }
@@ -907,6 +933,8 @@ Scope {
                                 font.pixelSize: 12
                                 Layout.alignment: Qt.AlignRight
                                 Layout.topMargin: 4
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.65)
                             }
                         }
                     }
@@ -926,20 +954,68 @@ Scope {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Text { text: "💧 Humidity"; color: root.themeTextMuted; font.pixelSize: 11; font.weight: Font.Bold; Layout.alignment: Qt.AlignHCenter }
-                                Text { text: root.currentWeatherHumidity; color: root.themeText; font.pixelSize: 13; font.weight: Font.DemiBold; Layout.alignment: Qt.AlignHCenter }
+                                Text { 
+                                    text: "💧 Humidity"
+                                    color: root.themeTextMuted
+                                    font.pixelSize: 11
+                                    font.weight: Font.Bold
+                                    Layout.alignment: Qt.AlignHCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                }
+                                Text { 
+                                    text: root.currentWeatherHumidity
+                                    color: "#FFFFFF"
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                    Layout.alignment: Qt.AlignHCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Text { text: "💨 Wind"; color: root.themeTextMuted; font.pixelSize: 11; font.weight: Font.Bold; Layout.alignment: Qt.AlignHCenter }
-                                Text { text: root.currentWeatherWind; color: root.themeText; font.pixelSize: 13; font.weight: Font.DemiBold; Layout.alignment: Qt.AlignHCenter }
+                                Text { 
+                                    text: "💨 Wind"
+                                    color: root.themeTextMuted
+                                    font.pixelSize: 11
+                                    font.weight: Font.Bold
+                                    Layout.alignment: Qt.AlignHCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                }
+                                Text { 
+                                    text: root.currentWeatherWind
+                                    color: "#FFFFFF"
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                    Layout.alignment: Qt.AlignHCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                }
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 6
-                                Text { text: "⏲️ Pressure"; color: root.themeTextMuted; font.pixelSize: 11; font.weight: Font.Bold; Layout.alignment: Qt.AlignHCenter }
-                                Text { text: root.currentWeatherPressure; color: root.themeText; font.pixelSize: 13; font.weight: Font.DemiBold; Layout.alignment: Qt.AlignHCenter }
+                                Text { 
+                                    text: "⏲️ Pressure"
+                                    color: root.themeTextMuted
+                                    font.pixelSize: 11
+                                    font.weight: Font.Bold
+                                    Layout.alignment: Qt.AlignHCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                }
+                                Text { 
+                                    text: root.currentWeatherPressure
+                                    color: "#FFFFFF"
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                    Layout.alignment: Qt.AlignHCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                }
                             }
                         }
                     }
@@ -973,6 +1049,8 @@ Scope {
                         color: root.themeTextMuted
                         font.pixelSize: 11
                         font.weight: Font.Medium
+                        style: Text.Raised
+                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                     }
                 }
             }

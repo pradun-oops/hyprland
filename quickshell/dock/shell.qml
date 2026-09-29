@@ -16,7 +16,7 @@ Scope {
     property color themeTextMuted: "#a1a1aa"
     
     property int themeRounding: 20
-    property int themeBorderSize: 1
+    property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
@@ -210,7 +210,7 @@ Scope {
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = Math.min(parseInt(rMatch[1]) + 4, 28)
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -565,16 +565,17 @@ except Exception:
 
                 Rectangle {
                     id: sharedTooltip
-                    height: 26
-                    width: tooltipLabel.implicitWidth + 20
-                    radius: 15
-                    color: Qt.alpha(root.themeBackground, 0.95)
+                    height: 28
+                    width: tooltipLabel.implicitWidth + 24
+                    radius: 14
+                    color: Qt.rgba(0, 0, 0, 0.82)
                     border.width: 1
-                    border.color: Qt.alpha(root.themeBorder, 0.3)
-                    z: 20
+                    border.color: Qt.rgba(255, 255, 255, 0.18)
+                    antialiasing: true
+                    z: 30
                     
                     anchors.bottom: dockContainer.top
-                    anchors.bottomMargin: 6
+                    anchors.bottomMargin: 12
                     
                     property real targetX: dockWindow.activeTooltipX - (width / 2)
                     x: Math.max(0, Math.min(targetX, rootContainer.width - width))
@@ -582,14 +583,17 @@ except Exception:
                     
                     visible: dockWindow.activeTooltipText !== ""
                     opacity: visible ? 1.0 : 0.0
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
 
                     Text {
                         id: tooltipLabel
                         anchors.centerIn: parent
                         text: dockWindow.activeTooltipText
-                        color: root.themeText
-                        font.pixelSize: 13
-                        font.weight: Font.Medium
+                        color: "#FFFFFF"
+                        font.pixelSize: 12
+                        font.weight: Font.Bold
+                        style: Text.Raised
+                        styleColor: Qt.rgba(0, 0, 0, 0.9)
                     }
                 }
 
@@ -614,7 +618,8 @@ except Exception:
                     radius: root.themeRounding
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themeBorder, 0.45)
+                    border.color: Qt.alpha(root.themePrimary, 0.40)
+                    antialiasing: true
 
                     opacity: dockWindow.dockShouldBeVisible ? 1.0 : 0.0
                     Behavior on opacity { 
@@ -647,9 +652,10 @@ except Exception:
                         Item {
                             width: 52
                             height: 52
+                            z: launcherMouse.containsMouse ? 20 : 1
 
-                            scale: launcherMouse.containsMouse ? 1.15 : 1.0
-                            anchors.verticalCenterOffset: launcherMouse.containsMouse ? -4 : 0
+                            scale: launcherMouse.containsMouse ? 1.32 : 1.0
+                            anchors.verticalCenterOffset: launcherMouse.containsMouse ? -8 : 0
                             
                             Behavior on scale { 
                                 NumberAnimation { 
@@ -670,6 +676,7 @@ except Exception:
                                 color: "#27272a"
                                 border.width: 1
                                 border.color: Qt.alpha("#ffffff", 0.15)
+                                antialiasing: true
 
                                 Grid {
                                     anchors.centerIn: parent
@@ -680,6 +687,7 @@ except Exception:
                                         model: 9
                                         delegate: Rectangle {
                                             width: 5; height: 5; radius: 2.5; color: root.themePrimary
+                                            antialiasing: true
                                         }
                                     }
                                 }
@@ -719,6 +727,7 @@ except Exception:
                             color: Qt.alpha(root.themeBorder, 0.25)
                             Layout.leftMargin: 2
                             Layout.rightMargin: 2
+                            antialiasing: true
                         }
 
                         ListView {
@@ -728,6 +737,7 @@ except Exception:
                             orientation: ListView.Horizontal
                             spacing: 12 
                             interactive: false 
+                            clip: false
 
                             add: Transition {
                                 ParallelAnimation {
@@ -764,6 +774,7 @@ except Exception:
                                     height: 64
                                     keys: ["app"]
                                     property int visualIndex: DelegateModel.itemsIndex
+                                    z: itemMouse.containsMouse ? 20 : 1
 
                                     onEntered: (drag) => {
                                         let from = drag.source.visualIndex
@@ -791,8 +802,8 @@ except Exception:
                                             return count
                                         }
 
-                                        scale: itemMouse.containsMouse && !Drag.active ? 1.15 : (Drag.active ? 1.05 : 1.0)
-                                        anchors.verticalCenterOffset: itemMouse.containsMouse && !Drag.active ? -4 : 0
+                                        scale: itemMouse.containsMouse && !Drag.active ? 1.32 : (Drag.active ? 1.05 : 1.0)
+                                        anchors.verticalCenterOffset: itemMouse.containsMouse && !Drag.active ? -8 : 0
                                         
                                         Behavior on scale { 
                                             NumberAnimation { 
@@ -839,6 +850,7 @@ except Exception:
                                                 source: model.iconName.startsWith("/") ? "file://" + model.iconName : ""
                                                 sourceSize: Qt.size(52, 52)
                                                 fillMode: Image.PreserveAspectFit
+                                                antialiasing: true
                                             }
                                             
                                             Row {
@@ -849,7 +861,7 @@ except Exception:
                                                 visible: iconContainer.instanceCount > 0
                                                 Repeater {
                                                     model: Math.min(iconContainer.instanceCount, 3)
-                                                    Rectangle { width: 5; height: 5; radius: 2.5; color: root.themePrimary }
+                                                    Rectangle { width: 5; height: 5; radius: 2.5; color: root.themePrimary; antialiasing: true }
                                                 }
                                             }
                                         }
@@ -948,6 +960,7 @@ except Exception:
                             visible: dockWindow.unpinnedApps.length > 0
                             Layout.leftMargin: 4
                             Layout.rightMargin: 4
+                            antialiasing: true
                         }
 
                         ListView {
@@ -958,16 +971,17 @@ except Exception:
                             spacing: 12
                             visible: dockWindow.unpinnedApps.length > 0
                             interactive: dockWindow.unpinnedApps.length > 5 
-                            clip: true
+                            clip: false
                             
                             model: dockWindow.unpinnedApps
                             
                             delegate: Item {
                                 width: 64
                                 height: 64
+                                z: unpinnedMouse.containsMouse ? 20 : 1
                                 
-                                scale: unpinnedMouse.containsMouse ? 1.15 : 1.0
-                                anchors.verticalCenterOffset: unpinnedMouse.containsMouse ? -4 : 0
+                                scale: unpinnedMouse.containsMouse ? 1.32 : 1.0
+                                anchors.verticalCenterOffset: unpinnedMouse.containsMouse ? -8 : 0
                                 
                                 Behavior on scale { 
                                     NumberAnimation { 
@@ -1006,6 +1020,7 @@ except Exception:
                                         source: modelData.iconName.startsWith("/") ? "file://" + modelData.iconName : ""
                                         sourceSize: Qt.size(52, 52)
                                         fillMode: Image.PreserveAspectFit
+                                        antialiasing: true
                                     }
                                     
                                     Rectangle {
@@ -1014,6 +1029,7 @@ except Exception:
                                         anchors.bottomMargin: 4 
                                         width: 5; height: 5; radius: 2.5
                                         color: root.themePrimary
+                                        antialiasing: true
                                     }
                                 }
 
