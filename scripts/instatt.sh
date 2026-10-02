@@ -20,6 +20,7 @@ sudo dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-rel
 echo ":: Setting up custom COPR repositories..."
 sudo dnf copr enable -y errornointernet/quickshell
 sudo dnf copr enable -y lionheartp/Hyprland
+sudo dnf copr enable -y solopasha/hyprland # Added for hyprland-guiutils
 
 echo ":: Refreshing metadata and upgrading system..."
 sudo dnf upgrade --refresh -y
@@ -28,33 +29,60 @@ sudo dnf upgrade --refresh -y
 # 📦 2. Define & Install Dependencies
 # ==========================================================
 PACKAGES=(
+    # Core Hyprland
     hyprland
     hyprland-devel
+    hyprland-guiutils
+    
+    # Build Tools (For AWWW & Hyprpm)
+    cpio
+    meson
+    ninja-build
+    libxkbcommon-devel
+    wayland-devel
+    scdoc
+    gcc
+    gcc-c++
+    cmake
+    make
+    pkgconf-pkg-config
+    lz4-devel
+    
+    # Customization & Utilities
     quickshell
     xdg-utils
     glib2
     procps-ng
     jq
+    
+    # Audio & Media
     pipewire
     wireplumber
     pulseaudio-utils
     playerctl
     pavucontrol
+    ffmpeg
+    
+    # Hyprland Ecosystem
     grim
     hypridle
     hyprlock
-    brightnessctl
     slurp
     wl-clipboard
+    
+    # Misc & System
+    brightnessctl
     libnotify
     inotify-tools
     ImageMagick
-    ffmpeg
     python3-pillow
     power-profiles-daemon
     gnome-power-manager
     kitty
     figlet
+    lolcat
+    
+    # Dev Environments
     ruby
     python3
     python3-pip
@@ -62,13 +90,6 @@ PACKAGES=(
     wget
     git
     cargo
-    gcc
-    gcc-c++
-    cmake
-    make
-    pkgconf-pkg-config
-    lz4-devel
-    lolcat
 )
 
 echo ":: Installing core desktop and development packages..."
@@ -121,6 +142,7 @@ fi
 # ==========================================================
 if ! command -v awww >/dev/null 2>&1 && ! command -v swww >/dev/null 2>&1; then
     echo ":: Compiling and installing AWWW wallpaper daemon..."
+    rm -rf /tmp/awww # Clean up any failed previous runs
     git clone https://codeberg.org/LGFae/awww.git /tmp/awww
     cd /tmp/awww
     cargo build --release
@@ -132,14 +154,6 @@ if ! command -v awww >/dev/null 2>&1 && ! command -v swww >/dev/null 2>&1; then
     fi
     cd -
     rm -rf /tmp/awww
-fi
-
-# ==========================================================
-# ⌨️ 6. LegionAura RGB Controller
-# ==========================================================
-if ! command -v legionaura >/dev/null 2>&1; then
-    echo ":: Installing LegionAura Python package..."
-    pip3 install --user legionaura --break-system-packages
 fi
 
 # ==========================================================

@@ -18,7 +18,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # 📁 Directory Preparation
 # Ensures core target destination directories exist.
 # ==========================================================
-mkdir -p "$HOME/.config/hypr/extensions"
+mkdir -p "$HOME/.config/hypr"
 
 # ==========================================================
 # 🔗 Global Configuration Deployment (~/.config/)
@@ -40,30 +40,10 @@ echo ":: Deploying Hyprland modular environment via symlinks..."
 HYPR_CONFIGS=("assets" "configs" "quickshell" "scripts" "hyprland.lua")
 
 for item in "${HYPR_CONFIGS[@]}"; do
-    if [ -e "$REPO_DIR/$item" ]; then
+        if [ -e "$REPO_DIR/$item" ]; then
         ln -sfn "$REPO_DIR/$item" "$HOME/.config/hypr/$item"
     fi
 done
-
-# ==========================================================
-# 🧩 VSCodium Extension Deployment
-# ==========================================================
-echo ":: Installing custom VSCodium theme sync extension..."
-if [ -d "$REPO_DIR/extensions" ]; then
-    # Copying extensions instead of symlinking is usually safer for VSCode/Codium
-    cp -a "$REPO_DIR/extensions/." "$HOME/.config/hypr/extensions/" 2>/dev/null || true
-fi
-
-VSIX_FILE="$HOME/.config/hypr/extensions/matugen-theme-sync-0.0.1.vsix"
-if [ -f "$VSIX_FILE" ]; then
-    if command -v codium >/dev/null 2>&1; then
-        codium --install-extension "$VSIX_FILE" --force
-    else
-        echo ":: Warning: VSCodium (codium) is not installed or not in PATH. Skipping extension install."
-    fi
-else
-    echo ":: Warning: Pre-packaged VSIX file not found in extensions directory."
-fi
 
 # ==========================================================
 # 🔑 File Permissions

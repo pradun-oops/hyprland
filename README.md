@@ -75,19 +75,19 @@ Setting up this configuration on a fresh Fedora install is completely automated.
 1. **Clone the repository:**
    ```bash
    git clone https://github.com/pradun-oops/hyprland.git
-   cd hyprland
+   cd hyprland/scripts
    ```
 
 2. **Run the installation script:**
    This handles all DNF package dependencies, sets up the required Copr repositories, compiles `awww` via Cargo, installs Ruby tools, and configures systemd services.
    ```bash
-   ./scripts/install.sh
+   ./install.sh
    ```
 
 3. **Run the setup script:**
    This will securely mirror the entire repository into your `~/.config` directory and instantly reload Hyprland.
    ```bash
-   ./scripts/setup.sh
+   ./setup.sh
    ```
 
 ---
