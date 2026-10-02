@@ -53,12 +53,15 @@ PACKAGES=(
     quickshell
     qt5ct
     qt6ct
+    qt6-qt5compat
     nwg-look
+    adw-gtk3-theme
     fira-code-fonts
     xdg-utils
     glib2
     procps-ng
     jq
+    fish
     
     # Audio & Media
     pipewire
@@ -74,6 +77,7 @@ PACKAGES=(
     hyprlock
     slurp
     wl-clipboard
+    cliphist           # <-- Added for clipboard history
     
     # Misc & System
     brightnessctl
@@ -83,6 +87,7 @@ PACKAGES=(
     python3-pillow
     power-profiles-daemon
     gnome-power-manager
+    polkit-gnome       # <-- Added for GUI authentication agent
     kitty
     fastfetch
     figlet
@@ -176,7 +181,27 @@ cd -
 rm -rf /tmp/WhiteSur-icon-theme
 
 # ==========================================================
-# 🧊 7. Hyprglass Plugin Setup
+# 🔤 7. NerdFontsSymbolsOnly Installation
+# ==========================================================
+echo ":: Installing NerdFontsSymbolsOnly..."
+mkdir -p ~/.local/share/fonts
+curl -fLO https://github.com/ryanoasis/nerd-fonts/releases/latest/download/NerdFontsSymbolsOnly.zip
+unzip -o NerdFontsSymbolsOnly.zip -d ~/.local/share/fonts/
+rm NerdFontsSymbolsOnly.zip
+fc-cache -fv
+
+# ==========================================================
+# 🐚 8. Shell Setup: Oh My Posh & Fish Defaults
+# ==========================================================
+echo ":: Installing Oh My Posh..."
+curl -s https://ohmyposh.dev/install.sh | sudo bash -s
+
+echo ":: Changing default shell to Fish..."
+# Uses SUDO_USER if run with sudo, otherwise falls back to standard USER
+sudo chsh -s $(which fish) "${SUDO_USER:-$USER}"
+
+# ==========================================================
+# 🧊 9. Hyprglass Plugin Setup
 # ==========================================================
 echo ":: Setting up Hyprglass liquid glass plugin..."
 if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
@@ -186,11 +211,11 @@ if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
     echo ":: Hyprglass installation attempted."
 else
     echo ":: INFO: Hyprland is not currently running (no instance signature found)."
-    echo ":: INFO: Skipping Hyprglass compilation. Please run 'hyprpm add https://github.com/hyprnux/hyprglass' later inside an active Hyprland session."
+    echo ":: INFO: Skipping Hyprglass compilation. Please run 'hyprpm add https://github.com/hyprnux/hyprglass' and 'hyprpm enable hyprglass' later inside an active Hyprland session."
 fi
 
 # ==========================================================
-# ⚙️ 8. Systemd Daemons & Hardware Services
+# ⚙️ 10. Systemd Daemons & Hardware Services
 # ==========================================================
 echo ":: Activating background system services..."
 systemctl --user enable --now wireplumber.service
@@ -200,7 +225,7 @@ sudo systemctl enable --now power-profiles-daemon.service
 echo -e "\n✅ Installation phase completed successfully!"
 
 # ==========================================================
-# 🚀 9. Execute Setup Script
+# 🚀 11. Execute Setup Script
 # ==========================================================
 if [ -f "./setup.sh" ]; then
     echo ":: Executing setup.sh..."

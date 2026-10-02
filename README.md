@@ -90,6 +90,12 @@ Setting up this configuration on a fresh Fedora install is completely automated.
    ./setup.sh
    ```
 
+4. **Run the uninstall script:**
+   This will securely uninstall the install packages and the copied files. Run it form outside of hyprland session.
+   ```bash
+   ./uninstall.sh
+   ```
+
 ---
 
 # 📁 Repository Structure

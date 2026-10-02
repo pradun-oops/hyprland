@@ -27,8 +27,6 @@ mkdir -p "$HOME/Pictures/Wallpapers"
 # ==========================================================
 echo ":: Deploying default wallpapers to ~/Pictures/Wallpapers..."
 if [ -d "$REPO_DIR/assets/Wallpapers" ]; then
-    # Copying (cp -rn) instead of moving (mv) so your git repo stays clean
-    # -r = recursive, -n = no clobber (won't overwrite if you already added your own)
     cp -rn "$REPO_DIR/assets/Wallpapers/"* "$HOME/Pictures/Wallpapers/" 2>/dev/null || true
 else
     echo ":: Notice: $REPO_DIR/assets/Wallpapers not found. Skipping."
@@ -60,10 +58,38 @@ for item in "${HYPR_CONFIGS[@]}"; do
 done
 
 # ==========================================================
+# 🐚 Oh My Posh Theme & Shell Configuration
+# ==========================================================
+echo ":: Setting up Oh My Posh Catppuccin theme..."
+OMP_DIR="$HOME/.config/oh-my-posh"
+mkdir -p "$OMP_DIR"
+
+if [ ! -f "$OMP_DIR/catppuccin.omp.json" ]; then
+    echo ":: Downloading Catppuccin Oh My Posh theme..."
+    curl -sL https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/catppuccin.omp.json -o "$OMP_DIR/catppuccin.omp.json"
+fi
+
+# Inject Bash Initialization
+if ! grep -q "oh-my-posh init bash" "$HOME/.bashrc" 2>/dev/null; then
+    echo ":: Configuring Oh My Posh for Bash..."
+    echo "" >> "$HOME/.bashrc"
+    echo "# Oh My Posh Initialization" >> "$HOME/.bashrc"
+    echo 'eval "$(oh-my-posh init bash --config "$HOME/.config/oh-my-posh/catppuccin.omp.json")"' >> "$HOME/.bashrc"
+fi
+
+# Inject Fish Initialization
+mkdir -p "$HOME/.config/fish"
+if [ ! -f "$HOME/.config/fish/config.fish" ] || ! grep -q "oh-my-posh init fish" "$HOME/.config/fish/config.fish" 2>/dev/null; then
+    echo ":: Configuring Oh My Posh for Fish..."
+    echo "" >> "$HOME/.config/fish/config.fish"
+    echo "# Oh My Posh Initialization" >> "$HOME/.config/fish/config.fish"
+    echo 'oh-my-posh init fish --config "$HOME/.config/oh-my-posh/catppuccin.omp.json" | source' >> "$HOME/.config/fish/config.fish"
+fi
+
+# ==========================================================
 # 🔑 File Permissions
 # ==========================================================
 echo ":: Setting execution permissions on shell scripts..."
-# Apply permissions directly to the repo files since we are symlinking them
 if [ -d "$REPO_DIR/scripts" ]; then
     find "$REPO_DIR/scripts" -type f -name "*.sh" -exec chmod +x {} +
 fi
@@ -72,7 +98,6 @@ fi
 # 🔄 Compositor Live Reload
 # ==========================================================
 echo ":: Reloading Hyprland configuration..."
-# Check both if hyprctl exists AND if a Hyprland session is actually active
 if command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
     hyprctl reload
 else
