@@ -58,21 +58,23 @@ Scope {
         onLoaded: {
             try {
                 let content = text().trim()
-                if (content === "") return
-                
-                let apps = JSON.parse(content)
-                if (apps && Array.isArray(apps)) {
-                    pinnedAppsModel.clear()
-                    for (let i = 0; i < apps.length; i++) {
-                        pinnedAppsModel.append(apps[i])
+                if (content !== "") {
+                    let apps = JSON.parse(content)
+                    if (apps && Array.isArray(apps) && apps.length > 0) {
+                        pinnedAppsModel.clear()
+                        for (let i = 0; i < apps.length; i++) {
+                            pinnedAppsModel.append(apps[i])
+                        }
+                        return // Exit early ONLY if we successfully loaded a valid array
                     }
-                    return
                 }
             } catch(e) {}
             
+            // Fallback for empty file or invalid JSON
             if (pinnedAppsModel.count === 0) root.loadDefaultApps()
         }
         onLoadFailed: {
+            // Triggers if the file or directory doesn't exist yet
             if (pinnedAppsModel.count === 0) root.loadDefaultApps()
         }
     }
@@ -101,6 +103,7 @@ Scope {
         }
         let jsonStr = JSON.stringify(apps)
         
+        saveProcess.running = false // Reset process state to prevent execution lock
         saveProcess.command = ["bash", "-c", "mkdir -p $(dirname '" + root.savedAppsFilePath + "') && echo '" + jsonStr.replace(/'/g, "'\\''") + "' > '" + root.savedAppsFilePath + "'"]
         saveProcess.running = true
     }
@@ -234,7 +237,7 @@ Scope {
 
     Timer {
         id: bootTimer
-        interval: 50
+        interval: 150 // Increased slightly to prevent file read/write collision on cold boot
         running: true
         repeat: false
         onTriggered: { 

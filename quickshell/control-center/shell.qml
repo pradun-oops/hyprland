@@ -54,8 +54,8 @@ Scope {
     property string mediaArtist: ""
     property string mediaArt: ""
 
-    property string userName: "Pradun Kumar"
-    property string systemInfo: "Fedora 43 • Hyprland"
+    // Dynamic properties (OS info removed)
+    property string userName: Quickshell.env("USER") || "User"
     property string avatarPath: "file://" + Quickshell.env("HOME") + "/.face"
 
     property bool editMode: false
@@ -76,6 +76,23 @@ Scope {
             }
         } catch (e) {}
         return fallback
+    }
+
+    // Process to dynamically fetch User Display Name only
+    Process {
+        id: sysInfoProcess
+        command: [
+            "bash", "-c", 
+            "NAME=$(getent passwd $USER | cut -d: -f5 | cut -d, -f1); [ -z \"$NAME\" ] && NAME=$USER; echo \"$NAME\""
+        ]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    let fName = text.trim()
+                    root.userName = fName !== "" ? fName : (Quickshell.env("USER") || "User")
+                } catch(e) {}
+            }
+        }
     }
 
     Process { id: saveStateProcess }
@@ -220,6 +237,8 @@ Scope {
         animConfigFile.reload()
         modsFile.reload()
         root.updateInactiveMods()
+
+        sysInfoProcess.running = true // Kick off dynamic fetch
 
         let state = readJsonSync(Quickshell.env("HOME") + "/.config/quickshell/json/cc_state.json", {dnd: false, nightLight: false})
         root.dndEnabled = state.dnd === true
@@ -529,7 +548,7 @@ except Exception:
                                             if (currentSource.indexOf(".face.icon") !== -1) {
                                                 source = root.avatarPath
                                             } else if (currentSource.indexOf(".face") !== -1) {
-                                                source = "file:///var/lib/AccountsService/icons/" + (Quickshell.env("USER") || "pradun")
+                                                source = "file:///var/lib/AccountsService/icons/" + (Quickshell.env("USER") || "user")
                                             } else {
                                                 fallbackText.visible = true
                                             }
@@ -563,7 +582,7 @@ except Exception:
                                 Text {
                                     id: fallbackText
                                     anchors.centerIn: parent
-                                    text: "PK" 
+                                    text: root.userName.charAt(0).toUpperCase() 
                                     color: root.themePrimary
                                     font.pixelSize: 16
                                     font.weight: Font.Bold
@@ -571,27 +590,16 @@ except Exception:
                                 }
                             }
 
-                            Column {
+                            Text { 
                                 Layout.fillWidth: true
                                 Layout.alignment: Qt.AlignVCenter
-                                spacing: 2
-
-                                Text { 
-                                    text: root.userName
-                                    color: "#FFFFFF"
-                                    font.pixelSize: 15
-                                    font.weight: Font.Bold
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
-                                }
-                                Text { 
-                                    text: root.systemInfo
-                                    color: root.themeTextMuted
-                                    font.pixelSize: 11
-                                    font.weight: Font.Medium
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
-                                }
+                                text: root.userName
+                                color: "#FFFFFF"
+                                font.pixelSize: 16
+                                font.weight: Font.Bold
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                elide: Text.ElideRight
                             }
 
                             Row {

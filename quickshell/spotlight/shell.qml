@@ -148,13 +148,14 @@ Scope {
                 let content = text().trim()
                 if (content !== "") {
                     root.allApps = JSON.parse(content)
-                    performSearch("") 
                     root.isLoaded = true
+                    // Dynamically resume the search the user started while the cache was building
+                    performSearch(root.activeSearchQuery) 
                 }
             } catch (e) {}
         }
         onLoadFailed: {
-            root.isLoaded = true 
+            // Removed isLoaded = true so the UI stays in loading state until python script finishes
         }
     }
 
@@ -229,14 +230,14 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         animConfigFile.reload()
         
         let cached = readJsonSync(Quickshell.env("HOME") + "/.config/quickshell/json/app_cache.json", [])
-        if (cached.length > 0) {
+        if (cached && cached.length > 0) {
             root.allApps = cached
-            performSearch("")
             root.isLoaded = true
+            appCacheFile.reload() 
+        } else {
+            // Only trigger the expensive python background process if cache does not exist
+            cacheBuilder.running = true 
         }
-
-        appCacheFile.reload()
-        cacheBuilder.running = true 
     }
 
     Timer {

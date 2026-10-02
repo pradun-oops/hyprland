@@ -79,8 +79,11 @@ PACKAGES=(
     power-profiles-daemon
     gnome-power-manager
     kitty
+    fastfetch
     figlet
     lolcat
+    unzip
+    fontconfig
     
     # Dev Environments
     ruby
@@ -157,12 +160,30 @@ if ! command -v awww >/dev/null 2>&1 && ! command -v swww >/dev/null 2>&1; then
 fi
 
 # ==========================================================
-# 🧊 7. Hyprglass Plugin Setup
+# 🧊 6. Hyprglass Plugin Setup
 # ==========================================================
 echo ":: Setting up Hyprglass liquid glass plugin..."
 hyprpm update || echo "hyprpm update failed, continuing..."
 hyprpm add https://github.com/hyprnux/hyprglass || echo "hyprpm add failed, continuing..."
 hyprpm enable hyprglass || echo "hyprglass enablement failed, you may need to run this manually in an active session."
+
+# ==========================================================
+# 🔤 7. Fonts Installation (FiraCode Nerd Font)
+# ==========================================================
+echo ":: Installing FiraCode Nerd Font..."
+FONT_DIR="$HOME/.local/share/fonts/FiraCode"
+if [ ! -d "$FONT_DIR" ]; then
+    mkdir -p "$FONT_DIR"
+    wget -qO /tmp/FiraCode.zip "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip"
+    unzip -q /tmp/FiraCode.zip -d "$FONT_DIR"
+    rm /tmp/FiraCode.zip
+    
+    echo ":: Rebuilding font cache..."
+    fc-cache -fv
+    echo ":: FiraCode Nerd Font successfully installed."
+else
+    echo ":: FiraCode Nerd Font already exists at $FONT_DIR, skipping."
+fi
 
 # ==========================================================
 # ⚙️ 8. Systemd Daemons & Hardware Services

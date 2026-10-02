@@ -11,6 +11,8 @@ Scope {
 
     property int savedMarginTop: 50
     property int savedMarginRight: 50
+    
+    property string userName: Quickshell.env("USER") || "User"
 
     FileView {
         id: posConfigFile
@@ -105,6 +107,22 @@ Scope {
     property string currentSinkFullName: "Detecting audio..."
     property string currentSinkIcon: "󰕾"
     property string currentSinkId: ""
+    
+    Process {
+        id: sysInfoProcess
+        command: [
+            "bash", "-c", 
+            "NAME=$(getent passwd $USER | cut -d: -f5 | cut -d, -f1); [ -z \"$NAME\" ] && NAME=$USER; echo \"$NAME\""
+        ]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    let fName = text.trim()
+                    root.userName = fName !== "" ? fName : (Quickshell.env("USER") || "User")
+                } catch(e) {}
+            }
+        }
+    }
 
     function getSinkInfo(name, desc) {
         let raw = (desc || name || "").trim()
@@ -303,8 +321,13 @@ Scope {
         posConfigFile.reload() 
         procStatFile.reload()
         procMemFile.reload()
+        
+        sysInfoProcess.running = true 
         metricsProcess.running = true
         refreshAudio()
+        
+        root.fetchWeather()
+        root.fetchLocation()
     }
 
     Process { id: execProcess }
@@ -469,7 +492,7 @@ Scope {
                     if (code >= 45 && code <= 48) { desc = "Fog"; icon = "🌫️"; }
                     if (code >= 51 && code <= 67) { desc = "Rain"; icon = "🌧️"; }
                     if (code >= 71 && code <= 77) { desc = "Snow"; icon = "❄️"; }
-                    if (code >= 95 && code <= 99) { desc = "Storm"; icon = "⛈️"; }
+                    if (code >= 95 && code <= 99) { desc = "Storm"; icon = "⛈️️"; }
                     if (code === 3) { desc = "Overcast"; } 
                     
                     root.currentWeatherDesc = desc;
@@ -504,7 +527,6 @@ Scope {
         interval: 1800000 
         running: true
         repeat: true
-        triggeredOnStart: true
         onTriggered: {
             root.fetchLocation();
         }
@@ -539,8 +561,8 @@ Scope {
             }
         }
         
-        width: 78
-        height: 78
+        width: 84
+        height: 84
 
         Canvas {
             id: canvas
@@ -552,7 +574,7 @@ Scope {
                 
                 var centerX = width / 2;
                 var centerY = height / 2;
-                var radius = Math.min(width, height) / 2 - 5;
+                var radius = Math.min(width, height) / 2 - 6;
                 
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
@@ -578,7 +600,7 @@ Scope {
                 Layout.alignment: Qt.AlignHCenter
                 text: gaugeRoot.value.toFixed(0) + gaugeRoot.unit
                 color: root.themeText
-                font.pixelSize: 13
+                font.pixelSize: 14
                 font.weight: Font.Bold
                 style: Text.Raised
                 styleColor: Qt.rgba(0, 0, 0, 0.75)
@@ -588,6 +610,7 @@ Scope {
                 text: gaugeRoot.label
                 color: root.themeTextMuted
                 font.pixelSize: 9
+                font.letterSpacing: 0.5
                 font.weight: Font.Bold
                 style: Text.Raised
                 styleColor: Qt.rgba(0, 0, 0, 0.7)
@@ -613,7 +636,7 @@ Scope {
             anchors { top: true; right: true }
             margins { top: root.savedMarginTop; right: root.savedMarginRight }
 
-            implicitWidth: 440
+            implicitWidth: 460
             implicitHeight: cardLayout.implicitHeight + 64
             
             color: "transparent"
@@ -698,6 +721,7 @@ Scope {
                             border.color: root.themePrimary
                             border.width: root.themeBorderSize
                             antialiasing: true
+                            Layout.alignment: Qt.AlignVCenter
                             
                             Image {
                                 id: profilePic
@@ -747,7 +771,7 @@ Scope {
                             Text {
                                 id: fallbackText
                                 anchors.centerIn: parent
-                                text: "PK" 
+                                text: root.userName.charAt(0).toUpperCase()
                                 color: root.themePrimary
                                 font.pixelSize: 18
                                 font.weight: Font.Bold
@@ -757,27 +781,17 @@ Scope {
                             }
                         }
                         
-                        ColumnLayout {
-                            spacing: 0
-                            Text {
-                                text: "Pradun Kumar"
-                                color: "#FFFFFF"
-                                font.pixelSize: 18
-                                font.weight: Font.Bold
-                                style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.85)
-                            }
-                            Text {
-                                text: (Quickshell.env("XDG_CURRENT_DESKTOP") || "Hyprland") + " • Fedora 43"
-                                color: root.themePrimary
-                                font.pixelSize: 12
-                                font.weight: Font.DemiBold
-                                style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.7)
-                            }
+                        Text {
+                            Layout.fillWidth: true 
+                            Layout.alignment: Qt.AlignVCenter
+                            text: root.userName
+                            color: "#FFFFFF"
+                            font.pixelSize: 18
+                            font.weight: Font.Bold
+                            style: Text.Raised
+                            styleColor: Qt.rgba(0, 0, 0, 0.85)
+                            elide: Text.ElideRight
                         }
-                        
-                        Item { Layout.fillWidth: true } 
 
                         Rectangle {
                             id: audioSwitchBtn
@@ -855,17 +869,16 @@ Scope {
 
                         ColumnLayout {
                             Layout.alignment: Qt.AlignTop
-                            spacing: 0
+                            spacing: -2
                             
                             RowLayout {
                                 Layout.alignment: Qt.AlignTop
-                                spacing: 4
+                                spacing: 6
                                 Text {
                                     text: root.currentTimeExact
                                     color: "#FFFFFF"
-                                    font.pixelSize: 48
+                                    font.pixelSize: 52 
                                     font.weight: Font.Bold
-                                    lineHeight: 0.9
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.85)
                                 }
@@ -874,8 +887,7 @@ Scope {
                                     color: root.themePrimary
                                     font.pixelSize: 16
                                     font.weight: Font.Black
-                                    Layout.alignment: Qt.AlignTop
-                                    Layout.topMargin: 8
+                                    Layout.alignment: Qt.AlignBaseline 
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.7)
                                 }
@@ -886,6 +898,7 @@ Scope {
                                 font.pixelSize: 14
                                 font.weight: Font.DemiBold
                                 font.letterSpacing: 1.0
+                                Layout.topMargin: 4
                                 style: Text.Raised
                                 styleColor: Qt.rgba(0, 0, 0, 0.75)
                             }
@@ -895,25 +908,25 @@ Scope {
 
                         ColumnLayout {
                             Layout.alignment: Qt.AlignTop
-                            spacing: 0
+                            spacing: 4
                             
                             RowLayout {
-                                Layout.alignment: Qt.AlignTop | Qt.AlignRight
-                                spacing: 8
+                                Layout.alignment: Qt.AlignRight
+                                spacing: 12
                                 Text {
                                     text: root.currentWeatherIcon
-                                    font.pixelSize: 32
-                                    Layout.alignment: Qt.AlignTop
+                                    font.pixelSize: 34
+                                    Layout.alignment: Qt.AlignVCenter 
                                 }
                                 ColumnLayout {
-                                    Layout.alignment: Qt.AlignTop
+                                    Layout.alignment: Qt.AlignVCenter
                                     spacing: 0
                                     Text {
                                         text: root.currentWeatherTemp + "°C"
                                         color: "#FFFFFF"
-                                        font.pixelSize: 22
+                                        font.pixelSize: 24
                                         font.weight: Font.Bold
-                                        lineHeight: 0.9
+                                        Layout.alignment: Qt.AlignRight
                                         style: Text.Raised
                                         styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
@@ -922,6 +935,7 @@ Scope {
                                         color: root.themeTextMuted
                                         font.pixelSize: 14
                                         font.weight: Font.Medium
+                                        Layout.alignment: Qt.AlignRight
                                         style: Text.Raised
                                         styleColor: Qt.rgba(0, 0, 0, 0.7)
                                     }
@@ -930,9 +944,8 @@ Scope {
                             Text {
                                 text: "Feels like " + root.currentWeatherFeelsLike + "°C"
                                 color: root.themeTextMuted
-                                font.pixelSize: 12
+                                font.pixelSize: 11
                                 Layout.alignment: Qt.AlignRight
-                                Layout.topMargin: 4
                                 style: Text.Raised
                                 styleColor: Qt.rgba(0, 0, 0, 0.65)
                             }
@@ -949,7 +962,8 @@ Scope {
                         RowLayout {
                             id: weatherGrid
                             anchors.fill: parent
-                            anchors.margins: 12 
+                            anchors.margins: 16 
+                            spacing: 8
                             
                             ColumnLayout {
                                 Layout.fillWidth: true
@@ -1023,28 +1037,28 @@ Scope {
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.topMargin: 8
-                        spacing: 0 
+                        spacing: 8 
 
-                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "CPU"; value: root.cpuPercent; unit: "%" } }
-                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "RAM"; value: root.ramPercent; unit: "%" } }
-                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "GPU"; value: root.gpuPercent; unit: "%" } }
-                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "DISK"; value: root.diskPercent; unit: "%" } }
+                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "CPU"; value: root.cpuPercent; unit: "%" } }
+                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "RAM"; value: root.ramPercent; unit: "%" } }
+                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "GPU"; value: root.gpuPercent; unit: "%" } }
+                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "DISK"; value: root.diskPercent; unit: "%" } }
                     }
 
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.topMargin: 0
-                        spacing: 0 
+                        spacing: 8
 
-                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "CPU TEMP"; value: root.cpuTemp; unit: "°C" } }
-                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "RAM TEMP"; value: root.ramTemp; unit: "°C" } }
-                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "GPU TEMP"; value: root.gpuTemp; unit: "°C" } }
-                        Item { Layout.fillWidth: true; height: 78; CircularGauge { anchors.centerIn: parent; label: "DISK TEMP"; value: root.diskTemp; unit: "°C" } }
+                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "CPU TEMP"; value: root.cpuTemp; unit: "°C" } }
+                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "RAM TEMP"; value: root.ramTemp; unit: "°C" } }
+                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "GPU TEMP"; value: root.gpuTemp; unit: "°C" } }
+                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "DISK TEMP"; value: root.diskTemp; unit: "°C" } }
                     }
                     
                     Text {
                         Layout.alignment: Qt.AlignHCenter
-                        Layout.topMargin: 8
+                        Layout.topMargin: 4
                         text: "Memory Used: " + root.ramUsedTotal
                         color: root.themeTextMuted
                         font.pixelSize: 11

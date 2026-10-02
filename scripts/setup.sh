@@ -19,6 +19,20 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # Ensures core target destination directories exist.
 # ==========================================================
 mkdir -p "$HOME/.config/hypr"
+mkdir -p "$HOME/Pictures/Wallpapers"
+
+# ==========================================================
+# 🖼️ Default Wallpapers Deployment
+# Copies wallpapers to the standard Pictures directory.
+# ==========================================================
+echo ":: Deploying default wallpapers to ~/Pictures/Wallpapers..."
+if [ -d "$REPO_DIR/assets/Wallpapers" ]; then
+    # Copying (cp -rn) instead of moving (mv) so your git repo stays clean
+    # -r = recursive, -n = no clobber (won't overwrite if you already added your own)
+    cp -rn "$REPO_DIR/assets/Wallpapers/"* "$HOME/Pictures/Wallpapers/" 2>/dev/null || true
+else
+    echo ":: Notice: $REPO_DIR/assets/Wallpapers not found. Skipping."
+fi
 
 # ==========================================================
 # 🔗 Global Configuration Deployment (~/.config/)
@@ -40,7 +54,7 @@ echo ":: Deploying Hyprland modular environment via symlinks..."
 HYPR_CONFIGS=("assets" "configs" "quickshell" "scripts" "hyprland.lua")
 
 for item in "${HYPR_CONFIGS[@]}"; do
-        if [ -e "$REPO_DIR/$item" ]; then
+    if [ -e "$REPO_DIR/$item" ]; then
         ln -sfn "$REPO_DIR/$item" "$HOME/.config/hypr/$item"
     fi
 done

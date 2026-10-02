@@ -202,9 +202,10 @@ Scope {
             fileSearchProcess.running = false
         }
 
+        // OPTIMIZATION: Exclude hidden directories (-not -path '*/\.*') to drastically speed up bash find execution
         let bashCmd = `
             q='` + q.replace(/'/g, "'\\''") + `'
-            find "$HOME" -maxdepth 5 -type f -iname "*$q*" 2>/dev/null | head -n 60 | while read -r f; do
+            find "$HOME" -maxdepth 5 -not -path '*/\.*' -type f -iname "*$q*" 2>/dev/null | head -n 60 | while read -r f; do
                 fname=$(basename "$f")
                 ext="\${fname##*.}"
                 case "\${ext,,}" in
@@ -396,14 +397,15 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
             root.pinnedApps = cachedPinned
         }
         
+        // OPTIMIZATION: Only build cache in background if it doesn't exist
         let cachedApps = readJsonSync(Quickshell.env("HOME") + "/.config/quickshell/json/app_cache.json", [])
-        if (cachedApps.length > 0) {
+        if (cachedApps && cachedApps.length > 0) {
             root.allApps = cachedApps
             root.filterApps()
+            appCacheFile.reload()
+        } else {
+            cacheBuilder.running = true 
         }
-
-        appCacheFile.reload()
-        cacheBuilder.running = true 
     }
 
     ListModel { id: drawerModel }
