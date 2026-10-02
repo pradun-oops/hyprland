@@ -21,6 +21,7 @@ echo ":: Setting up custom COPR repositories..."
 sudo dnf copr enable -y errornointernet/quickshell
 sudo dnf copr enable -y lionheartp/Hyprland
 sudo dnf copr enable -y solopasha/hyprland # Added for hyprland-guiutils
+sudo dnf copr enable -y tofik/nwg-shell    # Added for nwg-look
 
 echo ":: Refreshing metadata and upgrading system..."
 sudo dnf upgrade --refresh -y
@@ -48,8 +49,12 @@ PACKAGES=(
     pkgconf-pkg-config
     lz4-devel
     
-    # Customization & Utilities
+    # Customization, Theming & Utilities
     quickshell
+    qt5ct
+    qt6ct
+    nwg-look
+    fira-code-fonts
     xdg-utils
     glib2
     procps-ng
@@ -95,7 +100,7 @@ PACKAGES=(
     cargo
 )
 
-echo ":: Installing core desktop and development packages..."
+echo ":: Installing core desktop, development, and theming packages..."
 # Temporarily disable exit-on-error for the bulk install to handle failures gracefully
 set +e
 sudo dnf install -y --allowerasing "${PACKAGES[@]}"
@@ -160,29 +165,28 @@ if ! command -v awww >/dev/null 2>&1 && ! command -v swww >/dev/null 2>&1; then
 fi
 
 # ==========================================================
-# 🧊 6. Hyprglass Plugin Setup
+# 🍏 6. WhiteSur GTK Icon Theme
 # ==========================================================
-echo ":: Setting up Hyprglass liquid glass plugin..."
-hyprpm update || echo "hyprpm update failed, continuing..."
-hyprpm add https://github.com/hyprnux/hyprglass || echo "hyprpm add failed, continuing..."
-hyprpm enable hyprglass || echo "hyprglass enablement failed, you may need to run this manually in an active session."
+echo ":: Installing WhiteSur Icon Theme..."
+rm -rf /tmp/WhiteSur-icon-theme
+git clone https://github.com/vinceliuice/WhiteSur-icon-theme.git /tmp/WhiteSur-icon-theme
+cd /tmp/WhiteSur-icon-theme
+./install.sh -a
+cd -
+rm -rf /tmp/WhiteSur-icon-theme
 
 # ==========================================================
-# 🔤 7. Fonts Installation (FiraCode Nerd Font)
+# 🧊 7. Hyprglass Plugin Setup
 # ==========================================================
-echo ":: Installing FiraCode Nerd Font..."
-FONT_DIR="$HOME/.local/share/fonts/FiraCode"
-if [ ! -d "$FONT_DIR" ]; then
-    mkdir -p "$FONT_DIR"
-    wget -qO /tmp/FiraCode.zip "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/FiraCode.zip"
-    unzip -q /tmp/FiraCode.zip -d "$FONT_DIR"
-    rm /tmp/FiraCode.zip
-    
-    echo ":: Rebuilding font cache..."
-    fc-cache -fv
-    echo ":: FiraCode Nerd Font successfully installed."
+echo ":: Setting up Hyprglass liquid glass plugin..."
+if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+    hyprpm update || true
+    hyprpm add https://github.com/hyprnux/hyprglass || true
+    hyprpm enable hyprglass || true
+    echo ":: Hyprglass installation attempted."
 else
-    echo ":: FiraCode Nerd Font already exists at $FONT_DIR, skipping."
+    echo ":: INFO: Hyprland is not currently running (no instance signature found)."
+    echo ":: INFO: Skipping Hyprglass compilation. Please run 'hyprpm add https://github.com/hyprnux/hyprglass' later inside an active Hyprland session."
 fi
 
 # ==========================================================
@@ -193,4 +197,14 @@ systemctl --user enable --now wireplumber.service
 systemctl --user enable --now pipewire.service
 sudo systemctl enable --now power-profiles-daemon.service
 
-echo -e "\n✅ Setup completed successfully!"
+echo -e "\n✅ Installation phase completed successfully!"
+
+# ==========================================================
+# 🚀 9. Execute Setup Script
+# ==========================================================
+if [ -f "./setup.sh" ]; then
+    echo ":: Executing setup.sh..."
+    bash ./setup.sh
+else
+    echo ":: setup.sh not found in the current directory. Skipping."
+fi
