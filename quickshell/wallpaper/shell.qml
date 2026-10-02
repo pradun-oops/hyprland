@@ -538,7 +538,7 @@ print(json.dumps(results))
                                     property bool isActive: root.activeWallpaperPath === fullPath
                                     property bool isHovered: itemMouse.containsMouse || GridView.isCurrentItem
 
-                                    scale: isHovered ? 1.03 : 1.0
+                                    scale: isHovered ? 1.08 : 1.0
                                     
                                     Behavior on scale {
                                         NumberAnimation {
@@ -601,8 +601,8 @@ print(json.dumps(results))
                                             anchors.fill: parent
                                             color: "transparent"
                                             radius: 8
-                                            border.width: isActive ? 3 : (isHovered ? 2 : 0)
-                                            border.color: isActive ? root.themePrimary : (isHovered ? Qt.alpha(root.themePrimary, 0.6) : "transparent")
+                                            border.width: isActive ? 3 : 0
+                                            border.color: isActive ? root.themePrimary : "transparent"
                                             antialiasing: true
                                             
                                             Behavior on border.color { ColorAnimation { duration: 150 } }
@@ -667,7 +667,7 @@ print(json.dumps(results))
                                 property bool isActive: root.activeWallpaperPath === model.fullPath
                                 property bool isHovered: themeMouse.containsMouse || GridView.isCurrentItem
 
-                                scale: isHovered ? 1.03 : 1.0
+                                scale: isHovered ? 1.08 : 1.0
                                 Behavior on scale {
                                     NumberAnimation {
                                         duration: 180
@@ -689,8 +689,8 @@ print(json.dumps(results))
                                         anchors.fill: parent
                                         color: "transparent"
                                         radius: 8
-                                        border.width: isActive ? 3 : (isHovered ? 2 : 0)
-                                        border.color: isActive ? "#FFFFFF" : (isHovered ? Qt.alpha("#FFFFFF", 0.6) : "transparent")
+                                        border.width: isActive ? 3 : 0
+                                        border.color: isActive ? "#FFFFFF" : "transparent"
                                         antialiasing: true
                                         
                                         Behavior on border.color { ColorAnimation { duration: 150 } }

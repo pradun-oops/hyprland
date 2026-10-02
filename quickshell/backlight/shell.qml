@@ -560,7 +560,7 @@ Scope {
 
                                         ColumnLayout {
                                             anchors.centerIn: parent
-                                            spacing: 4 
+                                            spacing: 0 
                                             
                                             Text { 
                                                 Layout.alignment: Qt.AlignHCenter; text: model.icon; font.pixelSize: 26

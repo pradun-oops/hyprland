@@ -544,14 +544,6 @@ except Exception as e:
                                 Layout.alignment: Qt.AlignVCenter
                                 antialiasing: true
                                 
-                                scale: autoGpsHover.containsMouse ? 1.08 : 1.0
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
-                                    }
-                                }
                                 Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
                                 Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
                                 
@@ -628,15 +620,8 @@ except Exception as e:
                                 Layout.alignment: Qt.AlignVCenter
                                 antialiasing: true
 
-                                scale: closeHover.containsMouse ? 1.08 : 1.0
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
-                                    }
-                                }
                                 Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
                                 Text { 
                                     anchors.centerIn: parent
@@ -809,15 +794,6 @@ except Exception as e:
                                         border.color: heroHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
                                         antialiasing: true
 
-                                        scale: heroHover.containsMouse ? 1.01 : 1.0
-                                        Behavior on scale {
-                                            NumberAnimation {
-                                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                                easing.type: animStyle.bounceEasing
-                                                easing.overshoot: animStyle.overshoot
-                                            }
-                                        }
-
                                         MouseArea {
                                             id: heroHover
                                             anchors.fill: parent
@@ -940,14 +916,6 @@ except Exception as e:
                                                 border.color: model.time === "Now" ? root.themePrimary : (hourlyHover.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(255, 255, 255, 0.10))
                                                 antialiasing: true
 
-                                                scale: hourlyHover.containsMouse ? 1.02 : 1.0
-                                                Behavior on scale {
-                                                    NumberAnimation {
-                                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                                        easing.type: animStyle.bounceEasing
-                                                        easing.overshoot: animStyle.overshoot
-                                                    }
-                                                }
                                                 Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
                                                 Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
@@ -1009,14 +977,6 @@ except Exception as e:
                                             border.color: windHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
                                             antialiasing: true
                                             
-                                            scale: windHover.containsMouse ? 1.015 : 1.0
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                                    easing.type: animStyle.bounceEasing
-                                                    easing.overshoot: animStyle.overshoot
-                                                }
-                                            }
                                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
                                             Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
@@ -1076,14 +1036,6 @@ except Exception as e:
                                             border.color: uvHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
                                             antialiasing: true
 
-                                            scale: uvHover.containsMouse ? 1.015 : 1.0
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                                    easing.type: animStyle.bounceEasing
-                                                    easing.overshoot: animStyle.overshoot
-                                                }
-                                            }
                                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
                                             Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
@@ -1143,14 +1095,6 @@ except Exception as e:
                                             border.color: humHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
                                             antialiasing: true
 
-                                            scale: humHover.containsMouse ? 1.015 : 1.0
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                                    easing.type: animStyle.bounceEasing
-                                                    easing.overshoot: animStyle.overshoot
-                                                }
-                                            }
                                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
                                             Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
@@ -1210,14 +1154,6 @@ except Exception as e:
                                             border.color: pressHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
                                             antialiasing: true
 
-                                            scale: pressHover.containsMouse ? 1.015 : 1.0
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                                    easing.type: animStyle.bounceEasing
-                                                    easing.overshoot: animStyle.overshoot
-                                                }
-                                            }
                                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
                                             Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
@@ -1277,14 +1213,6 @@ except Exception as e:
                                             border.color: cloudsHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
                                             antialiasing: true
 
-                                            scale: cloudsHover.containsMouse ? 1.015 : 1.0
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                                    easing.type: animStyle.bounceEasing
-                                                    easing.overshoot: animStyle.overshoot
-                                                }
-                                            }
                                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
                                             Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
@@ -1344,14 +1272,6 @@ except Exception as e:
                                             border.color: sunHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
                                             antialiasing: true
 
-                                            scale: sunHover.containsMouse ? 1.015 : 1.0
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                                    easing.type: animStyle.bounceEasing
-                                                    easing.overshoot: animStyle.overshoot
-                                                }
-                                            }
                                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
                                             Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
@@ -1465,14 +1385,6 @@ except Exception as e:
                                         border.color: forecastItemHover.containsMouse ? root.themePrimary : (model.day === "Today" ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(255, 255, 255, 0.10))
                                         antialiasing: true
 
-                                        scale: forecastItemHover.containsMouse ? 1.015 : 1.0
-                                        Behavior on scale {
-                                            NumberAnimation {
-                                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                                easing.type: animStyle.bounceEasing
-                                                easing.overshoot: animStyle.overshoot
-                                            }
-                                        }
                                         Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
                                         Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 

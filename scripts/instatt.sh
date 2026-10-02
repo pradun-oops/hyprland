@@ -2,78 +2,114 @@
 
 # ==========================================================
 # 🚀 Fedora Post-Install & Hyprland Environment Setup
-# Automates packages, audio daemons, Quickshell COPR,
-# dynamic theming tools (Matugen), wallpaper engines, RGB drivers,
-# and the Hyprglass liquid glass compositor plugin.
+# Automates repositories, core packages, audio daemons, 
+# Quickshell, Matugen, AWWW, LegionAura, and Hyprglass.
 # ==========================================================
 
-set -euo pipefail
+set -uo pipefail
+
+echo ":: Starting fresh Fedora Hyprland setup..."
 
 # ==========================================================
-# 🔄 System Updates
-# Refreshes metadata cache and brings core system packages up to date.
+# 🌍 1. Configure Third-Party Repositories
 # ==========================================================
-echo ":: Refreshing repositories and upgrading system packages..."
+echo ":: Enabling RPM Fusion repositories (for ffmpeg & media codecs)..."
+sudo dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm \
+                    https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm
+
+echo ":: Setting up custom COPR repositories..."
+sudo dnf copr enable -y errornointernet/quickshell
+sudo dnf copr enable -y lionheartp/Hyprland
+
+echo ":: Refreshing metadata and upgrading system..."
 sudo dnf upgrade --refresh -y
 
 # ==========================================================
-# 📦 Core Hyprland Desktop & Utility Dependencies
-# Installs compositor, audio framework, screenshot tools, 
-# build essentials, runtime helpers, and hyprglass build headers.
+# 📦 2. Define & Install Dependencies
 # ==========================================================
-echo ":: Installing core desktop and development packages..."
-sudo dnf install -y --allowerasing \
-    hyprland \
-    xdg-utils \
-    glib2 \
-    procps-ng \
-    jq \
-    pipewire \
-    wireplumber \
-    pulseaudio-utils \
-    playerctl \
-    pavucontrol \
-    grim \
-    hypridle \
-    hyprlock \
-    brightnessctl \
-    slurp \
-    wl-clipboard \
-    libnotify \
-    inotify-tools \
-    ImageMagick \
-    ffmpeg \
-    python3-pillow \
-    power-profiles-daemon \
-    gnome-power-manager \
-    kitty \
-    figlet \
-    ruby \
-    python3 \
-    python3-pip \
-    curl \
-    wget \
-    git \
-    cargo \
-    gcc \
-    gcc-c++ \
-    cmake \
-    make \
-    pkgconf-pkg-config \
-    hyprland-devel \
+PACKAGES=(
+    hyprland
+    hyprland-devel
+    quickshell
+    xdg-utils
+    glib2
+    procps-ng
+    jq
+    pipewire
+    wireplumber
+    pulseaudio-utils
+    playerctl
+    pavucontrol
+    grim
+    hypridle
+    hyprlock
+    brightnessctl
+    slurp
+    wl-clipboard
+    libnotify
+    inotify-tools
+    ImageMagick
+    ffmpeg
+    python3-pillow
+    power-profiles-daemon
+    gnome-power-manager
+    kitty
+    figlet
+    ruby
+    python3
+    python3-pip
+    curl
+    wget
+    git
+    cargo
+    gcc
+    gcc-c++
+    cmake
+    make
+    pkgconf-pkg-config
+    lz4-devel
     lolcat
+)
+
+echo ":: Installing core desktop and development packages..."
+# Temporarily disable exit-on-error for the bulk install to handle failures gracefully
+set +e
+sudo dnf install -y --allowerasing "${PACKAGES[@]}"
+DNF_EXIT_CODE=$?
+set -e
 
 # ==========================================================
-# 🐚 Quickshell Installation (COPR Repository)
-# Enables third-party repository and installs the custom shell engine.
+# 🚨 3. Installation Verification & Error Handling
 # ==========================================================
-echo ":: Setting up Quickshell repository..."
-sudo dnf copr enable -y errornointernet/quickshell
-sudo dnf install -y quickshell
+if [ $DNF_EXIT_CODE -ne 0 ]; then
+    echo -e "\n⚠️ WARNING: Bulk package installation encountered an error."
+    echo ":: Scanning for missing packages..."
+    
+    MISSING_PACKAGES=()
+    for pkg in "${PACKAGES[@]}"; do
+        if ! dnf list installed "$pkg" &>/dev/null; then
+            MISSING_PACKAGES+=("$pkg")
+        fi
+    done
+
+    if [ ${#MISSING_PACKAGES[@]} -gt 0 ]; then
+        echo -e "\n❌ The following packages failed to install:"
+        for missing in "${MISSING_PACKAGES[@]}"; do
+            echo "   - $missing"
+        done
+        echo -e "\nPlease resolve any conflicts and install them manually using:"
+        echo "sudo dnf install ${MISSING_PACKAGES[*]}"
+        echo -e "Exiting setup to prevent downstream compilation errors.\n"
+        exit 1
+    fi
+fi
+echo ":: All DNF packages installed successfully."
+
+# Ensure Cargo binaries are in the PATH for the current session
+export PATH="$HOME/.cargo/bin:$PATH"
 
 # ==========================================================
-# 🎨 Matugen Material You Palette Generator
-# Builds and installs Matugen CLI for real-time dynamic color extraction.
+# 🎨 4. Matugen Material You Palette Generator
 # ==========================================================
 if ! command -v matugen >/dev/null 2>&1; then
     echo ":: Installing Matugen via Cargo..."
@@ -81,10 +117,9 @@ if ! command -v matugen >/dev/null 2>&1; then
 fi
 
 # ==========================================================
-# 🖼️ AWWW / SWWW Animated Wallpaper Daemon
-# Clones, compiles from source via Cargo, and installs binaries globally.
+# 🖼️ 5. AWWW / SWWW Animated Wallpaper Daemon
 # ==========================================================
-if ! command -v awww >/dev/null 2>&1; then
+if ! command -v awww >/dev/null 2>&1 && ! command -v swww >/dev/null 2>&1; then
     echo ":: Compiling and installing AWWW wallpaper daemon..."
     git clone https://codeberg.org/LGFae/awww.git /tmp/awww
     cd /tmp/awww
@@ -100,8 +135,7 @@ if ! command -v awww >/dev/null 2>&1; then
 fi
 
 # ==========================================================
-# ⌨️ LegionAura RGB Controller
-# Installs Python tool for 4-zone Lenovo keyboard backlight control.
+# ⌨️ 6. LegionAura RGB Controller
 # ==========================================================
 if ! command -v legionaura >/dev/null 2>&1; then
     echo ":: Installing LegionAura Python package..."
@@ -109,22 +143,19 @@ if ! command -v legionaura >/dev/null 2>&1; then
 fi
 
 # ==========================================================
-# 🧊 Hyprglass Plugin Setup (Hyprpm)
-# Initializes plugin manager headers and installs hyprglass.
+# 🧊 7. Hyprglass Plugin Setup
 # ==========================================================
 echo ":: Setting up Hyprglass liquid glass plugin..."
-# Note: hyprpm manages plugins per user; initializing state and adding repo:
-hyprpm update || true
-hyprpm add https://github.com/hyprnux/hyprglass || true
-hyprpm enable hyprglass || true
+hyprpm update || echo "hyprpm update failed, continuing..."
+hyprpm add https://github.com/hyprnux/hyprglass || echo "hyprpm add failed, continuing..."
+hyprpm enable hyprglass || echo "hyprglass enablement failed, you may need to run this manually in an active session."
 
 # ==========================================================
-# ⚙️ Systemd Daemons & Hardware Service Activation
-# Enables PipeWire audio engine and power management profiles.
+# ⚙️ 8. Systemd Daemons & Hardware Services
 # ==========================================================
 echo ":: Activating background system services..."
 systemctl --user enable --now wireplumber.service
 systemctl --user enable --now pipewire.service
 sudo systemctl enable --now power-profiles-daemon.service
 
-echo ":: Setup completed successfully!"
+echo -e "\n✅ Setup completed successfully!"

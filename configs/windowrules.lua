@@ -142,7 +142,6 @@ hl.window_rule({
     float   = true,
     size    = "1300 850",
     center  = true,
-    opacity = "0.85 0.90",
 })
 
 -- Large GNOME productivity and utility apps

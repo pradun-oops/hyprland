@@ -415,8 +415,6 @@ Scope {
                 }
                 isClosing = true
                 
-                // Explicit quit instead of sequential animation on the root card,
-                // avoiding the ghost blur issue upon exit.
                 Qt.quit()
             }
 
@@ -533,8 +531,6 @@ Scope {
                                         font.pixelSize: 13
                                         font.weight: Font.DemiBold
                                         color: "#FFFFFF"
-                                        placeholderText: "Search settings..."
-                                        placeholderTextColor: Qt.alpha(1.0, 1.0, 1.0, 0.45)
                                         verticalAlignment: TextInput.AlignVCenter
                                         background: Item {}
 

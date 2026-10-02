@@ -82,13 +82,6 @@ apply_blur({
     "qs-clipboard",
     "qs-analog-clock",
     "qs-rgbcontrol",
-}, 0.01)
-
-
--- ============================================================================
--- ⚡ SESSION & POWER SURFACES (Alpha Threshold: 0.02)
--- ============================================================================
--- Elevated blur threshold tailored specifically for deep translucent power menus.
-apply_blur({
     "qs-power-menu",
-}, 0.02)
+    "qs-digital-wellbeing",
+}, 0.01)

@@ -8,37 +8,37 @@ if hl.plugin.hyprglass then
 
     -- Preset modeled after the liquid UI showcase
     hg.preset("liquid", {
-        glass_opacity        = 1, 
+        glass_opacity        = 1.0, 
         blur_strength        = 1.5, 
-        blur_iterations      = 1,   
+        blur_iterations      = 0.0,   
         
-        refraction_strength  = 2, 
-        chromatic_aberration = 1, 
-        fresnel_strength     = 2, 
-        specular_strength    = 1, 
+        refraction_strength  = 1.0, 
+        chromatic_aberration = 0.0, 
+        fresnel_strength     = 0.0, 
+        specular_strength    = 0.0, 
         edge_thickness       = 0.01,
         
         tint_color           = 0x11112222, 
-        lens_distortion      = 0.01,
+        lens_distortion      = 0.0,
 
         dark = {
-            brightness        = 2,
+            brightness        = 1.5,
             contrast          = 1,
             saturation        = 1,
             vibrancy          = 1,
-            vibrancy_darkness = 0.1,
-            adaptive_dim      = 0.2,
-            adaptive_boost    = 0.00001,
+            vibrancy_darkness = 0.0,
+            adaptive_dim      = 0.0,
+            adaptive_boost    = 0.0,
         },
 
         light = {
-            brightness        = 1.0,
-            contrast          = 1.0,
-            saturation        = 1.0,
-            vibrancy          = 0.1,
+            brightness        = 1.5,
+            contrast          = 1,
+            saturation        = 1,
+            vibrancy          = 1,
             vibrancy_darkness = 0.0,
-            adaptive_dim      = 0.3,
-            adaptive_boost    = 0.2,
+            adaptive_dim      = 0.0,
+            adaptive_boost    = 0.0,
         },
     })
 
@@ -91,7 +91,8 @@ if hl.plugin.hyprglass then
         "qs-filemanager",
         "qs-clipboard",
         "qs-analog-clock",
-        "qs-rgbcontrol",       
+        "qs-rgbcontrol",
+        "qs-digital-wellbeing",       
         
     }
 

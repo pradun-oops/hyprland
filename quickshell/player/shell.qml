@@ -19,7 +19,6 @@ Scope {
     property int themeRounding: 16
     property int themeBorderSize: 1
     
-    // The background will now strictly follow this 50% transparency value
     property real themeBgAlpha: 0.5
     
     property bool animEnabled: true

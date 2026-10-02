@@ -36,6 +36,7 @@ hl.on("hyprland.start", function()
     hl.exec_cmd("wl-paste --watch cliphist store &")         -- Clipboard manager
     hl.exec_cmd("hypridle &")                                -- Idle management
 
+
     -- Live theme watcher: monitors colors.lua and syncs Lenovo LOQ keyboard RGB
     hl.exec_cmd(home .. "/.config/hypr/scripts/theme_watcher.sh &")
 

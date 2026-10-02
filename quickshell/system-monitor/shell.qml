@@ -49,8 +49,8 @@ Scope {
     property bool animEnabled: true
     property int animDuration: 380
     
-    property color themeBackground: "#141416" 
-    property color themeSurface: Qt.rgba(0, 0, 0, 0.32) 
+    property color themeBackground: "#141416"
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.32)
     property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)
     property color themeBorder: "#ffb3af"
     property color themePrimary: "#ffb3af"
@@ -538,19 +538,12 @@ while True:
                                     id: cpuCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
                                     radius: Math.max(4, root.themeRounding - 6)
-                                    color: root.themeSurface
+                                    color: cpuCardHover.hovered ? root.themeSurfaceHover : root.themeSurface
                                     border.width: 1
                                     border.color: cpuCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
                                     antialiasing: true
 
-                                    scale: cpuCardHover.hovered ? 1.02 : 1.0
-                                    Behavior on scale {
-                                        NumberAnimation {
-                                            duration: root.animEnabled ? animStyle.animDuration : 0
-                                            easing.type: animStyle.bounceEasing
-                                            easing.overshoot: animStyle.overshoot
-                                        }
-                                    }
+                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                     Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                     HoverHandler { id: cpuCardHover }
@@ -612,19 +605,12 @@ while True:
                                     id: gpuCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
                                     radius: Math.max(4, root.themeRounding - 6)
-                                    color: root.themeSurface
+                                    color: gpuCardHover.hovered ? root.themeSurfaceHover : root.themeSurface
                                     border.width: 1
                                     border.color: gpuCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
                                     antialiasing: true
 
-                                    scale: gpuCardHover.hovered ? 1.02 : 1.0
-                                    Behavior on scale {
-                                        NumberAnimation {
-                                            duration: root.animEnabled ? animStyle.animDuration : 0
-                                            easing.type: animStyle.bounceEasing
-                                            easing.overshoot: animStyle.overshoot
-                                        }
-                                    }
+                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                     Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                     HoverHandler { id: gpuCardHover }
@@ -707,19 +693,12 @@ while True:
                                     id: ramCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
                                     radius: Math.max(4, root.themeRounding - 6)
-                                    color: root.themeSurface
+                                    color: ramCardHover.hovered ? root.themeSurfaceHover : root.themeSurface
                                     border.width: 1
                                     border.color: ramCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
                                     antialiasing: true
 
-                                    scale: ramCardHover.hovered ? 1.02 : 1.0
-                                    Behavior on scale {
-                                        NumberAnimation {
-                                            duration: root.animEnabled ? animStyle.animDuration : 0
-                                            easing.type: animStyle.bounceEasing
-                                            easing.overshoot: animStyle.overshoot
-                                        }
-                                    }
+                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                     Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                     HoverHandler { id: ramCardHover }
@@ -789,19 +768,12 @@ while True:
                                     id: diskCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
                                     radius: Math.max(4, root.themeRounding - 6)
-                                    color: root.themeSurface
+                                    color: diskCardHover.hovered ? root.themeSurfaceHover : root.themeSurface
                                     border.width: 1
                                     border.color: diskCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
                                     antialiasing: true
 
-                                    scale: diskCardHover.hovered ? 1.02 : 1.0
-                                    Behavior on scale {
-                                        NumberAnimation {
-                                            duration: root.animEnabled ? animStyle.animDuration : 0
-                                            easing.type: animStyle.bounceEasing
-                                            easing.overshoot: animStyle.overshoot
-                                        }
-                                    }
+                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                     Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                     HoverHandler { id: diskCardHover }
@@ -867,19 +839,12 @@ while True:
                                     id: netCard
                                     Layout.fillWidth: true; Layout.columnSpan: 2; Layout.preferredHeight: 80
                                     radius: Math.max(4, root.themeRounding - 6)
-                                    color: root.themeSurface
+                                    color: netCardHover.hovered ? root.themeSurfaceHover : root.themeSurface
                                     border.width: 1
                                     border.color: netCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
                                     antialiasing: true
 
-                                    scale: netCardHover.hovered ? 1.015 : 1.0
-                                    Behavior on scale {
-                                        NumberAnimation {
-                                            duration: root.animEnabled ? animStyle.animDuration : 0
-                                            easing.type: animStyle.bounceEasing
-                                            easing.overshoot: animStyle.overshoot
-                                        }
-                                    }
+                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                     Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                     HoverHandler { id: netCardHover }
@@ -989,18 +954,11 @@ while True:
                                             radius: 6
                                             color: root.procTab === "user" ? Qt.alpha(root.themePrimary, 0.25) : (userTabMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.1) : "transparent")
                                             border.width: 1
-                                            border.color: root.procTab === "user" ? root.themePrimary : "transparent"
+                                            border.color: root.procTab === "user" ? root.themePrimary : (userTabMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : "transparent")
                                             antialiasing: true
-                                            scale: userTabMouse.containsMouse ? 1.05 : 1.0
 
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                                    easing.type: animStyle.bounceEasing
-                                                    easing.overshoot: animStyle.overshoot
-                                                }
-                                            }
                                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                             Text { 
                                                 anchors.centerIn: parent
@@ -1019,18 +977,11 @@ while True:
                                             radius: 6
                                             color: root.procTab === "system" ? Qt.alpha(root.themePrimary, 0.25) : (sysTabMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.1) : "transparent")
                                             border.width: 1
-                                            border.color: root.procTab === "system" ? root.themePrimary : "transparent"
+                                            border.color: root.procTab === "system" ? root.themePrimary : (sysTabMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : "transparent")
                                             antialiasing: true
-                                            scale: sysTabMouse.containsMouse ? 1.05 : 1.0
 
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                                    easing.type: animStyle.bounceEasing
-                                                    easing.overshoot: animStyle.overshoot
-                                                }
-                                            }
                                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                             Text { 
                                                 anchors.centerIn: parent
@@ -1052,16 +1003,9 @@ while True:
                                             border.width: 1
                                             border.color: closeHover.containsMouse ? "#ff4b6e" : Qt.rgba(255, 255, 255, 0.12)
                                             antialiasing: true
-                                            scale: closeHover.containsMouse ? 1.12 : 1.0
 
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                                    easing.type: animStyle.bounceEasing
-                                                    easing.overshoot: animStyle.overshoot
-                                                }
-                                            }
                                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                             Text { 
                                                 anchors.centerIn: parent
@@ -1161,15 +1105,6 @@ while True:
                                     border.color: killHover.containsMouse ? "#ff4b6e" : (procRowMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(255, 255, 255, 0.06))
                                     antialiasing: true
 
-                                    scale: procRowMouse.containsMouse ? 1.015 : 1.0
-
-                                    Behavior on scale {
-                                        NumberAnimation {
-                                            duration: root.animEnabled ? animStyle.animDuration : 0
-                                            easing.type: animStyle.bounceEasing
-                                            easing.overshoot: animStyle.overshoot
-                                        }
-                                    }
                                     Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                     Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
@@ -1236,20 +1171,13 @@ while True:
                                             border.width: 1
                                             border.color: killHover.containsMouse ? "#ff4b6e" : Qt.rgba(255, 255, 255, 0.12)
                                             antialiasing: true
-                                            scale: killHover.containsMouse ? 1.15 : 1.0
 
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                                    easing.type: animStyle.bounceEasing
-                                                    easing.overshoot: animStyle.overshoot
-                                                }
-                                            }
                                             Behavior on color { ColorAnimation { duration: 150 } }
+                                            Behavior on border.color { ColorAnimation { duration: 150 } }
 
                                             Text { 
-                                                anchors.centerIn: parent; 
-                                                text: "󰅖"; font.pixelSize: 14; 
+                                                anchors.centerIn: parent 
+                                                text: "󰅖"; font.pixelSize: 14 
                                                 color: killHover.containsMouse ? "#ffffff" : root.themeTextMuted 
                                                 Behavior on color { ColorAnimation { duration: 150 } }
                                             }

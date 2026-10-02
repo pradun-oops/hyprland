@@ -18,61 +18,71 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # 📁 Directory Preparation
 # Ensures core target destination directories exist.
 # ==========================================================
-mkdir -p "$HOME/.config/hypr"
 mkdir -p "$HOME/.config/hypr/extensions"
 
 # ==========================================================
-# 📦 Global Configuration Deployment (~/.config/)
-# Syncs standalone terminal, fetch tools, and palette configs.
+# 🔗 Global Configuration Deployment (~/.config/)
+# Uses symlinks so live edits reflect directly in the git repo.
 # ==========================================================
-echo ":: Deploying global configurations..."
-cp -a "$REPO_DIR/fastfetch" "$HOME/.config/" 2>/dev/null || true
-cp -a "$REPO_DIR/kitty"     "$HOME/.config/" 2>/dev/null || true
-cp -a "$REPO_DIR/matugen"   "$HOME/.config/" 2>/dev/null || true
+echo ":: Deploying global configurations via symlinks..."
+GLOBAL_CONFIGS=("fastfetch" "kitty" "matugen")
+
+for app in "${GLOBAL_CONFIGS[@]}"; do
+    if [ -d "$REPO_DIR/$app" ]; then
+        ln -sfn "$REPO_DIR/$app" "$HOME/.config/$app"
+    fi
+done
 
 # ==========================================================
 # 🪟 Hyprland & Quickshell Suite Deployment (~/.config/hypr/)
-# Deploys Lua configs, assets, Quickshell components, and helper scripts.
 # ==========================================================
-echo ":: Deploying Hyprland modular environment..."
-cp -a "$REPO_DIR/assets"       "$HOME/.config/hypr/" 2>/dev/null || true
-cp -a "$REPO_DIR/configs"      "$HOME/.config/hypr/" 2>/dev/null || true
-cp -a "$REPO_DIR/quickshell"   "$HOME/.config/hypr/" 2>/dev/null || true
-cp -a "$REPO_DIR/scripts"      "$HOME/.config/hypr/" 2>/dev/null || true
-cp -a "$REPO_DIR/hyprland.lua" "$HOME/.config/hypr/" 2>/dev/null || true
+echo ":: Deploying Hyprland modular environment via symlinks..."
+HYPR_CONFIGS=("assets" "configs" "quickshell" "scripts" "hyprland.lua")
+
+for item in "${HYPR_CONFIGS[@]}"; do
+    if [ -e "$REPO_DIR/$item" ]; then
+        ln -sfn "$REPO_DIR/$item" "$HOME/.config/hypr/$item"
+    fi
+done
 
 # ==========================================================
 # 🧩 VSCodium Extension Deployment
-# Copies the pre-packaged .vsix extension into the config folder
-# and installs it directly into VSCodium.
 # ==========================================================
 echo ":: Installing custom VSCodium theme sync extension..."
 if [ -d "$REPO_DIR/extensions" ]; then
+    # Copying extensions instead of symlinking is usually safer for VSCode/Codium
     cp -a "$REPO_DIR/extensions/." "$HOME/.config/hypr/extensions/" 2>/dev/null || true
 fi
 
-if [ -f "$HOME/.config/hypr/extensions/matugen-theme-sync-0.0.1.vsix" ]; then
-    codium --install-extension "$HOME/.config/hypr/extensions/matugen-theme-sync-0.0.1.vsix" --force
+VSIX_FILE="$HOME/.config/hypr/extensions/matugen-theme-sync-0.0.1.vsix"
+if [ -f "$VSIX_FILE" ]; then
+    if command -v codium >/dev/null 2>&1; then
+        codium --install-extension "$VSIX_FILE" --force
+    else
+        echo ":: Warning: VSCodium (codium) is not installed or not in PATH. Skipping extension install."
+    fi
 else
     echo ":: Warning: Pre-packaged VSIX file not found in extensions directory."
 fi
 
 # ==========================================================
 # 🔑 File Permissions
-# Grants executable privileges (+x) to all deployed bash scripts.
 # ==========================================================
 echo ":: Setting execution permissions on shell scripts..."
-if [ -d "$HOME/.config/hypr/scripts" ]; then
-    find "$HOME/.config/hypr/scripts" -type f -name "*.sh" -exec chmod +x {} +
+# Apply permissions directly to the repo files since we are symlinking them
+if [ -d "$REPO_DIR/scripts" ]; then
+    find "$REPO_DIR/scripts" -type f -name "*.sh" -exec chmod +x {} +
 fi
 
 # ==========================================================
 # 🔄 Compositor Live Reload
-# Signals Hyprland to apply updated Lua configs if session is active.
 # ==========================================================
 echo ":: Reloading Hyprland configuration..."
-if command -v hyprctl >/dev/null 2>&1; then
+# Check both if hyprctl exists AND if a Hyprland session is actually active
+if command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
     hyprctl reload
+else
+    echo ":: Notice: Hyprland session not detected. Skipping live reload."
 fi
 
 echo ":: Setup complete! All configurations deployed successfully."
