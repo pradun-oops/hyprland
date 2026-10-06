@@ -1,11 +1,3 @@
-/* ==========================================================
- * 🧊 Liquid Glass GTK / Libadwaita Material You Stylesheet
- *    (High-Contrast Frosted Edition)
- * ========================================================== */
-
-/* ----------------------------------------------------------
- * 🌈 Core Accent & Highlight Colors
- * ---------------------------------------------------------- */
 @define-color accent_color {{colors.primary.default.hex}};
 @define-color accent_bg_color {{colors.primary.default.hex}};
 @define-color accent_fg_color {{colors.on_primary.default.hex}};
@@ -26,14 +18,9 @@
 @define-color error_bg_color {{colors.error.default.hex}};
 @define-color error_fg_color {{colors.on_error.default.hex}};
 
-/* ----------------------------------------------------------
- * 🧊 Glass Window Surfaces & Canvases (Increased Opacity)
- * ---------------------------------------------------------- */
-/* Raised from 0.45 to 0.82 for strong frosted legibility */
 @define-color window_bg_color alpha({{colors.background.default.hex}}, 0.82);
 @define-color window_fg_color {{colors.on_background.default.hex}};
 
-/* Raised from 0.40 to 0.75 for main content areas */
 @define-color view_bg_color alpha({{colors.surface.default.hex}}, 0.75);
 @define-color view_fg_color {{colors.on_surface.default.hex}};
 
@@ -43,9 +30,6 @@
 @define-color headerbar_backdrop_color @window_bg_color;
 @define-color headerbar_shade_color transparent;
 
-/* ----------------------------------------------------------
- * 🧊 Cards, Dialogs & Popover Menus
- * ---------------------------------------------------------- */
 @define-color card_bg_color alpha({{colors.surface_container.default.hex}}, 0.65);
 @define-color card_fg_color {{colors.on_surface.default.hex}};
 @define-color card_border_color alpha({{colors.outline_variant.default.hex}}, 0.35);
@@ -57,21 +41,13 @@
 @define-color popover_fg_color {{colors.on_surface.default.hex}};
 @define-color popover_shade_color rgba(0, 0, 0, 0.25);
 
-/* Light-bending edge colors */
 @define-color borders alpha({{colors.outline_variant.default.hex}}, 0.45);
 @define-color outline_color alpha({{colors.outline.default.hex}}, 0.50);
 
-/* ----------------------------------------------------------
- * 🔤 Global Font Rendering Improvements
- * ---------------------------------------------------------- */
-/* Apply a subtle drop shadow to text to separate it from the blurred background */
 label, .label {
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
 }
 
-/* ----------------------------------------------------------
- * 🪟 GTK4 Popover Structure & Menu Overrides
- * ---------------------------------------------------------- */
 popover > arrow,
 popover > contents {
     background-color: @popover_bg_color;
@@ -82,7 +58,6 @@ popover > contents {
     box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 
-/* Floating pill-style menu items */
 popover.menu modelbutton,
 popover.menu button {
     border-radius: 10px; 
@@ -91,7 +66,6 @@ popover.menu button {
     transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94); 
 }
 
-/* Menu items selection / hover styling */
 popover.menu modelbutton:hover,
 popover.menu modelbutton:selected,
 popover.menu button:hover {
@@ -104,12 +78,9 @@ popover.menu modelbutton:hover label,
 popover.menu modelbutton:selected label,
 popover.menu button:hover label {
     color: @accent_fg_color;
-    text-shadow: none; /* Remove shadow on highlighted items for sharpness */
+    text-shadow: none;
 }
 
-/* ----------------------------------------------------------
- * 🗂️ Cards & Dialogs (Unified Geometry)
- * ---------------------------------------------------------- */
 card, .card {
     background-color: @card_bg_color;
     color: @card_fg_color;
@@ -129,9 +100,6 @@ dialog, window.dialog {
     box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.15), 0 12px 36px rgba(0, 0, 0, 0.5);
 }
 
-/* ----------------------------------------------------------
- * 🎛️ General Elements & Buttons
- * ---------------------------------------------------------- */
 button {
     border-radius: 12px;
     transition: background-color 0.2s ease, box-shadow 0.2s ease;

@@ -1,25 +1,9 @@
---- @diagnostic disable: undefined-global
-
--- ============================================================================
--- ⚙️ ANIMATION ENGINE CONFIGURATION
--- ============================================================================
--- Preset: Default (Clean, responsive sliding transitions and fluid motion)
--- ============================================================================
-
 hl.config({
     animations = {
         enabled = true,
     },
 })
 
-
--- ============================================================================
--- 🪟 WINDOW LIFECYCLE & MOTION
--- ============================================================================
--- Controls entry, exit, dragging, and tile repositioning animations.
--- ============================================================================
-
--- Window open transition (smooth slide-in effect)
 hl.animation({ 
     leaf = "windowsIn", 
     enabled = true, 
@@ -28,7 +12,6 @@ hl.animation({
     style = "slide" 
 })
 
--- Window close transition (slightly faster slide-out for UI snappiness)
 hl.animation({ 
     leaf = "windowsOut", 
     enabled = true, 
@@ -37,7 +20,6 @@ hl.animation({
     style = "slide" 
 })
 
--- Window move / tile reposition animation
 hl.animation({ 
     leaf = "windowsMove", 
     enabled = true, 
@@ -45,14 +27,6 @@ hl.animation({
     bezier = "default" 
 })
 
-
--- ============================================================================
--- 👁️ VISUAL EFFECTS & TRANSITIONS
--- ============================================================================
--- Manages opacity fading, workspace switching shifts, and active border color pulses.
--- ============================================================================
-
--- Opacity / layer fading transition
 hl.animation({ 
     leaf = "fade", 
     enabled = true, 
@@ -60,7 +34,6 @@ hl.animation({
     bezier = "default" 
 })
 
--- Workspace switching sliding transition
 hl.animation({ 
     leaf = "workspaces", 
     enabled = true, 
@@ -69,7 +42,6 @@ hl.animation({
     style = "slide" 
 })
 
--- Active border color shift and pulse speed
 hl.animation({ 
     leaf = "border", 
     enabled = true, 

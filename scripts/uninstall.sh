@@ -1,18 +1,11 @@
 #!/usr/bin/env bash
 
-# ==========================================================
-# 🛑 Fedora Hyprland & Quickshell Uninstaller
-# Safely removes Hyprland, Quickshell, AWWW, Matugen, 
-# Oh My Posh, custom COPRs, and cleans up dotfiles.
-# ==========================================================
-
 set -u
 
-# Define colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 echo -e "${RED}⚠️  WARNING: This script will remove Hyprland, Quickshell, custom themes, and your configuration files.${NC}"
 read -p "Are you sure you want to completely uninstall this setup? (y/N): " confirm
@@ -58,8 +51,6 @@ if [ -f "$HOME/.config/fish/config.fish" ]; then
 fi
 
 echo -e "\n${YELLOW}:: 6. Removing specific desktop packages...${NC}"
-# We ONLY remove GUI/Hyprland specific packages. 
-# Core utilities (gcc, python3, pipewire, bluez, polkit-gnome, etc.) are intentionally omitted.
 PACKAGES_TO_REMOVE=(
     hyprland
     hyprland-devel
@@ -101,7 +92,6 @@ if [[ "$conf_confirm" =~ ^[Yy]$ ]]; then
     rm -rf ~/.config/matugen
     rm -rf ~/.config/gtk-4.0/settings.ini
     
-    # Remove the cloned WhiteSur theme folder if it exists in Wallpapers
     rm -rf ~/Pictures/Wallpapers/WhiteSur-gtk-theme
     
     echo "Configs deleted."

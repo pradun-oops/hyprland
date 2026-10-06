@@ -1,54 +1,24 @@
---- @diagnostic disable: undefined-global
-
--- ============================================================================
--- 🚀 HYPRLAND STARTUP & AUTOSTART CONFIGURATION
--- ============================================================================
--- Manages environment variables, authentication agents, background daemons,
--- GTK theming, and the primary Quickshell UI execution on launch.
--- ============================================================================
-
 hl.on("hyprland.start", function()
     local home = os.getenv("HOME")
 
-    -- ========================================================================
-    -- 🌐 SYSTEM ENVIRONMENT & DBUS ACTIVATION
-    -- ========================================================================
-    -- Ensures Wayland, XDG, QT, and GTK variables are cleanly passed to systemd/DBus
-    -- NOTE: GTK_THEME is intentionally omitted to prevent GTK4 background transparency bugs.
     local env_vars = "WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE XDG_SESSION_DESKTOP QT_QPA_PLATFORMTHEME ADW_DISABLE_PORTAL"
     
     hl.exec_cmd("dbus-update-activation-environment --systemd " .. env_vars)
     hl.exec_cmd("systemctl --user import-environment " .. env_vars)
     hl.exec_cmd("systemctl --user start hyprland-session.target")
 
-
-    -- ========================================================================
-    -- 🔐 SECURITY & AUTHENTICATION
-    -- ========================================================================
-    -- GNOME Polkit agent for GUI privilege escalation (required for secure apps)
     hl.exec_cmd("/usr/libexec/polkit-gnome-authentication-agent-1 &")
 
-
-    -- ========================================================================
-    -- 🛠️ BACKGROUND DAEMONS & UTILITIES
-    -- ========================================================================
     hl.exec_cmd("hyprpm reload -n &")
-    hl.exec_cmd("awww-daemon &")                             -- Wallpaper daemon
-    hl.exec_cmd("wl-paste --watch cliphist store &")         -- Clipboard manager
-    hl.exec_cmd("hypridle &")                                -- Idle management
+    hl.exec_cmd("awww-daemon &")
+    hl.exec_cmd("wl-paste --watch cliphist store &")
+    hl.exec_cmd("hypridle &")
 
-
-    -- Live theme watcher: monitors colors.lua and syncs Lenovo LOQ keyboard RGB
     hl.exec_cmd(home .. "/.config/hypr/scripts/theme_watcher.sh &")
 
-
-    -- ========================================================================
-    -- 🎨 GTK THEME & GNOME DESKTOP SETTINGS
-    -- ========================================================================
-    -- Dynamically applies standard GTK styling and color scheme preferences
     local gnome_settings = {
-        "org.gnome.desktop.interface gtk-theme adw-gtk3-dark",    -- Handles GTK3 apps
-        "org.gnome.desktop.interface color-scheme 'prefer-dark'", -- Handles GTK4/Libadwaita apps
+        "org.gnome.desktop.interface gtk-theme adw-gtk3-dark",
+        "org.gnome.desktop.interface color-scheme 'prefer-dark'",
         "org.gnome.desktop.interface icon-theme WhiteSur",
         "org.gnome.desktop.wm.preferences button-layout ':,,close'",
     }
@@ -57,10 +27,5 @@ hl.on("hyprland.start", function()
         hl.exec_cmd("gsettings set " .. setting)
     end
 
-
-    -- ========================================================================
-    -- 🖥️ CUSTOM UI SHELL (QUICKSHELL)
-    -- ========================================================================
-    -- Boots the main custom shell interface overlay
     hl.exec_cmd("quickshell -c " .. home .. "/.config/hypr/quickshell/ &")
 end)
