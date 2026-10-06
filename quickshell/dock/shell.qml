@@ -65,16 +65,14 @@ Scope {
                         for (let i = 0; i < apps.length; i++) {
                             pinnedAppsModel.append(apps[i])
                         }
-                        return // Exit early ONLY if we successfully loaded a valid array
+                        return
                     }
                 }
             } catch(e) {}
             
-            // Fallback for empty file or invalid JSON
             if (pinnedAppsModel.count === 0) root.loadDefaultApps()
         }
         onLoadFailed: {
-            // Triggers if the file or directory doesn't exist yet
             if (pinnedAppsModel.count === 0) root.loadDefaultApps()
         }
     }
@@ -98,7 +96,7 @@ Scope {
         }
         let jsonStr = JSON.stringify(apps)
         
-        saveProcess.running = false // Reset process state to prevent execution lock
+        saveProcess.running = false
         saveProcess.command = ["bash", "-c", "mkdir -p $(dirname '" + root.savedAppsFilePath + "') && echo '" + jsonStr.replace(/'/g, "'\\''") + "' > '" + root.savedAppsFilePath + "'"]
         saveProcess.running = true
     }
@@ -232,7 +230,7 @@ Scope {
 
     Timer {
         id: bootTimer
-        interval: 150 // Increased slightly to prevent file read/write collision on cold boot
+        interval: 150
         running: true
         repeat: false
         onTriggered: { 
@@ -447,6 +445,19 @@ Scope {
                             }
                             dockWindow.unpinnedApps = unpinned
 
+                            // Synchronize resolved WhiteSur absolute icon paths back into pinned model
+                            if (data.pinned_resolved && Array.isArray(data.pinned_resolved)) {
+                                for (let i = 0; i < data.pinned_resolved.length; i++) {
+                                    let pRes = data.pinned_resolved[i]
+                                    if (i < pinnedAppsModel.count) {
+                                        let item = pinnedAppsModel.get(i)
+                                        if (pRes.iconName && pRes.iconName.startsWith("/") && item.iconName !== pRes.iconName) {
+                                            pinnedAppsModel.setProperty(i, "iconName", pRes.iconName)
+                                        }
+                                    }
+                                }
+                            }
+
                         } catch (e) {}
                     }
                 }
@@ -461,6 +472,68 @@ Scope {
                 onTriggered: {
                     let pyScript = `
 import json, subprocess, sys, os, glob, re
+
+def find_whitesur_icon(icon_name, wm_class="", file_path=""):
+    if not icon_name and not wm_class: return ""
+    if icon_name and os.path.isabs(icon_name) and os.path.exists(icon_name): return icon_name
+
+    search_keys = []
+    for item in [icon_name, wm_class]:
+        if item:
+            search_keys.append(item)
+            search_keys.append(item.lower())
+            if "." in item:
+                stem = item.split(".")[-1]
+                search_keys.extend([stem, stem.lower()])
+                search_keys.extend(["gnome-" + stem.lower(), "org.gnome." + stem])
+
+    seen_keys = set()
+    unique_keys = []
+    for k in search_keys:
+        if k and k not in seen_keys:
+            seen_keys.add(k)
+            unique_keys.append(k)
+
+    home = os.path.expanduser("~")
+    icon_roots = [
+        os.path.join(home, ".local/share/icons"),
+        os.path.join(home, ".icons"),
+        "/usr/share/icons",
+        "/var/lib/flatpak/exports/share/icons",
+        os.path.expanduser("~/.local/share/flatpak/exports/share/icons")
+    ]
+
+    ws_dirs = []
+    for r in icon_roots:
+        if os.path.exists(r):
+            try:
+                for d in os.listdir(r):
+                    if "whitesur" in d.lower():
+                        ws_dirs.append(os.path.join(r, d))
+            except Exception:
+                pass
+
+    subdirs = ["apps/scalable", "apps/48", "apps/128", "apps/64", "apps/symbolic", "categories/scalable", "places/scalable"]
+    extensions = [".svg", ".png", ".xpm"]
+
+    for ws_dir in ws_dirs:
+        for sub in subdirs:
+            target_dir = os.path.join(ws_dir, sub)
+            if os.path.exists(target_dir):
+                for key in unique_keys:
+                    for ext in extensions:
+                        p = os.path.join(target_dir, key + ext)
+                        if os.path.exists(p): return p
+
+    for r in icon_roots:
+        if os.path.exists(r):
+            for key in unique_keys:
+                for ext in extensions:
+                    for fallback_sub in ["hicolor/scalable/apps", "hicolor/48x48/apps", "pixmaps", "hicolor/apps/scalable"]:
+                        p = os.path.join(r, fallback_sub, key + ext)
+                        if os.path.exists(p): return p
+
+    return icon_name or wm_class
 
 def resolve_desktop_meta(cls):
     if not cls: return "", cls, cls.capitalize(), cls
@@ -483,9 +556,9 @@ def resolve_desktop_meta(cls):
                 try:
                     with open(target_path, "r", encoding="utf-8") as f:
                         raw = f.read()
-                        exec_l = next((l.split("=", 1)[1].strip() for l in raw.split("\\n") if l.startswith("Exec=")), "")
-                        name_l = next((l.split("=", 1)[1].strip() for l in raw.split("\\n") if l.startswith("Name=")), "")
-                        icon_l = next((l.split("=", 1)[1].strip() for l in raw.split("\\n") if l.startswith("Icon=")), "")
+                        exec_l = next((l.split("=", 1)[1].strip() for l in raw.splitlines() if l.startswith("Exec=")), "")
+                        name_l = next((l.split("=", 1)[1].strip() for l in raw.splitlines() if l.startswith("Name=")), "")
+                        icon_l = next((l.split("=", 1)[1].strip() for l in raw.splitlines() if l.startswith("Icon=")), "")
                         clean_cmd = re.sub(r'%[fFuUikKc]', '', exec_l).strip()
                         return target_path, clean_cmd if clean_cmd else cls, name_l if name_l else cls, icon_l if icon_l else cls
                 except Exception:
@@ -518,13 +591,14 @@ try:
             classes.append(cls.lower())
             if cls.lower() not in seen:
                 seen.add(cls.lower())
-                fpath, cmd_clean, disp_name, icon_name = resolve_desktop_meta(lookup_target)
+                fpath, cmd_clean, disp_name, raw_icon = resolve_desktop_meta(lookup_target)
+                resolved_icon = find_whitesur_icon(raw_icon, cls, fpath)
                 running_info.append({
                     "name": disp_name,
                     "wmClass": cls,
                     "process": cls,
                     "cmd": cmd_clean,
-                    "iconName": icon_name,
+                    "iconName": resolved_icon,
                     "filePath": fpath
                 })
         
@@ -537,9 +611,26 @@ try:
                 if y + h > logical_height - 120:
                     overlap = True
 
-    print(json.dumps({"clients": classes, "overlap": overlap, "running_info": running_info}))
+    pinned_file = os.path.expanduser("~/.config/quickshell/json/dock_pinned.json")
+    resolved_pinned = []
+    if os.path.exists(pinned_file):
+        try:
+            with open(pinned_file, "r", encoding="utf-8") as pf:
+                p_data = json.load(pf)
+                for item in p_data:
+                    icon_orig = item.get("iconName", "")
+                    wm_cls = item.get("wmClass", "")
+                    fp = item.get("filePath", "")
+                    resolved_icon = find_whitesur_icon(icon_orig, wm_cls, fp)
+                    item_copy = dict(item)
+                    item_copy["iconName"] = resolved_icon
+                    resolved_pinned.append(item_copy)
+        except Exception:
+            pass
+
+    print(json.dumps({"clients": classes, "overlap": overlap, "running_info": running_info, "pinned_resolved": resolved_pinned}))
 except Exception:
-    print(json.dumps({"clients": [], "overlap": False, "running_info": []}))
+    print(json.dumps({"clients": [], "overlap": False, "running_info": [], "pinned_resolved": []}))
 `
                     clientProcess.command = ["python3", "-c", pyScript, dockWindow.outputName]
                     clientProcess.running = true

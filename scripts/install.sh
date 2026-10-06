@@ -67,6 +67,8 @@ PACKAGES=(
     pipewire
     wireplumber
     pulseaudio-utils
+    xdg-desktop-portal-hyprland 
+    xdg-desktop-portal-gtk
     playerctl
     pavucontrol
     ffmpeg
@@ -87,7 +89,6 @@ PACKAGES=(
     python3-pillow
     power-profiles-daemon
     gnome-power-manager
-    polkit-gnome       # <-- Added for GUI authentication agent
     kitty
     fastfetch
     figlet

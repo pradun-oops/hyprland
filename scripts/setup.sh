@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # ==========================================================
-# 🚀 Dotfiles Deployment & Symlink Sync Script
+# 🚀 Dotfiles Deployment Script
 # Deploys Hyprland configuration, Quickshell widgets, terminal
 # styles, theming profiles, and wallpapers from the repo to $HOME.
 # ==========================================================
@@ -45,61 +45,28 @@ else
 fi
 
 # ==========================================================
-# 🔗 Global Configuration Deployment (~/.config/)
-# Uses symlinks so live edits reflect directly in the git repo.
+# 🖥️ Dynamic Workspace Configuration (Dual Monitor Detection)
+# Reads kernel DRM status to count physically connected displays.
 # ==========================================================
-echo ":: Deploying global configurations via symlinks..."
-GLOBAL_CONFIGS=("fastfetch" "kitty" "matugen")
+echo ":: Checking hardware for connected monitors..."
+MONITOR_COUNT=$(cat /sys/class/drm/*/status 2>/dev/null | grep -c "^connected" || echo 1)
+ENTRY_FILE="$REPO_DIR/hyprland.lua"
 
-for app in "${GLOBAL_CONFIGS[@]}"; do
-    if [ -d "$REPO_DIR/$app" ]; then
-        ln -sfn "$REPO_DIR/$app" "$HOME/.config/$app"
+if [ -f "$ENTRY_FILE" ]; then
+    if [ "$MONITOR_COUNT" -gt 1 ]; then
+        echo ":: Dual-monitor setup detected ($MONITOR_COUNT displays). Enabling configs.workspaces..."
+        sed -i -E 's/^--\s*require\("configs\.workspaces"\)/require("configs.workspaces")/' "$ENTRY_FILE"
+    else
+        echo ":: Single monitor detected. Disabling configs.workspaces to prevent routing errors..."
+        sed -i -E 's/^require\("configs\.workspaces"\)/-- require("configs.workspaces")/' "$ENTRY_FILE"
     fi
-done
-
-# ==========================================================
-# 🪟 Hyprland & Quickshell Suite Deployment (~/.config/hypr/)
-# ==========================================================
-echo ":: Deploying Hyprland modular environment via symlinks..."
-HYPR_CONFIGS=("assets" "configs" "quickshell" "scripts" "hyprland.lua")
-
-for item in "${HYPR_CONFIGS[@]}"; do
-    if [ -e "$REPO_DIR/$item" ]; then
-        ln -sfn "$REPO_DIR/$item" "$HOME/.config/hypr/$item"
-    fi
-done
-
-# ==========================================================
-# 🐚 Oh My Posh Theme & Shell Configuration
-# ==========================================================
-echo ":: Setting up Oh My Posh Catppuccin theme..."
-OMP_DIR="$HOME/.config/oh-my-posh"
-mkdir -p "$OMP_DIR"
-
-if [ ! -f "$OMP_DIR/catppuccin.omp.json" ]; then
-    echo ":: Downloading Catppuccin Oh My Posh theme..."
-    curl -sL https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/catppuccin.omp.json -o "$OMP_DIR/catppuccin.omp.json"
-fi
-
-# Inject Bash Initialization
-if ! grep -q "oh-my-posh init bash" "$HOME/.bashrc" 2>/dev/null; then
-    echo ":: Configuring Oh My Posh for Bash..."
-    echo "" >> "$HOME/.bashrc"
-    echo "# Oh My Posh Initialization" >> "$HOME/.bashrc"
-    echo 'eval "$(oh-my-posh init bash --config "$HOME/.config/oh-my-posh/catppuccin.omp.json")"' >> "$HOME/.bashrc"
-fi
-
-# Inject Fish Initialization
-mkdir -p "$HOME/.config/fish"
-if [ ! -f "$HOME/.config/fish/config.fish" ] || ! grep -q "oh-my-posh init fish" "$HOME/.config/fish/config.fish" 2>/dev/null; then
-    echo ":: Configuring Oh My Posh for Fish..."
-    echo "" >> "$HOME/.config/fish/config.fish"
-    echo "# Oh My Posh Initialization" >> "$HOME/.config/fish/config.fish"
-    echo 'oh-my-posh init fish --config "$HOME/.config/oh-my-posh/catppuccin.omp.json" | source' >> "$HOME/.config/fish/config.fish"
+else
+    echo ":: Notice: $ENTRY_FILE not found. Skipping dynamic workspace configuration."
 fi
 
 # ==========================================================
-# 🔑 File Permissions
+# 🔑 File Permissions (Repo-Side)
+# Ensures scripts are executable before copying them over.
 # ==========================================================
 echo ":: Setting execution permissions on shell scripts..."
 if [ -d "$REPO_DIR/scripts" ]; then
@@ -107,13 +74,21 @@ if [ -d "$REPO_DIR/scripts" ]; then
 fi
 
 # ==========================================================
-# 🔄 Compositor Live Reload
+# 🔗 Global Configuration Deployment (~/.config/)
+# Copies configurations to the home directory.
 # ==========================================================
-echo ":: Reloading Hyprland configuration..."
-if command -v hyprctl >/dev/null 2>&1 && [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
-    hyprctl reload
-else
-    echo ":: Notice: Hyprland session not detected. Skipping live reload."
-fi
+echo ":: Deploying global configurations by copying..."
+GLOBAL_CONFIGS=("fastfetch" "kitty" "matugen")
 
-echo ":: Setup complete! All configurations deployed successfully."
+for app in "${GLOBAL_CONFIGS[@]}"; do
+    if [ -d "$REPO_DIR/$app" ]; then
+        rm -rf "$HOME/.config/$app"
+        cp -r "$REPO_DIR/$app" "$HOME/.config/"
+    fi
+done
+
+# ==========================================================
+# 🪟 Hyprland & Quickshell Suite Deployment (~/.config/hypr/)
+# Copies the modular environment files including hypridle.conf
+# ==========================================================
+echo

@@ -47,7 +47,7 @@ sudo dnf copr disable -y tofik/nwg-shell
 
 echo -e "\n${YELLOW}:: 5. Reverting Shell Configuration to Bash...${NC}"
 echo "Changing default shell back to Bash..."
-sudo chsh -s $(which bash) "${SUDO_USER:-$USER}"
+sudo chsh -s $(which bash) "${SUDO_USER:-$USER}" || echo "Failed to change shell. You may need to run 'chsh -s /bin/bash' manually."
 
 echo "Cleaning Oh My Posh initialization from .bashrc and config.fish..."
 sed -i '/oh-my-posh/d' "$HOME/.bashrc" 2>/dev/null || true
@@ -58,12 +58,13 @@ if [ -f "$HOME/.config/fish/config.fish" ]; then
 fi
 
 echo -e "\n${YELLOW}:: 6. Removing specific desktop packages...${NC}"
-# We ONLY remove the GUI/Hyprland specific packages. 
-# Core utilities (gcc, python3, pipewire, etc.) are intentionally omitted to prevent breaking Fedora.
+# We ONLY remove GUI/Hyprland specific packages. 
+# Core utilities (gcc, python3, pipewire, bluez, polkit-gnome, etc.) are intentionally omitted.
 PACKAGES_TO_REMOVE=(
     hyprland
     hyprland-devel
     hyprland-guiutils
+    xdg-desktop-portal-hyprland
     quickshell
     qt5ct
     qt6ct
@@ -77,7 +78,7 @@ PACKAGES_TO_REMOVE=(
     slurp
     wl-clipboard
     cliphist
-    polkit-gnome
+    blueman
     fastfetch
     figlet
     lolcat
@@ -98,12 +99,16 @@ if [[ "$conf_confirm" =~ ^[Yy]$ ]]; then
     rm -rf ~/.config/oh-my-posh
     rm -rf ~/.config/fastfetch
     rm -rf ~/.config/matugen
-    # Optional: rm -rf ~/.config/kitty 
+    rm -rf ~/.config/gtk-4.0/settings.ini
+    
+    # Remove the cloned WhiteSur theme folder if it exists in Wallpapers
+    rm -rf ~/Pictures/Wallpapers/WhiteSur-gtk-theme
+    
     echo "Configs deleted."
 else
     echo "Configurations kept intact."
 fi
 
 echo -e "\n${GREEN}✅ Uninstallation complete!${NC}"
-echo "Note: RPMFusion repositories and core system utilities (like PipeWire, Make, GCC) were left intact as they are standard components of Fedora."
-echo "Please restart your terminal or log out and back in to fully apply the shell changes."
+echo "Note: RPMFusion repositories and core system utilities (like PipeWire, BlueZ, GCC) were left intact as they are standard components of Fedora."
+echo "Please log out and log back in (or reboot) to fully apply the shell changes and return to your default desktop environment."

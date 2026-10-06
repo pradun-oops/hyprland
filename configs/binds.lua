@@ -15,7 +15,7 @@ local script_dir = home .. "/.config/hypr/scripts/"
 
 -- Core Applications
 local term         = "kitty"
-local browser      = "zen-browser"
+local browser      = "bash -c 'zen-browser || firefox || google-chrome-stable || chromium || brave'"
 local editor       = "codium"
 local file_manager = "nautilus --new-window"
 

@@ -3,8 +3,8 @@
 -- ============================================================================
 -- 🌐 ENVIRONMENT VARIABLES & SESSION CONFIGURATION
 -- ============================================================================
--- Configures desktop environment identifiers, Qt application integration,
--- theme providers, and hardware acceleration overrides for your NVIDIA GPU.
+-- Configures desktop environment identifiers, GTK/Libadwaita theming, Qt
+-- application integration, and hardware acceleration overrides for your NVIDIA GPU.
 -- ============================================================================
 
 
@@ -19,12 +19,21 @@ hl.env("XDG_MENU_PREFIX",                     "gnome-")
 
 
 -- ============================================================================
+-- 🎨 GTK & LIBADWAITA THEMING (DARK MODE OVERRIDES)
+-- ============================================================================
+-- Forces GTK3, GTK4, and Libadwaita applications into Dark Mode and handles
+-- proper backend/renderer routing for NVIDIA GPUs.
+hl.env("GDK_BACKEND",                         "wayland,x11,*")
+hl.env("GTK_THEME",                           "adw-gtk3-dark")
+hl.env("ADW_DISABLE_PORTAL",                  "1")
+hl.env("GSK_RENDERER",                        "ngl")
+
+
+-- ============================================================================
 -- 🎨 QT APPLICATION INTEGRATION & THEMING
 -- ============================================================================
 -- Configures Qt apps to render natively on Wayland with proper scaling,
 -- qt6ct styling, and window border management.
--- ============================================================================
--- Theme provider & platform engine (falls back to XWayland if needed)
 hl.env("QT_QPA_PLATFORMTHEME",                "qt6ct")
 hl.env("QT_QPA_PLATFORM",                     "wayland;xcb")
 
@@ -38,8 +47,6 @@ hl.env("QT_AUTO_SCREEN_SCALE_FACTOR",         "1")
 -- ============================================================================
 -- Forces hardware rendering, VA-API video decoding, and direct buffer 
 -- allocation on your dedicated NVIDIA RTX 3050 graphics card.
--- ============================================================================
--- Direct Rendering Manager (DRM) & GLX provider
 hl.env("GBM_BACKEND",                         "nvidia-drm")
 hl.env("__GLX_VENDOR_LIBRARY_NAME",           "nvidia")
 
