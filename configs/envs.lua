@@ -24,7 +24,7 @@ hl.env("XDG_MENU_PREFIX",                     "gnome-")
 -- Forces GTK3, GTK4, and Libadwaita applications into Dark Mode and handles
 -- proper backend/renderer routing for NVIDIA GPUs.
 hl.env("GDK_BACKEND",                         "wayland,x11,*")
-hl.env("GTK_THEME",                           "adw-gtk3-dark")
+-- NOTE: GTK_THEME intentionally omitted. Forcing a GTK3 theme breaks GTK4/Libadwaita apps.
 hl.env("ADW_DISABLE_PORTAL",                  "1")
 hl.env("GSK_RENDERER",                        "ngl")
 

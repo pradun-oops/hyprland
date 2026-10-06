@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # ==========================================================
-# 🚀 Dotfiles Deployment & Symlink Sync Script
+# 🚀 Dotfiles Deployment Script
 # Deploys Hyprland configuration, Quickshell widgets, terminal
 # styles, theming profiles, and wallpapers from the repo to $HOME.
 # ==========================================================
@@ -22,7 +22,7 @@ mkdir -p "$HOME/.config/hypr"
 mkdir -p "$HOME/Pictures/Wallpapers"
 
 # ==========================================================
-# 🖼️️ Default Wallpapers Deployment
+# 🖼️ Default Wallpapers Deployment
 # Copies wallpapers to the standard Pictures directory.
 # ==========================================================
 echo ":: Deploying default wallpapers to ~/Pictures/Wallpapers..."
@@ -66,26 +66,29 @@ fi
 
 # ==========================================================
 # 🔗 Global Configuration Deployment (~/.config/)
-# Uses symlinks so live edits reflect directly in the git repo.
+# Copies configurations to the home directory.
 # ==========================================================
-echo ":: Deploying global configurations via symlinks..."
+echo ":: Deploying global configurations by copying..."
 GLOBAL_CONFIGS=("fastfetch" "kitty" "matugen")
 
 for app in "${GLOBAL_CONFIGS[@]}"; do
     if [ -d "$REPO_DIR/$app" ]; then
-        ln -sfn "$REPO_DIR/$app" "$HOME/.config/$app"
+        rm -rf "$HOME/.config/$app"
+        cp -r "$REPO_DIR/$app" "$HOME/.config/"
     fi
 done
 
 # ==========================================================
 # 🪟 Hyprland & Quickshell Suite Deployment (~/.config/hypr/)
+# Copies the modular environment files including hypridle.conf
 # ==========================================================
-echo ":: Deploying Hyprland modular environment via symlinks..."
-HYPR_CONFIGS=("assets" "configs" "quickshell" "scripts" "hyprland.lua")
+echo ":: Deploying Hyprland modular environment by copying..."
+HYPR_CONFIGS=("assets" "configs" "extensions" "quickshell" "scripts" "hyprland.lua" "hypridle.conf")
 
 for item in "${HYPR_CONFIGS[@]}"; do
     if [ -e "$REPO_DIR/$item" ]; then
-        ln -sfn "$REPO_DIR/$item" "$HOME/.config/hypr/$item"
+        rm -rf "$HOME/.config/hypr/$item"
+        cp -r "$REPO_DIR/$item" "$HOME/.config/hypr/"
     fi
 done
 
@@ -94,9 +97,10 @@ done
 # ==========================================================
 echo ":: Configuring GTK4 and Libadwaita dark mode preferences..."
 mkdir -p "$HOME/.config/gtk-4.0"
+
+# Note: gtk-theme-name is intentionally omitted to prevent GTK4 background transparency bugs on Wayland.
 cat <<'EOF' > "$HOME/.config/gtk-4.0/settings.ini"
 [Settings]
-gtk-theme-name=adw-gtk3-dark
 gtk-icon-theme-name=WhiteSur
 gtk-application-prefer-dark-theme=1
 EOF
@@ -140,8 +144,8 @@ fi
 # 🔑 File Permissions
 # ==========================================================
 echo ":: Setting execution permissions on shell scripts..."
-if [ -d "$REPO_DIR/scripts" ]; then
-    find "$REPO_DIR/scripts" -type f -name "*.sh" -exec chmod +x {} +
+if [ -d "$HOME/.config/hypr/scripts" ]; then
+    find "$HOME/.config/hypr/scripts" -type f -name "*.sh" -exec chmod +x {} +
 fi
 
 # ==========================================================
@@ -155,19 +159,4 @@ else
 fi
 
 echo ":: Setup complete! All configurations deployed successfully."
-echo ":: Note: You may need to log out and log back in for all environment variables (like ADW_DISABLE_PORTAL) to fully apply." here do one more thing ls -la
-total 20
-drwxr-xr-x. 1 pradun pradun   198 Sep 26 10:33 ./
-drwxr-xr-x+ 1 pradun pradun  2512 Oct  2 11:05 ../
-drwxr-xr-x. 1 pradun pradun   266 Oct  2 10:52 assets/
-drwxr-xr-x. 1 pradun pradun   318 Sep 28 16:11 configs/
-drwxr-xr-x. 1 pradun pradun    58 Sep 26 10:33 extensions/
-drwxr-xr-x. 1 pradun pradun    34 Sep  5 21:54 fastfetch/
-drwxr-xr-x. 1 pradun pradun   164 Oct  6 12:33 .git/
--rw-r--r--. 1 pradun pradun  2232 Sep 14 07:47 hypridle.conf
--rw-------. 1 pradun pradun  2643 Sep 30 15:35 hyprland.lua
-drwxr-xr-x. 1 pradun pradun    20 Sep  5 21:54 kitty/
-drwxr-xr-x. 1 pradun pradun    40 Sep  6 10:46 matugen/
-drwxr-xr-x. 1 pradun pradun   504 Oct  1 12:46 quickshell/
--rw-r--r--. 1 pradun pradun 11831 Oct  6 13:58 README.md
-drwxr-xr-x. 1 pradun pradun   296 Oct  2 11:56 scripts/ 
+echo ":: Note: You may need to log out and log back in for all environment variables (like ADW_DISABLE_PORTAL) to fully apply."
