@@ -83,15 +83,10 @@ Scope {
 
     function loadDefaultApps() {
         pinnedAppsModel.clear()
-        pinnedAppsModel.append({ name: "Zen Browser", iconName: "zen", cmd: "zen-browser", wmClass: "zen", process: "zen", filePath: "" })
         pinnedAppsModel.append({ name: "Terminal", iconName: "kitty", cmd: "kitty", wmClass: "kitty", process: "kitty", filePath: "" })
         pinnedAppsModel.append({ name: "Files", iconName: "org.gnome.Nautilus", cmd: "nautilus", wmClass: "org.gnome.nautilus", process: "nautilus", filePath: "" })
-        pinnedAppsModel.append({ name: "VSCodium", iconName: "vscodium", cmd: "codium", wmClass: "codium", process: "codium", filePath: "" })
-        pinnedAppsModel.append({ name: "VirtualBox", iconName: "virtualbox", cmd: "virtualbox", wmClass: "virtualbox", process: "virtualbox", filePath: "" })
         pinnedAppsModel.append({ name: "Calculator", iconName: "org.gnome.Calculator", cmd: "gnome-calculator", wmClass: "org.gnome.calculator", process: "gnome-calculator", filePath: "" })
         pinnedAppsModel.append({ name: "Disks", iconName: "org.gnome.DiskUtility", cmd: "gnome-disks", wmClass: "org.gnome.diskutility", process: "gnome-disks", filePath: "" })
-        pinnedAppsModel.append({ name: "Document Viewer", iconName: "org.gnome.Evince", cmd: "evince", wmClass: "org.gnome.evince", process: "evince", filePath: "" })
-        pinnedAppsModel.append({ name: "Easy Effects", iconName: "com.github.wwmm.easyeffects", cmd: "easyeffects", wmClass: "com.github.wwmm.easyeffects", process: "easyeffects", filePath: "" })
         root.savePinnedApps()
     }
 

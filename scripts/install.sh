@@ -94,6 +94,10 @@ PACKAGES=(
     lolcat
     unzip
     fontconfig
+
+    # Bluetooth
+    bluez
+    blueman
     
     # Dev Environments
     ruby

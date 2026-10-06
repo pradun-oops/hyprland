@@ -34,7 +34,7 @@ hl.window_rule({ match = { class = "^(org\\.gnome\\.)" }, rounding = 12 })
 
 -- Zen Browser: Enforce 100% solid opacity and disable compositor blur
 hl.window_rule({
-    match = { class = "^(zen|app\\.zen_browser\\.zen)$" },
+    match = { class = "^(zen|app\\.zen_browser\\.zen|[Ff]irefox|org\\.mozilla\\.firefox)$" },
     opacity = "1.0 override 1.0 override",
     no_blur = true,
 })

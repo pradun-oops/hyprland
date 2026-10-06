@@ -33,6 +33,18 @@ else
 fi
 
 # ==========================================================
+# 🍏 WhiteSur GTK Theme (GDM Background Utility)
+# Clones the repo to Wallpapers so the GDM keybind works.
+# ==========================================================
+echo ":: Cloning WhiteSur GTK theme to ~/Pictures/Wallpapers..."
+WHITESUR_DIR="$HOME/Pictures/Wallpapers/WhiteSur-gtk-theme"
+if [ ! -d "$WHITESUR_DIR" ]; then
+    git clone https://github.com/vinceliuice/WhiteSur-gtk-theme.git "$WHITESUR_DIR"
+else
+    echo ":: Notice: WhiteSur-gtk-theme already exists in Wallpapers. Skipping clone."
+fi
+
+# ==========================================================
 # 🔗 Global Configuration Deployment (~/.config/)
 # Uses symlinks so live edits reflect directly in the git repo.
 # ==========================================================

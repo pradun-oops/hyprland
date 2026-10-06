@@ -8,8 +8,8 @@
 -- ============================================================================
 
 -- Theme family (matches your custom WhiteSur GTK desktop aesthetic)
-hl.env("HYPRCURSOR_THEME", "WhiteSur-cursors")
-hl.env("XCURSOR_THEME",    "WhiteSur-cursors")
+hl.env("HYPRCURSOR_THEME", "default")
+hl.env("XCURSOR_THEME",    "default")
 
 -- Cursor size scale (24px standard scale)
 hl.env("HYPRCURSOR_SIZE", "24")
