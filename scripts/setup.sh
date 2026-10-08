@@ -2,11 +2,9 @@
 
 set -euo pipefail
 
-# 1. Accurately determine the repository root, even if run from inside the scripts/ folder
 if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     REPO_DIR="$(git rev-parse --show-toplevel)"
 else
-    # Fallback just in case git is not initialized
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     if [[ "$(basename "$SCRIPT_DIR")" == "scripts" ]]; then
         REPO_DIR="$(dirname "$SCRIPT_DIR")"
@@ -20,7 +18,6 @@ mkdir -p "$HOME/Pictures/Wallpapers"
 
 echo ":: Deploying default wallpapers to ~/Pictures/Wallpapers..."
 if [ -d "$REPO_DIR/assets/Wallpapers" ]; then
-    # Use -a to preserve attributes, overwrite cleanly without failing if it exists
     cp -a "$REPO_DIR/assets/Wallpapers/"* "$HOME/Pictures/Wallpapers/" 2>/dev/null || true
 fi
 
@@ -39,7 +36,6 @@ GLOBAL_CONFIGS=("fastfetch" "kitty" "matugen")
 for app in "${GLOBAL_CONFIGS[@]}"; do
     if [ -d "$REPO_DIR/$app" ]; then
         mkdir -p "$HOME/.config/$app"
-        # Safely overlay files without wiping the entire directory first
         cp -a "$REPO_DIR/$app/"* "$HOME/.config/$app/" 2>/dev/null || true
     else
         echo "   [!] Warning: $app not found in $REPO_DIR"
@@ -49,19 +45,24 @@ done
 echo ":: Deploying Hyprland modular environment..."
 mkdir -p "$HOME/.config/hypr"
 
-# Explicitly define which folders/files belong inside ~/.config/hypr/
 HYPR_COMPONENTS=("configs" "extensions" "quickshell" "scripts" "hypridle.conf" "hyprland.lua")
 
-for component in "${HYPR_COMPONENTS[@]}"; do
-    if [ -e "$REPO_DIR/$component" ]; then
-        cp -a "$REPO_DIR/$component" "$HOME/.config/hypr/"
-    else
-        echo "   [!] Warning: $component not found in $REPO_DIR"
-    fi
-done
+if [ "$REPO_DIR" != "$HOME/.config/hypr" ]; then
+    for component in "${HYPR_COMPONENTS[@]}"; do
+        if [ -d "$REPO_DIR/$component" ]; then
+            mkdir -p "$HOME/.config/hypr/$component"
+            cp -a "$REPO_DIR/$component/"* "$HOME/.config/hypr/$component/" 2>/dev/null || true
+        elif [ -f "$REPO_DIR/$component" ]; then
+            cp -a "$REPO_DIR/$component" "$HOME/.config/hypr/" 2>/dev/null || true
+        else
+            echo "   [!] Warning: $component not found in $REPO_DIR"
+        fi
+    done
+else
+    echo "   [i] Repository is already in ~/.config/hypr. Skipping copy."
+fi
 
 echo ":: Checking hardware for connected monitors..."
-# This will correctly detect your dual monitor setup (Laptop + Acer EK251Q P2)
 MONITOR_COUNT=$(cat /sys/class/drm/*/status 2>/dev/null | grep -c "^connected" || echo 1)
 ENTRY_FILE="$HOME/.config/hypr/hyprland.lua"
 
@@ -80,17 +81,15 @@ OMP_DIR="$HOME/.config/oh-my-posh"
 mkdir -p "$OMP_DIR"
 curl -fsSL "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/catppuccin.omp.json" -o "$OMP_DIR/catppuccin.omp.json"
 
-# Configure Bash
 BASH_RC="$HOME/.bashrc"
 touch "$BASH_RC"
 BASH_OMP_LINE='eval "$(oh-my-posh init bash --config "$HOME/.config/oh-my-posh/catppuccin.omp.json")"'
 if ! grep -q "oh-my-posh init bash" "$BASH_RC" 2>/dev/null; then
     echo "$BASH_OMP_LINE" >> "$BASH_RC"
 else
-    sed -i 's|.*oh-my-posh init bash.*|'"$BASH_OMP_LINE"'|' "$BASH_RC"
+    sed -i 's@.*oh-my-posh init bash.*@'"$BASH_OMP_LINE"'@' "$BASH_RC"
 fi
 
-# Configure Fish
 FISH_DIR="$HOME/.config/fish"
 FISH_RC="$FISH_DIR/config.fish"
 mkdir -p "$FISH_DIR"
@@ -99,7 +98,7 @@ FISH_OMP_LINE='oh-my-posh init fish --config "$HOME/.config/oh-my-posh/catppucci
 if ! grep -q "oh-my-posh init fish" "$FISH_RC" 2>/dev/null; then
     echo "$FISH_OMP_LINE" >> "$FISH_RC"
 else
-    sed -i 's|.*oh-my-posh init fish.*|'"$FISH_OMP_LINE"'|' "$FISH_RC"
+    sed -i 's@.*oh-my-posh init fish.*@'"$FISH_OMP_LINE"'@' "$FISH_RC"
 fi
 
 echo ":: Setup completed successfully!"
