@@ -2,20 +2,35 @@
 
 set -euo pipefail
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 1. Accurately determine the repository root, even if run from inside the scripts/ folder
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    REPO_DIR="$(git rev-parse --show-toplevel)"
+else
+    # Fallback just in case git is not initialized
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [[ "$(basename "$SCRIPT_DIR")" == "scripts" ]]; then
+        REPO_DIR="$(dirname "$SCRIPT_DIR")"
+    else
+        REPO_DIR="$SCRIPT_DIR"
+    fi
+fi
 
 mkdir -p "$HOME/.config"
 mkdir -p "$HOME/Pictures/Wallpapers"
 
 echo ":: Deploying default wallpapers to ~/Pictures/Wallpapers..."
 if [ -d "$REPO_DIR/assets/Wallpapers" ]; then
-    cp -rn "$REPO_DIR/assets/Wallpapers/"* "$HOME/Pictures/Wallpapers/" 2>/dev/null || true
+    # Use -a to preserve attributes, overwrite cleanly without failing if it exists
+    cp -a "$REPO_DIR/assets/Wallpapers/"* "$HOME/Pictures/Wallpapers/" 2>/dev/null || true
 fi
 
-echo ":: Cloning WhiteSur GTK theme to ~/Pictures/Wallpapers..."
+echo ":: Deploying WhiteSur GTK theme to ~/Pictures/Wallpapers..."
 WHITESUR_DIR="$HOME/Pictures/Wallpapers/WhiteSur-gtk-theme"
 if [ ! -d "$WHITESUR_DIR" ]; then
     git clone https://github.com/vinceliuice/WhiteSur-gtk-theme.git "$WHITESUR_DIR"
+else
+    echo "   [i] WhiteSur GTK theme already exists. Pulling latest updates..."
+    git -C "$WHITESUR_DIR" pull --quiet
 fi
 
 echo ":: Deploying global configurations (fastfetch, kitty, matugen)..."
@@ -23,22 +38,30 @@ GLOBAL_CONFIGS=("fastfetch" "kitty" "matugen")
 
 for app in "${GLOBAL_CONFIGS[@]}"; do
     if [ -d "$REPO_DIR/$app" ]; then
-        rm -rf "$HOME/.config/$app"
-        cp -a "$REPO_DIR/$app" "$HOME/.config/"
+        mkdir -p "$HOME/.config/$app"
+        # Safely overlay files without wiping the entire directory first
+        cp -a "$REPO_DIR/$app/"* "$HOME/.config/$app/" 2>/dev/null || true
+    else
+        echo "   [!] Warning: $app not found in $REPO_DIR"
     fi
 done
 
 echo ":: Deploying Hyprland modular environment..."
-rm -rf "$HOME/.config/hypr"
 mkdir -p "$HOME/.config/hypr"
 
-if [ -d "$REPO_DIR/hypr" ]; then
-    cp -a "$REPO_DIR/hypr/"* "$HOME/.config/hypr/" 2>/dev/null || true
-else
-    find "$REPO_DIR" -mindepth 1 -maxdepth 1 ! -name '.git' ! -name 'fastfetch' ! -name 'kitty' ! -name 'matugen' ! -name 'setup.sh' ! -name 'install.sh' ! -name 'assets' -exec cp -a {} "$HOME/.config/hypr/" \;
-fi
+# Explicitly define which folders/files belong inside ~/.config/hypr/
+HYPR_COMPONENTS=("configs" "extensions" "quickshell" "scripts" "hypridle.conf" "hyprland.lua")
+
+for component in "${HYPR_COMPONENTS[@]}"; do
+    if [ -e "$REPO_DIR/$component" ]; then
+        cp -a "$REPO_DIR/$component" "$HOME/.config/hypr/"
+    else
+        echo "   [!] Warning: $component not found in $REPO_DIR"
+    fi
+done
 
 echo ":: Checking hardware for connected monitors..."
+# This will correctly detect your dual monitor setup (Laptop + Acer EK251Q P2)
 MONITOR_COUNT=$(cat /sys/class/drm/*/status 2>/dev/null | grep -c "^connected" || echo 1)
 ENTRY_FILE="$HOME/.config/hypr/hyprland.lua"
 
@@ -57,24 +80,26 @@ OMP_DIR="$HOME/.config/oh-my-posh"
 mkdir -p "$OMP_DIR"
 curl -fsSL "https://raw.githubusercontent.com/JanDeDobbeleer/oh-my-posh/main/themes/catppuccin.omp.json" -o "$OMP_DIR/catppuccin.omp.json"
 
+# Configure Bash
 BASH_RC="$HOME/.bashrc"
+touch "$BASH_RC"
 BASH_OMP_LINE='eval "$(oh-my-posh init bash --config "$HOME/.config/oh-my-posh/catppuccin.omp.json")"'
-if [ -f "$BASH_RC" ]; then
-    if ! grep -q "oh-my-posh init bash" "$BASH_RC" 2>/dev/null; then
-        echo "$BASH_OMP_LINE" >> "$BASH_RC"
-    else
-        sed -i 's|.*oh-my-posh init bash.*|'"$BASH_OMP_LINE"'|' "$BASH_RC"
-    fi
+if ! grep -q "oh-my-posh init bash" "$BASH_RC" 2>/dev/null; then
+    echo "$BASH_OMP_LINE" >> "$BASH_RC"
+else
+    sed -i 's|.*oh-my-posh init bash.*|'"$BASH_OMP_LINE"'|' "$BASH_RC"
 fi
 
-FISH_RC="$HOME/.config/fish/config.fish"
+# Configure Fish
+FISH_DIR="$HOME/.config/fish"
+FISH_RC="$FISH_DIR/config.fish"
+mkdir -p "$FISH_DIR"
+touch "$FISH_RC"
 FISH_OMP_LINE='oh-my-posh init fish --config "$HOME/.config/oh-my-posh/catppuccin.omp.json" | source'
-if [ -f "$FISH_RC" ]; then
-    if ! grep -q "oh-my-posh init fish" "$FISH_RC" 2>/dev/null; then
-        echo "$FISH_OMP_LINE" >> "$FISH_RC"
-    else
-        sed -i 's|.*oh-my-posh init fish.*|'"$FISH_OMP_LINE"'|' "$FISH_RC"
-    fi
+if ! grep -q "oh-my-posh init fish" "$FISH_RC" 2>/dev/null; then
+    echo "$FISH_OMP_LINE" >> "$FISH_RC"
+else
+    sed -i 's|.*oh-my-posh init fish.*|'"$FISH_OMP_LINE"'|' "$FISH_RC"
 fi
 
 echo ":: Setup completed successfully!"
