@@ -70,7 +70,9 @@ PACKAGES_TO_REMOVE=(
     wl-clipboard
     cliphist
     blueman
+    chromium
     fastfetch
+    sqlite
     figlet
     lolcat
     fish

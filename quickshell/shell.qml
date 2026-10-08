@@ -10,13 +10,13 @@ ShellRoot {
         source: "dock/shell.qml"
     }
 
-    Loader {
-        source: "desktop/shell.qml"
-    }
+    // Loader {
+    //     source: "desktop/shell.qml"
+    // }
 
-    Loader {
-        source: "player/shell.qml"
-    }
+    // Loader {
+    //     source: "player/shell.qml"
+    // }
 
     Loader {
         source: "brightness/shell.qml"

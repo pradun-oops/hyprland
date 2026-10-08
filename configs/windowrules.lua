@@ -83,6 +83,15 @@ hl.window_rule({
     center = true,
 })
 
+hl.window_rule({
+    match = { class = "^([Cc]hromium.*|chrome-.*)$" },
+    float = true,
+    size = "1300 900",
+    center = true,
+    opacity = "1.0 override 1.0 override",
+    no_blur = true,
+})
+
 hl.window_rule({ match = { class = "^(steam)$" }, float = true, size = "1100 700", center = true })
 hl.window_rule({ match = { class = "^(zoom)$"  }, float = true, size = "1100 700", center = true })
 

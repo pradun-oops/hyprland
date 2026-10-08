@@ -46,5 +46,5 @@ apply_blur({
     "qs-analog-clock",
     "qs-rgbcontrol",
     "qs-power-menu",
-    "qs-digital-wellbeing",
+    "qs-wellbeing",
 }, 0.01)

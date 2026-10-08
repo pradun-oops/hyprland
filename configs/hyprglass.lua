@@ -69,7 +69,7 @@ if hl.plugin.hyprglass then
         "qs-clipboard",
         "qs-analog-clock",
         "qs-rgbcontrol",
-        "qs-digital-wellbeing",       
+        "qs-wellbeing",       
     }
 
     for _, layer in ipairs(liquid_layers) do

@@ -37,6 +37,8 @@ hl.bind("SUPER + ALT + C",        run_script("qs_dialog.sh control-center toggle
 hl.bind("SUPER + ALT + L",        run_script("qs_dialog.sh lockscreen open"))
 hl.bind("SUPER + SHIFT + C",      run_script("qs_dialog.sh calendar open"))
 hl.bind("SUPER + SHIFT + W",      run_script("qs_dialog.sh weather open"))
+hl.bind("SUPER + ALT + W",      run_script("qs_dialog.sh wellbeing open"))
+hl.bind("SUPER + ALT + S",        run_script("circle_search.sh"))
 hl.bind("SUPER + SHIFT + CTRL + C", run_script("qs_dialog.sh calculator open"))
 
 hl.bind("SUPER + ALT + space",    run_script("toggle_backlight.sh"))

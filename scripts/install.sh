@@ -30,6 +30,7 @@ PACKAGES=(
     gcc
     gcc-c++
     cmake
+    sqlite
     make
     pkgconf-pkg-config
     lz4-devel
@@ -47,6 +48,7 @@ PACKAGES=(
     fish
     pipewire
     wireplumber
+    chromium
     pulseaudio-utils
     xdg-desktop-portal-hyprland 
     xdg-desktop-portal-gtk
