@@ -122,4 +122,37 @@ if ! grep -q "set -g fish_greeting" "$FISH_RC" 2>/dev/null; then
     echo "set -g fish_greeting" >> "$FISH_RC"
 fi
 
+echo ":: Configuring Polkit rule for passwordless drive mounting..."
+sudo mkdir -p /etc/polkit-1/rules.d
+
+sudo tee /etc/polkit-1/rules.d/10-udisks2.rules > /dev/null << 'EOF'
+polkit.addRule(function(action, subject) {
+    if ((action.id == "org.freedesktop.udisks2.filesystem-mount-system" ||
+         action.id == "org.freedesktop.udisks2.filesystem-mount") &&
+        subject.isInGroup("wheel")) {
+        return polkit.Result.YES;
+    }
+});
+EOF
+
+sudo chmod 644 /etc/polkit-1/rules.d/10-udisks2.rules
+
+VSIX_PATH="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/extensions/matugen-theme-sync-0.0.1.vsix"
+
+if [ -f "$VSIX_PATH" ]; then
+    read -p ":: Do you want to install the Matugen Theme Sync extension for VSCodium? (y/N): " install_ext
+    if [[ "$install_ext" =~ ^[Yy]$ ]]; then
+        if command -v codium >/dev/null 2>&1; then
+            echo ":: Installing VSCodium extension..."
+            codium --install-extension "$VSIX_PATH" #[cite: 1]
+        else
+            echo "   [!] VSCodium is not installed. Skipping extension installation."
+        fi
+    else
+        echo ":: Skipping VSCodium extension installation."
+    fi
+else
+    echo "   [!] Extension file not found at: $VSIX_PATH"
+fi
+
 echo ":: Setup completed successfully!"

@@ -10,6 +10,8 @@ sudo dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-rel
 sudo dnf copr enable -y errornointernet/quickshell
 sudo dnf copr enable -y lionheartp/Hyprland
 sudo dnf copr enable -y tofik/nwg-shell
+sudo dnf copr enable -y aquacash5/nerd-fonts
+sudo dnf copr enable -y atim/preload
 
 sudo dnf upgrade --refresh -y
 
@@ -17,11 +19,13 @@ PACKAGES=(
     hyprland
     hyprland-devel
     hyprland-guiutils
+    hyprsunset
     cpio
     meson
     ninja-build
     libxkbcommon-devel
     wayland-devel
+    preload
     scdoc
     gcc
     gcc-c++
@@ -36,7 +40,7 @@ PACKAGES=(
     qt6-qt5compat
     nwg-look
     adw-gtk3-theme
-    fira-code-fonts
+    fira-code-nerd-fonts
     xdg-utils
     glib2
     procps-ng
@@ -181,7 +185,7 @@ echo ":: Activating background system services..."
 systemctl --user enable --now wireplumber.service 2>/dev/null || true
 systemctl --user enable --now pipewire.service 2>/dev/null || true
 sudo systemctl enable --now power-profiles-daemon.service 2>/dev/null || true
-
+sudo systemctl enable --now preload.service
 echo -e "\n✅ Installation phase completed successfully!"
 
 if [ -f "./setup.sh" ]; then
