@@ -173,18 +173,9 @@ if ! grep -q "oh-my-posh init fish" "$HOME/.config/fish/config.fish" 2>/dev/null
 fi
 
 echo ":: Setting up Hyprglass liquid glass plugin..."
-if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
-    if ! hyprpm list | grep -q "hyprglass"; then
-        hyprpm update || true
-        hyprpm add https://github.com/hyprnux/hyprglass || true
-        hyprpm enable hyprglass || true
-        echo ":: Hyprglass installation attempted."
-    else
-        echo ":: Hyprglass is already installed."
-    fi
-else
-    echo ":: INFO: Hyprland is not currently running (no instance signature found)."
-fi
+hyprpm update || true
+hyprpm add https://github.com/hyprnux/hyprglass || true
+hyprpm enable hyprglass || true
 
 echo ":: Activating background system services..."
 systemctl --user enable --now wireplumber.service 2>/dev/null || true

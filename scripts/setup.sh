@@ -21,6 +21,37 @@ if [ -d "$REPO_DIR/assets/Wallpapers" ]; then
     cp -a "$REPO_DIR/assets/Wallpapers/"* "$HOME/Pictures/Wallpapers/" 2>/dev/null || true
 fi
 
+echo ":: Setting default wallpaper..."
+DEFAULT_WALLPAPER="$HOME/Pictures/Wallpapers/wallpapers.jpg"
+if [ -f "$DEFAULT_WALLPAPER" ]; then
+    echo ":: Applying $DEFAULT_WALLPAPER..."
+    
+    mkdir -p "$HOME/.config/qt5ct/colors" "$HOME/.config/qt6ct/colors" "$HOME/.config/gtk-3.0" "$HOME/.config/gtk-4.0" "$HOME/.config/hypr/configs"
+    
+    if command -v matugen >/dev/null 2>&1; then
+        matugen image "$DEFAULT_WALLPAPER" -m dark --source-color-index 0
+        cp -a "$HOME/.config/qt5ct/colors/." "$HOME/.config/qt6ct/colors/" 2>/dev/null || true
+    fi
+    
+    if command -v awww >/dev/null 2>&1; then
+        if awww -h 2>&1 | grep -q -- '--transition-type'; then
+             awww img "$DEFAULT_WALLPAPER" --transition-type fade --transition-pos 0.5,0.5 --transition-duration 0.5 2>/dev/null || \
+             awww -i "$DEFAULT_WALLPAPER" --transition-type fade 2>/dev/null || \
+             awww "$DEFAULT_WALLPAPER" --transition-type fade
+        elif awww -h 2>&1 | grep -q -- '-i'; then
+             awww -i "$DEFAULT_WALLPAPER"
+        elif awww -h 2>&1 | grep -q 'load'; then
+             awww load "$DEFAULT_WALLPAPER"
+        else
+             awww img "$DEFAULT_WALLPAPER" --transition-type fade 2>/dev/null || awww "$DEFAULT_WALLPAPER" 2>/dev/null
+        fi
+    fi
+    
+    hyprctl reload 2>/dev/null || true
+else
+    echo "   [!] Warning: $DEFAULT_WALLPAPER not found."
+fi
+
 echo ":: Deploying WhiteSur GTK theme to ~/Pictures/Wallpapers..."
 WHITESUR_DIR="$HOME/Pictures/Wallpapers/WhiteSur-gtk-theme"
 if [ ! -d "$WHITESUR_DIR" ]; then

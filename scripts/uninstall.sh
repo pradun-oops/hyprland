@@ -105,6 +105,8 @@ rm -rf "$HOME/.config/oh-my-posh"
 rm -rf "$HOME/.config/quickshell"
 rm -rf "$HOME/Pictures/Wallpapers/WhiteSur-gtk-theme"
 
+dconf reset -f /org/gnome/
+
 echo -e "\n${GREEN}✅ Uninstallation complete!${NC}"
 echo ":: Note: Critical system tools and GNOME power management tools were kept to prevent breaking Fedora."
 echo ":: Please reboot your system to fully apply shell changes and cleanly return to GNOME."
