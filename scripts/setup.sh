@@ -101,12 +101,6 @@ else
     sed -i 's@.*oh-my-posh init fish.*@'"$FISH_OMP_LINE"'@' "$FISH_RC"
 fi
 
-echo ":: Setting default wallpaper..."
-DEFAULT_WALLPAPER="$HOME/Pictures/Wallpapers/wallpapers.jpg"
-if [ -f "$DEFAULT_WALLPAPER" ] && command -v awww >/dev/null 2>&1; then
-    awww img "$DEFAULT_WALLPAPER" --transition-type fade 2>/dev/null || awww "$DEFAULT_WALLPAPER"
-fi
-
 FISH_DIR="$HOME/.config/fish"
 FISH_RC="$FISH_DIR/config.fish"
 mkdir -p "$FISH_DIR"
@@ -136,23 +130,5 @@ polkit.addRule(function(action, subject) {
 EOF
 
 sudo chmod 644 /etc/polkit-1/rules.d/10-udisks2.rules
-
-VSIX_PATH="${REPO_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/extensions/matugen-theme-sync-0.0.1.vsix"
-
-if [ -f "$VSIX_PATH" ]; then
-    read -p ":: Do you want to install the Matugen Theme Sync extension for VSCodium? (y/N): " install_ext
-    if [[ "$install_ext" =~ ^[Yy]$ ]]; then
-        if command -v codium >/dev/null 2>&1; then
-            echo ":: Installing VSCodium extension..."
-            codium --install-extension "$VSIX_PATH" #[cite: 1]
-        else
-            echo "   [!] VSCodium is not installed. Skipping extension installation."
-        fi
-    else
-        echo ":: Skipping VSCodium extension installation."
-    fi
-else
-    echo "   [!] Extension file not found at: $VSIX_PATH"
-fi
 
 echo ":: Setup completed successfully!"
