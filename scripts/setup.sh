@@ -103,12 +103,23 @@ fi
 
 echo ":: Setting default wallpaper..."
 DEFAULT_WALLPAPER="$HOME/Pictures/Wallpapers/wallpapers.jpg"
-
 if [ -f "$DEFAULT_WALLPAPER" ] && command -v awww >/dev/null 2>&1; then
-    echo ":: Applying $DEFAULT_WALLPAPER..."
     awww img "$DEFAULT_WALLPAPER" --transition-type fade 2>/dev/null || awww "$DEFAULT_WALLPAPER"
+fi
+
+FISH_DIR="$HOME/.config/fish"
+FISH_RC="$FISH_DIR/config.fish"
+mkdir -p "$FISH_DIR"
+touch "$FISH_RC"
+FISH_OMP_LINE='oh-my-posh init fish --config "$HOME/.config/oh-my-posh/catppuccin.omp.json" | source'
+if ! grep -q "oh-my-posh init fish" "$FISH_RC" 2>/dev/null; then
+    echo "$FISH_OMP_LINE" >> "$FISH_RC"
 else
-    echo "   [!] Warning: $DEFAULT_WALLPAPER not found or awww is not installed."
+    sed -i 's@.*oh-my-posh init fish.*@'"$FISH_OMP_LINE"'@' "$FISH_RC"
+fi
+
+if ! grep -q "set -g fish_greeting" "$FISH_RC" 2>/dev/null; then
+    echo "set -g fish_greeting" >> "$FISH_RC"
 fi
 
 echo ":: Setup completed successfully!"
