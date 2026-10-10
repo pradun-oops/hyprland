@@ -81,7 +81,6 @@ PACKAGES_TO_REMOVE=(
     figlet
     lolcat
     fish
-    chromium
 )
 
 sudo dnf remove -y "${PACKAGES_TO_REMOVE[@]}" || true

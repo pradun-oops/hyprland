@@ -23,14 +23,29 @@ IMAGE_URL=$(curl -s -A "Mozilla/5.0" --max-time 15 -F "reqtype=fileupload" -F "f
 if [[ "$IMAGE_URL" == http* ]]; then
     SEARCH_URL="https://lens.google.com/uploadbyurl?url=$IMAGE_URL"
 
-    if command -v chromium-browser &> /dev/null; then
-        CHROME_EXEC="chromium-browser"
-    elif command -v chromium &> /dev/null; then
-        CHROME_EXEC="chromium"
-    fi
+    BROWSER_EXEC=""
 
-    if [ -n "$CHROME_EXEC" ]; then
-        nohup "$CHROME_EXEC" --ozone-platform-hint=auto --enable-wayland-ime --app="$SEARCH_URL" >/dev/null 2>&1 & disown
+    for b in zen-browser zen firefox chromium-browser chromium google-chrome-stable google-chrome brave-browser; do
+        if command -v "$b" &> /dev/null; then
+            BROWSER_EXEC="$b"
+            break
+        fi
+    done
+
+    if [ -n "$BROWSER_EXEC" ]; then
+        case "$BROWSER_EXEC" in
+            chromium*|google-chrome*|brave*)
+                nohup "$BROWSER_EXEC" --ozone-platform-hint=auto --enable-wayland-ime --app="$SEARCH_URL" >/dev/null 2>&1 & disown
+                ;;
+            zen*|firefox*)
+                nohup "$BROWSER_EXEC" --new-window "$SEARCH_URL" >/dev/null 2>&1 & disown
+                ;;
+            *)
+                nohup "$BROWSER_EXEC" "$SEARCH_URL" >/dev/null 2>&1 & disown
+                ;;
+        esac
+    elif command -v xdg-open &> /dev/null; then
+        nohup xdg-open "$SEARCH_URL" >/dev/null 2>&1 & disown
     else
         echo -n "$SEARCH_URL" | wl-copy
     fi

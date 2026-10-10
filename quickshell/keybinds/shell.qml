@@ -84,6 +84,8 @@ Scope {
         { category: "Widgets & Overlays", keys: "SUPER + ALT + L", desc: "Lockscreen" },
         { category: "Widgets & Overlays", keys: "SUPER + SHIFT + C", desc: "Calendar Widget" },
         { category: "Widgets & Overlays", keys: "SUPER + SHIFT + W", desc: "Weather Widget" },
+        { category: "Widgets & Overlays", keys: "SUPER + ALT + W", desc: "Wellbeing Widget" },
+        { category: "Widgets & Overlays", keys: "SUPER + ALT + S", desc: "Circle to Search" },
         { category: "Widgets & Overlays", keys: "SUPER + SHIFT + CTRL + C", desc: "Calculator Widget" },
 
         { category: "System & Shell Controls", keys: "SUPER + ALT + Space", desc: "Toggle Backlight" },

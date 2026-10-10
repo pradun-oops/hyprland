@@ -445,7 +445,6 @@ Scope {
                             }
                             dockWindow.unpinnedApps = unpinned
 
-                            // Synchronize resolved WhiteSur absolute icon paths back into pinned model
                             if (data.pinned_resolved && Array.isArray(data.pinned_resolved)) {
                                 for (let i = 0; i < data.pinned_resolved.length; i++) {
                                     let pRes = data.pinned_resolved[i]
@@ -471,24 +470,87 @@ Scope {
                 triggeredOnStart: true
                 onTriggered: {
                     let pyScript = `
-import json, subprocess, sys, os, glob, re
+import json, subprocess, sys, os, re
 
-def find_whitesur_icon(icon_name, wm_class="", file_path=""):
+def get_desktop_entries():
+    dirs = [
+        os.path.expanduser("~/.local/share/applications"),
+        "/usr/share/applications",
+        "/usr/local/share/applications",
+        "/var/lib/flatpak/exports/share/applications",
+        os.path.expanduser("~/.local/share/flatpak/exports/share/applications")
+    ]
+    entries = []
+    for d in dirs:
+        if not os.path.isdir(d): continue
+        try:
+            for f in os.listdir(d):
+                if f.endswith(".desktop"):
+                    p = os.path.join(d, f)
+                    try:
+                        with open(p, "r", encoding="utf-8", errors="ignore") as file_obj:
+                            raw = file_obj.read()
+                            lines = raw.splitlines()
+                            exec_l = next((l.split("=", 1)[1].strip() for l in lines if l.startswith("Exec=")), "")
+                            name_l = next((l.split("=", 1)[1].strip() for l in lines if l.startswith("Name=")), "")
+                            icon_l = next((l.split("=", 1)[1].strip() for l in lines if l.startswith("Icon=")), "")
+                            wm_l = next((l.split("=", 1)[1].strip() for l in lines if l.startswith("StartupWMClass=")), "")
+                            clean_cmd = re.sub(r'%[fFuUikKc]', '', exec_l).strip()
+                            entries.append({
+                                "stem": f[:-8].lower(),
+                                "path": p,
+                                "cmd": clean_cmd,
+                                "name": name_l,
+                                "icon": icon_l,
+                                "wm": wm_l
+                            })
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+    return entries
+
+DESKTOP_ENTRIES = get_desktop_entries()
+
+def resolve_desktop_meta(cls):
+    if not cls: return "", cls, cls.capitalize(), cls
+    cls_clean = cls.strip().lower()
+    stem = cls_clean.split(".")[-1]
+
+    for e in DESKTOP_ENTRIES:
+        if e["wm"] and e["wm"].lower() == cls_clean:
+            return e["path"], e["cmd"] or cls, e["name"] or cls, e["icon"] or cls
+
+    for e in DESKTOP_ENTRIES:
+        if e["stem"] == cls_clean or e["stem"] == stem:
+            return e["path"], e["cmd"] or cls, e["name"] or cls, e["icon"] or cls
+
+    for e in DESKTOP_ENTRIES:
+        cmd_base = os.path.basename(e["cmd"].split()[0]).lower() if e["cmd"] else ""
+        if cmd_base and (cmd_base == cls_clean or cmd_base == stem):
+            return e["path"], e["cmd"] or cls, e["name"] or cls, e["icon"] or cls
+
+    for e in DESKTOP_ENTRIES:
+        if cls_clean in e["stem"] or stem in e["stem"] or e["stem"] in cls_clean:
+            return e["path"], e["cmd"] or cls, e["name"] or cls, e["icon"] or cls
+
+    return "", cls, stem.capitalize(), cls
+
+def find_icon(icon_name, wm_class="", file_path=""):
     if not icon_name and not wm_class: return ""
     if icon_name and os.path.isabs(icon_name) and os.path.exists(icon_name): return icon_name
 
     search_keys = []
     for item in [icon_name, wm_class]:
-        if item:
-            search_keys.append(item)
-            search_keys.append(item.lower())
-            if "." in item:
-                stem = item.split(".")[-1]
-                search_keys.extend([stem, stem.lower()])
-                search_keys.extend(["gnome-" + stem.lower(), "org.gnome." + stem])
+        if not item: continue
+        search_keys.append(item)
+        search_keys.append(item.lower())
+        if "." in item:
+            stem = item.split(".")[-1]
+            search_keys.extend([stem, stem.lower(), "gnome-" + stem.lower(), "org.gnome." + stem])
 
-    seen_keys = set()
     unique_keys = []
+    seen_keys = set()
     for k in search_keys:
         if k and k not in seen_keys:
             seen_keys.add(k)
@@ -503,67 +565,53 @@ def find_whitesur_icon(icon_name, wm_class="", file_path=""):
         os.path.expanduser("~/.local/share/flatpak/exports/share/icons")
     ]
 
-    ws_dirs = []
+    theme_dirs = []
     for r in icon_roots:
         if os.path.exists(r):
             try:
                 for d in os.listdir(r):
-                    if "whitesur" in d.lower():
-                        ws_dirs.append(os.path.join(r, d))
+                    full = os.path.join(r, d)
+                    if os.path.isdir(full):
+                        if "whitesur" in d.lower():
+                            theme_dirs.insert(0, full)
+                        else:
+                            theme_dirs.append(full)
             except Exception:
                 pass
 
-    subdirs = ["apps/scalable", "apps/48", "apps/128", "apps/64", "apps/symbolic", "categories/scalable", "places/scalable"]
+    subdirs = [
+        "apps/scalable", "apps/48", "apps/128", "apps/64", "apps/256", "apps/512",
+        "scalable/apps", "48x48/apps", "64x64/apps", "128x128/apps", "256x256/apps",
+        "apps/symbolic", "symbolic/apps", "categories/scalable", "places/scalable"
+    ]
     extensions = [".svg", ".png", ".xpm"]
 
-    for ws_dir in ws_dirs:
+    for td in theme_dirs:
         for sub in subdirs:
-            target_dir = os.path.join(ws_dir, sub)
+            target_dir = os.path.join(td, sub)
             if os.path.exists(target_dir):
                 for key in unique_keys:
                     for ext in extensions:
                         p = os.path.join(target_dir, key + ext)
                         if os.path.exists(p): return p
 
+    pixmap_dirs = ["/usr/share/pixmaps", os.path.join(home, ".local/share/pixmaps")]
+    for pd in pixmap_dirs:
+        if os.path.exists(pd):
+            for key in unique_keys:
+                for ext in extensions:
+                    p = os.path.join(pd, key + ext)
+                    if os.path.exists(p): return p
+
     for r in icon_roots:
         if os.path.exists(r):
             for key in unique_keys:
                 for ext in extensions:
-                    for fallback_sub in ["hicolor/scalable/apps", "hicolor/48x48/apps", "pixmaps", "hicolor/apps/scalable"]:
+                    for fallback_sub in ["hicolor/scalable/apps", "hicolor/48x48/apps", "hicolor/128x128/apps", "hicolor/256x256/apps", "pixmaps", "hicolor/apps/scalable"]:
                         p = os.path.join(r, fallback_sub, key + ext)
                         if os.path.exists(p): return p
 
     return icon_name or wm_class
-
-def resolve_desktop_meta(cls):
-    if not cls: return "", cls, cls.capitalize(), cls
-    search_ids = [cls, cls + ".desktop", cls.lower(), cls.lower() + ".desktop"]
-    if "." in cls:
-        stem = cls.split(".")[-1]
-        search_ids.extend([stem, stem.lower(), "gnome-" + stem.lower(), "org.gnome." + stem])
-    
-    candidate_dirs = [
-        "/usr/share/applications",
-        os.path.expanduser("~/.local/share/applications"),
-        "/var/lib/flatpak/exports/share/applications",
-        os.path.expanduser("~/.local/share/flatpak/exports/share/applications")
-    ]
-    
-    for d in candidate_dirs:
-        for s in search_ids:
-            target_path = os.path.join(d, s if s.endswith(".desktop") else s + ".desktop")
-            if os.path.exists(target_path):
-                try:
-                    with open(target_path, "r", encoding="utf-8") as f:
-                        raw = f.read()
-                        exec_l = next((l.split("=", 1)[1].strip() for l in raw.splitlines() if l.startswith("Exec=")), "")
-                        name_l = next((l.split("=", 1)[1].strip() for l in raw.splitlines() if l.startswith("Name=")), "")
-                        icon_l = next((l.split("=", 1)[1].strip() for l in raw.splitlines() if l.startswith("Icon=")), "")
-                        clean_cmd = re.sub(r'%[fFuUikKc]', '', exec_l).strip()
-                        return target_path, clean_cmd if clean_cmd else cls, name_l if name_l else cls, icon_l if icon_l else cls
-                except Exception:
-                    pass
-    return "", cls, cls.split(".")[-1].capitalize(), cls
 
 try:
     target_mon_name = sys.argv[1] if len(sys.argv) > 1 else ""
@@ -592,7 +640,7 @@ try:
             if cls.lower() not in seen:
                 seen.add(cls.lower())
                 fpath, cmd_clean, disp_name, raw_icon = resolve_desktop_meta(lookup_target)
-                resolved_icon = find_whitesur_icon(raw_icon, cls, fpath)
+                resolved_icon = find_icon(raw_icon, cls, fpath)
                 running_info.append({
                     "name": disp_name,
                     "wmClass": cls,
@@ -621,7 +669,7 @@ try:
                     icon_orig = item.get("iconName", "")
                     wm_cls = item.get("wmClass", "")
                     fp = item.get("filePath", "")
-                    resolved_icon = find_whitesur_icon(icon_orig, wm_cls, fp)
+                    resolved_icon = find_icon(icon_orig, wm_cls, fp)
                     item_copy = dict(item)
                     item_copy["iconName"] = resolved_icon
                     resolved_pinned.append(item_copy)

@@ -12,8 +12,11 @@ hl.window_rule({ match = { class = "^(org\\.gnome\\.Nautilus)$" }, float = false
 hl.window_rule({ match = { class = "^(org\\.gnome\\.)" }, rounding = 12 })
 
 hl.window_rule({
-    match = { class = "^(zen|app\\.zen_browser\\.zen|[Ff]irefox|org\\.mozilla\\.firefox)$" },
+    match = {
+        class = "^(zen.*|app\\.zen_browser\\.zen|[Ff]irefox.*|org\\.mozilla\\.firefox|[Ll]ibre[Ww]olf|floorp|[Ww]aterfox|[Tt]or.*|[Cc]hromium.*|[Gg]oogle-chrome.*|[Bb]rave-browser|[Vv]ivaldi.*|microsoft-edge.*|opera.*|org\\.gnome\\.Epiphany|chrome-.*)$"
+    },
     opacity = "1.0 override 1.0 override",
+    opaque = true,
     no_blur = true,
 })
 
@@ -88,8 +91,6 @@ hl.window_rule({
     float = true,
     size = "1300 900",
     center = true,
-    opacity = "1.0 override 1.0 override",
-    no_blur = true,
 })
 
 hl.window_rule({ match = { class = "^(steam)$" }, float = true, size = "1100 700", center = true })

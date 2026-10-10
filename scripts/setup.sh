@@ -131,4 +131,45 @@ EOF
 
 sudo chmod 644 /etc/polkit-1/rules.d/10-udisks2.rules
 
+echo ":: Hiding unnecessary desktop entries from application launchers..."
+HIDDEN_DESKTOP_APPS=(
+    "qt5ct.desktop"
+    "qt6ct.desktop"
+    "nwg-look.desktop"
+    "legionaura.desktop"
+    "uuctl.desktop"
+    "org.pulseaudio.pavucontrol.desktop"
+    "bluetooth-sendto.desktop"
+    "blueman-adapters.desktop"
+    "org.gnome.Logs.desktop"
+    "org.gnome.PowerStats.desktop"
+    "gtk3-demo.desktop"
+    "gtk3-icon-browser.desktop"
+    "gtk3-widget-factory.desktop"
+    "geoclue-demo-agent.desktop"
+    "breezestyleconfig.desktop"
+    "kcm_breezedecoration.desktop"
+    "org.kde.knewstuff-dialog.desktop"
+    "org.kde.knewstuff-dialog6.desktop"
+    "ibus-setup-chewing.desktop"
+    "ibus-setup-hangul.desktop"
+    "ibus-setup-libpinyin.desktop"
+    "ibus-setup-anthy.desktop"
+    "ibus-setup-m17n.desktop"
+    "ibus-setup-tb.desktop"
+    "ibus-setup-typing-booster.desktop"
+)
+
+sudo rm -f /usr/share/applications/install-system.desktop
+
+for app in "${HIDDEN_DESKTOP_APPS[@]}"; do
+    target="/usr/share/applications/$app"
+    if [ -f "$target" ]; then
+        sudo sed -i '/^NoDisplay=/d' "$target"
+        echo "NoDisplay=true" | sudo tee -a "$target" > /dev/null
+    fi
+done
+
+sudo update-desktop-database /usr/share/applications 2>/dev/null || true
+
 echo ":: Setup completed successfully!"

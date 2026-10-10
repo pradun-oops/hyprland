@@ -48,7 +48,6 @@ PACKAGES=(
     fish
     pipewire
     wireplumber
-    chromium
     pulseaudio-utils
     xdg-desktop-portal-hyprland 
     xdg-desktop-portal-gtk

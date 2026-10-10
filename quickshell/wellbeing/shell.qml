@@ -138,14 +138,280 @@ Scope {
         return m + "m";
     }
 
+    function formatAppName(appName) {
+        if (!appName) return "Unknown";
+        let str = appName.trim();
+        let lower = str.toLowerCase();
+
+        const nameMap = {
+            "zen": "Zen Browser",
+            "zen-alpha": "Zen Browser",
+            "zen-beta": "Zen Browser",
+            "zen-browser": "Zen Browser",
+            "codium": "VSCodium",
+            "vscodium": "VSCodium",
+            "code": "VS Code",
+            "code-oss": "VS Code",
+            "vscode": "VS Code",
+            "visual-studio-code": "VS Code",
+            "org.gnome.nautilus": "Files",
+            "nautilus": "Files",
+            "org.gnome.texteditor": "Text Editor",
+            "gnome-text-editor": "Text Editor",
+            "texteditor": "Text Editor",
+            "text-editor": "Text Editor",
+            "gedit": "Gedit",
+            "org.gnome.gedit": "Gedit",
+            "gcr-prompter": "Authentication Prompt",
+            "polkit-gnome-authentication-agent-1": "Authentication Agent",
+            "polkit-kde-authentication-agent-1": "Authentication Agent",
+            "kitty": "Kitty",
+            "wezterm": "WezTerm",
+            "org.wezfurlong.wezterm": "WezTerm",
+            "alacritty": "Alacritty",
+            "foot": "Foot",
+            "com.github.wwmm.easyeffects": "EasyEffects",
+            "easyeffects": "EasyEffects",
+            "org.gnome.calculator": "Calculator",
+            "calculator": "Calculator",
+            "gnome-calculator": "Calculator",
+            "org.gnome.calendar": "Calendar",
+            "calendar": "Calendar",
+            "gnome-calendar": "Calendar",
+            "org.gnome.systemmonitor": "System Monitor",
+            "gnome-system-monitor": "System Monitor",
+            "system-monitor": "System Monitor",
+            "systemmonitor": "System Monitor",
+            "org.gnome.loupe": "Image Viewer",
+            "loupe": "Image Viewer",
+            "org.gnome.papers": "Document Viewer",
+            "papers": "Document Viewer",
+            "org.gnome.settings": "Settings",
+            "gnome-control-center": "Settings",
+            "settings": "Settings",
+            "org.gnome.software": "Software",
+            "gnome-software": "Software",
+            "software": "Software",
+            "org.gnome.terminal": "Terminal",
+            "gnome-terminal": "Terminal",
+            "org.gnome.ptyxis": "Terminal",
+            "ptyxis": "Terminal",
+            "org.gnome.boxes": "Boxes",
+            "gnome-boxes": "Boxes",
+            "org.gnome.diskutility": "Disks",
+            "gnome-disks": "Disks",
+            "disks": "Disks",
+            "pavucontrol": "Volume Control",
+            "org.pulseaudio.pavucontrol": "Volume Control",
+            "google-chrome": "Google Chrome",
+            "google-chrome-stable": "Google Chrome",
+            "chromium": "Chromium",
+            "firefox": "Firefox",
+            "firefox-esr": "Firefox",
+            "brave-browser": "Brave Browser",
+            "brave": "Brave Browser",
+            "discord": "Discord",
+            "vesktop": "Vesktop",
+            "webcord": "WebCord",
+            "spotify": "Spotify",
+            "slack": "Slack",
+            "telegramdesktop": "Telegram",
+            "org.telegram.desktop": "Telegram",
+            "obsidian": "Obsidian",
+            "wireshark": "Wireshark",
+            "org.wireshark.wireshark": "Wireshark",
+            "burp-startburp": "Burp Suite",
+            "burpsuite": "Burp Suite",
+            "virtualbox": "VirtualBox",
+            "virtualbox manager": "VirtualBox",
+            "virtualbox machine": "VirtualBox VM",
+            "virtualboxvm": "VirtualBox VM",
+            "virtual box vm": "VirtualBox VM",
+            "mpv": "MPV",
+            "vlc": "VLC",
+            "gimp": "GIMP",
+            "inkscape": "Inkscape",
+            "baobab": "Disk Usage Analyzer",
+            "org.gnome.baobab": "Disk Usage Analyzer",
+            "gparted": "GParted",
+            "gpartedbin": "GParted",
+            "qt5ct": "Qt5 Settings",
+            "qt6ct": "Qt6 Settings",
+            "nwg-look": "GTK Settings",
+            "legionaura": "Legion Aura",
+            "nvidia-settings": "NVIDIA Settings",
+            "org.gnome.powerstats": "Power Statistics",
+            "gnome-power-statistics": "Power Statistics",
+            "power stats": "Power Statistics",
+            "powerstats": "Power Statistics",
+            "blueman-manager": "Bluetooth Manager",
+            "blueman-adapters": "Bluetooth Adapters",
+            "blueman manager": "Bluetooth Manager",
+            "xdg-desktop-portal-gtk": "File Chooser Portal",
+            "xdg desktop portal gtk": "File Chooser Portal",
+            "xdg-desktop-portal-gnome": "GNOME Portal",
+            "xdg-desktop-portal-hyprland": "Hyprland Portal",
+            "xdg-desktop-portal": "Desktop Portal"
+        };
+
+        if (nameMap[lower]) return nameMap[lower];
+
+        if (lower.indexOf("virtualbox") !== -1 || lower.indexOf("vbox") !== -1) {
+            if (lower.indexOf("vm") !== -1 || lower.indexOf("machine") !== -1) return "VirtualBox VM";
+            return "VirtualBox";
+        }
+        if (lower.indexOf("portal") !== -1) {
+            if (lower.indexOf("gtk") !== -1) return "File Chooser Portal";
+            return "Desktop Portal";
+        }
+        if (lower.indexOf("baobab") !== -1) return "Disk Usage Analyzer";
+        if (lower.indexOf("ptyxis") !== -1) return "Terminal";
+        if (lower.indexOf("gparted") !== -1) return "GParted";
+        if (lower.indexOf("powerstats") !== -1 || lower.indexOf("power stats") !== -1) return "Power Statistics";
+        if (lower.indexOf("blueman") !== -1) return "Bluetooth Manager";
+        if (lower.indexOf("nvidia") !== -1) return "NVIDIA Settings";
+        if (lower.indexOf("qt5ct") !== -1) return "Qt5 Settings";
+        if (lower.indexOf("qt6ct") !== -1) return "Qt6 Settings";
+        if (lower.indexOf("nwg-look") !== -1) return "GTK Settings";
+        if (lower.indexOf("legionaura") !== -1) return "Legion Aura";
+
+        let parts = str.split(".");
+        let base = parts[parts.length - 1];
+        if (!base && parts.length > 1) base = parts[parts.length - 2];
+        if (!base) base = str;
+
+        base = base.replace(/([a-z])([A-Z])/g, "$1 $2");
+        base = base.replace(/[-_]+/g, " ");
+
+        let words = base.trim().split(/\s+/);
+        return words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+    }
+
     function getSysIcon(appName) {
         if (!appName) return "application-x-executable";
-        let lower = appName.toLowerCase();
-        if (lower === "zen") return "zen-browser";
-        if (lower === "codium") return "vscodium";
-        if (lower === "wezterm") return "org.wezfurlong.wezterm";
-        if (lower === "nautilus") return "org.gnome.Nautilus";
-        if (lower.includes("virtualbox")) return "virtualbox";
+        let str = appName.trim();
+        let lower = str.toLowerCase();
+
+        const iconMap = {
+            "zen": "zen-browser",
+            "zen-alpha": "zen-browser",
+            "zen-beta": "zen-browser",
+            "zen-browser": "zen-browser",
+            "codium": "vscodium",
+            "vscodium": "vscodium",
+            "code": "visual-studio-code",
+            "code-oss": "visual-studio-code",
+            "vscode": "visual-studio-code",
+            "visual-studio-code": "visual-studio-code",
+            "nautilus": "org.gnome.Nautilus",
+            "org.gnome.nautilus": "org.gnome.Nautilus",
+            "org.gnome.texteditor": "org.gnome.TextEditor",
+            "gnome-text-editor": "org.gnome.TextEditor",
+            "texteditor": "org.gnome.TextEditor",
+            "text-editor": "org.gnome.TextEditor",
+            "gedit": "org.gnome.gedit",
+            "org.gnome.gedit": "org.gnome.gedit",
+            "gcr-prompter": "dialog-password",
+            "polkit-gnome-authentication-agent-1": "dialog-password",
+            "polkit-kde-authentication-agent-1": "dialog-password",
+            "kitty": "kitty",
+            "wezterm": "org.wezfurlong.wezterm",
+            "org.wezfurlong.wezterm": "org.wezfurlong.wezterm",
+            "alacritty": "Alacritty",
+            "foot": "foot",
+            "easyeffects": "com.github.wwmm.easyeffects",
+            "com.github.wwmm.easyeffects": "com.github.wwmm.easyeffects",
+            "calculator": "org.gnome.Calculator",
+            "org.gnome.calculator": "org.gnome.Calculator",
+            "gnome-calculator": "org.gnome.Calculator",
+            "calendar": "org.gnome.Calendar",
+            "org.gnome.calendar": "org.gnome.Calendar",
+            "gnome-calendar": "org.gnome.Calendar",
+            "system-monitor": "org.gnome.SystemMonitor",
+            "systemmonitor": "org.gnome.SystemMonitor",
+            "org.gnome.systemmonitor": "org.gnome.SystemMonitor",
+            "gnome-system-monitor": "org.gnome.SystemMonitor",
+            "loupe": "org.gnome.Loupe",
+            "org.gnome.loupe": "org.gnome.Loupe",
+            "papers": "org.gnome.Papers",
+            "org.gnome.papers": "org.gnome.Papers",
+            "settings": "org.gnome.Settings",
+            "org.gnome.settings": "org.gnome.Settings",
+            "gnome-control-center": "org.gnome.Settings",
+            "software": "org.gnome.Software",
+            "org.gnome.software": "org.gnome.Software",
+            "gnome-software": "org.gnome.Software",
+            "terminal": "org.gnome.Ptyxis",
+            "org.gnome.terminal": "org.gnome.Ptyxis",
+            "gnome-terminal": "org.gnome.Ptyxis",
+            "ptyxis": "org.gnome.Ptyxis",
+            "org.gnome.ptyxis": "org.gnome.Ptyxis",
+            "boxes": "org.gnome.Boxes",
+            "org.gnome.boxes": "org.gnome.Boxes",
+            "disks": "org.gnome.DiskUtility",
+            "org.gnome.diskutility": "org.gnome.DiskUtility",
+            "gnome-disks": "org.gnome.DiskUtility",
+            "pavucontrol": "org.pulseaudio.pavucontrol",
+            "org.pulseaudio.pavucontrol": "org.pulseaudio.pavucontrol",
+            "virtualbox": "virtualbox",
+            "virtualbox manager": "virtualbox",
+            "virtualbox machine": "virtualbox",
+            "virtualboxvm": "virtualbox",
+            "virtual box vm": "virtualbox",
+            "google-chrome": "google-chrome",
+            "google-chrome-stable": "google-chrome",
+            "firefox": "firefox",
+            "firefox-esr": "firefox",
+            "brave-browser": "brave-browser",
+            "brave": "brave-browser",
+            "discord": "discord",
+            "vesktop": "vesktop",
+            "spotify": "spotify",
+            "obsidian": "obsidian",
+            "wireshark": "wireshark",
+            "org.wireshark.wireshark": "wireshark",
+            "baobab": "org.gnome.baobab",
+            "org.gnome.baobab": "org.gnome.baobab",
+            "gparted": "gparted",
+            "gpartedbin": "gparted",
+            "qt5ct": "qt5ct",
+            "qt6ct": "qt6ct",
+            "nwg-look": "nwg-look",
+            "legionaura": "preferences-desktop-keyboard",
+            "nvidia-settings": "nvidia-settings",
+            "org.gnome.powerstats": "org.gnome.PowerStats",
+            "gnome-power-statistics": "org.gnome.PowerStats",
+            "power stats": "org.gnome.PowerStats",
+            "powerstats": "org.gnome.PowerStats",
+            "blueman-manager": "blueman",
+            "blueman-adapters": "blueman",
+            "blueman manager": "blueman",
+            "xdg-desktop-portal-gtk": "preferences-system",
+            "xdg desktop portal gtk": "preferences-system",
+            "xdg-desktop-portal-gnome": "preferences-system",
+            "xdg-desktop-portal-hyprland": "preferences-system",
+            "xdg-desktop-portal": "preferences-system"
+        };
+
+        if (iconMap[lower]) return iconMap[lower];
+
+        if (lower.indexOf("virtualbox") !== -1 || lower.indexOf("vbox") !== -1) return "virtualbox";
+        if (lower.indexOf("portal") !== -1) return "preferences-system";
+        if (lower.indexOf("baobab") !== -1) return "org.gnome.baobab";
+        if (lower.indexOf("gparted") !== -1) return "gparted";
+        if (lower.indexOf("powerstats") !== -1 || lower.indexOf("power stats") !== -1) return "org.gnome.PowerStats";
+        if (lower.indexOf("blueman") !== -1 || lower.indexOf("bluetooth") !== -1) return "blueman";
+        if (lower.indexOf("nvidia") !== -1) return "nvidia-settings";
+        if (lower.indexOf("ptyxis") !== -1) return "org.gnome.Ptyxis";
+        if (lower.indexOf("qt5ct") !== -1) return "qt5ct";
+        if (lower.indexOf("qt6ct") !== -1) return "qt6ct";
+        if (lower.indexOf("nwg-look") !== -1) return "nwg-look";
+        if (lower.indexOf("legionaura") !== -1) return "preferences-desktop-keyboard";
+
+        if (str.indexOf(".") !== -1) {
+            return str;
+        }
+
         return lower;
     }
 
@@ -359,7 +625,7 @@ Scope {
                                     Item { Layout.fillHeight: true }
                                     
                                     Text {
-                                        text: formatTime(root.todayTotal)
+                                        text: root.formatTime(root.todayTotal)
                                         color: root.todayTotal > root.dailyLimit ? "#ef4444" : root.themePrimary
                                         font.pixelSize: 46
                                         font.weight: Font.Bold
@@ -401,7 +667,8 @@ Scope {
                                         }
                                         
                                         Rectangle {
-                                            width: 1; height: 36
+                                            Layout.preferredWidth: 1
+                                            Layout.preferredHeight: 36
                                             color: Qt.rgba(255, 255, 255, 0.1)
                                         }
                                         
@@ -503,7 +770,7 @@ Scope {
                                                         anchors.centerIn: parent
                                                         spacing: 4
                                                         Text {
-                                                            text: formatTime(model.total)
+                                                            text: root.formatTime(model.total)
                                                             color: "#FFFFFF"
                                                             font.pixelSize: 13
                                                             font.weight: Font.Bold
@@ -513,15 +780,41 @@ Scope {
                                                             Layout.alignment: Qt.AlignHCenter
                                                             spacing: 6
                                                             visible: model.top_app !== ""
-                                                            Image {
-                                                                source: model.top_app ? "image://icon/" + getSysIcon(model.top_app) : ""
+                                                            
+                                                            Item {
                                                                 width: 14
                                                                 height: 14
-                                                                sourceSize: Qt.size(14, 14)
-                                                                fillMode: Image.PreserveAspectFit
+                                                                Layout.alignment: Qt.AlignVCenter
+
+                                                                Image {
+                                                                    id: tooltipIcon
+                                                                    anchors.fill: parent
+                                                                    source: model.top_app ? "image://icon/" + root.getSysIcon(model.top_app) : ""
+                                                                    sourceSize: Qt.size(14, 14)
+                                                                    fillMode: Image.PreserveAspectFit
+                                                                    asynchronous: true
+                                                                    visible: status === Image.Ready
+
+                                                                    property bool fallbackAttempted: false
+                                                                    onStatusChanged: {
+                                                                        if (status === Image.Error && !fallbackAttempted) {
+                                                                            fallbackAttempted = true
+                                                                            source = "image://icon/application-x-executable"
+                                                                        }
+                                                                    }
+                                                                }
+
+                                                                Text {
+                                                                    anchors.centerIn: parent
+                                                                    visible: !tooltipIcon.visible
+                                                                    text: "󰀻"
+                                                                    font.pixelSize: 12
+                                                                    color: root.themeTextMuted
+                                                                }
                                                             }
+
                                                             Text {
-                                                                text: model.top_app ? model.top_app.charAt(0).toUpperCase() + model.top_app.slice(1) : ""
+                                                                text: root.formatAppName(model.top_app)
                                                                 color: root.themeTextMuted
                                                                 font.pixelSize: 11
                                                             }
@@ -645,23 +938,49 @@ Scope {
                                             anchors.rightMargin: 16
                                             spacing: 16
 
-                                            Image {
-                                                source: "image://icon/" + getSysIcon(model.app)
+                                            Item {
                                                 width: 24
                                                 height: 24
-                                                sourceSize: Qt.size(24, 24)
-                                                fillMode: Image.PreserveAspectFit
+                                                Layout.alignment: Qt.AlignVCenter
+
+                                                Image {
+                                                    id: appIcon
+                                                    anchors.fill: parent
+                                                    source: "image://icon/" + root.getSysIcon(model.app)
+                                                    sourceSize: Qt.size(24, 24)
+                                                    fillMode: Image.PreserveAspectFit
+                                                    asynchronous: true
+                                                    visible: status === Image.Ready
+
+                                                    property bool fallbackAttempted: false
+                                                    onStatusChanged: {
+                                                        if (status === Image.Error && !fallbackAttempted) {
+                                                            fallbackAttempted = true
+                                                            source = "image://icon/application-x-executable"
+                                                        }
+                                                    }
+                                                }
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    visible: !appIcon.visible
+                                                    text: "󰀻"
+                                                    font.pixelSize: 20
+                                                    color: root.themePrimary
+                                                }
                                             }
+
                                             Text {
-                                                text: model.app.charAt(0).toUpperCase() + model.app.slice(1)
+                                                text: root.formatAppName(model.app)
                                                 font.pixelSize: 15
                                                 font.weight: Font.Medium
                                                 color: root.themeText
                                                 Layout.fillWidth: true
                                                 elide: Text.ElideRight
                                             }
+
                                             Text {
-                                                text: formatTime(model.duration)
+                                                text: root.formatTime(model.duration)
                                                 font.pixelSize: 14
                                                 font.weight: Font.Bold
                                                 color: root.themeText
@@ -751,5 +1070,5 @@ Scope {
                 }
             }
         }
-    }
+    } 
 }

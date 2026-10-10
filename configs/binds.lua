@@ -4,7 +4,7 @@ local home       = os.getenv("HOME")
 local script_dir = home .. "/.config/hypr/scripts/"
 
 local term         = "kitty"
-local browser      = "bash -c 'zen-browser || firefox || google-chrome-stable || chromium || brave'"
+local browser = "bash -c 'for b in zen-browser zen firefox google-chrome-stable google-chrome chromium brave-browser brave xdg-open; do command -v \"$b\" >/dev/null 2>&1 && exec \"$b\" \"$@\"; done' --"
 local editor       = "codium"
 local file_manager = "nautilus --new-window"
 
