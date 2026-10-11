@@ -15,6 +15,9 @@ Scope {
     property int scheduleFilter: 0
     property int rightTab: 0
 
+    property bool autoRoutineMode: true
+    property string activeRoutineMode: "weekday"
+
     property int editingBlockIndex: -1
     property string editBlockStartStr: "7:00 AM"
     property string editBlockEndStr: "7:30 AM"
@@ -29,6 +32,7 @@ Scope {
     property bool stateLoadedOnce: false
     property bool stateDirty: false
     property bool pendingQuit: false
+    property int scrollRequestCounter: 0
 
     function updateTargetMonitor() {
         if (root.targetMonitorName !== "") return
@@ -57,7 +61,7 @@ Scope {
 
     property int themeRounding: 15
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.58
+    property real themeBgAlpha: 0.60
 
     property bool animEnabled: true
     property int animDuration: 380
@@ -81,6 +85,7 @@ Scope {
     property string currentTimeStr: "--:--:--"
     property string currentDateStr: ""
     property string todayIsoDate: ""
+    property int currentDayOfWeek: (new Date()).getDay()
     property int currentMinutes: 0
     property int currentSeconds: 0
 
@@ -98,10 +103,7 @@ Scope {
     property int completedChecklistCount: 0
     property int totalChecklistCount: 11
 
-    property string targetWakeUp: "7:00 AM"
-    property string targetCoreStudy: "7:30 - 1:15 PM"
-    property string targetClasses: "7:00 - 9:00 PM"
-    property string targetSleep: "10:30 PM"
+    property var modeProfiles: ({})
     property string footerMantra: "Focus on output, not just hours. Two tools practised well beat three rushed. Protect your sleep."
 
     property string priority1: ""
@@ -117,30 +119,63 @@ Scope {
     ListModel { id: scheduleModel }
     ListModel { id: checklistModel }
 
-    readonly property var defaultSchedule: [
-        { blockId: "b01", startMin: 420, endMin: 450, timeLabel: "7:00 - 7:30 AM", section: "morning", cat: "routine", title: "Wake up & get ready", details: "Freshen up, drink water, get sunlight, and set up your desk.", manualDone: false },
-        { blockId: "b02", startMin: 450, endMin: 495, timeLabel: "7:30 - 8:15 AM", section: "morning", cat: "study", title: "Academic subject 1", details: "Understand concepts and make short, useful notes.", manualDone: false },
-        { blockId: "b03", startMin: 495, endMin: 505, timeLabel: "8:15 - 8:25 AM", section: "morning", cat: "break", title: "Short break", details: "Stand up, stretch, and rest your eyes.", manualDone: false },
-        { blockId: "b04", startMin: 505, endMin: 550, timeLabel: "8:25 - 9:10 AM", section: "morning", cat: "study", title: "Academic subject 2", details: "Work on theory, numerical problems, or revision.", manualDone: false },
-        { blockId: "b05", startMin: 550, endMin: 565, timeLabel: "9:10 - 9:25 AM", section: "morning", cat: "break", title: "Break", details: "Move around; avoid getting pulled into phone scrolling.", manualDone: false },
-        { blockId: "b06", startMin: 565, endMin: 635, timeLabel: "9:25 - 10:35 AM", section: "morning", cat: "cyber", title: "Cisco networking 1 unit", details: "Learn the concepts, draw diagrams, take notes, and self-test.", manualDone: false },
-        { blockId: "b07", startMin: 635, endMin: 645, timeLabel: "10:35 - 10:45 AM", section: "morning", cat: "break", title: "Short break", details: "Hydrate and reset.", manualDone: false },
-        { blockId: "b08", startMin: 645, endMin: 675, timeLabel: "10:45 - 11:15 AM", section: "morning", cat: "study", title: "Academic book 1", details: "Read the matching lecture topic and fill gaps in your notes.", manualDone: false },
-        { blockId: "b09", startMin: 675, endMin: 705, timeLabel: "11:15 - 11:45 AM", section: "morning", cat: "study", title: "Academic book 2", details: "Read the same topic in your second book; mark important questions.", manualDone: false },
-        { blockId: "b10", startMin: 705, endMin: 720, timeLabel: "11:45 - 12:00 PM", section: "morning", cat: "break", title: "Snack / reset", details: "Take a short break away from your desk.", manualDone: false },
-        { blockId: "b11", startMin: 720, endMin: 780, timeLabel: "12:00 - 1:00 PM", section: "morning", cat: "cyber", title: "Kali Linux practicals", details: "Practise 2-3 tools in an authorised lab; record commands and results.", manualDone: false },
-        { blockId: "b12", startMin: 780, endMin: 795, timeLabel: "1:00 - 1:15 PM", section: "morning", cat: "review", title: "Daily review", details: "Recall key points, tick off tasks, and choose tomorrow's topics.", manualDone: false },
-        { blockId: "b13", startMin: 795, endMin: 840, timeLabel: "1:15 - 2:00 PM", section: "afternoon", cat: "break", title: "Lunch & rest", details: "Eat properly and take a real break away from your desk.", manualDone: false },
-        { blockId: "b14", startMin: 840, endMin: 930, timeLabel: "2:00 - 3:30 PM", section: "afternoon", cat: "growth", title: "Hyprland / Quickshell", details: "Build one widget, fix a bug, or polish your desktop workflow.", manualDone: false },
-        { blockId: "b15", startMin: 930, endMin: 960, timeLabel: "3:30 - 4:00 PM", section: "afternoon", cat: "break", title: "Refresh break", details: "Walk, stretch, get fresh air, or have a snack.", manualDone: false },
-        { blockId: "b16", startMin: 960, endMin: 1020, timeLabel: "4:00 - 5:00 PM", section: "afternoon", cat: "cyber", title: "Learn something new", details: "Linux, scripting, cybersecurity fundamentals, or another chosen skill.", manualDone: false },
-        { blockId: "b17", startMin: 1020, endMin: 1080, timeLabel: "5:00 - 6:00 PM", section: "afternoon", cat: "growth", title: "Flexible project time", details: "Continue your project, document progress, or catch up on unfinished work.", manualDone: false },
-        { blockId: "b18", startMin: 1080, endMin: 1140, timeLabel: "6:00 - 7:00 PM", section: "afternoon", cat: "routine", title: "Dinner & class prep", details: "Eat, prepare notes, open class materials, and settle in.", manualDone: false },
-        { blockId: "b19", startMin: 1140, endMin: 1260, timeLabel: "7:00 - 9:00 PM", section: "afternoon", cat: "study", title: "Scheduled Classes", details: "Attend scheduled classes; stay attentive and note topics to revise.", manualDone: false },
-        { blockId: "b20", startMin: 1260, endMin: 1350, timeLabel: "9:00 - 10:30 PM", section: "afternoon", cat: "routine", title: "Wind down", details: "Brief recap, relax, prepare for tomorrow, and aim to sleep at 10:30 PM.", manualDone: false }
+    readonly property var defaultWeekdaySchedule: [
+        { blockId: "w01", startMin: 420, endMin: 450, timeLabel: "7:00 - 7:30 AM", section: "morning", cat: "routine", title: "Wake up & get ready", details: "Freshen up, drink water, get sunlight, and set up your desk.", manualDone: false },
+        { blockId: "w02", startMin: 450, endMin: 495, timeLabel: "7:30 - 8:15 AM", section: "morning", cat: "study", title: "Academic subject 1", details: "Understand concepts and make short, useful notes.", manualDone: false },
+        { blockId: "w03", startMin: 495, endMin: 505, timeLabel: "8:15 - 8:25 AM", section: "morning", cat: "break", title: "Short break", details: "Stand up, stretch, and rest your eyes.", manualDone: false },
+        { blockId: "w04", startMin: 505, endMin: 550, timeLabel: "8:25 - 9:10 AM", section: "morning", cat: "study", title: "Academic subject 2", details: "Work on theory, numerical problems, or revision.", manualDone: false },
+        { blockId: "w05", startMin: 550, endMin: 565, timeLabel: "9:10 - 9:25 AM", section: "morning", cat: "break", title: "Break", details: "Move around; avoid getting pulled into phone scrolling.", manualDone: false },
+        { blockId: "w06", startMin: 565, endMin: 635, timeLabel: "9:25 - 10:35 AM", section: "morning", cat: "cyber", title: "Cisco networking 1 unit", details: "Learn the concepts, draw diagrams, take notes, and self-test.", manualDone: false },
+        { blockId: "w07", startMin: 635, endMin: 645, timeLabel: "10:35 - 10:45 AM", section: "morning", cat: "break", title: "Short break", details: "Hydrate and reset.", manualDone: false },
+        { blockId: "w08", startMin: 645, endMin: 675, timeLabel: "10:45 - 11:15 AM", section: "morning", cat: "study", title: "Academic book 1", details: "Read the matching lecture topic and fill gaps in your notes.", manualDone: false },
+        { blockId: "w09", startMin: 675, endMin: 705, timeLabel: "11:15 - 11:45 AM", section: "morning", cat: "study", title: "Academic book 2", details: "Read the same topic in your second book; mark important questions.", manualDone: false },
+        { blockId: "w10", startMin: 705, endMin: 720, timeLabel: "11:45 - 12:00 PM", section: "morning", cat: "break", title: "Snack / reset", details: "Take a short break away from your desk.", manualDone: false },
+        { blockId: "w11", startMin: 720, endMin: 780, timeLabel: "12:00 - 1:00 PM", section: "morning", cat: "cyber", title: "Kali Linux practicals", details: "Practise 2-3 tools in an authorised lab; record commands and results.", manualDone: false },
+        { blockId: "w12", startMin: 780, endMin: 795, timeLabel: "1:00 - 1:15 PM", section: "morning", cat: "review", title: "Daily review", details: "Recall key points, tick off tasks, and choose tomorrow's topics.", manualDone: false },
+        { blockId: "w13", startMin: 795, endMin: 840, timeLabel: "1:15 - 2:00 PM", section: "afternoon", cat: "break", title: "Lunch & rest", details: "Eat properly and take a real break away from your desk.", manualDone: false },
+        { blockId: "w14", startMin: 840, endMin: 930, timeLabel: "2:00 - 3:30 PM", section: "afternoon", cat: "growth", title: "Hyprland / Quickshell", details: "Build one widget, fix a bug, or polish your desktop workflow.", manualDone: false },
+        { blockId: "w15", startMin: 930, endMin: 960, timeLabel: "3:30 - 4:00 PM", section: "afternoon", cat: "break", title: "Refresh break", details: "Walk, stretch, get fresh air, or have a snack.", manualDone: false },
+        { blockId: "w16", startMin: 960, endMin: 1020, timeLabel: "4:00 - 5:00 PM", section: "afternoon", cat: "cyber", title: "Learn something new", details: "Linux, scripting, cybersecurity fundamentals, or another chosen skill.", manualDone: false },
+        { blockId: "w17", startMin: 1020, endMin: 1080, timeLabel: "5:00 - 6:00 PM", section: "afternoon", cat: "growth", title: "Flexible project time", details: "Continue your project, document progress, or catch up on unfinished work.", manualDone: false },
+        { blockId: "w18", startMin: 1080, endMin: 1140, timeLabel: "6:00 - 7:00 PM", section: "afternoon", cat: "routine", title: "Dinner & class prep", details: "Eat, prepare notes, open class materials, and settle in.", manualDone: false },
+        { blockId: "w19", startMin: 1140, endMin: 1260, timeLabel: "7:00 - 9:00 PM", section: "afternoon", cat: "study", title: "Scheduled Classes (Mon-Thu)", details: "Attend scheduled classes; stay attentive and note topics to revise.", manualDone: false },
+        { blockId: "w20", startMin: 1260, endMin: 1350, timeLabel: "9:00 - 10:30 PM", section: "afternoon", cat: "routine", title: "Wind down", details: "Brief recap, relax, prepare for tomorrow, and aim to sleep at 10:30 PM.", manualDone: false }
     ]
 
-    readonly property var defaultChecklist: [
+    readonly property var defaultWeekendSchedule: [
+        { blockId: "e01", startMin: 420, endMin: 450, timeLabel: "7:00 - 7:30 AM", section: "morning", cat: "routine", title: "Wake up & get ready", details: "Freshen up, drink water, get sunlight, and set up your desk.", manualDone: false },
+        { blockId: "e02", startMin: 450, endMin: 495, timeLabel: "7:30 - 8:15 AM", section: "morning", cat: "study", title: "Academic subject 1", details: "Understand concepts and make short, useful notes.", manualDone: false },
+        { blockId: "e03", startMin: 495, endMin: 505, timeLabel: "8:15 - 8:25 AM", section: "morning", cat: "break", title: "Short break", details: "Stand up, stretch, and rest your eyes.", manualDone: false },
+        { blockId: "e04", startMin: 505, endMin: 550, timeLabel: "8:25 - 9:10 AM", section: "morning", cat: "study", title: "Academic subject 2", details: "Work on theory, numerical problems, or revision.", manualDone: false },
+        { blockId: "e05", startMin: 550, endMin: 565, timeLabel: "9:10 - 9:25 AM", section: "morning", cat: "break", title: "Break", details: "Move around; avoid getting pulled into phone scrolling.", manualDone: false },
+        { blockId: "e06", startMin: 565, endMin: 635, timeLabel: "9:25 - 10:35 AM", section: "morning", cat: "cyber", title: "Cisco networking 1 unit", details: "Learn the concepts, draw diagrams, take notes, and self-test.", manualDone: false },
+        { blockId: "e07", startMin: 635, endMin: 645, timeLabel: "10:35 - 10:45 AM", section: "morning", cat: "break", title: "Short break", details: "Hydrate and reset.", manualDone: false },
+        { blockId: "e08", startMin: 645, endMin: 675, timeLabel: "10:45 - 11:15 AM", section: "morning", cat: "study", title: "Academic book 1", details: "Read the matching lecture topic and fill gaps in your notes.", manualDone: false },
+        { blockId: "e09", startMin: 675, endMin: 705, timeLabel: "11:15 - 11:45 AM", section: "morning", cat: "study", title: "Academic book 2", details: "Read the same topic in your second book; mark important questions.", manualDone: false },
+        { blockId: "e10", startMin: 705, endMin: 720, timeLabel: "11:45 - 12:00 PM", section: "morning", cat: "break", title: "Snack / reset", details: "Take a short break away from your desk.", manualDone: false },
+        { blockId: "e11", startMin: 720, endMin: 780, timeLabel: "12:00 - 1:00 PM", section: "morning", cat: "cyber", title: "Kali Linux practicals", details: "Practise 2-3 tools in an authorised lab; record commands and results.", manualDone: false },
+        { blockId: "e12", startMin: 780, endMin: 795, timeLabel: "1:00 - 1:15 PM", section: "morning", cat: "review", title: "Daily review", details: "Recall key points, tick off tasks, and choose tomorrow's topics.", manualDone: false },
+        { blockId: "e13", startMin: 795, endMin: 840, timeLabel: "1:15 - 2:00 PM", section: "afternoon", cat: "break", title: "Lunch & rest", details: "Eat properly and take a real break away from your desk.", manualDone: false },
+        { blockId: "e14", startMin: 840, endMin: 930, timeLabel: "2:00 - 3:30 PM", section: "afternoon", cat: "growth", title: "Hyprland / Quickshell", details: "Build one widget, fix a bug, or polish your desktop workflow.", manualDone: false },
+        { blockId: "e15", startMin: 930, endMin: 960, timeLabel: "3:30 - 4:00 PM", section: "afternoon", cat: "break", title: "Refresh break", details: "Walk, stretch, get fresh air, or have a snack.", manualDone: false },
+        { blockId: "e16", startMin: 960, endMin: 1020, timeLabel: "4:00 - 5:00 PM", section: "afternoon", cat: "cyber", title: "Learn something new", details: "Linux, scripting, cybersecurity fundamentals, or another chosen skill.", manualDone: false },
+        { blockId: "e17", startMin: 1020, endMin: 1080, timeLabel: "5:00 - 6:00 PM", section: "afternoon", cat: "growth", title: "Flexible project time", details: "Continue your project, document progress, or catch up on unfinished work.", manualDone: false },
+        { blockId: "e18", startMin: 1080, endMin: 1140, timeLabel: "6:00 - 7:00 PM", section: "afternoon", cat: "routine", title: "Dinner & evening reset", details: "Classes are closed Fri-Sun. Enjoy dinner and recharge.", manualDone: false },
+        { blockId: "e19", startMin: 1140, endMin: 1260, timeLabel: "7:00 - 9:00 PM", section: "afternoon", cat: "cyber", title: "Deep Lab / Weekly Revision", details: "No classes today (Fri-Sun). Use this window for extra Kali labs, scripting, or revision.", manualDone: false },
+        { blockId: "e20", startMin: 1260, endMin: 1350, timeLabel: "9:00 - 10:30 PM", section: "afternoon", cat: "routine", title: "Wind down", details: "Brief recap, relax, prepare for tomorrow, and aim to sleep at 10:30 PM.", manualDone: false }
+    ]
+
+    readonly property var defaultTravelSchedule: [
+        { blockId: "t01", startMin: 420, endMin: 540, timeLabel: "7:00 - 9:00 AM", section: "morning", cat: "routine", title: "Travel Prep & Departure", details: "Pack essentials, charger, tickets, water, and verify travel schedule.", manualDone: false },
+        { blockId: "t02", startMin: 540, endMin: 720, timeLabel: "9:00 - 12:00 PM", section: "morning", cat: "study", title: "Transit Reading / Offline Study", details: "Read downloaded PDFs, review lecture notes, or listen to audio material.", manualDone: false },
+        { blockId: "t03", startMin: 720, endMin: 840, timeLabel: "12:00 - 2:00 PM", section: "afternoon", cat: "break", title: "Midday Meal & Rest", details: "Eat properly, hydrate, and rest your eyes during transit.", manualDone: false },
+        { blockId: "t04", startMin: 840, endMin: 1020, timeLabel: "2:00 - 5:00 PM", section: "afternoon", cat: "cyber", title: "Light Review / Concept Notes", details: "Review networking concepts, command cheatsheets, or plan upcoming labs.", manualDone: false },
+        { blockId: "t05", startMin: 1020, endMin: 1140, timeLabel: "5:00 - 7:00 PM", section: "afternoon", cat: "routine", title: "Arrival, Dinner & Settle In", details: "Unpack, freshen up, have dinner, and organize your space.", manualDone: false },
+        { blockId: "t06", startMin: 1140, endMin: 1260, timeLabel: "7:00 - 9:00 PM", section: "afternoon", cat: "review", title: "Light Catch-up / Next Day Plan", details: "Check messages, review class updates, and set priorities for tomorrow.", manualDone: false },
+        { blockId: "t07", startMin: 1260, endMin: 1350, timeLabel: "9:00 - 10:30 PM", section: "afternoon", cat: "routine", title: "Early Recovery & Sleep", details: "Recover from travel fatigue and aim to sleep by 10:30 PM.", manualDone: false }
+    ]
+
+    readonly property var defaultStandardChecklist: [
         { itemId: "c01", group: "ACADEMICS", title: "Study academic subject 1", done: false },
         { itemId: "c02", group: "ACADEMICS", title: "Study academic subject 2", done: false },
         { itemId: "c03", group: "ACADEMICS", title: "Read academic book 1", done: false },
@@ -154,39 +189,161 @@ Scope {
         { itemId: "c11", group: "PERSONAL GROWTH", title: "Review today and plan tomorrow", done: false }
     ]
 
-    function populateDefaults() {
-        scheduleModel.clear()
-        for (let i = 0; i < defaultSchedule.length; i++) {
-            let s = defaultSchedule[i]
-            scheduleModel.append({
-                blockId: s.blockId,
-                startMin: s.startMin,
-                endMin: s.endMin,
-                timeLabel: s.timeLabel,
-                section: s.section,
-                cat: s.cat,
-                title: s.title,
-                details: s.details,
-                manualDone: s.manualDone
+    readonly property var defaultTravelChecklist: [
+        { itemId: "tc01", group: "ACADEMICS", title: "Read 1 chapter or lecture PDF offline", done: false },
+        { itemId: "tc02", group: "ACADEMICS", title: "Review short notes or flashcards during transit", done: false },
+        { itemId: "tc03", group: "CYBERSECURITY", title: "Review networking diagrams or Kali command notes", done: false },
+        { itemId: "tc04", group: "PERSONAL GROWTH", title: "Keep daily consistency streak alive", done: false },
+        { itemId: "tc05", group: "PERSONAL GROWTH", title: "Set up workspace & plan tomorrow's full routine", done: false }
+    ]
+
+    function cloneArray(arr) {
+        let out = []
+        for (let i = 0; i < arr.length; i++) {
+            out.push(Object.assign({}, arr[i]))
+        }
+        return out
+    }
+
+    function createDefaultProfiles() {
+        return {
+            "weekday": {
+                wakeUp: "7:00 AM",
+                coreStudy: "7:30 - 1:15 PM",
+                classes: "7:00 - 9:00 PM",
+                sleep: "10:30 PM",
+                schedule: root.cloneArray(root.defaultWeekdaySchedule),
+                checklist: root.cloneArray(root.defaultStandardChecklist)
+            },
+            "weekend": {
+                wakeUp: "7:00 AM",
+                coreStudy: "7:30 - 1:15 PM",
+                classes: "Closed (Fri-Sun)",
+                sleep: "10:30 PM",
+                schedule: root.cloneArray(root.defaultWeekendSchedule),
+                checklist: root.cloneArray(root.defaultStandardChecklist)
+            },
+            "travel": {
+                wakeUp: "Flexible",
+                coreStudy: "Transit / Light",
+                classes: "Travel Mode",
+                sleep: "10:30 PM",
+                schedule: root.cloneArray(root.defaultTravelSchedule),
+                checklist: root.cloneArray(root.defaultTravelChecklist)
+            }
+        }
+    }
+
+    property string targetWakeUp: "7:00 AM"
+    property string targetCoreStudy: "7:30 - 1:15 PM"
+    property string targetClasses: "7:00 - 9:00 PM"
+    property string targetSleep: "10:30 PM"
+
+    function getAutoModeForToday() {
+        let day = root.currentDayOfWeek
+        return (day >= 1 && day <= 4) ? "weekday" : "weekend"
+    }
+
+    function syncActiveModelsToProfile() {
+        if (!root.modeProfiles || !root.modeProfiles[root.activeRoutineMode]) return
+        let prof = root.modeProfiles[root.activeRoutineMode]
+        prof.wakeUp = root.targetWakeUp
+        prof.coreStudy = root.targetCoreStudy
+        prof.classes = root.targetClasses
+        prof.sleep = root.targetSleep
+
+        let sArr = []
+        for (let i = 0; i < scheduleModel.count; i++) {
+            let b = scheduleModel.get(i)
+            sArr.push({
+                blockId: b.blockId,
+                startMin: b.startMin,
+                endMin: b.endMin,
+                timeLabel: b.timeLabel,
+                section: b.section,
+                cat: b.cat,
+                title: b.title,
+                details: b.details,
+                manualDone: Boolean(b.manualDone)
             })
         }
-        checklistModel.clear()
-        for (let j = 0; j < defaultChecklist.length; j++) {
-            let c = defaultChecklist[j]
-            checklistModel.append({
+        prof.schedule = sArr
+
+        let cArr = []
+        for (let j = 0; j < checklistModel.count; j++) {
+            let c = checklistModel.get(j)
+            cArr.push({
                 itemId: c.itemId,
                 group: c.group,
                 title: c.title,
-                done: c.done
+                done: Boolean(c.done)
             })
         }
-        root.targetWakeUp = "7:00 AM"
-        root.targetCoreStudy = "7:30 - 1:15 PM"
-        root.targetClasses = "7:00 - 9:00 PM"
-        root.targetSleep = "10:30 PM"
-        root.footerMantra = "Focus on output, not just hours. Two tools practised well beat three rushed. Protect your sleep."
+        prof.checklist = cArr
+    }
+
+    function loadProfileIntoActiveModels(modeKey) {
+        if (!root.modeProfiles || !root.modeProfiles[modeKey]) {
+            root.modeProfiles = root.createDefaultProfiles()
+        }
+        root.activeRoutineMode = modeKey
+        let prof = root.modeProfiles[modeKey]
+
+        root.targetWakeUp = prof.wakeUp || "7:00 AM"
+        root.targetCoreStudy = prof.coreStudy || "7:30 - 1:15 PM"
+        root.targetClasses = prof.classes || (modeKey === "weekday" ? "7:00 - 9:00 PM" : (modeKey === "weekend" ? "Closed (Fri-Sun)" : "Travel Mode"))
+        root.targetSleep = prof.sleep || "10:30 PM"
+
+        scheduleModel.clear()
+        let sList = prof.schedule || []
+        for (let i = 0; i < sList.length; i++) {
+            let sb = sList[i]
+            scheduleModel.append({
+                blockId: String(sb.blockId || ("b_" + i)),
+                startMin: Number(sb.startMin),
+                endMin: Number(sb.endMin),
+                timeLabel: String(sb.timeLabel),
+                section: String(sb.section || "morning"),
+                cat: String(sb.cat || "study"),
+                title: String(sb.title || "Task"),
+                details: String(sb.details || ""),
+                manualDone: Boolean(sb.manualDone)
+            })
+        }
+
+        checklistModel.clear()
+        let cList = prof.checklist || []
+        for (let j = 0; j < cList.length; j++) {
+            let sc = cList[j]
+            checklistModel.append({
+                itemId: String(sc.itemId || ("c_" + j)),
+                group: String(sc.group || "ACADEMICS"),
+                title: String(sc.title || "Task"),
+                done: Boolean(sc.done)
+            })
+        }
+
         root.editingBlockIndex = -1
         root.recalculateChecklistProgress()
+        root.updateLiveClock()
+        root.scrollRequestCounter++
+    }
+
+    function switchRoutineMode(modeKey, enableAuto) {
+        if (root.stateLoadedOnce) {
+            root.syncActiveModelsToProfile()
+        }
+        root.autoRoutineMode = Boolean(enableAuto)
+        let targetMode = enableAuto ? root.getAutoModeForToday() : modeKey
+        root.loadProfileIntoActiveModels(targetMode)
+        root.saveStateNow()
+    }
+
+    function populateDefaults() {
+        root.modeProfiles = root.createDefaultProfiles()
+        root.footerMantra = "Focus on output, not just hours. Two tools practised well beat three rushed. Protect your sleep."
+        let targetMode = root.autoRoutineMode ? root.getAutoModeForToday() : root.activeRoutineMode
+        root.loadProfileIntoActiveModels(targetMode)
     }
 
     function minsToSingleTime(totalMins) {
@@ -210,19 +367,16 @@ Scope {
         let eH12 = eH24 % 12 === 0 ? 12 : eH24 % 12
         let sStr = sH12 + ":" + String(sMin).padStart(2, '0')
         let eStr = eH12 + ":" + String(eMin).padStart(2, '0') + " " + eAmPm
-        if (sAmPm !== eAmPm && sStr !== "11:45") {
-            sStr += " " + sAmPm
-        }
         return sStr + " - " + eStr
     }
 
     function parseTimeInput(inputStr, fallbackMins) {
         if (!inputStr) return fallbackMins
-        let clean = inputStr.trim().toUpperCase()
-        let match = clean.match(/^(\d{1,2})\s*:\s*(\d{2})\s*(AM|PM)?$/)
+        let clean = String(inputStr).trim().toUpperCase()
+        let match = clean.match(/^(\d{1,2})(?:\s*:\s*(\d{2}))?\s*(AM|PM)?$/)
         if (!match) return fallbackMins
         let h = parseInt(match[1], 10)
-        let m = parseInt(match[2], 10)
+        let m = match[2] !== undefined ? parseInt(match[2], 10) : 0
         let mer = match[3] || ""
         if (m < 0 || m > 59 || h < 0 || h > 23) return fallbackMins
         if (mer === "PM" && h < 12) h += 12
@@ -374,9 +528,24 @@ Scope {
     function cycleChecklistGroup(index) {
         if (index < 0 || index >= checklistModel.count) return
         const groups = ["ACADEMICS", "CYBERSECURITY", "PERSONAL GROWTH"]
-        let currentGrp = checklistModel.get(index).group
+        let item = checklistModel.get(index)
+        let currentGrp = item.group
         let nextGrp = groups[(groups.indexOf(currentGrp) + 1) % groups.length]
-        checklistModel.setProperty(index, "group", nextGrp)
+        let cloned = {
+            itemId: item.itemId,
+            group: nextGrp,
+            title: item.title,
+            done: Boolean(item.done)
+        }
+        checklistModel.remove(index)
+        let insertIndex = checklistModel.count
+        for (let i = checklistModel.count - 1; i >= 0; i--) {
+            if (checklistModel.get(i).group === nextGrp) {
+                insertIndex = i + 1
+                break
+            }
+        }
+        checklistModel.insert(insertIndex, cloned)
         root.saveStateNow()
     }
 
@@ -423,46 +592,17 @@ Scope {
         }
 
         root.stateDirty = false
+        root.syncActiveModelsToProfile()
 
         let now = new Date()
         root.todayIsoDate = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, '0') + "-" + String(now.getDate()).padStart(2, '0')
 
-        let scheduleArr = []
-        for (let i = 0; i < scheduleModel.count; i++) {
-            let b = scheduleModel.get(i)
-            scheduleArr.push({
-                blockId: b.blockId,
-                startMin: b.startMin,
-                endMin: b.endMin,
-                timeLabel: b.timeLabel,
-                section: b.section,
-                cat: b.cat,
-                title: b.title,
-                details: b.details,
-                manualDone: Boolean(b.manualDone)
-            })
-        }
-
-        let checklistArr = []
-        for (let j = 0; j < checklistModel.count; j++) {
-            let c = checklistModel.get(j)
-            checklistArr.push({
-                itemId: c.itemId,
-                group: c.group,
-                title: c.title,
-                done: Boolean(c.done)
-            })
-        }
-
         let payload = {
             date: root.todayIsoDate,
             hudMode: root.hudMode,
-            scheduleData: scheduleArr,
-            checklistData: checklistArr,
-            targetWakeUp: root.targetWakeUp,
-            targetCoreStudy: root.targetCoreStudy,
-            targetClasses: root.targetClasses,
-            targetSleep: root.targetSleep,
+            autoRoutineMode: root.autoRoutineMode,
+            activeRoutineMode: root.activeRoutineMode,
+            modeProfiles: root.modeProfiles,
             footerMantra: root.footerMantra,
             priority1: root.priority1,
             priority2: root.priority2,
@@ -489,7 +629,11 @@ Scope {
         root.stateLoadedOnce = true
 
         let now = new Date()
-        root.todayIsoDate = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, '0') + "-" + String(now.getDate()).padStart(2, '0')
+        let iso = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, '0') + "-" + String(now.getDate()).padStart(2, '0')
+        root.todayIsoDate = iso
+        root.currentDayOfWeek = now.getDay()
+
+        root.modeProfiles = root.createDefaultProfiles()
 
         let saved = null
         try {
@@ -502,88 +646,92 @@ Scope {
         }
 
         if (!saved) {
-            root.populateDefaults()
-            root.updateLiveClock()
+            root.autoRoutineMode = true
+            root.loadProfileIntoActiveModels(root.getAutoModeForToday())
             return
         }
 
+        let isSameDay = (saved.date === iso)
+
         if (saved.hudMode !== undefined) root.hudMode = Boolean(saved.hudMode)
         if (saved.notesTomorrow !== undefined) root.notesTomorrow = String(saved.notesTomorrow)
-        if (saved.targetWakeUp) root.targetWakeUp = String(saved.targetWakeUp)
-        if (saved.targetCoreStudy) root.targetCoreStudy = String(saved.targetCoreStudy)
-        if (saved.targetClasses) root.targetClasses = String(saved.targetClasses)
-        if (saved.targetSleep) root.targetSleep = String(saved.targetSleep)
         if (saved.footerMantra) root.footerMantra = String(saved.footerMantra)
+        if (saved.autoRoutineMode !== undefined) root.autoRoutineMode = Boolean(saved.autoRoutineMode)
 
-        if (saved.scheduleData && Array.isArray(saved.scheduleData) && saved.scheduleData.length > 0) {
-            scheduleModel.clear()
-            for (let i = 0; i < saved.scheduleData.length; i++) {
-                let sb = saved.scheduleData[i]
-                scheduleModel.append({
-                    blockId: String(sb.blockId || ("b_" + i)),
-                    startMin: Number(sb.startMin),
-                    endMin: Number(sb.endMin),
-                    timeLabel: String(sb.timeLabel),
-                    section: String(sb.section || "morning"),
-                    cat: String(sb.cat || "study"),
-                    title: String(sb.title || "Task"),
-                    details: String(sb.details || ""),
-                    manualDone: Boolean(sb.manualDone)
-                })
-            }
-        } else {
-            scheduleModel.clear()
-            for (let i = 0; i < defaultSchedule.length; i++) {
-                let s = defaultSchedule[i]
-                let doneVal = (saved.blocksDone && saved.blocksDone[s.blockId] !== undefined) ? Boolean(saved.blocksDone[s.blockId]) : false
-                scheduleModel.append({
-                    blockId: s.blockId,
-                    startMin: s.startMin,
-                    endMin: s.endMin,
-                    timeLabel: s.timeLabel,
-                    section: s.section,
-                    cat: s.cat,
-                    title: s.title,
-                    details: s.details,
-                    manualDone: doneVal
-                })
-            }
-        }
+        if (saved.modeProfiles && typeof saved.modeProfiles === "object") {
+            const keys = ["weekday", "weekend", "travel"]
+            for (let k = 0; k < keys.length; k++) {
+                let mKey = keys[k]
+                if (saved.modeProfiles[mKey]) {
+                    let sp = saved.modeProfiles[mKey]
+                    let dp = root.modeProfiles[mKey]
+                    if (sp.wakeUp) dp.wakeUp = String(sp.wakeUp)
+                    if (sp.coreStudy) dp.coreStudy = String(sp.coreStudy)
+                    if (sp.classes) dp.classes = String(sp.classes)
+                    if (sp.sleep) dp.sleep = String(sp.sleep)
 
-        if (saved.checklistData && Array.isArray(saved.checklistData) && saved.checklistData.length > 0) {
-            checklistModel.clear()
-            for (let k = 0; k < saved.checklistData.length; k++) {
-                let sc = saved.checklistData[k]
-                checklistModel.append({
-                    itemId: String(sc.itemId || ("c_" + k)),
+                    if (Array.isArray(sp.schedule) && sp.schedule.length > 0) {
+                        dp.schedule = sp.schedule.map((sb, idx) => ({
+                            blockId: String(sb.blockId || ("b_" + idx)),
+                            startMin: Number(sb.startMin),
+                            endMin: Number(sb.endMin),
+                            timeLabel: String(sb.timeLabel),
+                            section: String(sb.section || "morning"),
+                            cat: String(sb.cat || "study"),
+                            title: String(sb.title || "Task"),
+                            details: String(sb.details || ""),
+                            manualDone: isSameDay ? Boolean(sb.manualDone) : false
+                        }))
+                    }
+
+                    if (Array.isArray(sp.checklist) && sp.checklist.length > 0) {
+                        dp.checklist = sp.checklist.map((sc, idx) => ({
+                            itemId: String(sc.itemId || ("c_" + idx)),
+                            group: String(sc.group || "ACADEMICS"),
+                            title: String(sc.title || "Task"),
+                            done: isSameDay ? Boolean(sc.done) : false
+                        }))
+                    }
+                }
+            }
+        } else if (saved.scheduleData && Array.isArray(saved.scheduleData) && saved.scheduleData.length > 0) {
+            root.modeProfiles.weekday.schedule = saved.scheduleData.map((sb, idx) => ({
+                blockId: String(sb.blockId || ("b_" + idx)),
+                startMin: Number(sb.startMin),
+                endMin: Number(sb.endMin),
+                timeLabel: String(sb.timeLabel),
+                section: String(sb.section || "morning"),
+                cat: String(sb.cat || "study"),
+                title: String(sb.title || "Task"),
+                details: String(sb.details || ""),
+                manualDone: isSameDay ? Boolean(sb.manualDone) : false
+            }))
+            if (saved.checklistData && Array.isArray(saved.checklistData) && saved.checklistData.length > 0) {
+                let migratedChecklist = saved.checklistData.map((sc, idx) => ({
+                    itemId: String(sc.itemId || ("c_" + idx)),
                     group: String(sc.group || "ACADEMICS"),
                     title: String(sc.title || "Task"),
-                    done: Boolean(sc.done)
-                })
-            }
-        } else {
-            checklistModel.clear()
-            for (let j = 0; j < defaultChecklist.length; j++) {
-                let c = defaultChecklist[j]
-                let cDone = (saved.checklist && saved.checklist[c.itemId] !== undefined) ? Boolean(saved.checklist[c.itemId]) : false
-                checklistModel.append({
-                    itemId: c.itemId,
-                    group: c.group,
-                    title: c.title,
-                    done: cDone
-                })
+                    done: isSameDay ? Boolean(sc.done) : false
+                }))
+                root.modeProfiles.weekday.checklist = root.cloneArray(migratedChecklist)
+                root.modeProfiles.weekend.checklist = root.cloneArray(migratedChecklist)
             }
         }
 
-        root.priority1 = saved.priority1 || ""
-        root.priority2 = saved.priority2 || ""
-        root.priority3 = saved.priority3 || ""
-        root.priority1Done = Boolean(saved.priority1Done)
-        root.priority2Done = Boolean(saved.priority2Done)
-        root.priority3Done = Boolean(saved.priority3Done)
+        if (isSameDay) {
+            root.priority1 = saved.priority1 || ""
+            root.priority2 = saved.priority2 || ""
+            root.priority3 = saved.priority3 || ""
+            root.priority1Done = Boolean(saved.priority1Done)
+            root.priority2Done = Boolean(saved.priority2Done)
+            root.priority3Done = Boolean(saved.priority3Done)
+        }
 
-        root.recalculateChecklistProgress()
-        root.updateLiveClock()
+        let initialMode = root.autoRoutineMode
+            ? root.getAutoModeForToday()
+            : (saved.activeRoutineMode || root.getAutoModeForToday())
+
+        root.loadProfileIntoActiveModels(initialMode)
     }
 
     FileView {
@@ -609,6 +757,18 @@ Scope {
         for (let j = 0; j < scheduleModel.count; j++) {
             scheduleModel.setProperty(j, "manualDone", false)
         }
+        const keys = ["weekday", "weekend", "travel"]
+        for (let k = 0; k < keys.length; k++) {
+            let prof = root.modeProfiles[keys[k]]
+            if (prof) {
+                if (Array.isArray(prof.schedule)) {
+                    for (let s = 0; s < prof.schedule.length; s++) prof.schedule[s].manualDone = false
+                }
+                if (Array.isArray(prof.checklist)) {
+                    for (let c = 0; c < prof.checklist.length; c++) prof.checklist[c].done = false
+                }
+            }
+        }
         root.priority1Done = false
         root.priority2Done = false
         root.priority3Done = false
@@ -622,12 +782,28 @@ Scope {
         let mins = now.getMinutes()
         let secs = now.getSeconds()
 
+        let nowIso = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, '0') + "-" + String(now.getDate()).padStart(2, '0')
+        root.currentDayOfWeek = now.getDay()
+
+        if (root.stateLoadedOnce && root.todayIsoDate !== "" && root.todayIsoDate !== nowIso) {
+            root.todayIsoDate = nowIso
+            root.resetDailyProgress()
+        }
+
+        if (root.stateLoadedOnce && root.autoRoutineMode) {
+            let expectedAuto = root.getAutoModeForToday()
+            if (root.activeRoutineMode !== expectedAuto) {
+                root.syncActiveModelsToProfile()
+                root.loadProfileIntoActiveModels(expectedAuto)
+            }
+        }
+
         let ampm = hrs >= 12 ? "PM" : "AM"
         let h12 = hrs % 12
         if (h12 === 0) h12 = 12
         root.currentTimeStr = String(h12).padStart(2, '0') + ":" + String(mins).padStart(2, '0') + ":" + String(secs).padStart(2, '0') + " " + ampm
 
-        const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
         const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
         root.currentDateStr = days[now.getDay()] + ", " + months[now.getMonth()] + " " + now.getDate()
 
@@ -644,7 +820,11 @@ Scope {
             }
         }
 
+        let prevActiveIdx = root.activeBlockIndex
         root.activeBlockIndex = foundIdx
+        if (prevActiveIdx !== foundIdx && foundIdx !== -1) {
+            root.scrollRequestCounter++
+        }
 
         if (foundIdx !== -1) {
             let activeBlk = scheduleModel.get(foundIdx)
@@ -678,27 +858,77 @@ Scope {
                 root.nextTaskTime = root.targetSleep
             }
         } else {
-            root.activeTaskTitle = "Sleep & Recovery Window"
-            root.activeTaskDesc = "Protect your sleep. Focus on rest so you're ready for " + root.targetWakeUp + "."
-            root.activeTaskTimeRange = root.targetSleep + " - " + root.targetWakeUp
-            root.activeTaskCategory = "sleep"
+            let firstStart = scheduleModel.count > 0 ? scheduleModel.get(0).startMin : 420
+            let lastEnd = scheduleModel.count > 0 ? scheduleModel.get(scheduleModel.count - 1).endMin : 1350
 
-            let minsSinceSleep = totalMins >= 1350 ? (totalMins - 1350) : (totalMins + (1440 - 1350))
-            let totalSleepWindow = 510
-            root.activeBlockProgress = Math.min(1.0, Math.max(0.0, minsSinceSleep / totalSleepWindow))
+            let nextTodayIdx = -1
+            if (totalMins >= firstStart && totalMins < lastEnd) {
+                for (let g = 0; g < scheduleModel.count; g++) {
+                    if (scheduleModel.get(g).startMin > totalMins) {
+                        nextTodayIdx = g
+                        break
+                    }
+                }
+            }
 
-            let minsLeft = Math.max(0, totalSleepWindow - minsSinceSleep)
-            let rh = Math.floor(minsLeft / 60)
-            let rm = minsLeft % 60
-            root.activeRemainingStr = rh + "h " + rm + "m until " + root.targetWakeUp
+            if (nextTodayIdx !== -1) {
+                let upcomingBlk = scheduleModel.get(nextTodayIdx)
+                let prevEnd = nextTodayIdx > 0 ? scheduleModel.get(nextTodayIdx - 1).endMin : firstStart
+                let gapDurationSecs = Math.max(60, (upcomingBlk.startMin - prevEnd) * 60)
+                let gapElapsedSecs = ((totalMins - prevEnd) * 60) + secs
+                let gapRemSecs = Math.max(0, (upcomingBlk.startMin * 60) - (totalMins * 60 + secs))
 
-            if (scheduleModel.count > 0) {
-                let firstBlk = scheduleModel.get(0)
-                root.nextTaskTitle = firstBlk.title
-                root.nextTaskTime = firstBlk.timeLabel
+                root.activeTaskTitle = "Transition / Unscheduled Break"
+                root.activeTaskDesc = "Prepare for your next scheduled block: " + upcomingBlk.title + "."
+                root.activeTaskTimeRange = root.formatRangeLabel(prevEnd, upcomingBlk.startMin)
+                root.activeTaskCategory = "break"
+                root.activeBlockProgress = Math.min(1.0, Math.max(0.0, gapElapsedSecs / gapDurationSecs))
+
+                let gMins = Math.floor(gapRemSecs / 60)
+                let gSecs = gapRemSecs % 60
+                root.activeRemainingStr = gMins + "m " + String(gSecs).padStart(2, '0') + "s left"
+                root.nextTaskTitle = upcomingBlk.title
+                root.nextTaskTime = upcomingBlk.timeLabel
             } else {
-                root.nextTaskTitle = "Wake up & get ready"
-                root.nextTaskTime = root.targetWakeUp
+                let parsedSleep = root.parseTimeInput(root.targetSleep, -1)
+                let parsedWake = root.parseTimeInput(root.targetWakeUp, -1)
+                let sleepStartMin = parsedSleep !== -1 ? parsedSleep : lastEnd
+                let wakeUpMin = parsedWake !== -1 ? parsedWake : firstStart
+                let wakeLabel = parsedWake !== -1 ? root.targetWakeUp : root.minsToSingleTime(wakeUpMin)
+                let sleepLabel = parsedSleep !== -1 ? root.targetSleep : root.minsToSingleTime(sleepStartMin)
+
+                root.activeTaskTitle = "Sleep & Recovery Window"
+                root.activeTaskDesc = "Protect your sleep. Focus on rest so you're ready for " + wakeLabel + "."
+                root.activeTaskTimeRange = sleepLabel + " - " + wakeLabel
+                root.activeTaskCategory = "sleep"
+
+                let totalSleepWindow = wakeUpMin > sleepStartMin
+                    ? (wakeUpMin - sleepStartMin)
+                    : ((1440 - sleepStartMin) + wakeUpMin)
+                if (totalSleepWindow <= 0) totalSleepWindow = 510
+
+                let minsSinceSleep = totalMins >= sleepStartMin
+                    ? (totalMins - sleepStartMin)
+                    : ((1440 - sleepStartMin) + totalMins)
+
+                let elapsedSleepSecs = (minsSinceSleep * 60) + secs
+                let totalSleepSecs = totalSleepWindow * 60
+                root.activeBlockProgress = Math.min(1.0, Math.max(0.0, elapsedSleepSecs / totalSleepSecs))
+
+                let remSleepSecs = Math.max(0, totalSleepSecs - elapsedSleepSecs)
+                let minsLeft = Math.ceil(remSleepSecs / 60)
+                let rh = Math.floor(minsLeft / 60)
+                let rm = minsLeft % 60
+                root.activeRemainingStr = rh + "h " + rm + "m until " + wakeLabel
+
+                if (scheduleModel.count > 0) {
+                    let firstBlk = scheduleModel.get(0)
+                    root.nextTaskTitle = firstBlk.title
+                    root.nextTaskTime = firstBlk.timeLabel
+                } else {
+                    root.nextTaskTitle = "Wake up & get ready"
+                    root.nextTaskTime = wakeLabel
+                }
             }
         }
     }
@@ -841,7 +1071,7 @@ Scope {
             Rectangle {
                 id: mainCard
                 width: Math.min(1180, parent.width - 40)
-                height: Math.min(760, parent.height - 50)
+                height: Math.min(790, parent.height - 40)
                 anchors.centerIn: parent
 
                 radius: root.themeRounding
@@ -874,123 +1104,111 @@ Scope {
 
                 MouseArea {
                     anchors.fill: parent
-                    onClicked: (mouse) => mouse.accepted = true
+                    onClicked: (mouse) => {
+                        mainCard.forceActiveFocus()
+                        mouse.accepted = true
+                    }
                 }
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 18
+                    anchors.margins: 20
                     spacing: 12
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.preferredHeight: 42
-                        Layout.minimumHeight: 42
-                        Layout.maximumHeight: 42
-                        spacing: 8
+                        Layout.preferredHeight: 44
+                        Layout.minimumHeight: 44
+                        Layout.maximumHeight: 44
+                        spacing: 12
 
-                        RowLayout {
-                            Layout.maximumWidth: 235
-                            spacing: 10
+                        Rectangle {
+                            Layout.preferredWidth: 40
+                            Layout.preferredHeight: 40
+                            radius: 10
+                            color: Qt.alpha(root.themePrimary, 0.16)
+                            border.width: 1
+                            border.color: Qt.alpha(root.themePrimary, 0.40)
+
                             Text {
-                                text: "󰃭"
-                                font.pixelSize: 22
+                                anchors.centerIn: parent
+                                text: root.activeRoutineMode === "travel" ? "🚆" : "󰃭"
+                                font.pixelSize: 18
                                 color: root.themePrimary
-                                Layout.alignment: Qt.AlignVCenter
                             }
-                            Column {
-                                Layout.alignment: Qt.AlignVCenter
-                                spacing: 2
+                        }
+
+                        ColumnLayout {
+                            Layout.alignment: Qt.AlignVCenter
+                            spacing: 2
+
+                            RowLayout {
+                                spacing: 8
                                 Text {
                                     text: "Daily Study Planner"
-                                    font.pixelSize: 17
+                                    font.pixelSize: 18
                                     font.weight: Font.Bold
                                     color: "#FFFFFF"
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
-                                }
-                                Text {
-                                    text: root.editMode ? "EDIT MODE  •  CLICK TO CUSTOMIZE" : "FOCUS  •  BUILD SKILLS  •  CONSISTENT"
-                                    font.pixelSize: 8
-                                    font.weight: Font.Bold
-                                    font.letterSpacing: 0.8
-                                    color: root.editMode ? "#4ade80" : root.themePrimary
                                 }
                             }
                         }
 
-                        Item {
-                            Layout.fillWidth: true
-                            Layout.minimumWidth: 4
-                        }
+                        Item { Layout.fillWidth: true }
 
-                        Repeater {
-                            model: [
-                                { key: "wake", label: "WAKE UP", val: root.targetWakeUp, icon: "󰖙" },
-                                { key: "core", label: "CORE STUDY", val: root.targetCoreStudy, icon: "󰂺" },
-                                { key: "class", label: "CLASSES", val: root.targetClasses, icon: "󰑴" },
-                                { key: "sleep", label: "SLEEP TARGET", val: root.targetSleep, icon: "󰤄" }
-                            ]
-                            delegate: Rectangle {
-                                Layout.preferredHeight: 42
-                                Layout.minimumHeight: 42
-                                Layout.maximumHeight: 42
-                                Layout.preferredWidth: root.editMode ? 112 : Math.max(92, pillContent.implicitWidth + 20)
-                                radius: 8
-                                color: Qt.rgba(0, 0, 0, 0.32)
-                                border.width: 1
-                                border.color: root.editMode ? Qt.alpha("#4ade80", 0.55) : Qt.rgba(255, 255, 255, 0.09)
-                                antialiasing: true
-                                clip: true
+                        Rectangle {
+                            Layout.preferredHeight: 38
+                            Layout.preferredWidth: modeSwitcherRow.implicitWidth + 10
+                            radius: 10
+                            color: Qt.rgba(0, 0, 0, 0.35)
+                            border.width: 1
+                            border.color: Qt.rgba(255, 255, 255, 0.10)
 
-                                Row {
-                                    id: pillContent
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    anchors.left: parent.left
-                                    anchors.leftMargin: 10
-                                    spacing: 7
+                            RowLayout {
+                                id: modeSwitcherRow
+                                anchors.centerIn: parent
+                                spacing: 4
 
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: modelData.icon
-                                        font.pixelSize: 13
-                                        color: root.themePrimary
-                                    }
+                                Repeater {
+                                    model: [
+                                        { key: "auto", label: "Auto (" + ((root.currentDayOfWeek >= 1 && root.currentDayOfWeek <= 4) ? "Mon-Thu" : "Fri-Sun") + ")", isAuto: true },
+                                        { key: "weekday", label: "Mon–Thu", isAuto: false },
+                                        { key: "weekend", label: "Fri–Sun", isAuto: false },
+                                        { key: "travel", label: "🚆 Travel", isAuto: false }
+                                    ]
+                                    delegate: Rectangle {
+                                        property bool isSelected: modelData.isAuto
+                                            ? root.autoRoutineMode
+                                            : (!root.autoRoutineMode && root.activeRoutineMode === modelData.key)
 
-                                    Column {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        spacing: 1
+                                        Layout.preferredHeight: 28
+                                        Layout.preferredWidth: modePillTxt.implicitWidth + 16
+                                        radius: 7
+                                        color: isSelected
+                                            ? (modelData.key === "travel" ? Qt.rgba(56, 189, 248, 0.28) : Qt.alpha(root.themePrimary, 0.28))
+                                            : (modePillMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.08) : "transparent")
+                                        border.width: isSelected ? 1 : 0
+                                        border.color: modelData.key === "travel" ? "#38bdf8" : root.themePrimary
 
                                         Text {
+                                            id: modePillTxt
+                                            anchors.centerIn: parent
                                             text: modelData.label
-                                            font.pixelSize: 8
-                                            font.weight: Font.Bold
-                                            color: root.themeTextMuted
-                                        }
-
-                                        Text {
-                                            visible: !root.editMode
-                                            text: modelData.val
                                             font.pixelSize: 11
-                                            font.weight: Font.Bold
-                                            color: "#FFFFFF"
+                                            font.weight: parent.isSelected ? Font.Bold : Font.Medium
+                                            color: parent.isSelected ? "#FFFFFF" : root.themeTextMuted
                                         }
 
-                                        TextInput {
-                                            visible: root.editMode
-                                            width: 72
-                                            text: modelData.val
-                                            font.pixelSize: 10
-                                            font.weight: Font.Bold
-                                            color: "#4ade80"
-                                            clip: true
-                                            onTextEdited: {
-                                                if (modelData.key === "wake") root.targetWakeUp = text
-                                                else if (modelData.key === "core") root.targetCoreStudy = text
-                                                else if (modelData.key === "class") root.targetClasses = text
-                                                else if (modelData.key === "sleep") root.targetSleep = text
-                                                root.updateLiveClock()
-                                                root.scheduleSave()
+                                        MouseArea {
+                                            id: modePillMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                if (modelData.isAuto) {
+                                                    root.switchRoutineMode(root.getAutoModeForToday(), true)
+                                                } else {
+                                                    root.switchRoutineMode(modelData.key, false)
+                                                }
                                             }
                                         }
                                     }
@@ -999,60 +1217,25 @@ Scope {
                         }
 
                         Rectangle {
-                            Layout.preferredHeight: 42
-                            Layout.minimumHeight: 42
-                            Layout.maximumHeight: 42
-                            Layout.preferredWidth: 106
-                            radius: 8
-                            color: Qt.alpha(root.themePrimary, 0.15)
-                            border.width: 1
-                            border.color: Qt.alpha(root.themePrimary, 0.38)
-                            antialiasing: true
-
-                            Column {
-                                anchors.centerIn: parent
-                                spacing: 1
-                                Text {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    text: root.currentTimeStr
-                                    font.pixelSize: 11
-                                    font.weight: Font.Bold
-                                    color: "#FFFFFF"
-                                }
-                                Text {
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    text: root.currentDateStr
-                                    font.pixelSize: 9
-                                    color: root.themeTextMuted
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            Layout.preferredHeight: 42
-                            Layout.minimumHeight: 42
-                            Layout.maximumHeight: 42
-                            Layout.preferredWidth: 74
-                            radius: 8
+                            Layout.preferredHeight: 38
+                            Layout.preferredWidth: 78
+                            radius: 10
                             color: root.editMode
-                                ? Qt.rgba(74, 222, 128, 0.22)
+                                ? Qt.rgba(74, 222, 128, 0.24)
                                 : (editBtnMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(255, 255, 255, 0.08))
                             border.width: 1
                             border.color: root.editMode ? "#4ade80" : Qt.alpha(root.themePrimary, 0.45)
-                            antialiasing: true
 
-                            Row {
+                            RowLayout {
                                 anchors.centerIn: parent
-                                spacing: 5
+                                spacing: 6
                                 Text {
-                                    anchors.verticalCenter: parent.verticalCenter
                                     text: root.editMode ? "✓" : "✎"
-                                    font.pixelSize: 12
+                                    font.pixelSize: 13
                                     font.weight: Font.Bold
                                     color: root.editMode ? "#4ade80" : root.themePrimary
                                 }
                                 Text {
-                                    anchors.verticalCenter: parent.verticalCenter
                                     text: root.editMode ? "Done" : "Edit"
                                     font.pixelSize: 12
                                     font.weight: Font.Bold
@@ -1074,27 +1257,22 @@ Scope {
                         }
 
                         Rectangle {
-                            Layout.preferredHeight: 42
-                            Layout.minimumHeight: 42
-                            Layout.maximumHeight: 42
-                            Layout.preferredWidth: 88
-                            radius: 8
+                            Layout.preferredHeight: 38
+                            Layout.preferredWidth: 94
+                            radius: 10
                             color: hudBtnMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.rgba(255, 255, 255, 0.08)
                             border.width: 1
                             border.color: Qt.alpha(root.themePrimary, 0.45)
-                            antialiasing: true
 
-                            Row {
+                            RowLayout {
                                 anchors.centerIn: parent
-                                spacing: 5
+                                spacing: 6
                                 Text {
-                                    anchors.verticalCenter: parent.verticalCenter
                                     text: "󰐃"
                                     font.pixelSize: 13
                                     color: root.themePrimary
                                 }
                                 Text {
-                                    anchors.verticalCenter: parent.verticalCenter
                                     text: "Pin HUD"
                                     font.pixelSize: 12
                                     font.weight: Font.Bold
@@ -1115,10 +1293,116 @@ Scope {
                         }
                     }
 
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 54
+                        Layout.minimumHeight: 54
+                        Layout.maximumHeight: 54
+                        spacing: 15
+
+                        Repeater {
+                            model: [
+                                { key: "wake", label: "WAKE UP TARGET", val: root.targetWakeUp, icon: "󰖙", accent: root.themePrimary },
+                                { key: "core", label: "CORE STUDY BLOCK", val: root.targetCoreStudy, icon: "󰂺", accent: "#38bdf8" },
+                                { key: "class", label: "EVENING CLASSES (MON–THU)", val: root.targetClasses, icon: "󰑴", accent: root.activeRoutineMode === "weekend" ? "#4ade80" : (root.activeRoutineMode === "travel" ? "#fbbf24" : root.themePrimary) },
+                                { key: "sleep", label: "SLEEP TARGET", val: root.targetSleep, icon: "󰤄", accent: "#a78bfa" }
+                            ]
+                            delegate: Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                Layout.preferredHeight: 54
+                                radius: 12
+                                color: Qt.rgba(0, 0, 0, 0.28)
+                                border.width: 1
+                                border.color: root.editMode ? Qt.alpha("#4ade80", 0.55) : Qt.rgba(255, 255, 255, 0.08)
+                                antialiasing: true
+                                clip: true
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 12
+                                    anchors.rightMargin: 12
+                                    spacing: 12
+
+                                    Rectangle {
+                                        Layout.preferredWidth: 34
+                                        Layout.preferredHeight: 34
+                                        Layout.alignment: Qt.AlignVCenter
+                                        radius: 8
+                                        color: Qt.alpha(modelData.accent, 0.16)
+                                        border.width: 1
+                                        border.color: Qt.alpha(modelData.accent, 0.35)
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: modelData.icon
+                                            font.pixelSize: 15
+                                            color: modelData.accent
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignVCenter
+                                        spacing: 2
+
+                                        Text {
+                                            text: modelData.label
+                                            font.pixelSize: 9
+                                            font.weight: Font.Bold
+                                            font.letterSpacing: 0.6
+                                            color: root.themeTextMuted
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+
+                                        Text {
+                                            visible: !root.editMode
+                                            text: modelData.val
+                                            font.pixelSize: 13
+                                            font.weight: Font.Bold
+                                            color: modelData.key === "class" && root.activeRoutineMode !== "weekday" ? modelData.accent : "#FFFFFF"
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+
+                                        TextField {
+                                            visible: root.editMode
+                                            Layout.fillWidth: true
+                                            Layout.preferredHeight: 22
+                                            text: modelData.val
+                                            font.pixelSize: 12
+                                            font.weight: Font.Bold
+                                            color: "#4ade80"
+                                            leftPadding: 6
+                                            rightPadding: 6
+                                            topPadding: 0
+                                            bottomPadding: 0
+                                            background: Rectangle {
+                                                radius: 4
+                                                color: Qt.rgba(255, 255, 255, 0.06)
+                                                border.width: 1
+                                                border.color: parent.activeFocus ? "#4ade80" : Qt.rgba(255, 255, 255, 0.15)
+                                            }
+                                            onTextEdited: {
+                                                if (modelData.key === "wake") root.targetWakeUp = text
+                                                else if (modelData.key === "core") root.targetCoreStudy = text
+                                                else if (modelData.key === "class") root.targetClasses = text
+                                                else if (modelData.key === "sleep") root.targetSleep = text
+                                                root.updateLiveClock()
+                                                root.scheduleSave()
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     Rectangle {
                         Layout.fillWidth: true
-                        height: 1
-                        color: Qt.rgba(255, 255, 255, 0.12)
+                        Layout.preferredHeight: 1
+                        color: Qt.rgba(255, 255, 255, 0.10)
                     }
 
                     RowLayout {
@@ -1160,23 +1444,23 @@ Scope {
                                         spacing: 10
 
                                         Rectangle {
-                                            width: 56
-                                            height: 20
+                                            Layout.preferredWidth: 56
+                                            Layout.preferredHeight: 20
                                             radius: 5
                                             color: Qt.alpha(root.getCategoryColor(root.activeTaskCategory), 0.22)
                                             border.width: 1
                                             border.color: root.getCategoryColor(root.activeTaskCategory)
 
-                                            Row {
+                                            RowLayout {
                                                 anchors.centerIn: parent
                                                 spacing: 5
                                                 Rectangle {
-                                                    anchors.verticalCenter: parent.verticalCenter
-                                                    width: 6; height: 6; radius: 3
+                                                    Layout.preferredWidth: 6
+                                                    Layout.preferredHeight: 6
+                                                    radius: 3
                                                     color: root.getCategoryColor(root.activeTaskCategory)
                                                 }
                                                 Text {
-                                                    anchors.verticalCenter: parent.verticalCenter
                                                     text: "LIVE"
                                                     font.pixelSize: 9
                                                     font.weight: Font.Bold
@@ -1274,11 +1558,11 @@ Scope {
                             Rectangle {
                                 visible: root.editingBlockIndex !== -1
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 196
-                                Layout.minimumHeight: 196
-                                Layout.maximumHeight: 196
+                                Layout.preferredHeight: 200
+                                Layout.minimumHeight: 200
+                                Layout.maximumHeight: 200
                                 radius: root.themeRounding
-                                color: Qt.rgba(0.06, 0.10, 0.08, 0.92)
+                                color: Qt.rgba(0.06, 0.10, 0.08, 0.94)
                                 border.width: 1.5
                                 border.color: "#4ade80"
                                 antialiasing: true
@@ -1292,7 +1576,7 @@ Scope {
                                     RowLayout {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 24
-                                        spacing: 6
+                                        spacing: 8
 
                                         Text {
                                             text: "✎ EDIT BLOCK #" + (root.editingBlockIndex + 1)
@@ -1302,16 +1586,16 @@ Scope {
                                         }
 
                                         Rectangle {
-                                            height: 22
-                                            width: secTxt.implicitWidth + 12
+                                            Layout.preferredHeight: 22
+                                            Layout.preferredWidth: secTxt.implicitWidth + 16
                                             radius: 5
-                                            color: Qt.rgba(255, 255, 255, 0.1)
+                                            color: Qt.rgba(255, 255, 255, 0.10)
                                             border.width: 1
-                                            border.color: Qt.rgba(255, 255, 255, 0.2)
+                                            border.color: Qt.rgba(255, 255, 255, 0.22)
                                             Text {
                                                 id: secTxt
                                                 anchors.centerIn: parent
-                                                text: root.editBlockSection === "morning" ? "01 Morning" : "02 Afternoon"
+                                                text: root.editBlockSection === "morning" ? "Section: 01 Morning" : "Section: 02 Afternoon"
                                                 font.pixelSize: 10
                                                 font.weight: Font.Bold
                                                 color: "#FFFFFF"
@@ -1326,7 +1610,9 @@ Scope {
                                         Item { Layout.fillWidth: true }
 
                                         Rectangle {
-                                            width: 68; height: 24; radius: 5
+                                            Layout.preferredWidth: 68
+                                            Layout.preferredHeight: 24
+                                            radius: 5
                                             color: "#4ade80"
                                             Text {
                                                 anchors.centerIn: parent
@@ -1343,7 +1629,9 @@ Scope {
                                         }
 
                                         Rectangle {
-                                            width: 58; height: 24; radius: 5
+                                            Layout.preferredWidth: 60
+                                            Layout.preferredHeight: 24
+                                            radius: 5
                                             color: Qt.rgba(255, 255, 255, 0.12)
                                             Text {
                                                 anchors.centerIn: parent
@@ -1360,7 +1648,9 @@ Scope {
                                         }
 
                                         Rectangle {
-                                            width: 58; height: 24; radius: 5
+                                            Layout.preferredWidth: 60
+                                            Layout.preferredHeight: 24
+                                            radius: 5
                                             color: Qt.rgba(239, 68, 68, 0.2)
                                             border.width: 1
                                             border.color: "#ef4444"
@@ -1394,8 +1684,8 @@ Scope {
                                         Repeater {
                                             model: ["study", "cyber", "growth", "break", "routine", "review"]
                                             delegate: Rectangle {
-                                                height: 20
-                                                width: catLbl.implicitWidth + 12
+                                                Layout.preferredHeight: 20
+                                                Layout.preferredWidth: catLbl.implicitWidth + 14
                                                 radius: 4
                                                 color: root.editBlockCat === modelData ? Qt.alpha(root.getCategoryColor(modelData), 0.3) : Qt.rgba(255, 255, 255, 0.06)
                                                 border.width: 1
@@ -1425,8 +1715,8 @@ Scope {
                                         spacing: 8
 
                                         ColumnLayout {
-                                            Layout.preferredWidth: 96
-                                            Layout.maximumWidth: 96
+                                            Layout.preferredWidth: 100
+                                            Layout.maximumWidth: 100
                                             spacing: 2
                                             Text { text: "Start Time"; font.pixelSize: 9; color: root.themeTextMuted }
                                             TextField {
@@ -1449,8 +1739,8 @@ Scope {
                                         }
 
                                         ColumnLayout {
-                                            Layout.preferredWidth: 96
-                                            Layout.maximumWidth: 96
+                                            Layout.preferredWidth: 100
+                                            Layout.maximumWidth: 100
                                             spacing: 2
                                             Text { text: "End Time"; font.pixelSize: 9; color: root.themeTextMuted }
                                             TextField {
@@ -1547,7 +1837,9 @@ Scope {
                                         spacing: 6
 
                                         Text {
-                                            text: "Daily Timeline"
+                                            text: root.activeRoutineMode === "travel"
+                                                ? "Travel Timeline"
+                                                : (root.activeRoutineMode === "weekend" ? "Fri–Sun Timeline" : "Mon–Thu Timeline")
                                             font.pixelSize: 14
                                             font.weight: Font.Bold
                                             color: "#FFFFFF"
@@ -1557,8 +1849,8 @@ Scope {
 
                                         Rectangle {
                                             visible: root.editMode
-                                            height: 24
-                                            width: addBlkTxt.implicitWidth + 12
+                                            Layout.preferredHeight: 24
+                                            Layout.preferredWidth: addBlkTxt.implicitWidth + 14
                                             radius: 6
                                             color: Qt.rgba(74, 222, 128, 0.2)
                                             border.width: 1
@@ -1580,8 +1872,8 @@ Scope {
 
                                         Rectangle {
                                             visible: root.editMode
-                                            height: 24
-                                            width: sortBlkTxt.implicitWidth + 12
+                                            Layout.preferredHeight: 24
+                                            Layout.preferredWidth: sortBlkTxt.implicitWidth + 14
                                             radius: 6
                                             color: Qt.rgba(255, 255, 255, 0.08)
                                             border.width: 1
@@ -1608,8 +1900,8 @@ Scope {
                                                 { label: "02 Afternoon", idx: 2 }
                                             ]
                                             delegate: Rectangle {
-                                                height: 24
-                                                width: filterTxt.implicitWidth + 12
+                                                Layout.preferredHeight: 24
+                                                Layout.preferredWidth: filterTxt.implicitWidth + 14
                                                 radius: 6
                                                 color: root.scheduleFilter === modelData.idx ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(255, 255, 255, 0.06)
                                                 border.width: 1
@@ -1633,8 +1925,8 @@ Scope {
                                         }
 
                                         Rectangle {
-                                            height: 24
-                                            width: jumpTxt.implicitWidth + 12
+                                            Layout.preferredHeight: 24
+                                            Layout.preferredWidth: jumpTxt.implicitWidth + 14
                                             radius: 6
                                             color: Qt.rgba(255, 255, 255, 0.08)
                                             border.width: 1
@@ -1655,9 +1947,7 @@ Scope {
                                                 cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
                                                     root.scheduleFilter = 0
-                                                    if (root.activeBlockIndex >= 0) {
-                                                        timelineList.positionViewAtIndex(root.activeBlockIndex, ListView.Center)
-                                                    }
+                                                    scrollTimelineTimer.restart()
                                                 }
                                             }
                                         }
@@ -1671,13 +1961,30 @@ Scope {
                                         clip: true
                                         spacing: 0
 
-                                        Component.onCompleted: {
-                                            if (root.activeBlockIndex >= 0) {
-                                                positionViewAtIndex(root.activeBlockIndex, ListView.Center)
+                                        Timer {
+                                            id: scrollTimelineTimer
+                                            interval: 60
+                                            repeat: false
+                                            onTriggered: {
+                                                if (root.activeBlockIndex >= 0 && root.activeBlockIndex < scheduleModel.count) {
+                                                    timelineList.positionViewAtIndex(root.activeBlockIndex, ListView.Center)
+                                                }
                                             }
                                         }
 
+                                        Connections {
+                                            target: root
+                                            function onScrollRequestCounterChanged() {
+                                                scrollTimelineTimer.restart()
+                                            }
+                                        }
+
+                                        Component.onCompleted: {
+                                            scrollTimelineTimer.restart()
+                                        }
+
                                         ScrollBar.vertical: ScrollBar {
+                                            id: timelineScrollBar
                                             active: timelineList.moving || timelineList.flicking
                                             policy: ScrollBar.AsNeeded
                                         }
@@ -1691,7 +1998,7 @@ Scope {
                                             property bool isDone: model.manualDone || isPast
 
                                             visible: matchesFilter
-                                            width: timelineList.width
+                                            width: timelineList.width - (timelineScrollBar.size < 1.0 ? 10 : 0)
                                             height: matchesFilter ? 64 : 0
 
                                             Rectangle {
@@ -1716,8 +2023,8 @@ Scope {
                                                     spacing: 12
 
                                                     Rectangle {
-                                                        width: 22
-                                                        height: 22
+                                                        Layout.preferredWidth: 22
+                                                        Layout.preferredHeight: 22
                                                         radius: 6
                                                         color: root.editMode
                                                             ? Qt.rgba(74, 222, 128, 0.2)
@@ -1743,8 +2050,8 @@ Scope {
                                                     }
 
                                                     ColumnLayout {
-                                                        Layout.preferredWidth: 112
-                                                        Layout.minimumWidth: 112
+                                                        Layout.preferredWidth: 114
+                                                        Layout.minimumWidth: 114
                                                         spacing: 2
                                                         Text {
                                                             text: model.timeLabel
@@ -1753,7 +2060,7 @@ Scope {
                                                             color: blockDelegate.isLive ? root.themePrimary : (blockDelegate.isDone && !root.editMode ? root.themeTextMuted : "#FFFFFF")
                                                         }
                                                         Text {
-                                                            text: model.section === "morning" ? "01 CORE STUDY" : "02 GROWTH"
+                                                            text: model.section === "morning" ? "01 MORNING" : "02 AFTERNOON"
                                                             font.pixelSize: 8
                                                             font.weight: Font.Bold
                                                             color: root.getCategoryColor(model.cat)
@@ -1784,8 +2091,8 @@ Scope {
 
                                                     Rectangle {
                                                         visible: blockDelegate.isLive && !root.editMode
-                                                        width: 50
-                                                        height: 20
+                                                        Layout.preferredWidth: 50
+                                                        Layout.preferredHeight: 20
                                                         radius: 4
                                                         color: root.themePrimary
                                                         Text {
@@ -1803,7 +2110,9 @@ Scope {
                                                         z: 5
 
                                                         Rectangle {
-                                                            width: 22; height: 22; radius: 4
+                                                            Layout.preferredWidth: 22
+                                                            Layout.preferredHeight: 22
+                                                            radius: 4
                                                             color: Qt.rgba(255, 255, 255, 0.08)
                                                             Text { anchors.centerIn: parent; text: "↑"; font.pixelSize: 11; color: "#FFFFFF" }
                                                             MouseArea {
@@ -1820,7 +2129,9 @@ Scope {
                                                         }
 
                                                         Rectangle {
-                                                            width: 22; height: 22; radius: 4
+                                                            Layout.preferredWidth: 22
+                                                            Layout.preferredHeight: 22
+                                                            radius: 4
                                                             color: Qt.rgba(255, 255, 255, 0.08)
                                                             Text { anchors.centerIn: parent; text: "↓"; font.pixelSize: 11; color: "#FFFFFF" }
                                                             MouseArea {
@@ -1837,7 +2148,9 @@ Scope {
                                                         }
 
                                                         Rectangle {
-                                                            width: 22; height: 22; radius: 4
+                                                            Layout.preferredWidth: 22
+                                                            Layout.preferredHeight: 22
+                                                            radius: 4
                                                             color: Qt.rgba(239, 68, 68, 0.18)
                                                             Text { anchors.centerIn: parent; text: "✕"; font.pixelSize: 10; color: "#ef4444"; font.weight: Font.Bold }
                                                             MouseArea {
@@ -1913,7 +2226,7 @@ Scope {
 
                                     Rectangle {
                                         Layout.fillWidth: true
-                                        height: 8
+                                        Layout.preferredHeight: 8
                                         radius: 4
                                         color: Qt.rgba(255, 255, 255, 0.08)
                                         clip: true
@@ -1943,7 +2256,7 @@ Scope {
                                     ]
                                     delegate: Rectangle {
                                         Layout.fillWidth: true
-                                        height: 34
+                                        Layout.preferredHeight: 34
                                         radius: 8
                                         color: root.rightTab === modelData.idx ? Qt.alpha(root.themePrimary, 0.22) : Qt.rgba(0, 0, 0, 0.25)
                                         border.width: 1
@@ -1986,13 +2299,15 @@ Scope {
                                     RowLayout {
                                         visible: root.editMode
                                         Layout.fillWidth: true
-                                        spacing: 6
+                                        Layout.preferredHeight: 32
+                                        spacing: 8
 
                                         Rectangle {
-                                            height: 30
-                                            width: grpCycleTxt.implicitWidth + 14
+                                            Layout.preferredHeight: 30
+                                            Layout.preferredWidth: grpCycleTxt.implicitWidth + 18
+                                            Layout.minimumWidth: grpCycleTxt.implicitWidth + 18
                                             radius: 6
-                                            color: Qt.alpha(root.themePrimary, 0.2)
+                                            color: Qt.alpha(root.themePrimary, 0.22)
                                             border.width: 1
                                             border.color: root.themePrimary
                                             Text {
@@ -2015,15 +2330,15 @@ Scope {
 
                                         TextField {
                                             Layout.fillWidth: true
-                                            Layout.minimumWidth: 60
+                                            Layout.minimumWidth: 80
                                             Layout.preferredHeight: 30
                                             text: root.newChecklistTitle
                                             placeholderText: "Add new checklist task..."
                                             placeholderTextColor: Qt.rgba(1, 1, 1, 0.35)
                                             color: "#FFFFFF"
                                             font.pixelSize: 12
-                                            leftPadding: 8
-                                            rightPadding: 8
+                                            leftPadding: 10
+                                            rightPadding: 10
                                             background: Rectangle {
                                                 radius: 6
                                                 color: Qt.rgba(255, 255, 255, 0.06)
@@ -2035,7 +2350,10 @@ Scope {
                                         }
 
                                         Rectangle {
-                                            width: 58; height: 30; radius: 6
+                                            Layout.preferredWidth: 62
+                                            Layout.minimumWidth: 62
+                                            Layout.preferredHeight: 30
+                                            radius: 6
                                             color: "#4ade80"
                                             Text {
                                                 anchors.centerIn: parent
@@ -2062,13 +2380,14 @@ Scope {
                                         boundsBehavior: Flickable.StopAtBounds
 
                                         ScrollBar.vertical: ScrollBar {
+                                            id: checklistScrollBar
                                             active: true
                                             policy: ScrollBar.AsNeeded
                                         }
 
                                         delegate: ColumnLayout {
                                             id: chkDelegate
-                                            width: checklistView.width
+                                            width: checklistView.width - (checklistScrollBar.size < 1.0 ? 12 : 0)
                                             spacing: 3
 
                                             property bool showGroupHeader: {
@@ -2091,7 +2410,7 @@ Scope {
 
                                             Rectangle {
                                                 Layout.fillWidth: true
-                                                height: 34
+                                                Layout.preferredHeight: 34
                                                 radius: 8
                                                 color: chkMouse.containsMouse && !root.editMode ? Qt.rgba(255, 255, 255, 0.07) : Qt.rgba(255, 255, 255, 0.03)
                                                 border.width: 1
@@ -2106,8 +2425,8 @@ Scope {
 
                                                     Rectangle {
                                                         visible: !root.editMode
-                                                        width: 18
-                                                        height: 18
+                                                        Layout.preferredWidth: 18
+                                                        Layout.preferredHeight: 18
                                                         radius: 5
                                                         color: model.done ? root.themePrimary : "transparent"
                                                         border.width: 1.5
@@ -2125,8 +2444,9 @@ Scope {
 
                                                     Rectangle {
                                                         visible: root.editMode
-                                                        height: 20
-                                                        width: itemGrpTxt.implicitWidth + 10
+                                                        Layout.preferredHeight: 20
+                                                        Layout.preferredWidth: itemGrpTxt.implicitWidth + 12
+                                                        Layout.minimumWidth: itemGrpTxt.implicitWidth + 12
                                                         radius: 4
                                                         color: Qt.alpha(root.themePrimary, 0.18)
                                                         border.width: 1
@@ -2181,7 +2501,9 @@ Scope {
 
                                                     Rectangle {
                                                         visible: root.editMode
-                                                        width: 22; height: 22; radius: 4
+                                                        Layout.preferredWidth: 22
+                                                        Layout.preferredHeight: 22
+                                                        radius: 4
                                                         color: Qt.rgba(239, 68, 68, 0.18)
                                                         Text {
                                                             anchors.centerIn: parent
@@ -2252,7 +2574,9 @@ Scope {
                                             Layout.fillWidth: true
                                             spacing: 10
                                             Rectangle {
-                                                width: 22; height: 22; radius: 6
+                                                Layout.preferredWidth: 22
+                                                Layout.preferredHeight: 22
+                                                radius: 6
                                                 color: root.priority1Done ? root.themePrimary : Qt.rgba(255, 255, 255, 0.08)
                                                 border.width: 1; border.color: root.themePrimary
                                                 Text {
@@ -2293,7 +2617,9 @@ Scope {
                                             Layout.fillWidth: true
                                             spacing: 10
                                             Rectangle {
-                                                width: 22; height: 22; radius: 6
+                                                Layout.preferredWidth: 22
+                                                Layout.preferredHeight: 22
+                                                radius: 6
                                                 color: root.priority2Done ? root.themePrimary : Qt.rgba(255, 255, 255, 0.08)
                                                 border.width: 1; border.color: root.themePrimary
                                                 Text {
@@ -2334,7 +2660,9 @@ Scope {
                                             Layout.fillWidth: true
                                             spacing: 10
                                             Rectangle {
-                                                width: 22; height: 22; radius: 6
+                                                Layout.preferredWidth: 22
+                                                Layout.preferredHeight: 22
+                                                radius: 6
                                                 color: root.priority3Done ? root.themePrimary : Qt.rgba(255, 255, 255, 0.08)
                                                 border.width: 1; border.color: root.themePrimary
                                                 Text {
@@ -2485,7 +2813,9 @@ Scope {
 
                             Rectangle {
                                 visible: root.editMode
-                                width: 120; height: 22; radius: 4
+                                Layout.preferredWidth: 124
+                                Layout.preferredHeight: 22
+                                radius: 4
                                 color: Qt.rgba(251, 191, 36, 0.16)
                                 border.width: 1; border.color: "#fbbf24"
                                 antialiasing: true
@@ -2508,7 +2838,9 @@ Scope {
                             }
 
                             Rectangle {
-                                width: 78; height: 22; radius: 4
+                                Layout.preferredWidth: 78
+                                Layout.preferredHeight: 22
+                                radius: 4
                                 color: Qt.rgba(239, 68, 68, 0.15)
                                 border.width: 1; border.color: Qt.rgba(239, 68, 68, 0.35)
                                 antialiasing: true
@@ -2527,7 +2859,9 @@ Scope {
                             }
 
                             Rectangle {
-                                width: 36; height: 22; radius: 4
+                                Layout.preferredWidth: 36
+                                Layout.preferredHeight: 22
+                                radius: 4
                                 color: Qt.rgba(255, 255, 255, 0.12)
                                 border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.15)
                                 antialiasing: true
@@ -2538,6 +2872,11 @@ Scope {
                                     color: "#FFFFFF"
                                     font.weight: Font.Bold
                                 }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.safeQuit()
+                                }
                             }
 
                             Text {
@@ -2545,6 +2884,11 @@ Scope {
                                 font.pixelSize: 12
                                 font.weight: Font.Medium
                                 color: root.themeTextMuted
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.safeQuit()
+                                }
                             }
                         }
                     }
@@ -2579,8 +2923,8 @@ Scope {
                 right: 16
             }
 
-            implicitWidth: 380
-            implicitHeight: 174
+            implicitWidth: 390
+            implicitHeight: 178
             color: "transparent"
 
             Rectangle {
@@ -2603,7 +2947,9 @@ Scope {
                         spacing: 8
 
                         Rectangle {
-                            width: 10; height: 10; radius: 5
+                            Layout.preferredWidth: 10
+                            Layout.preferredHeight: 10
+                            radius: 5
                             color: root.getCategoryColor(root.activeTaskCategory)
                         }
 
@@ -2612,6 +2958,21 @@ Scope {
                             font.pixelSize: 11
                             font.weight: Font.Bold
                             color: root.themePrimary
+                        }
+
+                        Rectangle {
+                            Layout.preferredHeight: 18
+                            Layout.preferredWidth: hudModeTxt.implicitWidth + 10
+                            radius: 4
+                            color: Qt.rgba(255, 255, 255, 0.08)
+                            Text {
+                                id: hudModeTxt
+                                anchors.centerIn: parent
+                                text: root.activeRoutineMode === "travel" ? "🚆 TRAVEL" : (root.activeRoutineMode === "weekend" ? "FRI-SUN" : "MON-THU")
+                                font.pixelSize: 8
+                                font.weight: Font.Bold
+                                color: root.themeTextMuted
+                            }
                         }
 
                         Item { Layout.fillWidth: true }
@@ -2624,7 +2985,9 @@ Scope {
                         }
 
                         Rectangle {
-                            width: 64; height: 22; radius: 5
+                            Layout.preferredWidth: 60
+                            Layout.preferredHeight: 22
+                            radius: 5
                             color: Qt.alpha(root.themePrimary, 0.22)
                             border.width: 1
                             border.color: root.themePrimary
@@ -2642,13 +3005,16 @@ Scope {
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
                                     root.hudMode = false
+                                    root.scrollRequestCounter++
                                     root.saveStateNow()
                                 }
                             }
                         }
 
                         Rectangle {
-                            width: 22; height: 22; radius: 5
+                            Layout.preferredWidth: 22
+                            Layout.preferredHeight: 22
+                            radius: 5
                             color: Qt.rgba(255, 255, 255, 0.1)
                             Text {
                                 anchors.centerIn: parent
