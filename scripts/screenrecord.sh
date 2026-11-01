@@ -29,64 +29,62 @@ has_cmd() {
 }
 
 usage() {
-    notify_error "Usage: screenrecord.sh full | area"
-    echo "Usage: $0 full | area"
+    notify_error "Usage: $0 {full|area}"
+    echo "Usage: $0 {full|area}" >&2
+    exit 1
 }
 
 for cmd in wf-recorder notify-send hyprctl jq; do
     if ! has_cmd "$cmd"; then
-        echo "Missing command: $cmd"
         notify_error "Missing command: $cmd"
         exit 1
     fi
 done
 
-if [ "${1:-}" = "area" ] && ! has_cmd slurp; then
-    echo "Missing command: slurp"
+if pgrep -x wf-recorder >/dev/null 2>&1; then
+    pkill -INT wf-recorder
+    while pgrep -x wf-recorder >/dev/null 2>&1; do
+        sleep 0.1
+    done
+    notify_stop "Recording saved to Videos/Screencasts."
+    exit 0
+fi
+
+MODE="${1:-}"
+
+if [[ "$MODE" == "area" ]] && ! has_cmd slurp; then
     notify_error "Missing command: slurp"
     exit 1
 fi
 
 mkdir -p "$SAVE_DIR"
 
-if pgrep -x wf-recorder >/dev/null 2>&1; then
-    pkill -INT wf-recorder
-    notify_stop "Recording saved in Videos/Screencasts."
-    exit 0
-fi
-
 AUDIO_ARGS=()
-MODE="${1:-}"
+if [[ "$RECORD_AUDIO" == true ]]; then
+    AUDIO_ARGS+=(--audio)
+fi
 
 case "$MODE" in
     area)
-        GEOM="$(slurp || true)"
-
-        if [ -z "$GEOM" ]; then
-            notify_error "Area selection cancelled."
-            exit 1
+        if ! GEOM=$(slurp 2>/dev/null) || [[ -z "$GEOM" ]]; then
+            exit 0
         fi
 
-        wf-recorder -g "$GEOM" "${AUDIO_ARGS[@]}" -f "$FILENAME" &
+        wf-recorder --pixel-format yuv420p -g "$GEOM" "${AUDIO_ARGS[@]}" -f "$FILENAME" >/dev/null 2>&1 &
         notify_start "Area recording started."
         ;;
     full)
-        ACTIVE_MONITOR="$(
-            hyprctl monitors -j \
-                | jq -r '.[] | select(.focused == true) | .name' \
-                | xargs
-        )"
+        ACTIVE_MONITOR="$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')"
 
-        if [ -z "$ACTIVE_MONITOR" ] || [ "$ACTIVE_MONITOR" = "null" ]; then
+        if [[ -z "$ACTIVE_MONITOR" || "$ACTIVE_MONITOR" == "null" ]]; then
             notify_error "Could not detect focused monitor."
             exit 1
         fi
 
-        wf-recorder -o "$ACTIVE_MONITOR" "${AUDIO_ARGS[@]}" -f "$FILENAME" &
+        wf-recorder --pixel-format yuv420p -o "$ACTIVE_MONITOR" "${AUDIO_ARGS[@]}" -f "$FILENAME" >/dev/null 2>&1 &
         notify_start "Recording started on $ACTIVE_MONITOR."
         ;;
     *)
         usage
-        exit 1
         ;;
 esac

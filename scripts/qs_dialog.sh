@@ -5,15 +5,22 @@ set -euo pipefail
 DIALOG_NAME="${1:-spotlight}"
 ACTION="${2:-open}"
 
-: "${HYPRLAND_INSTANCE_SIGNATURE:=$(ls -t /tmp/hypr/ 2>/dev/null | head -n 1)}"
-export HYPRLAND_INSTANCE_SIGNATURE
-export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
 export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+export WAYLAND_DISPLAY="${WAYLAND_DISPLAY:-wayland-1}"
+
+if [[ -z "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]]; then
+    HYPRLAND_INSTANCE_SIGNATURE="$(ls -t "${XDG_RUNTIME_DIR}/hypr" /tmp/hypr 2>/dev/null | head -n 1)"
+    export HYPRLAND_INSTANCE_SIGNATURE
+fi
 
 BASE_DIR="$HOME/.config/hypr/quickshell"
 TARGET_PATH="$([[ "$DIALOG_NAME" == /* ]] && echo "$DIALOG_NAME" || echo "$BASE_DIR/$DIALOG_NAME")"
 
-[[ -e "$TARGET_PATH" ]] || { echo "Error: Widget '$DIALOG_NAME' not found" >&2; exit 1; }
+if [[ ! -e "$TARGET_PATH" ]]; then
+    echo "Error: Widget '$DIALOG_NAME' not found at '$TARGET_PATH'" >&2
+    exit 1
+fi
+
 CONFIG_PATH=$(realpath "$TARGET_PATH")
 
 PID=$(pgrep -u "$USER" -f "quickshell.*$CONFIG_PATH" | grep -vE "^($$|$PPID)$" | head -n 1 || true)
@@ -31,17 +38,25 @@ spawn_dialog() {
 }
 
 case "$ACTION" in
-    open)   
-        [[ -z "$PID" ]] && spawn_dialog 
+    open)
+        if [[ -z "$PID" ]]; then
+            spawn_dialog
+        fi
         ;;
-    close)  
-        [[ -n "$PID" ]] && kill "$PID" 
+    close)
+        if [[ -n "$PID" ]]; then
+            kill -TERM "$PID" 2>/dev/null || true
+        fi
         ;;
-    toggle) 
-        [[ -n "$PID" ]] && kill "$PID" || spawn_dialog 
+    toggle)
+        if [[ -n "$PID" ]]; then
+            kill -TERM "$PID" 2>/dev/null || true
+        else
+            spawn_dialog
+        fi
         ;;
-    *)      
+    *)
         echo "Usage: $0 <dialog_name_or_path> [action: open|toggle|close]" >&2
-        exit 1 
+        exit 1
         ;;
 esac

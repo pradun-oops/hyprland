@@ -6,24 +6,30 @@ SAVE_DIR="$HOME/Pictures/Screenshots"
 mkdir -p "$SAVE_DIR"
 FILENAME="$SAVE_DIR/Screenshot_$(date +'%Y-%m-%d_%H-%M-%S').png"
 
-case "$1" in
-    "active") 
-        grim -o "$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')" "$FILENAME" 
+TARGET="${1:-}"
+
+case "$TARGET" in
+    "active")
+        ACTIVE_MONITOR=$(hyprctl monitors -j | jq -r '.[] | select(.focused) | .name')
+        grim -o "$ACTIVE_MONITOR" "$FILENAME"
         ;;
-    "area") 
+    "area")
         sleep 0.2
-        GEOM=$(slurp) && [ -n "$GEOM" ] && grim -g "$GEOM" "$FILENAME" || exit 0 
+        if ! GEOM=$(slurp 2>/dev/null) || [[ -z "$GEOM" ]]; then
+            exit 0
+        fi
+        grim -g "$GEOM" "$FILENAME"
         ;;
-    "all") 
-        grim "$FILENAME" 
+    "all")
+        grim "$FILENAME"
         ;;
-    *) 
+    *)
         echo "Usage: $0 {active|area|all}" >&2
-        exit 1 
+        exit 1
         ;;
 esac
 
 if [[ -f "$FILENAME" ]]; then
-    wl-copy < "$FILENAME"
+    wl-copy --type image/png < "$FILENAME"
     notify-send -a "Screenshot" "Screenshot Saved" "Saved to $FILENAME" -i "$FILENAME"
 fi

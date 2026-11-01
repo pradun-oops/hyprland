@@ -1,6 +1,6 @@
 hl.layer_rule({
     name    = "quickshell-no-anim",
-    match   = { namespace = "^(quickshell)$" },
+    match   = { namespace = "^quickshell$" },
     no_anim = true,
 })
 
@@ -8,7 +8,7 @@ local function apply_blur(namespaces, alpha_threshold)
     for _, ns in ipairs(namespaces) do
         hl.layer_rule({
             name         = ns .. "-blur",
-            match        = { namespace = "^(" .. ns .. ")$" },
+            match        = { namespace = "^" .. ns .. "$" },
             blur         = true,
             xray         = false,
             ignore_alpha = alpha_threshold,

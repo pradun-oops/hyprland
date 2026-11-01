@@ -20,6 +20,8 @@ PACKAGES=(
     hyprland-devel
     hyprland-guiutils
     hyprsunset
+    hypridle
+    hyprlock
     cpio
     meson
     ninja-build
@@ -46,18 +48,18 @@ PACKAGES=(
     procps-ng
     jq
     fish
+    eza
     pipewire
     wireplumber
     pulseaudio-utils
-    xdg-desktop-portal-hyprland 
+    xdg-desktop-portal-hyprland
     xdg-desktop-portal-gtk
     playerctl
     pavucontrol
     ffmpeg
     grim
-    hypridle
-    hyprlock
     slurp
+    wf-recorder
     wl-clipboard
     cliphist
     brightnessctl

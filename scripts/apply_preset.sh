@@ -8,20 +8,30 @@ BRIGHTNESS=2
 
 usage() {
     echo "Usage: $0 {0-9}"
-    echo "0  = Real-time adaptive theme color"
-    echo "1  = Matrix Green"
+    echo "0 = Adaptive Matugen Theme"
+    echo "1 = Matrix Green"
+    echo "2 = Cyber Blue"
+    echo "3 = Red Alert"
+    echo "4 = Synthwave"
+    echo "5 = RGB Primary"
+    echo "6 = Fire Warning"
+    echo "7 = RGB Wave"
+    echo "8 = Breathing Green"
+    echo "9 = Hue Cycle"
+    exit 1
 }
 
 get_theme_color() {
-    if [ ! -f "$CONFIG_FILE" ]; then
+    if [[ ! -f "$CONFIG_FILE" ]]; then
         echo "ffffff"
         return
     fi
 
-    HEX_COLOR="$(grep -m 1 'active_border' "$CONFIG_FILE" | sed -E 's/.*rgb\(([0-9a-fA-F]{6})\).*/\1/')"
+    local hex_color
+    hex_color=$(sed -nE 's/.*active_border.*rgb\(([0-9a-fA-F]{6})\).*/\1/p' "$CONFIG_FILE" | head -n 1)
 
-    if [[ "$HEX_COLOR" =~ ^[0-9a-fA-F]{6}$ ]]; then
-        echo "$HEX_COLOR"
+    if [[ "$hex_color" =~ ^[0-9a-fA-F]{6}$ ]]; then
+        echo "$hex_color"
     else
         echo "ffffff"
     fi
@@ -35,18 +45,18 @@ apply_effect() {
     legionaura "$@" --brightness "$BRIGHTNESS"
 }
 
-command -v legionaura >/dev/null 2>&1 || {
-    echo "Error: legionaura not found" >&2
+if ! command -v legionaura >/dev/null 2>&1; then
+    echo "Error: legionaura not found." >&2
     exit 1
-}
-
-if [ ! -f "$STATE_FILE" ]; then
-    echo 1 > "$STATE_FILE"
 fi
 
-STATE="$(cat "$STATE_FILE" 2>/dev/null | tr -d '[:space:]')"
+if [[ ! -f "$STATE_FILE" ]]; then
+    echo "1" > "$STATE_FILE"
+fi
 
-if [ "$STATE" != "1" ]; then
+STATE=$(tr -d '[:space:]' < "$STATE_FILE" 2>/dev/null || echo "0")
+
+if [[ "$STATE" != "1" ]]; then
     exit 0
 fi
 
@@ -54,7 +64,7 @@ PRESET="${1:-0}"
 
 case "$PRESET" in
     0)
-        THEME_COLOR="$(get_theme_color)"
+        THEME_COLOR=$(get_theme_color)
         apply_static "$THEME_COLOR" "$THEME_COLOR" "$THEME_COLOR" "$THEME_COLOR"
         ;;
     1) apply_static 00ff44 00cc33 00ff88 00aa22 ;;
@@ -66,5 +76,5 @@ case "$PRESET" in
     7) apply_effect wave ltr --speed 2 ;;
     8) apply_effect breath 00ff88 --speed 2 ;;
     9) apply_effect hue --speed 2 ;;
-    *) usage; exit 1 ;;
+    *) usage ;;
 esac

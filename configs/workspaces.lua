@@ -5,9 +5,11 @@ local monitor_bindings = {
 
 for _, binding in ipairs(monitor_bindings) do
     for ws = binding.start_ws, binding.end_ws do
+        local is_default = (ws == binding.start_ws)
         hl.workspace_rule({
             workspace = tostring(ws),
             monitor   = binding.monitor,
+            default   = is_default,
         })
     end
 end

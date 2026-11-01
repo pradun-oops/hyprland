@@ -17,13 +17,13 @@ mkdir -p "$HOME/.config"
 mkdir -p "$HOME/Pictures/Wallpapers"
 
 echo ":: Deploying default wallpapers to ~/Pictures/Wallpapers..."
-if [ -d "$REPO_DIR/assets/Wallpapers" ]; then
-    cp -a "$REPO_DIR/assets/Wallpapers/"* "$HOME/Pictures/Wallpapers/" 2>/dev/null || true
+if [[ -d "$REPO_DIR/assets/Wallpapers" ]]; then
+    cp -a "$REPO_DIR/assets/Wallpapers/." "$HOME/Pictures/Wallpapers/" 2>/dev/null || true
 fi
 
 echo ":: Deploying WhiteSur GTK theme to ~/Pictures/Wallpapers..."
 WHITESUR_DIR="$HOME/Pictures/Wallpapers/WhiteSur-gtk-theme"
-if [ ! -d "$WHITESUR_DIR" ]; then
+if [[ ! -d "$WHITESUR_DIR" ]]; then
     git clone https://github.com/vinceliuice/WhiteSur-gtk-theme.git "$WHITESUR_DIR"
 else
     echo "   [i] WhiteSur GTK theme already exists. Pulling latest updates..."
@@ -34,9 +34,9 @@ echo ":: Deploying global configurations (fastfetch, kitty, matugen)..."
 GLOBAL_CONFIGS=("fastfetch" "kitty" "matugen")
 
 for app in "${GLOBAL_CONFIGS[@]}"; do
-    if [ -d "$REPO_DIR/$app" ]; then
+    if [[ -d "$REPO_DIR/$app" ]]; then
         mkdir -p "$HOME/.config/$app"
-        cp -a "$REPO_DIR/$app/"* "$HOME/.config/$app/" 2>/dev/null || true
+        cp -a "$REPO_DIR/$app/." "$HOME/.config/$app/" 2>/dev/null || true
     else
         echo "   [!] Warning: $app not found in $REPO_DIR"
     fi
@@ -47,12 +47,12 @@ mkdir -p "$HOME/.config/hypr"
 
 HYPR_COMPONENTS=("configs" "extensions" "quickshell" "scripts" "hypridle.conf" "hyprland.lua")
 
-if [ "$REPO_DIR" != "$HOME/.config/hypr" ]; then
+if [[ "$REPO_DIR" != "$HOME/.config/hypr" ]]; then
     for component in "${HYPR_COMPONENTS[@]}"; do
-        if [ -d "$REPO_DIR/$component" ]; then
+        if [[ -d "$REPO_DIR/$component" ]]; then
             mkdir -p "$HOME/.config/hypr/$component"
-            cp -a "$REPO_DIR/$component/"* "$HOME/.config/hypr/$component/" 2>/dev/null || true
-        elif [ -f "$REPO_DIR/$component" ]; then
+            cp -a "$REPO_DIR/$component/." "$HOME/.config/hypr/$component/" 2>/dev/null || true
+        elif [[ -f "$REPO_DIR/$component" ]]; then
             cp -a "$REPO_DIR/$component" "$HOME/.config/hypr/" 2>/dev/null || true
         else
             echo "   [!] Warning: $component not found in $REPO_DIR"
@@ -63,11 +63,11 @@ else
 fi
 
 echo ":: Checking hardware for connected monitors..."
-MONITOR_COUNT=$(cat /sys/class/drm/*/status 2>/dev/null | grep -c "^connected" || echo 1)
+MONITOR_COUNT=$(grep -s "^connected" /sys/class/drm/*/status 2>/dev/null | wc -l)
 ENTRY_FILE="$HOME/.config/hypr/hyprland.lua"
 
-if [ -f "$ENTRY_FILE" ]; then
-    if [ "$MONITOR_COUNT" -gt 1 ]; then
+if [[ -f "$ENTRY_FILE" ]]; then
+    if [[ "$MONITOR_COUNT" -gt 1 ]]; then
         echo ":: Dual-monitor setup detected ($MONITOR_COUNT displays). Enabling configs.workspaces..."
         sed -i -E 's/^--\s*require\("configs\.workspaces"\)/require("configs.workspaces")/' "$ENTRY_FILE"
     else
@@ -88,17 +88,6 @@ if ! grep -q "oh-my-posh init bash" "$BASH_RC" 2>/dev/null; then
     echo "$BASH_OMP_LINE" >> "$BASH_RC"
 else
     sed -i 's@.*oh-my-posh init bash.*@'"$BASH_OMP_LINE"'@' "$BASH_RC"
-fi
-
-FISH_DIR="$HOME/.config/fish"
-FISH_RC="$FISH_DIR/config.fish"
-mkdir -p "$FISH_DIR"
-touch "$FISH_RC"
-FISH_OMP_LINE='oh-my-posh init fish --config "$HOME/.config/oh-my-posh/catppuccin.omp.json" | source'
-if ! grep -q "oh-my-posh init fish" "$FISH_RC" 2>/dev/null; then
-    echo "$FISH_OMP_LINE" >> "$FISH_RC"
-else
-    sed -i 's@.*oh-my-posh init fish.*@'"$FISH_OMP_LINE"'@' "$FISH_RC"
 fi
 
 FISH_DIR="$HOME/.config/fish"
@@ -164,7 +153,7 @@ sudo rm -f /usr/share/applications/install-system.desktop
 
 for app in "${HIDDEN_DESKTOP_APPS[@]}"; do
     target="/usr/share/applications/$app"
-    if [ -f "$target" ]; then
+    if [[ -f "$target" ]]; then
         sudo sed -i '/^NoDisplay=/d' "$target"
         echo "NoDisplay=true" | sudo tee -a "$target" > /dev/null
     fi

@@ -1,10 +1,11 @@
 hl.config({
     general = {
-        gaps_in       = 5,
-        gaps_out      = { top = 10, right = 5, bottom = 5, left = 5 },
-        border_size   = 1,
-        layout        = "scrolling",
-        allow_tearing = false,
+        gaps_in          = 5,
+        gaps_out         = { top = 10, right = 5, bottom = 5, left = 5 },
+        border_size      = 1,
+        layout           = "scrolling",
+        allow_tearing    = false,
+        resize_on_border = true,
     },
 
     scrolling = {
@@ -21,8 +22,8 @@ hl.config({
 
         blur = {
             enabled           = true,
-            size              = 6,
-            passes            = 3,
+            size              = 8,
+            passes            = 2,
             ignore_opacity    = true,
             new_optimizations = true,
             xray              = false,
@@ -30,14 +31,15 @@ hl.config({
             brightness        = 1.0,
             vibrancy          = 0.2,
             vibrancy_darkness = 0.0,
+            popups            = true,
         },
 
         shadow = {
             enabled      = true,
-            range        = 15,
+            range        = 20,
             render_power = 3,
             offset       = "0 5",
-            color        = "rgba(00000044)",
+            color        = "rgba(00000055)",
         },
     },
 

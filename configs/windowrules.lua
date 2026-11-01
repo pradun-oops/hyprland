@@ -1,15 +1,10 @@
 --- @diagnostic disable: undefined-global
 
-hl.layer_rule({
-    match = { namespace = "^(quickshell)$" },
-    no_anim = true,
-})
+hl.window_rule({ match = { class = "^org\\.wezfurlong\\.wezterm$" }, tile = true })
+hl.window_rule({ match = { class = "^gnome-control-center$" }, tile = true })
+hl.window_rule({ match = { class = "^org\\.gnome\\.Nautilus$" }, float = false })
 
-hl.window_rule({ match = { class = "^(org\\.wezfurlong\\.wezterm)$" }, tile = true })
-hl.window_rule({ match = { class = "^(gnome-control-center)$" }, tile = true })
-hl.window_rule({ match = { class = "^(org\\.gnome\\.Nautilus)$" }, float = false })
-
-hl.window_rule({ match = { class = "^(org\\.gnome\\.)" }, rounding = 12 })
+hl.window_rule({ match = { class = "^org\\.gnome\\..*" }, rounding = 12 })
 
 hl.window_rule({
     match = {
@@ -20,17 +15,23 @@ hl.window_rule({
     no_blur = true,
 })
 
-hl.window_rule({ match = { class = "^(VirtualBox Manager)$" }, workspace = "5" })
-hl.window_rule({ match = { class = "^(VirtualBox Machine)$" }, workspace = "2" })
+hl.window_rule({ match = { class = "^VirtualBox Manager$" }, workspace = "5" })
+hl.window_rule({ 
+    match = { class = "^VirtualBox Machine$" }, 
+    workspace = "2",
+    opacity = "1.0 override 1.0 override",
+    opaque = true,
+    no_blur = true 
+})
 
 hl.window_rule({
-    match = { title = "^(Picture-in-Picture)$" },
+    match = { title = "^Picture-in-Picture$" },
     float = true,
     pin = true,
 })
 
 hl.window_rule({
-    match = { class = "^(steam)$", title = "^(notificationtoasts)" },
+    match = { class = "^steam$", title = "^notificationtoasts$" },
     no_initial_focus = true,
     pin = true,
 })
@@ -51,7 +52,7 @@ hl.window_rule({
 })
 
 hl.window_rule({
-    match = { class = "^(xdg-desktop-portal.*)$" },
+    match = { class = "^xdg-desktop-portal.*$" },
     float = true, center = true,
 })
 
@@ -65,7 +66,7 @@ local standard_utilities = {
 
 for _, class_pattern in ipairs(standard_utilities) do
     hl.window_rule({
-        match  = { class = "^(" .. class_pattern .. ")$" },
+        match  = { class = "^" .. class_pattern .. "$" },
         float  = true,
         size   = "900 600",
         center = true,
@@ -73,31 +74,24 @@ for _, class_pattern in ipairs(standard_utilities) do
 end
 
 hl.window_rule({
-    match  = { class = "^(nm-connection-editor)$" },
+    match  = { class = "^nm-connection-editor$" },
     float  = true,
     size   = "600 500",
     center = true,
 })
 
 hl.window_rule({
-    match  = { class = "^(org\\.gnome\\.Calculator)$" },
+    match  = { class = "^org\\.gnome\\.Calculator$" },
     float  = true,
     size   = "450 600",
     center = true,
 })
 
-hl.window_rule({
-    match = { class = "^([Cc]hromium.*|chrome-.*)$" },
-    float = true,
-    size = "1300 900",
-    center = true,
-})
-
-hl.window_rule({ match = { class = "^(steam)$" }, float = true, size = "1100 700", center = true })
-hl.window_rule({ match = { class = "^(zoom)$"  }, float = true, size = "1100 700", center = true })
+hl.window_rule({ match = { class = "^steam$" }, float = true, size = "1100 700", center = true })
+hl.window_rule({ match = { class = "^zoom$"  }, float = true, size = "1100 700", center = true })
 
 hl.window_rule({
-    match   = { title = "^(float_term)$" },
+    match   = { title = "^float_term$" },
     float   = true,
     size    = "1300 850",
     center  = true,
@@ -111,7 +105,7 @@ local large_utilities = {
 
 for _, class_pattern in ipairs(large_utilities) do
     hl.window_rule({
-        match  = { class = "^(" .. class_pattern .. ")$" },
+        match  = { class = "^" .. class_pattern .. "$" },
         float  = true,
         size   = "1300 850",
         center = true,

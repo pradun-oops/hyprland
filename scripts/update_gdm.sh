@@ -17,21 +17,31 @@ has_cmd() {
     command -v "$1" >/dev/null 2>&1
 }
 
-for cmd in awww awk sed xargs notify-send sudo; do
+WALL_CMD="swww"
+if ! has_cmd swww && has_cmd awww; then
+    WALL_CMD="awww"
+fi
+
+for cmd in "$WALL_CMD" awk sed notify-send sudo; do
     has_cmd "$cmd" || { notify_error "Missing command: $cmd"; exit 1; }
 done
 
 has_cmd figlet && has_cmd lolcat && figlet -f slant "GDM SYNC" | lolcat || echo "GDM SYNC"
 echo "------------------------------------------------"
 
-CURRENT_WALLPAPER="$(awww query 2>/dev/null | awk -F 'image: ' '/currently displaying: image:/ {print $2; exit}' | sed 's/:$//' | xargs)"
+CURRENT_WALLPAPER="$("$WALL_CMD" query 2>/dev/null | awk -F 'image: ' '/currently displaying: image:/ {print $2; exit}' | sed 's/[[:space:]]*$//')"
 
-[[ -n "$CURRENT_WALLPAPER" && -f "$CURRENT_WALLPAPER" && -f "$WHITESUR_SCRIPT" ]] || {
-    notify_error "Wallpaper or WhiteSur script invalid/not found."
+if [[ -z "$CURRENT_WALLPAPER" || ! -f "$CURRENT_WALLPAPER" ]]; then
+    notify_error "No active wallpaper found from $WALL_CMD."
     exit 1
-}
+fi
 
-echo "Applying wallpaper to GDM..."
+if [[ ! -f "$WHITESUR_SCRIPT" ]]; then
+    notify_error "WhiteSur tweaks script not found at: $WHITESUR_SCRIPT"
+    exit 1
+fi
+
+echo "Applying wallpaper to GDM: $CURRENT_WALLPAPER"
 sudo "$WHITESUR_SCRIPT" -g -b "$CURRENT_WALLPAPER"
 
 notify_ok "Login screen updated successfully."
