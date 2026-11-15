@@ -11,23 +11,69 @@ Scope {
 
     QtObject {
         id: animStyle
-        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
-        property int fadeDuration: 280
-        property var bounceEasing: Easing.OutBack
-        property var fadeEasing: Easing.OutCubic
-        property real overshoot: 1.4
+        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 240) : 200
+        property int fadeDuration: 180
+        property var smoothEasing: Easing.OutCubic
+    }
+
+    property string fontFamily: "FiraCode Nerd Font"
+
+    property color themeBorder: "#ffffff"
+    property color themePrimary: "#ffffff"
+    property color themeText: "#ffffff"
+    property color themeTextMuted: "#a1a1aa"
+
+    property int themeRounding: 20
+    property int themeBorderSize: 2
+    property real themeBgAlpha: 0.55
+    property bool animEnabled: true
+    property int animDuration: 220
+
+    property color themeBackground: "#141416"
+    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.58)
+    property color themeSurfaceHover: Qt.rgba(0.10, 0.10, 0.14, 0.74)
+
+    property string expandedSsid: ""
+    property string connectingSsid: ""
+    property string errorSsid: ""
+    property string connectErrorMsg: ""
+
+    property bool wifiEnabled: true
+    property bool ethConnected: false
+    property string ethState: "unavailable"
+    property string ethDev: ""
+    property bool isScanning: false
+    property bool liveStateFetched: false
+
+    function mixColor(c1, c2, ratio, alphaVal) {
+        let col1 = Qt.color(c1)
+        let col2 = Qt.color(c2)
+        let r = col1.r * (1 - ratio) + col2.r * ratio
+        let g = col1.g * (1 - ratio) + col2.g * ratio
+        let b = col1.b * (1 - ratio) + col2.b * ratio
+        return Qt.rgba(r, g, b, alphaVal)
+    }
+
+    function quitApp() {
+        quitTimer.start()
+    }
+
+    Timer {
+        id: quitTimer
+        interval: 60
+        repeat: false
+        onTriggered: Qt.quit()
     }
 
     Shortcut {
         sequence: "Escape"
-        onActivated: Qt.quit()
+        onActivated: root.quitApp()
     }
 
     property string targetMonitorName: ""
 
     function updateTargetMonitor() {
         if (root.targetMonitorName !== "") return
-
         if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
             root.targetMonitorName = Hyprland.focusedMonitor.name
         }
@@ -35,7 +81,7 @@ Scope {
 
     Timer {
         id: fallbackMonitorTimer
-        interval: 150
+        interval: 120
         repeat: false
         onTriggered: {
             if (root.targetMonitorName === "" && Quickshell.screens.length > 0) {
@@ -51,33 +97,6 @@ Scope {
         }
     }
 
-    property color themeBorder: "#ff4b6e"
-    property color themePrimary: "#ff4b6e"
-    property color themeText: "#ffffff"
-    property color themeTextMuted: "#D4D4D8"
-    
-    property int themeRounding: 22
-    property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
-    property bool animEnabled: true
-    property int animDuration: 220
-    
-    property color themeBackground: "#141416" 
-    property color themeSurface: Qt.rgba(0, 0, 0, 0.32) 
-    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)
-
-    property string expandedSsid: ""
-    property string connectingSsid: ""
-    property string errorSsid: ""
-    property string connectErrorMsg: ""
-    
-    property bool wifiEnabled: true
-    property bool ethEnabled: true
-    property bool ethConnected: false
-    property string ethDev: ""
-    property bool isScanning: false
-    property bool liveStateFetched: false
-
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -86,10 +105,10 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
-                if (match && match[1]) { 
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (match && match[1]) {
                     root.themeBorder = "#" + match[1]
-                    root.themePrimary = "#" + match[1] 
+                    root.themePrimary = "#" + match[1]
                 }
                 let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (bgMatch && bgMatch[1]) {
@@ -109,7 +128,7 @@ Scope {
                 let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
-                
+
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
@@ -124,11 +143,11 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
 
                 let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
-                if (speedMatch && speedMatch[1]) root.animDuration = parseFloat(speedMatch[1]) * 100
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
             } catch (e) {}
         }
     }
@@ -141,17 +160,24 @@ Scope {
                 let data = JSON.parse(text())
                 if (!root.liveStateFetched) {
                     root.wifiEnabled = data.wifi_enabled === true
-                    root.ethEnabled = data.eth_enabled === true
                     root.ethConnected = data.eth_connected === true
+                    if (data.eth_state) root.ethState = data.eth_state
                     if (data.eth_dev) root.ethDev = data.eth_dev
                 }
-                
-                if (wifiModel.count === 0 && data.networks) {
+
+                if (wifiModel.count === 0 && data.networks && root.wifiEnabled) {
                     for (let i = 0; i < data.networks.length; i++) {
-                        wifiModel.append(data.networks[i])
+                        let item = data.networks[i]
+                        wifiModel.append({
+                            "ssid": String(item.ssid || ""),
+                            "signal": Number(item.signal || 0),
+                            "security": String(item.security || "Open"),
+                            "in_use": Boolean(item.in_use),
+                            "saved": Boolean(item.saved)
+                        })
                     }
                 }
-            } catch(e) {}
+            } catch (e) {}
         }
     }
 
@@ -165,9 +191,9 @@ Scope {
         generalConfigFile.reload()
         animConfigFile.reload()
         cacheReader.reload()
-        
-        fetchFastState() 
-        fetchNetworkStatus() 
+
+        fetchFastState()
+        fetchNetworkStatus(false)
     }
 
     Process { id: execProcess }
@@ -185,12 +211,15 @@ Scope {
             onStreamFinished: {
                 try {
                     let data = JSON.parse(text)
-                    root.wifiEnabled = data.wifi_enabled
-                    root.ethEnabled = data.eth_enabled
-                    root.ethConnected = data.eth_connected
-                    root.ethDev = data.eth_dev
+                    root.wifiEnabled = Boolean(data.wifi_enabled)
+                    root.ethConnected = Boolean(data.eth_connected)
+                    root.ethState = String(data.eth_state || "unavailable")
+                    root.ethDev = String(data.eth_dev || "")
                     root.liveStateFetched = true
-                } catch(e) {}
+                    if (!root.wifiEnabled) {
+                        wifiModel.clear()
+                    }
+                } catch (e) {}
             }
         }
     }
@@ -200,26 +229,34 @@ Scope {
         let fastPyScript = `import subprocess, json
 def get_fast():
     wifi_on = True
-    eth_on = False
     eth_conn = False
+    eth_state = "unavailable"
     eth_dev = ""
     try:
         r = subprocess.check_output(["nmcli", "radio", "wifi"], text=True, timeout=2).strip()
         wifi_on = (r == "enabled")
-    except: pass
+    except Exception:
+        pass
     try:
-        devs = subprocess.check_output(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "dev"], text=True, timeout=2).strip().split('\\n')
+        devs = subprocess.check_output(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "dev"], text=True, timeout=2).strip().split("\\n")
+        priority = {"connected": 4, "connecting": 3, "disconnected": 2, "unavailable": 1}
+        best_score = 0
         for d in devs:
-            parts = d.split(':')
-            if len(parts) >= 3 and parts[1] == 'ethernet':
-                eth_dev = parts[0]
-                state = parts[2].lower()
-                if state in ['connected', 'connecting']:
-                    eth_conn = True; eth_on = True
-                else:
-                    eth_conn = False; eth_on = False
-    except: pass
-    return {"wifi_enabled": wifi_on, "eth_enabled": eth_on, "eth_connected": eth_conn, "eth_dev": eth_dev}
+            parts = d.split(":")
+            if len(parts) >= 3 and parts[1] == "ethernet":
+                dev_name = parts[0]
+                st = parts[2].lower()
+                if "(" in st:
+                    st = st.split("(")[0].strip()
+                score = priority.get(st, 1)
+                if score > best_score:
+                    best_score = score
+                    eth_dev = dev_name
+                    eth_state = st
+                    eth_conn = st in ("connected", "connecting")
+    except Exception:
+        pass
+    return {"wifi_enabled": wifi_on, "eth_connected": eth_conn, "eth_state": eth_state, "eth_dev": eth_dev}
 print(json.dumps(get_fast()))
 `
         fastStateFetcher.command = ["python3", "-c", fastPyScript]
@@ -232,29 +269,41 @@ print(json.dumps(get_fast()))
             onStreamFinished: {
                 try {
                     let data = JSON.parse(text)
-                    root.wifiEnabled = data.wifi_enabled
-                    root.ethEnabled = data.eth_enabled
-                    root.ethConnected = data.eth_connected
-                    root.ethDev = data.eth_dev
-                    
+                    root.wifiEnabled = Boolean(data.wifi_enabled)
+                    root.ethConnected = Boolean(data.eth_connected)
+                    root.ethState = String(data.eth_state || "unavailable")
+                    root.ethDev = String(data.eth_dev || "")
+                    root.liveStateFetched = true
+
                     wifiModel.clear()
-                    for (let i = 0; i < data.networks.length; i++) {
-                        wifiModel.append(data.networks[i])
+                    if (root.wifiEnabled && data.networks) {
+                        for (let i = 0; i < data.networks.length; i++) {
+                            let item = data.networks[i]
+                            wifiModel.append({
+                                "ssid": String(item.ssid || ""),
+                                "signal": Number(item.signal || 0),
+                                "security": String(item.security || "Open"),
+                                "in_use": Boolean(item.in_use),
+                                "saved": Boolean(item.saved)
+                            })
+                        }
                     }
-                } catch(e) {}
+                } catch (e) {}
                 root.isScanning = false
             }
         }
     }
 
-    function fetchNetworkStatus() {
+    function fetchNetworkStatus(forceRescan) {
         root.isScanning = true
         netFetcher.running = false
+        let rescanFlag = forceRescan ? "yes" : "auto"
+        let cmdTimeout = forceRescan ? 10 : 5
         let pyScript = `import subprocess, json, os
 def get_net():
     wifi_on = False
-    eth_on = False
     eth_conn = False
+    eth_state = "unavailable"
     eth_dev = ""
     networks = []
     saved_conns = set()
@@ -262,72 +311,85 @@ def get_net():
     try:
         r = subprocess.check_output(["nmcli", "radio", "wifi"], text=True, timeout=3).strip()
         wifi_on = (r == "enabled")
-    except: pass
+    except Exception:
+        pass
 
     try:
-        c_out = subprocess.check_output(["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"], text=True, errors="ignore", timeout=3).strip().split('\\n')
+        c_out = subprocess.check_output(["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"], text=True, errors="ignore", timeout=3).strip().split("\\n")
         for line in c_out:
-            if not line: continue
-            if 'wireless' in line or '802-11-wireless' in line:
-                saved_conns.add(line.split(':')[0]) 
-    except: pass
+            if not line:
+                continue
+            parts = line.replace("\\\\:", "___COLON___").split(":")
+            if len(parts) >= 2 and ("wireless" in parts[1] or "802-11-wireless" in parts[1]):
+                saved_conns.add(parts[0].replace("___COLON___", ":"))
+    except Exception:
+        pass
 
     try:
-        devs = subprocess.check_output(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "dev"], text=True, timeout=3).strip().split('\\n')
+        devs = subprocess.check_output(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE", "dev"], text=True, timeout=3).strip().split("\\n")
+        priority = {"connected": 4, "connecting": 3, "disconnected": 2, "unavailable": 1}
+        best_score = 0
         for d in devs:
-            parts = d.split(':')
-            if len(parts) >= 3 and parts[1] == 'ethernet':
-                eth_dev = parts[0]
-                state = parts[2].lower()
-                if state in ['connected', 'connecting']:
-                    eth_conn = True
-                    eth_on = True
-                else:
-                    eth_conn = False
-                    eth_on = False
-    except: pass
+            parts = d.split(":")
+            if len(parts) >= 3 and parts[1] == "ethernet":
+                dev_name = parts[0]
+                st = parts[2].lower()
+                if "(" in st:
+                    st = st.split("(")[0].strip()
+                score = priority.get(st, 1)
+                if score > best_score:
+                    best_score = score
+                    eth_dev = dev_name
+                    eth_state = st
+                    eth_conn = st in ("connected", "connecting")
+    except Exception:
+        pass
 
     if wifi_on:
         try:
-            ap_out = subprocess.check_output(["nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "dev", "wifi", "list"], text=True, errors="ignore", timeout=6).strip().split('\\n')
-            seen = set()
+            ap_out = subprocess.check_output(["nmcli", "-t", "-f", "IN-USE,SSID,SIGNAL,SECURITY", "dev", "wifi", "list", "--rescan", "${rescanFlag}"], text=True, errors="ignore", timeout=${cmdTimeout}).strip().split("\\n")
+            seen = {}
             for line in ap_out:
-                if not line: continue
-                parts = line.replace('\\\\:', '___COLON___').split(':')
-                parts = [p.replace('___COLON___', ':') for p in parts]
+                if not line:
+                    continue
+                parts = line.replace("\\\\:", "___COLON___").split(":")
+                parts = [p.replace("___COLON___", ":") for p in parts]
                 if len(parts) >= 4:
-                    in_use = (parts[0] == '*')
-                    ssid = parts[1] 
-                    if not ssid: continue
-                    signal = int(parts[2]) if parts[2].isdigit() else 0
+                    in_use = (parts[0].strip() == "*")
+                    ssid = parts[1].strip()
+                    if not ssid:
+                        continue
+                    signal = int(parts[2]) if parts[2].strip().isdigit() else 0
                     sec = parts[3].strip()
-                    
-                    if ssid not in seen or in_use:
-                        seen.add(ssid)
-                        networks.append({
-                            "ssid": ssid,
-                            "signal": signal,
-                            "security": sec if sec else "Open",
-                            "in_use": in_use,
-                            "saved": ssid in saved_conns
-                        })
-            networks.sort(key=lambda x: (not x["in_use"], not x["saved"], -x["signal"]))
-        except: pass
+                    entry = {
+                        "ssid": ssid,
+                        "signal": signal,
+                        "security": sec if (sec and sec != "--") else "Open",
+                        "in_use": in_use,
+                        "saved": ssid in saved_conns
+                    }
+                    if ssid not in seen or in_use or (not seen[ssid]["in_use"] and signal > seen[ssid]["signal"]):
+                        seen[ssid] = entry
+            networks = list(seen.values())
+            networks.sort(key=lambda x: (not x["in_use"], not x["saved"], -x["signal"], x["ssid"].lower()))
+        except Exception:
+            pass
 
     res = {
         "wifi_enabled": wifi_on,
-        "eth_enabled": eth_on,
         "eth_connected": eth_conn,
+        "eth_state": eth_state,
         "eth_dev": eth_dev,
         "networks": networks
     }
-    
+
     try:
         cache_dir = os.path.expanduser("~/.cache")
         os.makedirs(cache_dir, exist_ok=True)
         with open(os.path.join(cache_dir, "qs_network_cache.json"), "w") as f:
             json.dump(res, f)
-    except: pass
+    except Exception:
+        pass
 
     return res
 
@@ -342,7 +404,7 @@ print(json.dumps(get_net()))
         property string targetSsid: ""
         stdout: StdioCollector { id: connectStdout }
         stderr: StdioCollector { id: connectStderr }
-        
+
         onExited: (code, exitStatus) => {
             let errText = connectStderr.text.trim()
             let outText = connectStdout.text.trim()
@@ -353,27 +415,28 @@ print(json.dumps(get_net()))
                 root.errorSsid = ""
                 root.connectingSsid = ""
                 root.expandedSsid = ""
-                fetchNetworkStatus()
+                fetchNetworkStatus(false)
             } else {
                 root.connectingSsid = ""
                 root.errorSsid = targetSsid
                 root.expandedSsid = targetSsid
-                
+
                 if (code === 124) {
-                    root.connectErrorMsg = "Connection Timed Out"
+                    root.connectErrorMsg = "Connection timed out"
                 } else {
-                    let cleaned = rawMsg.replace(/^Error:\s*/i, "").replace(/^Failed to add\/activate connection:\s*/i, "").split('\n')[0]
-                    root.connectErrorMsg = cleaned ? cleaned : "Connection Failed"
+                    let cleaned = rawMsg.replace(/^Error:\s*/i, "").replace(/^Failed to add\/activate connection:\s*/i, "").split("\n")[0]
+                    root.connectErrorMsg = cleaned ? cleaned : "Connection failed"
                 }
             }
         }
     }
 
     function connectWifi(ssid, password, isSaved) {
+        if (!ssid) return
         root.connectingSsid = ssid
         root.connectErrorMsg = ""
         root.errorSsid = ""
-        
+
         wifiConnectProcess.running = false
         wifiConnectProcess.targetSsid = ssid
 
@@ -382,8 +445,11 @@ print(json.dumps(get_net()))
 
         let cmd = ""
         if (safePass.length > 0) {
-            cmd = "nmcli connection delete id '" + safeSsid + "' 2>/dev/null; " +
+            cmd = "nmcli connection delete id '" + safeSsid + "' >/dev/null 2>&1 || true; " +
                   "timeout 20 nmcli dev wifi connect '" + safeSsid + "' password '" + safePass + "'"
+        } else if (isSaved) {
+            cmd = "timeout 15 nmcli connection up id '" + safeSsid + "' >/dev/null 2>&1 || " +
+                  "timeout 20 nmcli dev wifi connect '" + safeSsid + "'"
         } else {
             cmd = "timeout 20 nmcli dev wifi connect '" + safeSsid + "'"
         }
@@ -392,15 +458,26 @@ print(json.dumps(get_net()))
         wifiConnectProcess.running = true
     }
 
-    function disconnectWifi(ssid) {
+    function disconnectWifi() {
         exec("nmcli dev disconnect $(nmcli -t -f DEVICE,TYPE dev | grep -i ':wifi' | head -n 1 | cut -d: -f1)")
         root.expandedSsid = ""
+        refreshTimer.restart()
+    }
+
+    function forgetWifi(ssid) {
+        if (!ssid) return
+        let safeSsid = ssid.replace(/'/g, "'\\''")
+        exec("nmcli connection delete id '" + safeSsid + "'")
+        root.expandedSsid = ""
+        root.errorSsid = ""
+        root.connectErrorMsg = ""
         refreshTimer.restart()
     }
 
     function toggleWifi() {
         if (root.wifiEnabled) {
             root.wifiEnabled = false
+            root.expandedSsid = ""
             wifiModel.clear()
             exec("nmcli radio wifi off")
         } else {
@@ -412,38 +489,49 @@ print(json.dumps(get_net()))
 
     function toggleEthernet() {
         if (!root.ethDev) return
-        
-        if (root.ethConnected || root.ethEnabled) {
+
+        if (root.ethConnected) {
             root.ethConnected = false
-            root.ethEnabled = false
-            exec("nmcli device disconnect " + root.ethDev)
+            root.ethState = "disconnected"
+            exec("nmcli device disconnect '" + root.ethDev + "'")
         } else {
-            root.ethEnabled = true
-            exec("nmcli device set " + root.ethDev + " managed yes && nmcli device connect " + root.ethDev)
+            exec("nmcli device set '" + root.ethDev + "' managed yes && nmcli device connect '" + root.ethDev + "'")
         }
         refreshTimer.restart()
     }
 
-    function getSignalIcon(signal, inUse) {
+    function getSignalIcon(signal) {
         if (signal >= 75) return "󰤨"
         if (signal >= 50) return "󰤥"
         if (signal >= 25) return "󰤢"
         return "󰤟"
     }
 
-    Timer {
-        id: refreshTimer
-        interval: 1200
-        running: false
-        repeat: false
-        onTriggered: root.fetchNetworkStatus()
+    function getEthSubtitle() {
+        if (root.ethConnected) return root.ethDev ? root.ethDev : "Connected"
+        if (root.ethState === "disconnected") return "Disconnected"
+        return "Unplugged"
     }
 
     Timer {
-        interval: 6000
-        running: root.expandedSsid === "" && root.connectingSsid === ""
+        id: refreshTimer
+        interval: 1100
+        running: false
+        repeat: false
+        onTriggered: {
+            root.fetchFastState()
+            root.fetchNetworkStatus(false)
+        }
+    }
+
+    Timer {
+        interval: 7000
+        running: root.expandedSsid === "" && root.connectingSsid === "" && !root.isScanning
         repeat: true
-        onTriggered: root.fetchNetworkStatus()
+        onTriggered: {
+            root.fetchFastState()
+            root.fetchNetworkStatus(false)
+        }
     }
 
     Variants {
@@ -473,19 +561,26 @@ print(json.dumps(get_net()))
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: Qt.quit()
+                onClicked: root.quitApp()
             }
 
             Item {
-                anchors.centerIn: parent
-                implicitWidth: 430
-                implicitHeight: 640
+                id: dragContainer
+                width: 450
+                height: 650
+                x: (win.width - width) / 2
+                y: (win.height - height) / 2
                 focus: isTargetMonitor
 
                 Component.onCompleted: {
                     if (isTargetMonitor) forceActiveFocus()
                 }
-                Keys.onEscapePressed: Qt.quit()
+                Keys.onEscapePressed: root.quitApp()
+
+                DragHandler {
+                    target: dragContainer
+                    cursorShape: Qt.ClosedHandCursor
+                }
 
                 MouseArea {
                     anchors.fill: parent
@@ -499,71 +594,140 @@ print(json.dumps(get_net()))
                     radius: root.themeRounding
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themePrimary, 0.4)
+                    border.color: Qt.alpha(root.themePrimary, 0.40)
                     antialiasing: true
                     clip: true
 
+                    property bool shown: false
+                    Component.onCompleted: shown = true
+
+                    opacity: shown ? 1.0 : 0.0
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: root.animEnabled ? animStyle.fadeDuration : 0
+                            easing.type: animStyle.smoothEasing
+                        }
+                    }
+
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: animStyle.fadeDuration
+                            easing.type: animStyle.smoothEasing
+                        }
+                    }
+
+                    Behavior on border.color {
+                        ColorAnimation {
+                            duration: animStyle.fadeDuration
+                            easing.type: animStyle.smoothEasing
+                        }
+                    }
+
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 18
+                        anchors.margins: 20
                         spacing: 14
 
                         RowLayout {
                             Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignVCenter
+                            spacing: 12
 
-                            RowLayout {
-                                spacing: 10
+                            Rectangle {
+                                Layout.preferredWidth: 40
+                                Layout.preferredHeight: 40
+                                radius: 11
+                                color: Qt.alpha(root.themePrimary, 0.16)
+                                border.width: 1
+                                border.color: Qt.alpha(root.themePrimary, 0.35)
+                                antialiasing: true
+
                                 Text {
-                                    text: "Networks"
-                                    color: root.themeText
+                                    anchors.centerIn: parent
+                                    text: "󰖩"
+                                    font.family: root.fontFamily
+                                    color: root.themePrimary
                                     font.pixelSize: 18
-                                    font.weight: Font.Bold
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
+                            }
 
-                                Rectangle {
-                                    visible: wifiModel.count > 0
-                                    Layout.preferredWidth: badgeText.implicitWidth + 14
-                                    Layout.preferredHeight: 22
-                                    radius: 11
-                                    color: Qt.alpha(root.themePrimary, 0.25)
-                                    border.width: 1
-                                    border.color: Qt.alpha(root.themePrimary, 0.5)
-                                    antialiasing: true
+                            ColumnLayout {
+                                spacing: 2
+                                Layout.alignment: Qt.AlignVCenter
+
+                                RowLayout {
+                                    spacing: 8
 
                                     Text {
-                                        id: badgeText
-                                        anchors.centerIn: parent
-                                        text: wifiModel.count + " available"
-                                        color: root.themePrimary
-                                        font.pixelSize: 11
+                                        text: "Networks"
+                                        color: root.themeText
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 17
                                         font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                     }
+
+                                    Rectangle {
+                                        visible: root.wifiEnabled && wifiModel.count > 0
+                                        Layout.preferredWidth: badgeText.implicitWidth + 14
+                                        Layout.preferredHeight: 20
+                                        radius: 6
+                                        color: Qt.alpha(root.themePrimary, 0.18)
+                                        border.width: 1
+                                        border.color: Qt.alpha(root.themePrimary, 0.4)
+                                        antialiasing: true
+
+                                        Text {
+                                            id: badgeText
+                                            anchors.centerIn: parent
+                                            text: wifiModel.count.toString()
+                                            color: root.themePrimary
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 11
+                                            font.weight: Font.Bold
+                                        }
+                                    }
+                                }
+
+                                Text {
+                                    text: root.wifiEnabled ? "Select a network to connect" : "Wireless radio disabled"
+                                    color: root.themeTextMuted
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 11
+                                    font.weight: Font.Medium
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
                                 }
                             }
 
                             Item { Layout.fillWidth: true }
 
                             Rectangle {
-                                Layout.preferredWidth: scanRow.implicitWidth + 18
-                                Layout.preferredHeight: 32
-                                radius: Math.max(4, root.themeRounding - 4)
-                                color: scanBtnArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                                visible: root.wifiEnabled
+                                Layout.preferredWidth: scanRow.implicitWidth + 20
+                                Layout.preferredHeight: 34
+                                radius: 9
+                                color: scanBtnArea.containsMouse
+                                       ? root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.72)
+                                       : root.themeSurface
                                 border.width: 1
-                                border.color: Qt.rgba(255, 255, 255, 0.12)
+                                border.color: scanBtnArea.containsMouse ? Qt.alpha(root.themePrimary, 0.6) : Qt.rgba(1, 1, 1, 0.14)
                                 antialiasing: true
 
-                                scale: scanBtnArea.pressed ? 0.94 : 1.0
-
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: animStyle.fadeDuration
+                                        easing.type: animStyle.smoothEasing
                                     }
                                 }
-                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: animStyle.fadeDuration
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 RowLayout {
                                     id: scanRow
@@ -572,23 +736,26 @@ print(json.dumps(get_net()))
 
                                     Text {
                                         text: "󰑐"
+                                        font.family: root.fontFamily
                                         color: root.themePrimary
                                         font.pixelSize: 13
                                         RotationAnimation on rotation {
                                             running: root.isScanning
-                                            from: 0; to: 360
+                                            from: 0
+                                            to: 360
                                             loops: Animation.Infinite
-                                            duration: 1000
+                                            duration: 900
                                         }
                                     }
 
                                     Text {
                                         text: root.isScanning ? "Scanning" : "Rescan"
                                         color: root.themeText
-                                        font.pixelSize: 12
-                                        font.weight: Font.Medium
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 11
+                                        font.weight: Font.Bold
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
                                     }
                                 }
 
@@ -597,35 +764,42 @@ print(json.dumps(get_net()))
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.fetchNetworkStatus()
+                                    onClicked: {
+                                        if (!root.isScanning) {
+                                            root.fetchNetworkStatus(true)
+                                        }
+                                    }
                                 }
                             }
                         }
 
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 12
+                            spacing: 10
 
                             Rectangle {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 52
-                                radius: Math.max(4, root.themeRounding - 6)
-                                color: root.wifiEnabled ? Qt.alpha(root.themePrimary, 0.22) : root.themeSurface
-                                border.width: root.themeBorderSize
-                                border.color: root.wifiEnabled ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                Layout.preferredHeight: 56
+                                radius: Math.max(10, root.themeRounding - 8)
+                                color: root.wifiEnabled
+                                       ? root.mixColor(root.themeBackground, root.themePrimary, 0.20, 0.74)
+                                       : (wifiBtnMouse.containsMouse ? root.themeSurfaceHover : root.themeSurface)
+                                border.width: 1
+                                border.color: root.wifiEnabled ? Qt.alpha(root.themePrimary, 0.65) : Qt.rgba(1, 1, 1, 0.12)
                                 antialiasing: true
 
-                                scale: wifiBtnMouse.pressed ? 0.96 : 1.0
-
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: animStyle.fadeDuration
+                                        easing.type: animStyle.smoothEasing
                                     }
                                 }
-                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: animStyle.fadeDuration
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 MouseArea {
                                     id: wifiBtnMouse
@@ -641,48 +815,79 @@ print(json.dumps(get_net()))
                                     anchors.rightMargin: 12
                                     spacing: 10
 
-                                    Text {
-                                        text: root.wifiEnabled ? "󰤨" : "󰤭"
-                                        color: root.wifiEnabled ? root.themePrimary : root.themeTextMuted
-                                        font.pixelSize: 18
+                                    Rectangle {
+                                        width: 32
+                                        height: 32
+                                        radius: 9
+                                        color: root.wifiEnabled ? Qt.alpha(root.themePrimary, 0.22) : Qt.rgba(1, 1, 1, 0.06)
+                                        border.width: 1
+                                        border.color: root.wifiEnabled ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.10)
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: root.wifiEnabled ? "󰤨" : "󰤭"
+                                            font.family: root.fontFamily
+                                            color: root.wifiEnabled ? root.themePrimary : root.themeTextMuted
+                                            font.pixelSize: 16
+                                        }
                                     }
 
                                     ColumnLayout {
                                         Layout.fillWidth: true
-                                        spacing: 0
+                                        spacing: 2
+
                                         Text {
                                             text: "Wi-Fi"
                                             color: root.themeText
+                                            font.family: root.fontFamily
                                             font.pixelSize: 12
                                             font.weight: Font.Bold
                                             style: Text.Raised
                                             styleColor: Qt.rgba(0, 0, 0, 0.7)
                                         }
+
                                         Text {
                                             text: root.wifiEnabled ? "Enabled" : "Disabled"
-                                            color: root.themeTextMuted
+                                            color: root.wifiEnabled ? root.themePrimary : root.themeTextMuted
+                                            font.family: root.fontFamily
                                             font.pixelSize: 10
                                             font.weight: Font.Medium
                                             style: Text.Raised
-                                            styleColor: Qt.rgba(0, 0, 0, 0.5)
+                                            styleColor: Qt.rgba(0, 0, 0, 0.55)
                                         }
                                     }
 
                                     Rectangle {
-                                        width: 38; height: 22; radius: 11
-                                        color: root.wifiEnabled ? root.themePrimary : Qt.rgba(0, 0, 0, 0.4)
+                                        width: 36
+                                        height: 20
+                                        radius: 10
+                                        color: root.wifiEnabled ? root.themePrimary : Qt.rgba(0.02, 0.02, 0.03, 0.65)
                                         border.width: 1
-                                        border.color: Qt.rgba(255, 255, 255, 0.15)
+                                        border.color: root.wifiEnabled ? Qt.rgba(1, 1, 1, 0.35) : Qt.rgba(1, 1, 1, 0.16)
                                         antialiasing: true
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: animStyle.fadeDuration
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         Rectangle {
-                                            width: 16; height: 16; radius: 8
+                                            width: 14
+                                            height: 14
+                                            radius: 7
                                             anchors.verticalCenter: parent.verticalCenter
                                             x: root.wifiEnabled ? 19 : 3
-                                            color: root.wifiEnabled ? "#000000" : root.themeText
+                                            color: root.wifiEnabled ? "#141416" : root.themeTextMuted
                                             antialiasing: true
-                                            Behavior on x { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                            Behavior on x {
+                                                NumberAnimation {
+                                                    duration: animStyle.fadeDuration
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -690,30 +895,33 @@ print(json.dumps(get_net()))
 
                             Rectangle {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 52
-                                radius: Math.max(4, root.themeRounding - 6)
-                                color: (root.ethConnected || root.ethEnabled) ? Qt.alpha(root.themePrimary, 0.22) : root.themeSurface
-                                border.width: root.themeBorderSize
-                                border.color: (root.ethConnected || root.ethEnabled) ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                Layout.preferredHeight: 56
+                                radius: Math.max(10, root.themeRounding - 8)
+                                color: root.ethConnected
+                                       ? root.mixColor(root.themeBackground, root.themePrimary, 0.20, 0.74)
+                                       : (ethBtnMouse.containsMouse ? root.themeSurfaceHover : root.themeSurface)
+                                border.width: 1
+                                border.color: root.ethConnected ? Qt.alpha(root.themePrimary, 0.65) : Qt.rgba(1, 1, 1, 0.12)
                                 antialiasing: true
 
-                                scale: ethBtnMouse.pressed ? 0.96 : 1.0
-
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: animStyle.fadeDuration
+                                        easing.type: animStyle.smoothEasing
                                     }
                                 }
-                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: animStyle.fadeDuration
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 MouseArea {
                                     id: ethBtnMouse
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
+                                    cursorShape: root.ethDev !== "" ? Qt.PointingHandCursor : Qt.ArrowCursor
                                     onClicked: root.toggleEthernet()
                                 }
 
@@ -723,58 +931,85 @@ print(json.dumps(get_net()))
                                     anchors.rightMargin: 12
                                     spacing: 10
 
-                                    Text {
-                                        text: root.ethConnected ? "󰈀" : "󰈂"
-                                        color: (root.ethConnected || root.ethEnabled) ? root.themePrimary : root.themeTextMuted
-                                        font.pixelSize: 18
+                                    Rectangle {
+                                        width: 32
+                                        height: 32
+                                        radius: 9
+                                        color: root.ethConnected ? Qt.alpha(root.themePrimary, 0.22) : Qt.rgba(1, 1, 1, 0.06)
+                                        border.width: 1
+                                        border.color: root.ethConnected ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.10)
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: root.ethConnected ? "󰈀" : "󰈂"
+                                            font.family: root.fontFamily
+                                            color: root.ethConnected ? root.themePrimary : root.themeTextMuted
+                                            font.pixelSize: 16
+                                        }
                                     }
 
                                     ColumnLayout {
                                         Layout.fillWidth: true
-                                        spacing: 0
+                                        spacing: 2
+
                                         Text {
                                             text: "Ethernet"
                                             color: root.themeText
+                                            font.family: root.fontFamily
                                             font.pixelSize: 12
                                             font.weight: Font.Bold
                                             style: Text.Raised
                                             styleColor: Qt.rgba(0, 0, 0, 0.7)
                                         }
+
                                         Text {
-                                            text: root.ethConnected ? "Connected" : (root.ethEnabled ? "Disconnected" : "Disabled")
-                                            color: root.themeTextMuted
+                                            text: root.getEthSubtitle()
+                                            color: root.ethConnected ? root.themePrimary : root.themeTextMuted
+                                            font.family: root.fontFamily
                                             font.pixelSize: 10
                                             font.weight: Font.Medium
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
                                             style: Text.Raised
-                                            styleColor: Qt.rgba(0, 0, 0, 0.5)
+                                            styleColor: Qt.rgba(0, 0, 0, 0.55)
                                         }
                                     }
 
                                     Rectangle {
-                                        width: 38; height: 22; radius: 11
-                                        color: (root.ethConnected || root.ethEnabled) ? root.themePrimary : Qt.rgba(0, 0, 0, 0.4)
+                                        width: 36
+                                        height: 20
+                                        radius: 10
+                                        color: root.ethConnected ? root.themePrimary : Qt.rgba(0.02, 0.02, 0.03, 0.65)
                                         border.width: 1
-                                        border.color: Qt.rgba(255, 255, 255, 0.15)
+                                        border.color: root.ethConnected ? Qt.rgba(1, 1, 1, 0.35) : Qt.rgba(1, 1, 1, 0.16)
                                         antialiasing: true
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: animStyle.fadeDuration
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         Rectangle {
-                                            width: 16; height: 16; radius: 8
+                                            width: 14
+                                            height: 14
+                                            radius: 7
                                             anchors.verticalCenter: parent.verticalCenter
-                                            x: (root.ethConnected || root.ethEnabled) ? 19 : 3
-                                            color: (root.ethConnected || root.ethEnabled) ? "#000000" : root.themeText
+                                            x: root.ethConnected ? 19 : 3
+                                            color: root.ethConnected ? "#141416" : root.themeTextMuted
                                             antialiasing: true
-                                            Behavior on x { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                            Behavior on x {
+                                                NumberAnimation {
+                                                    duration: animStyle.fadeDuration
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
                                     }
                                 }
                             }
-                        }
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            Layout.preferredHeight: 1
-                            color: Qt.rgba(255, 255, 255, 0.1)
                         }
 
                         Item {
@@ -786,21 +1021,50 @@ print(json.dumps(get_net()))
                                 visible: !root.wifiEnabled || wifiModel.count === 0
                                 spacing: 12
 
-                                Text {
+                                Rectangle {
                                     Layout.alignment: Qt.AlignHCenter
-                                    text: !root.wifiEnabled ? "󰤭" : "󰤫"
-                                    color: Qt.rgba(255, 255, 255, 0.3)
-                                    font.pixelSize: 48
+                                    width: 56
+                                    height: 56
+                                    radius: 16
+                                    color: Qt.rgba(0.02, 0.02, 0.03, 0.58)
+                                    border.width: 1
+                                    border.color: Qt.alpha(root.themePrimary, 0.30)
+                                    antialiasing: true
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: !root.wifiEnabled ? "󰤭" : "󰤫"
+                                        font.family: root.fontFamily
+                                        color: root.themePrimary
+                                        opacity: 0.75
+                                        font.pixelSize: 24
+                                    }
                                 }
 
-                                Text {
+                                ColumnLayout {
+                                    spacing: 3
                                     Layout.alignment: Qt.AlignHCenter
-                                    text: !root.wifiEnabled ? "Wi-Fi is turned off" : (root.isScanning ? "Scanning for networks..." : "No Networks Available")
-                                    color: root.themeTextMuted
-                                    font.pixelSize: 13
-                                    font.weight: Font.Medium
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
+
+                                    Text {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        text: !root.wifiEnabled ? "Wi-Fi Disabled" : (root.isScanning ? "Scanning Networks..." : "No Networks Found")
+                                        color: root.themeText
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 14
+                                        font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                    }
+
+                                    Text {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        text: !root.wifiEnabled ? "Enable Wi-Fi above to scan nearby access points" : "Click Rescan to search again"
+                                        color: root.themeTextMuted
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 11
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                    }
                                 }
                             }
 
@@ -809,51 +1073,82 @@ print(json.dumps(get_net()))
                                 visible: root.wifiEnabled && wifiModel.count > 0
                                 anchors.fill: parent
                                 model: wifiModel
-                                spacing: 10
+                                spacing: 8
                                 clip: true
+                                boundsBehavior: Flickable.StopAtBounds
+
+                                ScrollBar.vertical: ScrollBar {
+                                    id: vbar
+                                    visible: wifiList.visible && vbar.size < 1.0
+                                    active: wifiList.moving || wifiList.flicking || hovered
+                                    policy: ScrollBar.AsNeeded
+                                    contentItem: Rectangle {
+                                        implicitWidth: 4
+                                        radius: 2
+                                        color: vbar.pressed ? root.themePrimary : Qt.alpha(root.themeTextMuted, 0.35)
+                                    }
+                                }
 
                                 delegate: Rectangle {
                                     id: card
-                                    width: wifiList.width
+                                    width: wifiList.width - (vbar.visible ? 10 : 0)
 
                                     property bool isConnected: model.in_use
                                     property bool isConnecting: root.connectingSsid === model.ssid
                                     property bool hasError: root.errorSsid === model.ssid && root.connectErrorMsg !== ""
                                     property bool isProtected: model.security !== "Open" && model.security !== "--"
                                     property bool isExpanded: root.expandedSsid === model.ssid
-                                    property bool isSaved: model.saved !== undefined ? model.saved : false
+                                    property bool isSaved: model.saved
                                     property bool showPassword: false
 
-                                    property bool isFullyExpanded: isExpanded && Math.abs(card.height - card.implicitHeight) < 3
+                                    onIsExpandedChanged: {
+                                        if (isExpanded && !isConnected && isProtected) {
+                                            passFocusTimer.restart()
+                                        }
+                                    }
+
+                                    Timer {
+                                        id: passFocusTimer
+                                        interval: 60
+                                        repeat: false
+                                        onTriggered: passInput.forceActiveFocus()
+                                    }
 
                                     implicitHeight: cardCol.implicitHeight + 24
                                     height: implicitHeight
                                     antialiasing: true
-
-                                    scale: headerMouseArea.pressed ? 0.98 : 1.0
-
-                                    Behavior on scale {
-                                        NumberAnimation {
-                                            duration: root.animEnabled ? animStyle.animDuration : 0
-                                            easing.type: animStyle.bounceEasing
-                                            easing.overshoot: animStyle.overshoot
-                                        }
-                                    }
+                                    clip: true
 
                                     Behavior on height {
-                                        NumberAnimation { 
+                                        NumberAnimation {
                                             duration: root.animEnabled ? animStyle.animDuration : 0
-                                            easing.type: animStyle.fadeEasing 
+                                            easing.type: animStyle.smoothEasing
                                         }
                                     }
 
-                                    radius: Math.max(4, root.themeRounding - 6)
-                                    color: headerMouseArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                    border.width: root.themeBorderSize
-                                    border.color: card.hasError ? "#ff4b6e" : (card.isConnected ? root.themePrimary : (card.isExpanded ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(255, 255, 255, 0.10)))
+                                    radius: Math.max(8, root.themeRounding - 8)
+                                    color: card.isConnected
+                                           ? root.mixColor(root.themeBackground, root.themePrimary, 0.18, 0.74)
+                                           : (headerMouseArea.containsMouse || card.isExpanded ? root.themeSurfaceHover : root.themeSurface)
+                                    border.width: 1
+                                    border.color: card.hasError
+                                                  ? "#ff6b6b"
+                                                  : (card.isConnected
+                                                     ? Qt.alpha(root.themePrimary, 0.70)
+                                                     : (card.isExpanded ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.12)))
 
-                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: animStyle.fadeDuration
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: animStyle.fadeDuration
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
 
                                     ColumnLayout {
                                         id: cardCol
@@ -872,19 +1167,32 @@ print(json.dumps(get_net()))
                                                 anchors.fill: parent
                                                 spacing: 12
 
-                                                Text {
-                                                    text: root.getSignalIcon(model.signal, card.isConnected)
-                                                    color: card.isConnected ? root.themePrimary : root.themeText
-                                                    font.pixelSize: 18
+                                                Rectangle {
+                                                    Layout.alignment: Qt.AlignVCenter
+                                                    width: 36
+                                                    height: 36
+                                                    radius: 9
+                                                    color: card.isConnected ? Qt.alpha(root.themePrimary, 0.22) : Qt.rgba(1, 1, 1, 0.06)
+                                                    border.width: 1
+                                                    border.color: card.isConnected ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.10)
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: root.getSignalIcon(model.signal)
+                                                        font.family: root.fontFamily
+                                                        color: card.isConnected ? root.themePrimary : root.themeText
+                                                        font.pixelSize: 16
+                                                    }
                                                 }
 
                                                 ColumnLayout {
                                                     Layout.fillWidth: true
-                                                    spacing: 2
+                                                    spacing: 3
 
                                                     Text {
                                                         text: model.ssid
                                                         color: root.themeText
+                                                        font.family: root.fontFamily
                                                         font.pixelSize: 13
                                                         font.weight: card.isConnected ? Font.Bold : Font.DemiBold
                                                         elide: Text.ElideRight
@@ -895,39 +1203,59 @@ print(json.dumps(get_net()))
 
                                                     RowLayout {
                                                         spacing: 6
+
                                                         Text {
-                                                            text: model.security
+                                                            text: card.isProtected ? "󰌾 " + model.security : "󰌿 Open"
                                                             color: root.themeTextMuted
+                                                            font.family: root.fontFamily
                                                             font.pixelSize: 10
                                                             font.weight: Font.Medium
                                                             style: Text.Raised
-                                                            styleColor: Qt.rgba(0, 0, 0, 0.5)
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.55)
                                                         }
+
                                                         Text {
-                                                            text: "• " + model.signal + "%"
+                                                            text: "•"
                                                             color: root.themeTextMuted
+                                                            font.family: root.fontFamily
+                                                            font.pixelSize: 10
+                                                        }
+
+                                                        Text {
+                                                            text: model.signal + "%"
+                                                            color: root.themeTextMuted
+                                                            font.family: root.fontFamily
                                                             font.pixelSize: 10
                                                             font.weight: Font.Medium
                                                             style: Text.Raised
-                                                            styleColor: Qt.rgba(0, 0, 0, 0.5)
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.55)
                                                         }
                                                     }
                                                 }
 
                                                 Rectangle {
                                                     Layout.preferredWidth: statusText.implicitWidth + 16
-                                                    Layout.preferredHeight: 26
-                                                    radius: 13
-                                                    color: card.hasError ? Qt.alpha("#ff4b6e", 0.3) : (card.isConnected ? Qt.alpha(root.themePrimary, 0.3) : (card.isSaved ? Qt.alpha("#38bdf8", 0.25) : Qt.rgba(0, 0, 0, 0.4)))
+                                                    Layout.preferredHeight: 24
+                                                    radius: 7
+                                                    color: card.hasError
+                                                           ? Qt.rgba(0.93, 0.26, 0.26, 0.28)
+                                                           : (card.isConnected
+                                                              ? Qt.alpha(root.themePrimary, 0.24)
+                                                              : (card.isSaved ? Qt.rgba(0.22, 0.74, 0.97, 0.20) : Qt.rgba(0.02, 0.02, 0.03, 0.55)))
                                                     border.width: 1
-                                                    border.color: card.hasError ? "#ff4b6e" : (card.isConnected ? root.themePrimary : (card.isSaved ? "#38bdf8" : Qt.rgba(255, 255, 255, 0.15)))
+                                                    border.color: card.hasError
+                                                                  ? "#ff6b6b"
+                                                                  : (card.isConnected
+                                                                     ? Qt.alpha(root.themePrimary, 0.65)
+                                                                     : (card.isSaved ? Qt.rgba(0.22, 0.74, 0.97, 0.45) : Qt.rgba(1, 1, 1, 0.14)))
                                                     antialiasing: true
 
                                                     Text {
                                                         id: statusText
                                                         anchors.centerIn: parent
-                                                        text: card.isConnecting ? "Connecting..." : (card.hasError ? "Failed" : (card.isConnected ? "Connected" : (card.isSaved ? "Saved" : (card.isProtected ? "Locked" : "Connect"))))
-                                                        color: card.hasError ? "#ff4b6e" : (card.isConnected ? root.themePrimary : (card.isSaved ? "#38bdf8" : root.themeText))
+                                                        text: card.isConnecting ? "Connecting" : (card.hasError ? "Failed" : (card.isConnected ? "Connected" : (card.isSaved ? "Saved" : "Connect")))
+                                                        color: card.hasError ? "#ff6b6b" : (card.isConnected ? root.themePrimary : (card.isSaved ? "#38bdf8" : root.themeText))
+                                                        font.family: root.fontFamily
                                                         font.pixelSize: 10
                                                         font.weight: Font.Bold
                                                         style: Text.Raised
@@ -942,10 +1270,12 @@ print(json.dumps(get_net()))
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    if (card.isConnected) {
-                                                        root.expandedSsid = (root.expandedSsid === model.ssid) ? "" : model.ssid
-                                                    } else if (card.isSaved && !card.hasError) {
-                                                        root.connectWifi(model.ssid, "", true)
+                                                    if (card.isConnected || card.isSaved) {
+                                                        if (!card.isConnected && card.isSaved && !card.hasError && root.expandedSsid !== model.ssid) {
+                                                            root.connectWifi(model.ssid, "", true)
+                                                        } else {
+                                                            root.expandedSsid = (root.expandedSsid === model.ssid) ? "" : model.ssid
+                                                        }
                                                     } else if (!card.isProtected && !card.hasError) {
                                                         root.connectWifi(model.ssid, "", false)
                                                     } else {
@@ -959,50 +1289,90 @@ print(json.dumps(get_net()))
                                             id: expandedContent
                                             Layout.fillWidth: true
                                             visible: card.isExpanded
-                                            opacity: card.isFullyExpanded ? 1.0 : 0.0
+                                            opacity: card.isExpanded ? 1.0 : 0.0
                                             spacing: 10
 
                                             Behavior on opacity {
                                                 NumberAnimation {
                                                     duration: animStyle.fadeDuration
-                                                    easing.type: animStyle.fadeEasing
+                                                    easing.type: animStyle.smoothEasing
                                                 }
                                             }
 
                                             Rectangle {
                                                 Layout.fillWidth: true
                                                 Layout.preferredHeight: 1
-                                                color: Qt.rgba(255, 255, 255, 0.1)
+                                                color: Qt.rgba(1, 1, 1, 0.10)
                                             }
 
                                             RowLayout {
-                                                visible: card.isConnected
+                                                visible: card.isConnected || card.isSaved
                                                 Layout.fillWidth: true
+                                                spacing: 8
 
                                                 Item { Layout.fillWidth: true }
 
                                                 Rectangle {
-                                                    Layout.preferredWidth: 110
+                                                    visible: card.isSaved
+                                                    Layout.preferredWidth: forgetText.implicitWidth + 22
                                                     Layout.preferredHeight: 32
                                                     radius: 8
-                                                    color: disconnectBtnMouse.containsMouse ? "#f43f5e" : "#e11d48"
+                                                    color: forgetBtnMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0.02, 0.02, 0.03, 0.55)
+                                                    border.width: 1
+                                                    border.color: forgetBtnMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.30) : Qt.rgba(1, 1, 1, 0.14)
                                                     antialiasing: true
 
-                                                    scale: disconnectBtnMouse.pressed ? 0.92 : 1.0
-
-                                                    Behavior on scale {
-                                                        NumberAnimation {
-                                                            duration: root.animEnabled ? animStyle.animDuration : 0
-                                                            easing.type: animStyle.bounceEasing
-                                                            easing.overshoot: animStyle.overshoot
+                                                    Behavior on color {
+                                                        ColorAnimation {
+                                                            duration: animStyle.fadeDuration
+                                                            easing.type: animStyle.smoothEasing
                                                         }
                                                     }
-                                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                                     Text {
+                                                        id: forgetText
+                                                        anchors.centerIn: parent
+                                                        text: "Forget"
+                                                        color: root.themeText
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 11
+                                                        font.weight: Font.Bold
+                                                    }
+
+                                                    MouseArea {
+                                                        id: forgetBtnMouse
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: root.forgetWifi(model.ssid)
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    visible: card.isConnected
+                                                    Layout.preferredWidth: discText.implicitWidth + 24
+                                                    Layout.preferredHeight: 32
+                                                    radius: 8
+                                                    color: disconnectBtnMouse.containsMouse
+                                                           ? Qt.rgba(0.93, 0.26, 0.26, 0.38)
+                                                           : Qt.rgba(0.93, 0.26, 0.26, 0.24)
+                                                    border.width: 1
+                                                    border.color: "#ff6b6b"
+                                                    antialiasing: true
+
+                                                    Behavior on color {
+                                                        ColorAnimation {
+                                                            duration: animStyle.fadeDuration
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+
+                                                    Text {
+                                                        id: discText
                                                         anchors.centerIn: parent
                                                         text: "Disconnect"
-                                                        color: "#ffffff"
+                                                        color: "#ff6b6b"
+                                                        font.family: root.fontFamily
                                                         font.pixelSize: 11
                                                         font.weight: Font.Bold
                                                     }
@@ -1012,7 +1382,7 @@ print(json.dumps(get_net()))
                                                         anchors.fill: parent
                                                         hoverEnabled: true
                                                         cursorShape: Qt.PointingHandCursor
-                                                        onClicked: root.disconnectWifi(model.ssid)
+                                                        onClicked: root.disconnectWifi()
                                                     }
                                                 }
                                             }
@@ -1020,7 +1390,7 @@ print(json.dumps(get_net()))
                                             ColumnLayout {
                                                 visible: !card.isConnected && card.isProtected
                                                 Layout.fillWidth: true
-                                                spacing: 6
+                                                spacing: 8
 
                                                 RowLayout {
                                                     Layout.fillWidth: true
@@ -1030,12 +1400,19 @@ print(json.dumps(get_net()))
                                                         Layout.fillWidth: true
                                                         Layout.preferredHeight: 36
                                                         radius: 8
-                                                        color: Qt.rgba(0, 0, 0, 0.45)
+                                                        color: Qt.rgba(0.02, 0.02, 0.03, 0.60)
                                                         border.width: 1
-                                                        border.color: card.hasError ? "#ff4b6e" : (passInput.activeFocus ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15))
+                                                        border.color: card.hasError
+                                                                      ? "#ff6b6b"
+                                                                      : (passInput.activeFocus ? Qt.alpha(root.themePrimary, 0.75) : Qt.rgba(1, 1, 1, 0.14))
                                                         antialiasing: true
 
-                                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                                        Behavior on border.color {
+                                                            ColorAnimation {
+                                                                duration: animStyle.fadeDuration
+                                                                easing.type: animStyle.smoothEasing
+                                                            }
+                                                        }
 
                                                         RowLayout {
                                                             anchors.fill: parent
@@ -1047,39 +1424,29 @@ print(json.dumps(get_net()))
                                                                 id: passInput
                                                                 Layout.fillWidth: true
                                                                 enabled: !card.isConnecting
-                                                                placeholderText: card.isSaved ? "Re-enter password to update..." : "Password..."
-                                                                placeholderTextColor: Qt.rgba(1, 1, 1, 0.45)
-                                                                color: "#FFFFFF"
+                                                                placeholderText: card.isSaved ? "New password..." : "Enter password..."
+                                                                placeholderTextColor: Qt.rgba(1, 1, 1, 0.40)
+                                                                color: root.themeText
+                                                                font.family: root.fontFamily
                                                                 font.pixelSize: 12
                                                                 echoMode: card.showPassword ? TextInput.Normal : TextInput.Password
                                                                 selectByMouse: true
-                                                                focus: true
                                                                 background: Item {}
                                                                 onAccepted: {
-                                                                    root.connectWifi(model.ssid, passInput.text, false)
+                                                                    root.connectWifi(model.ssid, passInput.text, card.isSaved)
                                                                 }
                                                             }
 
                                                             Item {
-                                                                implicitWidth: eyeText.implicitWidth
-                                                                implicitHeight: eyeText.implicitHeight
-
-                                                                scale: eyeMouse.pressed ? 0.85 : 1.0
-
-                                                                Behavior on scale {
-                                                                    NumberAnimation {
-                                                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                                                        easing.type: animStyle.bounceEasing
-                                                                        easing.overshoot: animStyle.overshoot
-                                                                    }
-                                                                }
+                                                                implicitWidth: 24
+                                                                implicitHeight: 24
 
                                                                 Text {
-                                                                    id: eyeText
                                                                     anchors.centerIn: parent
                                                                     text: card.showPassword ? "󰈈" : "󰈉"
-                                                                    color: eyeMouse.containsMouse ? root.themeText : root.themeTextMuted
-                                                                    font.pixelSize: 13
+                                                                    font.family: root.fontFamily
+                                                                    color: eyeMouse.containsMouse ? root.themePrimary : root.themeTextMuted
+                                                                    font.pixelSize: 14
                                                                 }
 
                                                                 MouseArea {
@@ -1094,27 +1461,27 @@ print(json.dumps(get_net()))
                                                     }
 
                                                     Rectangle {
-                                                        Layout.preferredWidth: card.isConnecting ? 100 : 84
+                                                        Layout.preferredWidth: connectBtnText.implicitWidth + 24
                                                         Layout.preferredHeight: 36
                                                         radius: 8
-                                                        color: card.isConnecting ? Qt.rgba(255, 255, 255, 0.2) : (connectBtnMouse.containsMouse ? Qt.lighter(root.themePrimary, 1.1) : root.themePrimary)
+                                                        color: card.isConnecting
+                                                               ? Qt.rgba(1, 1, 1, 0.16)
+                                                               : (connectBtnMouse.containsMouse ? Qt.lighter(root.themePrimary, 1.08) : root.themePrimary)
                                                         antialiasing: true
 
-                                                        scale: connectBtnMouse.pressed ? 0.92 : 1.0
-
-                                                        Behavior on scale {
-                                                            NumberAnimation {
-                                                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                                                easing.type: animStyle.bounceEasing
-                                                                easing.overshoot: animStyle.overshoot
+                                                        Behavior on color {
+                                                            ColorAnimation {
+                                                                duration: animStyle.fadeDuration
+                                                                easing.type: animStyle.smoothEasing
                                                             }
                                                         }
-                                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                                         Text {
+                                                            id: connectBtnText
                                                             anchors.centerIn: parent
-                                                            text: card.isConnecting ? "Connecting..." : "Connect"
-                                                            color: card.isConnecting ? root.themeText : "#000000"
+                                                            text: card.isConnecting ? "Connecting" : "Connect"
+                                                            color: card.isConnecting ? root.themeText : "#141416"
+                                                            font.family: root.fontFamily
                                                             font.pixelSize: 11
                                                             font.weight: Font.Bold
                                                         }
@@ -1126,7 +1493,7 @@ print(json.dumps(get_net()))
                                                             hoverEnabled: true
                                                             cursorShape: Qt.PointingHandCursor
                                                             onClicked: {
-                                                                root.connectWifi(model.ssid, passInput.text, false)
+                                                                root.connectWifi(model.ssid, passInput.text, card.isSaved)
                                                             }
                                                         }
                                                     }
@@ -1135,12 +1502,12 @@ print(json.dumps(get_net()))
                                                 Text {
                                                     visible: card.hasError
                                                     text: "󰅙 " + root.connectErrorMsg
-                                                    color: "#ff4b6e"
+                                                    color: "#ff6b6b"
+                                                    font.family: root.fontFamily
                                                     font.pixelSize: 11
                                                     font.weight: Font.Medium
                                                     Layout.fillWidth: true
                                                     wrapMode: Text.Wrap
-                                                    Layout.topMargin: 2
                                                 }
                                             }
                                         }

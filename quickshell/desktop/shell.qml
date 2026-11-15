@@ -9,6 +9,8 @@ import QtQuick.Window
 Scope {
     id: root
 
+    property string fontFamily: "FiraCode Nerd Font"
+
     property int savedMarginTop: 50
     property int savedMarginRight: 50
     
@@ -17,8 +19,7 @@ Scope {
     FileView {
         id: posConfigFile
         path: Quickshell.env("HOME") + "/.config/quickshell/json/dashboard_pos.json"
-        watchChanges: true
-        onFileChanged: reload()
+        watchChanges: false
         onLoaded: {
             try {
                 let raw = text().trim()
@@ -266,7 +267,7 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (match && match[1]) {
                     let hex = "#" + match[1]
                     root.themeBorder = hex
@@ -332,7 +333,7 @@ Scope {
 
     Process { id: execProcess }
     function exec(cmd) {
-        execProcess.running = false;
+        execProcess.running = false
         execProcess.command = ["bash", "-c", cmd + " >/dev/null 2>&1 & disown"]
         execProcess.running = true
     }
@@ -416,25 +417,30 @@ Scope {
             "    for hw in os.listdir('/sys/class/hwmon/'):\n" +
             "        path = os.path.join('/sys/class/hwmon', hw)\n" +
             "        try:\n" +
-            "            with open(os.path.join(path, 'name')) as f: name = f.read().strip()\n" +
+            "            with open(os.path.join(path, 'name')) as f: name = f.read().strip().lower()\n" +
             "            if 'coretemp' in name or 'k10temp' in name:\n" +
             "                with open(os.path.join(path, 'temp1_input')) as f: data['cpu_t'] = int(f.read().strip()) // 1000\n" +
             "            elif 'spd5118' in name:\n" +
             "                with open(os.path.join(path, 'temp1_input')) as f: data['ram_t'] = int(f.read().strip()) // 1000\n" +
             "            elif 'nvme' in name:\n" +
             "                with open(os.path.join(path, 'temp1_input')) as f: data['disk_t'] = int(f.read().strip()) // 1000\n" +
+            "            elif 'nvidia' in name or 'gpu' in name or 'amdgpu' in name:\n" +
+            "                with open(os.path.join(path, 'temp1_input')) as f: data['gpu_t'] = int(float(f.read().strip())) // 1000\n" +
             "        except: pass\n" +
             "except: pass\n" +
             "if data['cpu_t'] == 0:\n" +
             "    try:\n" +
             "        with open('/sys/class/thermal/thermal_zone0/temp') as f: data['cpu_t'] = int(f.read().strip()) // 1000\n" +
             "    except: pass\n" +
-            "try:\n" +
-            "    gpu = subprocess.check_output('nvidia-smi --query-gpu=utilization.gpu,temperature.gpu --format=csv,noheader,nounits 2>/dev/null', shell=True).decode().split(',')\n" +
-            "    if len(gpu) >= 2:\n" +
-            "        data['gpu_u'] = int(gpu[0].strip())\n" +
-            "        data['gpu_t'] = int(gpu[1].strip())\n" +
-            "except: pass\n" +
+            "if data['gpu_t'] == 0 or data['gpu_u'] == 0:\n" +
+            "    try:\n" +
+            "        res = subprocess.run(['nvidia-smi', '--query-gpu=utilization.gpu,temperature.gpu', '--format=csv,noheader,nounits'], capture_output=True, text=True, timeout=2)\n" +
+            "        if res.returncode == 0 and res.stdout.strip():\n" +
+            "            parts = res.stdout.strip().split('\\n')[0].split(',')\n" +
+            "            if len(parts) >= 2:\n" +
+            "                data['gpu_u'] = int(float(parts[0].strip()))\n" +
+            "                data['gpu_t'] = int(float(parts[1].strip()))\n" +
+            "    except: pass\n" +
             "try:\n" +
             "    st = os.statvfs('/')\n" +
             "    data['disk_p'] = int((st.f_blocks - st.f_bavail) / st.f_blocks * 100)\n" +
@@ -472,55 +478,55 @@ Scope {
     }
 
     function fetchWeather() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", `https://api.open-meteo.com/v1/forecast?latitude=${root.weatherLat}&longitude=${root.weatherLon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m&timezone=auto`);
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", `https://api.open-meteo.com/v1/forecast?latitude=${root.weatherLat}&longitude=${root.weatherLon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m&timezone=auto`)
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
                 try {
-                    var d = JSON.parse(xhr.responseText).current;
-                    root.currentWeatherTemp = Math.round(d.temperature_2m);
-                    root.currentWeatherFeelsLike = Math.round(d.apparent_temperature);
-                    root.currentWeatherHumidity = d.relative_humidity_2m + "%";
-                    root.currentWeatherWind = Math.round(d.wind_speed_10m) + " km/h";
-                    root.currentWeatherPressure = Math.round(d.surface_pressure) + " hPa";
+                    var d = JSON.parse(xhr.responseText).current
+                    root.currentWeatherTemp = Math.round(d.temperature_2m)
+                    root.currentWeatherFeelsLike = Math.round(d.apparent_temperature)
+                    root.currentWeatherHumidity = d.relative_humidity_2m + "%"
+                    root.currentWeatherWind = Math.round(d.wind_speed_10m) + " km/h"
+                    root.currentWeatherPressure = Math.round(d.surface_pressure) + " hPa"
                     
-                    var code = d.weather_code;
-                    var desc = "Clear";
-                    var icon = "☀️";
+                    var code = d.weather_code
+                    var desc = "Clear"
+                    var icon = "☀️"
                     
-                    if (code === 1 || code === 2 || code === 3) { desc = "Cloudy"; icon = "☁️"; }
-                    if (code >= 45 && code <= 48) { desc = "Fog"; icon = "🌫️"; }
-                    if (code >= 51 && code <= 67) { desc = "Rain"; icon = "🌧️"; }
-                    if (code >= 71 && code <= 77) { desc = "Snow"; icon = "❄️"; }
-                    if (code >= 95 && code <= 99) { desc = "Storm"; icon = "⛈️️"; }
-                    if (code === 3) { desc = "Overcast"; } 
+                    if (code === 1 || code === 2 || code === 3) { desc = "Cloudy"; icon = "☁️" }
+                    if (code >= 45 && code <= 48) { desc = "Fog"; icon = "🌫️" }
+                    if (code >= 51 && code <= 67) { desc = "Rain"; icon = "🌧️" }
+                    if (code >= 71 && code <= 77) { desc = "Snow"; icon = "❄️" }
+                    if (code >= 95 && code <= 99) { desc = "Storm"; icon = "⛈" }
+                    if (code === 3) { desc = "Overcast" } 
                     
-                    root.currentWeatherDesc = desc;
-                    root.currentWeatherIcon = icon;
+                    root.currentWeatherDesc = desc
+                    root.currentWeatherIcon = icon
                 } catch(e) {}
             }
         }
-        xhr.send();
+        xhr.send()
     }
 
     function fetchLocation() {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", "http://ip-api.com/json/");
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", "http://ip-api.com/json/")
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE) {
                 if (xhr.status === 200) {
                     try {
-                        var d = JSON.parse(xhr.responseText);
+                        var d = JSON.parse(xhr.responseText)
                         if (d && d.lat !== undefined && d.lon !== undefined) {
-                            root.weatherLat = d.lat.toString();
-                            root.weatherLon = d.lon.toString();
+                            root.weatherLat = d.lat.toString()
+                            root.weatherLon = d.lon.toString()
                         }
                     } catch(e) {}
                 }
-                root.fetchWeather();
+                root.fetchWeather()
             }
         }
-        xhr.send();
+        xhr.send()
     }
 
     Timer {
@@ -528,7 +534,7 @@ Scope {
         running: true
         repeat: true
         onTriggered: {
-            root.fetchLocation();
+            root.fetchLocation()
         }
     }
 
@@ -569,27 +575,27 @@ Scope {
             anchors.fill: parent
             renderTarget: Canvas.FramebufferObject
             onPaint: {
-                var ctx = getContext("2d");
-                ctx.reset();
+                var ctx = getContext("2d")
+                ctx.reset()
                 
-                var centerX = width / 2;
-                var centerY = height / 2;
-                var radius = Math.min(width, height) / 2 - 6;
+                var centerX = width / 2
+                var centerY = height / 2
+                var radius = Math.min(width, height) / 2 - 6
                 
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-                ctx.lineWidth = 6;
-                ctx.strokeStyle = root.themeSurface;
-                ctx.stroke();
+                ctx.beginPath()
+                ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
+                ctx.lineWidth = 6
+                ctx.strokeStyle = root.themeSurface
+                ctx.stroke()
                 
-                ctx.beginPath();
-                var maxVal = 100;
-                var fillRatio = Math.min(Math.max(gaugeRoot.animatedValue / maxVal, 0), 1);
-                ctx.arc(centerX, centerY, radius, -Math.PI / 2, -Math.PI / 2 + (2 * Math.PI * fillRatio));
-                ctx.lineWidth = 6;
-                ctx.strokeStyle = gaugeRoot.getTlpColor(gaugeRoot.animatedValue);
-                ctx.lineCap = "round";
-                ctx.stroke();
+                ctx.beginPath()
+                var maxVal = 100
+                var fillRatio = Math.min(Math.max(gaugeRoot.animatedValue / maxVal, 0), 1)
+                ctx.arc(centerX, centerY, radius, -Math.PI / 2, -Math.PI / 2 + (2 * Math.PI * fillRatio))
+                ctx.lineWidth = 6
+                ctx.strokeStyle = gaugeRoot.getTlpColor(gaugeRoot.animatedValue)
+                ctx.lineCap = "round"
+                ctx.stroke()
             }
         }
         
@@ -600,6 +606,7 @@ Scope {
                 Layout.alignment: Qt.AlignHCenter
                 text: gaugeRoot.value.toFixed(0) + gaugeRoot.unit
                 color: root.themeText
+                font.family: root.fontFamily
                 font.pixelSize: 14
                 font.weight: Font.Bold
                 style: Text.Raised
@@ -609,6 +616,7 @@ Scope {
                 Layout.alignment: Qt.AlignHCenter
                 text: gaugeRoot.label
                 color: root.themeTextMuted
+                font.family: root.fontFamily
                 font.pixelSize: 9
                 font.letterSpacing: 0.5
                 font.weight: Font.Bold
@@ -633,17 +641,34 @@ Scope {
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            anchors { top: true; right: true }
-            margins { top: root.savedMarginTop; right: root.savedMarginRight }
+            anchors {
+                top: true
+                bottom: true
+                left: true
+                right: true
+            }
 
-            implicitWidth: 460
-            implicitHeight: cardLayout.implicitHeight + 64
-            
+            mask: Region { item: bgCard }
             color: "transparent"
 
             Item {
                 id: bgCard
-                anchors.fill: parent
+                width: 460
+                height: cardLayout.implicitHeight + 48
+
+                Binding {
+                    target: bgCard
+                    property: "x"
+                    value: Math.max(0, desktopDashboard.width - bgCard.width - root.savedMarginRight)
+                    when: !dragArea.drag.active && desktopDashboard.width > 0
+                }
+
+                Binding {
+                    target: bgCard
+                    property: "y"
+                    value: Math.max(0, root.savedMarginTop)
+                    when: !dragArea.drag.active
+                }
 
                 opacity: 0
                 Component.onCompleted: opacity = 1
@@ -657,47 +682,25 @@ Scope {
                     radius: root.themeRounding 
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themePrimary, 0.4)
+                    border.color: dragArea.drag.active ? root.themePrimary : Qt.alpha(root.themePrimary, 0.4)
                     antialiasing: true 
                 }
 
                 MouseArea {
+                    id: dragArea
                     anchors.fill: parent
                     acceptedButtons: Qt.LeftButton
-                    cursorShape: isDragging ? Qt.ClosedHandCursor : Qt.ArrowCursor
-                    pressAndHoldInterval: 150 
-                    
-                    property real startX: 0
-                    property real startY: 0
-                    property bool isDragging: false
+                    cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.ArrowCursor
+                    drag.target: bgCard
+                    drag.axis: Drag.XAndYAxis
+                    drag.minimumX: 0
+                    drag.maximumX: Math.max(0, desktopDashboard.width - bgCard.width)
+                    drag.minimumY: 0
+                    drag.maximumY: Math.max(0, desktopDashboard.height - bgCard.height)
+                    drag.threshold: 2
 
-                    onPressed: (mouse) => {
-                        startX = mouse.x
-                        startY = mouse.y
-                    }
-                    
-                    onPressAndHold: (mouse) => {
-                        isDragging = true
-                        startX = mouse.x
-                        startY = mouse.y
-                    }
-
-                    onPositionChanged: (mouse) => {
-                        if (isDragging) {
-                            let dx = mouse.x - startX
-                            let dy = mouse.y - startY
-                            if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
-                                root.savedMarginRight = Math.max(0, root.savedMarginRight - dx)
-                                root.savedMarginTop = Math.max(0, root.savedMarginTop + dy)
-                            }
-                        }
-                    }
-                    
                     onReleased: {
-                        if (isDragging) {
-                            isDragging = false
-                            root.savePosition(root.savedMarginTop, root.savedMarginRight)
-                        }
+                        root.savePosition(bgCard.y, Math.max(0, desktopDashboard.width - bgCard.x - bgCard.width))
                     }
                 }
 
@@ -707,7 +710,7 @@ Scope {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.margins: 24 
-                    spacing: 20 
+                    spacing: 18 
                     
                     RowLayout {
                         Layout.fillWidth: true
@@ -730,17 +733,17 @@ Scope {
                                 
                                 onStatusChanged: {
                                     if (status === Image.Error) {
-                                        let currentSource = source.toString();
+                                        let currentSource = source.toString()
                                         if (currentSource.indexOf(".face.icon") !== -1) {
-                                            source = "file://" + Quickshell.env("HOME") + "/.face";
+                                            source = "file://" + Quickshell.env("HOME") + "/.face"
                                         } else if (currentSource.indexOf(".face") !== -1) {
-                                            source = "file:///var/lib/AccountsService/icons/" + (Quickshell.env("USER") || "pradun");
+                                            source = "file:///var/lib/AccountsService/icons/" + (Quickshell.env("USER") || "pradun")
                                         } else {
-                                            fallbackText.visible = true;
+                                            fallbackText.visible = true
                                         }
                                     } else if (status === Image.Ready) {
-                                        fallbackText.visible = false;
-                                        avatarCanvas.loadImage(source);
+                                        fallbackText.visible = false
+                                        avatarCanvas.loadImage(source)
                                     }
                                 }
                             }
@@ -754,17 +757,17 @@ Scope {
                                 
                                 onImageLoaded: requestPaint()
                                 onPaint: {
-                                    if (profilePic.status !== Image.Ready) return;
-                                    var ctx = getContext("2d");
-                                    ctx.reset();
-                                    ctx.imageSmoothingEnabled = true;
+                                    if (profilePic.status !== Image.Ready) return
+                                    var ctx = getContext("2d")
+                                    ctx.reset()
+                                    ctx.imageSmoothingEnabled = true
                                     
-                                    var r = width / 2;
-                                    ctx.beginPath();
-                                    ctx.arc(r, r, r, 0, 2 * Math.PI);
-                                    ctx.clip();
+                                    var r = width / 2
+                                    ctx.beginPath()
+                                    ctx.arc(r, r, r, 0, 2 * Math.PI)
+                                    ctx.clip()
                                     
-                                    ctx.drawImage(profilePic.source, 0, 0, width, height);
+                                    ctx.drawImage(profilePic.source, 0, 0, width, height)
                                 }
                             }
                             
@@ -773,6 +776,7 @@ Scope {
                                 anchors.centerIn: parent
                                 text: root.userName.charAt(0).toUpperCase()
                                 color: root.themePrimary
+                                font.family: root.fontFamily
                                 font.pixelSize: 18
                                 font.weight: Font.Bold
                                 visible: false
@@ -786,6 +790,7 @@ Scope {
                             Layout.alignment: Qt.AlignVCenter
                             text: root.userName
                             color: "#FFFFFF"
+                            font.family: root.fontFamily
                             font.pixelSize: 18
                             font.weight: Font.Bold
                             style: Text.Raised
@@ -820,6 +825,7 @@ Scope {
 
                                 Text {
                                     text: root.currentSinkIcon
+                                    font.family: root.fontFamily
                                     font.pixelSize: 14
                                     color: root.themePrimary
                                     Layout.alignment: Qt.AlignVCenter
@@ -830,6 +836,7 @@ Scope {
                                 Text {
                                     text: root.currentSinkName
                                     color: root.themeText
+                                    font.family: root.fontFamily
                                     font.pixelSize: 12
                                     font.weight: Font.DemiBold
                                     Layout.maximumWidth: 100
@@ -842,6 +849,7 @@ Scope {
                                 Text {
                                     text: "⇄"
                                     color: root.themeTextMuted
+                                    font.family: root.fontFamily
                                     font.pixelSize: 11
                                     font.weight: Font.Bold
                                     Layout.alignment: Qt.AlignVCenter
@@ -862,78 +870,73 @@ Scope {
 
                     Rectangle { Layout.fillWidth: true; height: 1; color: root.themeSurface }
 
-                    RowLayout {
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        Layout.alignment: Qt.AlignTop
-                        spacing: 16
+                        spacing: 6
 
-                        ColumnLayout {
-                            Layout.alignment: Qt.AlignTop
-                            spacing: -2
-                            
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+
                             RowLayout {
-                                Layout.alignment: Qt.AlignTop
+                                Layout.alignment: Qt.AlignVCenter
                                 spacing: 6
+
                                 Text {
                                     text: root.currentTimeExact
                                     color: "#FFFFFF"
-                                    font.pixelSize: 52 
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 48
                                     font.weight: Font.Bold
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.85)
                                 }
+
                                 Text {
                                     text: root.currentPeriod
                                     color: root.themePrimary
-                                    font.pixelSize: 16
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 15
                                     font.weight: Font.Black
-                                    Layout.alignment: Qt.AlignBaseline 
+                                    Layout.alignment: Qt.AlignBottom
+                                    Layout.bottomMargin: 8
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.7)
                                 }
                             }
-                            Text {
-                                text: root.currentDay + ", " + root.currentDate
-                                color: root.themeTextMuted
-                                font.pixelSize: 14
-                                font.weight: Font.DemiBold
-                                font.letterSpacing: 1.0
-                                Layout.topMargin: 4
-                                style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.75)
-                            }
-                        }
 
-                        Item { Layout.fillWidth: true } 
+                            Item { Layout.fillWidth: true }
 
-                        ColumnLayout {
-                            Layout.alignment: Qt.AlignTop
-                            spacing: 4
-                            
                             RowLayout {
-                                Layout.alignment: Qt.AlignRight
-                                spacing: 12
+                                Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
+                                spacing: 10
+
                                 Text {
                                     text: root.currentWeatherIcon
                                     font.pixelSize: 34
-                                    Layout.alignment: Qt.AlignVCenter 
+                                    Layout.alignment: Qt.AlignVCenter
                                 }
+
                                 ColumnLayout {
                                     Layout.alignment: Qt.AlignVCenter
                                     spacing: 0
+
                                     Text {
                                         text: root.currentWeatherTemp + "°C"
                                         color: "#FFFFFF"
+                                        font.family: root.fontFamily
                                         font.pixelSize: 24
                                         font.weight: Font.Bold
                                         Layout.alignment: Qt.AlignRight
                                         style: Text.Raised
                                         styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
+
                                     Text {
                                         text: root.currentWeatherDesc
                                         color: root.themeTextMuted
-                                        font.pixelSize: 14
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 13
                                         font.weight: Font.Medium
                                         Layout.alignment: Qt.AlignRight
                                         style: Text.Raised
@@ -941,11 +944,33 @@ Scope {
                                     }
                                 }
                             }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 12
+
+                            Text {
+                                text: root.currentDay + ", " + root.currentDate
+                                color: root.themeTextMuted
+                                font.family: root.fontFamily
+                                font.pixelSize: 13
+                                font.weight: Font.DemiBold
+                                font.letterSpacing: 0.6
+                                Layout.alignment: Qt.AlignVCenter | Qt.AlignLeft
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                            }
+
+                            Item { Layout.fillWidth: true }
+
                             Text {
                                 text: "Feels like " + root.currentWeatherFeelsLike + "°C"
                                 color: root.themeTextMuted
-                                font.pixelSize: 11
-                                Layout.alignment: Qt.AlignRight
+                                font.family: root.fontFamily
+                                font.pixelSize: 12
+                                font.weight: Font.Medium
+                                Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
                                 style: Text.Raised
                                 styleColor: Qt.rgba(0, 0, 0, 0.65)
                             }
@@ -962,15 +987,17 @@ Scope {
                         RowLayout {
                             id: weatherGrid
                             anchors.fill: parent
-                            anchors.margins: 16 
+                            anchors.margins: 12 
                             spacing: 8
                             
                             ColumnLayout {
                                 Layout.fillWidth: true
+                                Layout.preferredWidth: 1
                                 spacing: 6
                                 Text { 
                                     text: "💧 Humidity"
                                     color: root.themeTextMuted
+                                    font.family: root.fontFamily
                                     font.pixelSize: 11
                                     font.weight: Font.Bold
                                     Layout.alignment: Qt.AlignHCenter
@@ -980,6 +1007,7 @@ Scope {
                                 Text { 
                                     text: root.currentWeatherHumidity
                                     color: "#FFFFFF"
+                                    font.family: root.fontFamily
                                     font.pixelSize: 13
                                     font.weight: Font.DemiBold
                                     Layout.alignment: Qt.AlignHCenter
@@ -989,10 +1017,12 @@ Scope {
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true
+                                Layout.preferredWidth: 1
                                 spacing: 6
                                 Text { 
                                     text: "💨 Wind"
                                     color: root.themeTextMuted
+                                    font.family: root.fontFamily
                                     font.pixelSize: 11
                                     font.weight: Font.Bold
                                     Layout.alignment: Qt.AlignHCenter
@@ -1002,6 +1032,7 @@ Scope {
                                 Text { 
                                     text: root.currentWeatherWind
                                     color: "#FFFFFF"
+                                    font.family: root.fontFamily
                                     font.pixelSize: 13
                                     font.weight: Font.DemiBold
                                     Layout.alignment: Qt.AlignHCenter
@@ -1011,10 +1042,12 @@ Scope {
                             }
                             ColumnLayout {
                                 Layout.fillWidth: true
+                                Layout.preferredWidth: 1
                                 spacing: 6
                                 Text { 
                                     text: "⏲️ Pressure"
                                     color: root.themeTextMuted
+                                    font.family: root.fontFamily
                                     font.pixelSize: 11
                                     font.weight: Font.Bold
                                     Layout.alignment: Qt.AlignHCenter
@@ -1024,6 +1057,7 @@ Scope {
                                 Text { 
                                     text: root.currentWeatherPressure
                                     color: "#FFFFFF"
+                                    font.family: root.fontFamily
                                     font.pixelSize: 13
                                     font.weight: Font.DemiBold
                                     Layout.alignment: Qt.AlignHCenter
@@ -1036,7 +1070,7 @@ Scope {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.topMargin: 8
+                        Layout.topMargin: 4
                         spacing: 8 
 
                         Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "CPU"; value: root.cpuPercent; unit: "%" } }
@@ -1058,9 +1092,10 @@ Scope {
                     
                     Text {
                         Layout.alignment: Qt.AlignHCenter
-                        Layout.topMargin: 4
+                        Layout.topMargin: 2
                         text: "Memory Used: " + root.ramUsedTotal
                         color: root.themeTextMuted
+                        font.family: root.fontFamily
                         font.pixelSize: 11
                         font.weight: Font.Medium
                         style: Text.Raised

@@ -11,25 +11,34 @@ import QtQuick.Effects
 Scope {
     id: root
 
+    property string iconFontFamily: "FiraCode Nerd Font, Symbols Nerd Font, JetBrainsMono Nerd Font, sans-serif"
+
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
     property color themeTextMuted: "#D4D4D8"
     property color themeBackground: "#141416"
-    
-    property int themeRounding: 24
+
+    property int themeRounding: 22
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
+    property real themeBgAlpha: 0.55
     property bool animEnabled: true
-    property int animDuration: 380
+    property int animDuration: 220
 
     QtObject {
         id: style
-        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
-        property int fadeDuration: 280
-        property var bounceEasing: Easing.OutBack
-        property var fadeEasing: Easing.OutCubic
-        property real overshoot: 0.5
+        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 240) : 200
+        property int fadeDuration: 180
+        property var smoothEasing: Easing.OutCubic
+    }
+
+    function mixColor(c1, c2, ratio, alphaVal) {
+        let col1 = Qt.color(c1)
+        let col2 = Qt.color(c2)
+        let r = col1.r * (1 - ratio) + col2.r * ratio
+        let g = col1.g * (1 - ratio) + col2.g * ratio
+        let b = col1.b * (1 - ratio) + col2.b * ratio
+        return Qt.rgba(r, g, b, alphaVal)
     }
 
     property bool isOpened: false
@@ -39,6 +48,7 @@ Scope {
     property int selectedIndex: 0
     property bool initialSelectionDone: false
     property var workspaceList: []
+    property int totalWindowsCount: 0
     property string wallpaperPath: ""
     property string wallpaperThumbPath: ""
 
@@ -61,6 +71,18 @@ Scope {
     }
 
     FileView {
+        id: fallbackWallpaperCacheFile
+        path: Quickshell.env("HOME") + "/.cache/quickshell_last_wallpaper.txt"
+        watchChanges: false
+        onLoaded: {
+            let p = text().trim()
+            if (p.length > 0 && root.wallpaperPath === "") {
+                root.wallpaperPath = p
+            }
+        }
+    }
+
+    FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
         watchChanges: true
@@ -69,9 +91,9 @@ Scope {
             try {
                 let content = text()
                 let borderMatch = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
-                if (borderMatch && borderMatch[1]) { 
+                if (borderMatch && borderMatch[1]) {
                     root.themeBorder = "#" + borderMatch[1]
-                    root.themePrimary = "#" + borderMatch[1] 
+                    root.themePrimary = "#" + borderMatch[1]
                 }
                 let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (bgMatch && bgMatch[1]) {
@@ -90,7 +112,7 @@ Scope {
             try {
                 let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
-                if (rMatch && rMatch[1]) root.themeRounding = Math.min(parseInt(rMatch[1]) + 8, 28)
+                if (rMatch && rMatch[1]) root.themeRounding = Math.min(Math.max(parseInt(rMatch[1]) + 4, 16), 28)
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
@@ -105,7 +127,7 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
 
                 let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
@@ -119,51 +141,59 @@ Scope {
         stdout: StdioCollector {
             onStreamFinished: {
                 let found = text.trim()
-                
                 if (found !== "") {
                     root.activeCursorMonitor = found
-                } else {
-                    if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
-                        root.activeCursorMonitor = Hyprland.focusedMonitor.name
-                    } else if (Quickshell.screens.length > 0) {
-                        root.activeCursorMonitor = Quickshell.screens[0].name
-                    }
                 }
-
-                colorFile.reload()
-                generalFile.reload()
-                animConfigFile.reload()
-                root.isOpened = true
             }
         }
     }
 
     Component.onCompleted: {
+        let defaultList = []
+        for (let i = 1; i <= 10; i++) {
+            defaultList.push({
+                id: i,
+                name: "Workspace " + i,
+                isSpecial: false,
+                isActive: i === 1,
+                windows: []
+            })
+        }
+        root.workspaceList = defaultList
+
+        if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
+            root.activeCursorMonitor = Hyprland.focusedMonitor.name
+        } else if (Quickshell.screens.length > 0) {
+            root.activeCursorMonitor = Quickshell.screens[0].name
+        }
+
+        wallpaperCacheFile.reload()
+        fallbackWallpaperCacheFile.reload()
+        colorFile.reload()
+        generalFile.reload()
+        animConfigFile.reload()
+        root.isOpened = true
+
         let pyScript = `
 import json, subprocess
 try:
-    c = json.loads(subprocess.check_output('hyprctl cursorpos -j', shell=True))
-    m = json.loads(subprocess.check_output('hyprctl monitors -j', shell=True))
-    cx, cy = c.get('x',0), c.get('y',0)
+    c = json.loads(subprocess.check_output(['hyprctl', 'cursorpos', '-j'], text=True))
+    m = json.loads(subprocess.check_output(['hyprctl', 'monitors', '-j'], text=True))
+    cx, cy = c.get('x', 0), c.get('y', 0)
     res = ''
-    
     for mon in m:
-        if mon.get('focused'): 
+        if mon.get('focused'):
             res = mon['name']
-            
     for mon in m:
-        mx, my = mon.get('x',0), mon.get('y',0)
+        mx, my = mon.get('x', 0), mon.get('y', 0)
         scale = mon.get('scale', 1.0)
-        w, h = mon.get('width', 1920)/scale, mon.get('height', 1080)/scale
-        
+        w, h = mon.get('width', 1920) / scale, mon.get('height', 1080) / scale
         transform = mon.get('transform', 0)
         if transform % 2 != 0:
             w, h = h, w
-            
         if cx >= mx and cx <= mx + w and cy >= my and cy <= my + h:
             res = mon['name']
             break
-            
     print(res)
 except Exception:
     pass
@@ -172,10 +202,10 @@ except Exception:
         cursorMonitorProcess.running = true
     }
 
-    Timer { 
+    Timer {
         id: closeTimer
         interval: 50
-        onTriggered: Qt.quit() 
+        onTriggered: Qt.quit()
     }
 
     function switchToWorkspace(item) {
@@ -188,13 +218,13 @@ except Exception:
         let specialName = item.rawSpecialName || ""
 
         if (isSpecial) {
-            try { Hyprland.dispatch("hl.dsp.workspace.toggle_special(\"" + specialName + "\")") } catch(e) {}
-            try { Hyprland.dispatch("hl.dsp.toggle_special_workspace({ name = \"" + specialName + "\" })") } catch(e) {}
-            try { Hyprland.dispatch("togglespecialworkspace " + specialName) } catch(e) {}
+            try { Hyprland.dispatch("hl.dsp.workspace.toggle_special(\"" + specialName + "\")") } catch (e) {}
+            try { Hyprland.dispatch("hl.dsp.toggle_special_workspace({ name = \"" + specialName + "\" })") } catch (e) {}
+            try { Hyprland.dispatch("togglespecialworkspace " + specialName) } catch (e) {}
         } else {
-            try { Hyprland.dispatch("hl.dsp.focus({ workspace = \"" + targetId + "\" })") } catch(e) {}
-            try { Hyprland.dispatch("hl.dsp.focus({ workspace = " + targetId + " })") } catch(e) {}
-            try { Hyprland.dispatch("workspace " + targetId) } catch(e) {}
+            try { Hyprland.dispatch("hl.dsp.focus({ workspace = \"" + targetId + "\" })") } catch (e) {}
+            try { Hyprland.dispatch("hl.dsp.focus({ workspace = " + targetId + " })") } catch (e) {}
+            try { Hyprland.dispatch("workspace " + targetId) } catch (e) {}
         }
 
         let envPrefix = "export HYPRLAND_INSTANCE_SIGNATURE='" + (Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") || "") + "'; " +
@@ -222,7 +252,7 @@ except Exception:
         if (root.isClosing) return
         root.isClosing = true
         root.isOpened = false
-        closeTimer.interval = 10
+        closeTimer.interval = 20
         closeTimer.start()
     }
 
@@ -232,7 +262,15 @@ except Exception:
             onStreamFinished: {
                 try {
                     let parsed = JSON.parse(text.trim())
-                    root.workspaceList = parsed.workspaces || []
+                    let wsList = parsed.workspaces || []
+                    root.workspaceList = wsList
+
+                    let totalWins = 0
+                    for (let i = 0; i < wsList.length; i++) {
+                        totalWins += (wsList[i].windows ? wsList[i].windows.length : 0)
+                    }
+                    root.totalWindowsCount = totalWins
+
                     if (parsed.wallpaper && parsed.wallpaper.length > 0) {
                         if (root.wallpaperPath !== parsed.wallpaper) {
                             root.wallpaperPath = parsed.wallpaper
@@ -243,25 +281,25 @@ except Exception:
                             root.wallpaperThumbPath = parsed.thumb
                         }
                     }
-                    if (!root.initialSelectionDone && root.workspaceList.length > 0) {
-                        for (let i = 0; i < root.workspaceList.length; i++) {
-                            if (root.workspaceList[i].isActive) {
+                    if (!root.initialSelectionDone && wsList.length > 0) {
+                        for (let i = 0; i < wsList.length; i++) {
+                            if (wsList[i].isActive) {
                                 root.selectedIndex = i
                                 root.initialSelectionDone = true
                                 break
                             }
                         }
                     }
-                    if (root.selectedIndex >= root.workspaceList.length) {
-                        root.selectedIndex = Math.max(0, root.workspaceList.length - 1)
+                    if (root.selectedIndex >= wsList.length) {
+                        root.selectedIndex = Math.max(0, wsList.length - 1)
                     }
-                } catch(e) {}
+                } catch (e) {}
             }
         }
     }
 
     Timer {
-        interval: 300
+        interval: 350
         running: true
         repeat: true
         triggeredOnStart: true
@@ -270,30 +308,49 @@ except Exception:
                 let pyScript = `
 import subprocess, json, os, re, hashlib, glob
 
+ICON_CACHE_FILE = "/tmp/qs_overview_icons.json"
+try:
+    with open(ICON_CACHE_FILE, "r", encoding="utf-8") as f:
+        ICON_CACHE = json.load(f)
+except Exception:
+    ICON_CACHE = {}
+
+HOME = os.path.expanduser("~")
+
 ICON_DIRS = [
-    "/usr/share/pixmaps",
+    os.path.join(HOME, ".local/share/icons/WhiteSur/apps/scalable"),
+    os.path.join(HOME, ".local/share/icons/WhiteSur-dark/apps/scalable"),
+    os.path.join(HOME, ".local/share/icons/WhiteSur/apps/48"),
+    "/usr/share/icons/WhiteSur/apps/scalable",
+    "/usr/share/icons/WhiteSur-dark/apps/scalable",
+    "/usr/share/icons/Papirus/scalable/apps",
+    "/usr/share/icons/Papirus/48x48/apps",
     "/usr/share/icons/hicolor/scalable/apps",
     "/usr/share/icons/hicolor/512x512/apps",
     "/usr/share/icons/hicolor/256x256/apps",
     "/usr/share/icons/hicolor/128x128/apps",
     "/usr/share/icons/hicolor/64x64/apps",
     "/usr/share/icons/hicolor/48x48/apps",
-    "/usr/share/icons/Papirus/48x48/apps",
-    "/usr/share/icons/Papirus/scalable/apps",
-    "/usr/share/icons/breeze/apps/48",
-    "/usr/share/icons/breeze/apps/128",
     "/usr/share/icons/Adwaita/scalable/apps",
-    os.path.expanduser("~/.local/share/icons"),
+    "/usr/share/pixmaps",
+    os.path.join(HOME, ".local/share/icons"),
 ]
 
 DESKTOP_DIRS = [
+    os.path.join(HOME, ".local/share/applications"),
     "/usr/share/applications",
-    os.path.expanduser("~/.local/share/applications"),
     "/var/lib/flatpak/exports/share/applications",
+    os.path.join(HOME, ".local/share/flatpak/exports/share/applications"),
     "/var/lib/snapd/desktop/applications"
 ]
 
 def get_app_icon(wm_class, initial_class):
+    cache_key = f"{wm_class}|{initial_class}"
+    if cache_key in ICON_CACHE:
+        cached = ICON_CACHE[cache_key]
+        if cached and os.path.isfile(cached):
+            return cached
+
     candidates = []
     for cls in [wm_class, initial_class]:
         if cls:
@@ -309,11 +366,13 @@ def get_app_icon(wm_class, initial_class):
         if "codium" in c or "code" in c:
             mapped.extend(["vscodium", "vscode", "code", "com.visualstudio.code"])
         elif "zen" in c:
-            mapped.extend(["zen", "zen-browser", "zen-alpha"])
+            mapped.extend(["zen", "zen-browser", "zen-alpha", "app.zen_browser.zen"])
         elif "chrome" in c:
             mapped.extend(["google-chrome", "chrome"])
         elif "firefox" in c:
             mapped.extend(["firefox", "firefox-developer-edition"])
+        elif "nautilus" in c or "files" in c:
+            mapped.extend(["org.gnome.Nautilus", "nautilus", "system-file-manager"])
 
     desktop_icon = None
     for ddir in DESKTOP_DIRS:
@@ -327,13 +386,15 @@ def get_app_icon(wm_class, initial_class):
                             if line.startswith("Icon="):
                                 desktop_icon = line.split("=")[1].strip()
                                 break
-                except Exception: pass
+                except Exception:
+                    pass
             if desktop_icon: break
         if desktop_icon: break
 
     search_names = []
     if desktop_icon:
         if "/" in desktop_icon and os.path.isfile(desktop_icon):
+            ICON_CACHE[cache_key] = desktop_icon
             return desktop_icon
         search_names.append(desktop_icon)
     search_names.extend(mapped)
@@ -344,19 +405,23 @@ def get_app_icon(wm_class, initial_class):
             for ext in [".svg", ".png", ".xpm"]:
                 filepath = os.path.join(idir, sname + ext)
                 if os.path.isfile(filepath):
+                    ICON_CACHE[cache_key] = filepath
                     return filepath
+
     return ""
 
 def make_low_quality_thumb(src_path):
     if not os.path.isfile(src_path):
         return ""
-    
-    cache_dir = os.path.expanduser("~/.cache")
+
+    cache_dir = os.path.join(HOME, ".cache")
     os.makedirs(cache_dir, exist_ok=True)
-    
-    try: mtime = os.path.getmtime(src_path)
-    except Exception: mtime = 0
-    
+
+    try:
+        mtime = os.path.getmtime(src_path)
+    except Exception:
+        mtime = 0
+
     path_hash = hashlib.md5(f"{src_path}_{mtime}".encode("utf-8")).hexdigest()[:10]
     thumb_path = os.path.join(cache_dir, f"qs_thumb_{path_hash}.jpg")
 
@@ -366,119 +431,97 @@ def make_low_quality_thumb(src_path):
     try:
         for f in os.listdir(cache_dir):
             if f.startswith("qs_thumb_") and f.endswith(".jpg"):
-                try: os.remove(os.path.join(cache_dir, f))
-                except Exception: pass
-    except Exception: pass
+                try:
+                    os.remove(os.path.join(cache_dir, f))
+                except Exception:
+                    pass
+    except Exception:
+        pass
 
     generated = False
     try:
         from PIL import Image
         with Image.open(src_path) as img:
             img.thumbnail((480, 270), Image.Resampling.BILINEAR)
-            img.convert("RGB").save(thumb_path, "JPEG", quality=50, optimize=True)
+            img.convert("RGB").save(thumb_path, "JPEG", quality=65, optimize=True)
         generated = True
-    except Exception: pass
+    except Exception:
+        pass
 
     if not generated:
         try:
             subprocess.run(f'convert "{src_path}" -resize 480x270 "{thumb_path}"', shell=True, timeout=2)
             generated = os.path.exists(thumb_path)
-        except Exception: pass
+        except Exception:
+            pass
 
     return thumb_path if generated else src_path
 
 def get_wallpaper():
     found_path = ""
-    
-    try:
-        out = subprocess.check_output("swww query 2>/dev/null", shell=True, text=True)
-        for line in out.splitlines():
-            parts = line.split(":")
-            if len(parts) >= 2:
-                p = parts[1].strip().strip('"').strip("'").replace("~", os.path.expanduser("~"))
-                if os.path.isfile(p):
-                    found_path = p
-                    break
-    except Exception: pass
+    candidates = [
+        os.path.join(HOME, ".cache", "qs_wallpaper_path"),
+        os.path.join(HOME, ".cache", "quickshell_last_wallpaper.txt"),
+        os.path.join(HOME, ".cache", "current_wallpaper"),
+        os.path.join(HOME, ".cache", "wallpaper"),
+        os.path.join(HOME, ".config", "hypr", "wallpaper")
+    ]
+    for p in candidates:
+        if os.path.exists(p):
+            try:
+                if p.endswith(".txt") or p.endswith("qs_wallpaper_path"):
+                    with open(p, "r", encoding="utf-8") as f:
+                        line = f.read().strip()
+                        if line and os.path.isfile(line):
+                            found_path = line
+                            break
+                else:
+                    real_p = os.path.realpath(p)
+                    if os.path.isfile(real_p):
+                        found_path = real_p
+                        break
+            except Exception:
+                pass
 
     if not found_path:
-        try:
-            out = subprocess.check_output("awww query 2>/dev/null", shell=True, text=True)
-            m = re.findall(r'(?:image:)?\s*"?(/.*?\.(?:png|jpg|jpeg|webp|gif))"?', out, re.IGNORECASE)
-            if m:
+        for cmd in ["swww query 2>/dev/null", "awww query 2>/dev/null"]:
+            try:
+                out = subprocess.check_output(cmd, shell=True, text=True, timeout=1)
+                m = re.findall(r'(/.*?\.(?:png|jpg|jpeg|webp|gif))', out, re.IGNORECASE)
                 for p in m:
-                    p_clean = p.strip().strip('"').strip("'").replace("~", os.path.expanduser("~"))
+                    p_clean = p.strip().strip('"').strip("'")
                     if os.path.isfile(p_clean):
                         found_path = p_clean
                         break
-        except Exception: pass
+                if found_path:
+                    break
+            except Exception:
+                pass
 
     if not found_path:
         try:
-            out = subprocess.check_output("hyprctl hyprpaper listactive 2>/dev/null", shell=True, text=True)
-            for line in out.splitlines():
-                if "=" in line:
-                    p = line.split("=")[1].strip().replace("~", os.path.expanduser("~"))
-                    if os.path.isfile(p): 
-                        found_path = p
-                        break
-        except Exception: pass
-
-    if not found_path:
-        try:
-            wp_cfg = os.path.expanduser("~/.config/waypaper/config.ini")
+            wp_cfg = os.path.join(HOME, ".config/waypaper/config.ini")
             if os.path.isfile(wp_cfg):
                 with open(wp_cfg, "r") as f:
                     for line in f:
                         if line.startswith("wallpaper"):
-                            p = line.split("=")[1].strip().replace("~", os.path.expanduser("~"))
-                            if os.path.isfile(p): 
+                            p = line.split("=")[1].strip().replace("~", HOME)
+                            if os.path.isfile(p):
                                 found_path = p
                                 break
-        except Exception: pass
-
-    if not found_path:
-        home = os.path.expanduser("~")
-        candidates = [
-            os.path.join(home, ".cache", "qs_wallpaper_path"),
-            os.path.join(home, ".cache", "current_wallpaper"),
-            os.path.join(home, ".cache", "wallpaper"),
-            os.path.join(home, ".cache", "wallust", "wallpaper"),
-            os.path.join(home, ".config", "hypr", "wallpaper")
-        ]
-        for p in candidates:
-            if os.path.exists(p):
-                real_p = os.path.realpath(p)
-                if os.path.isfile(real_p): 
-                    found_path = real_p
-                    break
-
-    if not found_path:
-        home = os.path.expanduser("~")
-        search_dirs = [
-            os.path.join(home, "Pictures", "Wallpapers"),
-            os.path.join(home, "Pictures", "wallpaper"),
-            os.path.join(home, "Pictures")
-        ]
-        for d in search_dirs:
-            if os.path.isdir(d):
-                files = glob.glob(os.path.join(d, "*"))
-                imgs = [f for f in files if os.path.isfile(f) and f.lower().endswith(('.png', '.jpg', '.jpeg', '.webp'))]
-                if imgs:
-                    imgs.sort(key=lambda x: os.path.getmtime(x), reverse=True)
-                    found_path = imgs[0]
-                    break
+        except Exception:
+            pass
 
     thumb_path = ""
     if found_path:
         found_path = os.path.realpath(found_path)
-        cached_file = os.path.expanduser("~/.cache/qs_wallpaper_path")
+        cached_file = os.path.join(HOME, ".cache/qs_wallpaper_path")
         try:
             os.makedirs(os.path.dirname(cached_file), exist_ok=True)
             with open(cached_file, "w") as f:
                 f.write(found_path)
-        except Exception: pass
-
+        except Exception:
+            pass
         thumb_path = make_low_quality_thumb(found_path)
 
     return found_path, thumb_path
@@ -491,15 +534,15 @@ def parse_workspace_id(ws_info):
         if wid is not None and wid != 0: return wid
         wname = str(ws_info.get("name", ""))
         if wname.isdigit(): return int(wname)
-        match = re.search(r'\d+', wname)
+        match = re.search(r'\\d+', wname)
         if match and not wname.startswith("special:"): return int(match.group())
         return wname
     return None
 
 try:
-    ws_data = json.loads(subprocess.check_output("hyprctl workspaces -j", shell=True) or "[]")
-    clients_data = json.loads(subprocess.check_output("hyprctl clients -j", shell=True) or "[]")
-    active_ws = json.loads(subprocess.check_output("hyprctl activeworkspace -j", shell=True) or "{}")
+    ws_data = json.loads(subprocess.check_output(["hyprctl", "workspaces", "-j"], text=True) or "[]")
+    clients_data = json.loads(subprocess.check_output(["hyprctl", "clients", "-j"], text=True) or "[]")
+    active_ws = json.loads(subprocess.check_output(["hyprctl", "activeworkspace", "-j"], text=True) or "{}")
 except Exception:
     ws_data, clients_data, active_ws = [], [], {}
 
@@ -508,11 +551,15 @@ wallpaper, thumb = get_wallpaper()
 
 ws_windows = {}
 for c in clients_data:
+    if not c.get("mapped", True) or c.get("hidden", False):
+        continue
     wid = parse_workspace_id(c.get("workspace"))
     if wid is None: continue
 
-    try: wid_key = int(wid)
-    except (ValueError, TypeError): wid_key = str(wid)
+    try:
+        wid_key = int(wid)
+    except (ValueError, TypeError):
+        wid_key = str(wid)
 
     title = c.get("title", "").strip()
     initial_title = c.get("initialTitle", "").strip()
@@ -530,10 +577,17 @@ for c in clients_data:
         "icon": icon_path
     })
 
+try:
+    with open(ICON_CACHE_FILE, "w", encoding="utf-8") as f:
+        json.dump(ICON_CACHE, f)
+except Exception:
+    pass
+
 regular_ids = set(range(1, 11))
 for w in ws_data:
     w_id = w.get("id", 0)
-    if w_id > 0: regular_ids.add(w_id)
+    if w_id > 0:
+        regular_ids.add(w_id)
 
 result = []
 for wid in sorted(list(regular_ids)):
@@ -581,11 +635,11 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-overview"
-            
+
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            visible: root.isOpened && !root.isClosing
+            visible: root.isOpened && !root.isClosing && isTargetMonitor
 
             anchors {
                 top: true
@@ -608,7 +662,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                 Item {
                     id: mainContainer
                     anchors.centerIn: parent
-                    implicitWidth: cardColumn.implicitWidth + 48
+                    implicitWidth: cardColumn.implicitWidth + 52
                     implicitHeight: cardColumn.implicitHeight + 48
 
                     focus: isTargetMonitor
@@ -621,12 +675,12 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                         if (event.key === Qt.Key_Escape) {
                             root.dismissMenu()
                             event.accepted = true
-                        } else if (event.key === Qt.Key_Left) {
+                        } else if (event.key === Qt.Key_Left || event.key === Qt.Key_H) {
                             if (root.workspaceList.length > 0) {
                                 root.selectedIndex = (root.selectedIndex - 1 + root.workspaceList.length) % root.workspaceList.length
                             }
                             event.accepted = true
-                        } else if (event.key === Qt.Key_Right || event.key === Qt.Key_Tab) {
+                        } else if (event.key === Qt.Key_Right || event.key === Qt.Key_L || event.key === Qt.Key_Tab) {
                             if (root.workspaceList.length > 0) {
                                 root.selectedIndex = (root.selectedIndex + 1) % root.workspaceList.length
                             }
@@ -636,12 +690,12 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                 root.selectedIndex = (root.selectedIndex - 1 + root.workspaceList.length) % root.workspaceList.length
                             }
                             event.accepted = true
-                        } else if (event.key === Qt.Key_Up) {
+                        } else if (event.key === Qt.Key_Up || event.key === Qt.Key_K) {
                             if (root.selectedIndex - 5 >= 0) {
                                 root.selectedIndex -= 5
                             }
                             event.accepted = true
-                        } else if (event.key === Qt.Key_Down) {
+                        } else if (event.key === Qt.Key_Down || event.key === Qt.Key_J) {
                             if (root.selectedIndex + 5 < root.workspaceList.length) {
                                 root.selectedIndex += 5
                             }
@@ -680,24 +734,29 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                         radius: root.themeRounding
                         color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                         border.width: root.themeBorderSize
-                        border.color: Qt.alpha(root.themePrimary, 0.4)
+                        border.color: Qt.alpha(root.themePrimary, 0.42)
                         antialiasing: true
+                        clip: true
 
                         opacity: root.isClosing ? 0.0 : (root.isOpened ? 1.0 : 0.0)
-                        scale: root.isClosing ? 0.90 : (root.isOpened ? 1.0 : 0.90)
 
-                        Behavior on opacity { 
-                            NumberAnimation { 
-                                duration: root.animEnabled ? style.fadeDuration : 0 
-                                easing.type: style.fadeEasing 
-                            } 
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: root.animEnabled ? style.fadeDuration : 0
+                                easing.type: style.smoothEasing
+                            }
                         }
-                        Behavior on scale { 
-                            NumberAnimation { 
-                                duration: root.animEnabled ? style.animDuration : 0 
-                                easing.type: style.bounceEasing
-                                easing.overshoot: style.overshoot
-                            } 
+
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.margins: root.themeBorderSize
+                            radius: Math.max(0, parent.radius - root.themeBorderSize)
+                            antialiasing: true
+                            gradient: Gradient {
+                                GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.10) }
+                                GradientStop { position: 0.35; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
+                                GradientStop { position: 1.0; color: "transparent" }
+                            }
                         }
 
                         MouseArea {
@@ -705,47 +764,150 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                             onClicked: (mouse) => mouse.accepted = true
                         }
 
-                        Column {
+                        ColumnLayout {
                             id: cardColumn
                             anchors.centerIn: parent
-                            spacing: 24
+                            spacing: 20
 
-                            Row {
-                                anchors.horizontalCenter: parent.horizontalCenter
+                            RowLayout {
+                                Layout.fillWidth: true
                                 spacing: 12
 
-                                Text {
-                                    text: "Workspace Overview"
-                                    color: "#FFFFFF"
-                                    font.pixelSize: 26
-                                    font.weight: Font.Bold
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
-                                    anchors.verticalCenter: parent.verticalCenter
+                                Rectangle {
+                                    width: 40
+                                    height: 40
+                                    radius: 12
+                                    color: Qt.alpha(root.themePrimary, 0.18)
+                                    border.width: 1
+                                    border.color: Qt.alpha(root.themePrimary, 0.40)
+                                    antialiasing: true
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰕮"
+                                        font.family: root.iconFontFamily
+                                        color: root.themePrimary
+                                        font.pixelSize: 19
+                                    }
                                 }
+
+                                ColumnLayout {
+                                    spacing: 2
+                                    Layout.alignment: Qt.AlignVCenter
+
+                                    RowLayout {
+                                        spacing: 10
+
+                                        Text {
+                                            text: "Workspace Overview"
+                                            color: "#FFFFFF"
+                                            font.pixelSize: 20
+                                            font.weight: Font.Bold
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                        }
+
+                                        Rectangle {
+                                            visible: root.totalWindowsCount > 0
+                                            Layout.preferredWidth: winCountBadge.implicitWidth + 14
+                                            Layout.preferredHeight: 20
+                                            radius: 10
+                                            color: Qt.alpha(root.themePrimary, 0.24)
+                                            border.width: 1
+                                            border.color: Qt.alpha(root.themePrimary, 0.45)
+                                            antialiasing: true
+
+                                            Text {
+                                                id: winCountBadge
+                                                anchors.centerIn: parent
+                                                text: root.totalWindowsCount + (root.totalWindowsCount === 1 ? " window" : " windows")
+                                                color: root.themePrimary
+                                                font.pixelSize: 11
+                                                font.weight: Font.Bold
+                                            }
+                                        }
+                                    }
+
+                                    Text {
+                                        text: "Select a workspace to switch focus"
+                                        color: root.themeTextMuted
+                                        font.pixelSize: 12
+                                        font.weight: Font.Medium
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                    }
+                                }
+
+                                Item { Layout.fillWidth: true }
 
                                 Rectangle {
-                                    width: 1
-                                    height: 20
-                                    color: Qt.rgba(255, 255, 255, 0.25)
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
+                                    Layout.preferredWidth: escRow.implicitWidth + 20
+                                    Layout.preferredHeight: 32
+                                    radius: 10
+                                    color: closeBtnArea.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.38)
+                                    border.width: 1
+                                    border.color: closeBtnArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.16)
+                                    antialiasing: true
 
-                                Text {
-                                    text: "ESC to close"
-                                    color: root.themeTextMuted
-                                    font.pixelSize: 13
-                                    font.weight: Font.Medium
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                    anchors.verticalCenter: parent.verticalCenter
+                                    Behavior on color {
+                                        ColorAnimation { duration: style.fadeDuration; easing.type: style.smoothEasing }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation { duration: style.fadeDuration; easing.type: style.smoothEasing }
+                                    }
+
+                                    RowLayout {
+                                        id: escRow
+                                        anchors.centerIn: parent
+                                        spacing: 6
+
+                                        Rectangle {
+                                            width: 28
+                                            height: 18
+                                            radius: 5
+                                            color: Qt.alpha(root.themePrimary, 0.20)
+                                            border.width: 1
+                                            border.color: Qt.alpha(root.themePrimary, 0.45)
+
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "ESC"
+                                                color: root.themePrimary
+                                                font.pixelSize: 9
+                                                font.weight: Font.Bold
+                                            }
+                                        }
+
+                                        Text {
+                                            text: "Close"
+                                            color: "#FFFFFF"
+                                            font.pixelSize: 12
+                                            font.weight: Font.DemiBold
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        id: closeBtnArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.dismissMenu()
+                                    }
                                 }
+                            }
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 1
+                                color: Qt.rgba(255, 255, 255, 0.12)
                             }
 
                             Grid {
                                 columns: 5
-                                spacing: 16
-                                anchors.horizontalCenter: parent.horizontalCenter
+                                spacing: 14
+                                Layout.alignment: Qt.AlignHCenter
 
                                 Repeater {
                                     model: root.workspaceList
@@ -755,22 +917,13 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                         required property var modelData
                                         required property int index
 
-                                        width: 220
-                                        height: 140
+                                        width: 224
+                                        height: 142
 
                                         property bool isSelected: index === root.selectedIndex
                                         property bool isActiveWs: modelData.isActive
-
-                                        z: isSelected ? 10 : 1
-                                        scale: isSelected ? 1.08 : 1.0
-
-                                        Behavior on scale {
-                                            NumberAnimation {
-                                                duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.bounceEasing
-                                                easing.overshoot: style.overshoot
-                                            }
-                                        }
+                                        property int winCount: modelData.windows ? modelData.windows.length : 0
+                                        property int cardRadius: Math.max(12, root.themeRounding - 6)
 
                                         Item {
                                             id: bgContainer
@@ -783,7 +936,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                                             Rectangle {
                                                 anchors.fill: parent
-                                                color: Qt.alpha(root.themeBackground, 0.6)
+                                                color: Qt.alpha(root.themeBackground, 0.75)
                                             }
 
                                             Image {
@@ -800,9 +953,37 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                             Rectangle {
                                                 anchors.fill: parent
                                                 color: "#000000"
-                                                opacity: cardWpImg.visible ? 0.35 : 0.0
+                                                opacity: cardItem.isSelected ? 0.22 : (cardItem.isActiveWs ? 0.28 : 0.42)
+
                                                 Behavior on opacity {
-                                                    NumberAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing }
+                                                    NumberAnimation {
+                                                        duration: style.fadeDuration
+                                                        easing.type: style.smoothEasing
+                                                    }
+                                                }
+                                            }
+
+                                            Rectangle {
+                                                anchors.top: parent.top
+                                                anchors.left: parent.left
+                                                anchors.right: parent.right
+                                                height: 54
+                                                gradient: Gradient {
+                                                    GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.72) }
+                                                    GradientStop { position: 0.65; color: Qt.rgba(0, 0, 0, 0.28) }
+                                                    GradientStop { position: 1.0; color: "transparent" }
+                                                }
+                                            }
+
+                                            Rectangle {
+                                                anchors.fill: parent
+                                                color: Qt.alpha(root.themePrimary, cardItem.isSelected ? 0.12 : 0.0)
+
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: style.fadeDuration
+                                                        easing.type: style.smoothEasing
+                                                    }
                                                 }
                                             }
                                         }
@@ -810,43 +991,43 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                         Rectangle {
                                             id: cardMask
                                             anchors.fill: parent
-                                            radius: root.themeRounding
+                                            radius: cardItem.cardRadius
                                             color: "black"
                                             visible: false
                                             layer.enabled: true
                                         }
 
-                                        Column {
+                                        ColumnLayout {
                                             anchors.fill: parent
                                             anchors.margins: 12
-                                            spacing: 10
+                                            spacing: 8
                                             z: 2
 
-                                            Row {
-                                                width: parent.width
+                                            RowLayout {
+                                                Layout.fillWidth: true
                                                 spacing: 6
 
                                                 Text {
                                                     text: modelData.name
                                                     color: modelData.isSpecial ? "#facc15" : "#FFFFFF"
-                                                    font.pixelSize: 14
+                                                    font.pixelSize: 13
                                                     font.weight: Font.Bold
                                                     style: Text.Raised
-                                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.9)
                                                     elide: Text.ElideRight
-                                                    width: parent.width - (isActiveWs ? 52 : 0)
+                                                    Layout.fillWidth: true
                                                 }
 
                                                 Rectangle {
-                                                    visible: isActiveWs
-                                                    width: 46
-                                                    height: 18
+                                                    visible: cardItem.isActiveWs
+                                                    Layout.preferredWidth: activeLabel.implicitWidth + 12
+                                                    Layout.preferredHeight: 18
                                                     radius: 9
                                                     color: root.themePrimary
                                                     antialiasing: true
-                                                    anchors.verticalCenter: parent.verticalCenter
 
                                                     Text {
+                                                        id: activeLabel
                                                         text: "ACTIVE"
                                                         color: "#000000"
                                                         font.pixelSize: 9
@@ -856,10 +1037,12 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                 }
                                             }
 
+                                            Item { Layout.fillHeight: true }
+
                                             Flow {
-                                                width: parent.width
-                                                spacing: 8
-                                                visible: modelData.windows.length > 0
+                                                Layout.fillWidth: true
+                                                spacing: 7
+                                                visible: cardItem.winCount > 0
 
                                                 Repeater {
                                                     model: modelData.windows.slice(0, 7)
@@ -867,20 +1050,28 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                     delegate: Rectangle {
                                                         required property var modelData
 
-                                                        width: 34
-                                                        height: 34
-                                                        radius: 8
-                                                        color: Qt.rgba(0, 0, 0, 0.65)
+                                                        width: 36
+                                                        height: 36
+                                                        radius: 10
+                                                        color: iconMouse.containsMouse
+                                                               ? root.mixColor(root.themeBackground, root.themePrimary, 0.25, 0.85)
+                                                               : Qt.rgba(0.05, 0.05, 0.07, 0.76)
                                                         border.width: 1
-                                                        border.color: Qt.rgba(255, 255, 255, 0.2)
+                                                        border.color: iconMouse.containsMouse
+                                                                      ? root.themePrimary
+                                                                      : Qt.rgba(255, 255, 255, 0.22)
                                                         antialiasing: true
 
-                                                        scale: iconMouse.containsMouse ? 1.15 : 1.0
-                                                        Behavior on scale {
-                                                            NumberAnimation {
-                                                                duration: root.animEnabled ? style.animDuration : 0
-                                                                easing.type: style.bounceEasing
-                                                                easing.overshoot: style.overshoot
+                                                        Behavior on color {
+                                                            ColorAnimation {
+                                                                duration: style.fadeDuration
+                                                                easing.type: style.smoothEasing
+                                                            }
+                                                        }
+                                                        Behavior on border.color {
+                                                            ColorAnimation {
+                                                                duration: style.fadeDuration
+                                                                easing.type: style.smoothEasing
                                                             }
                                                         }
 
@@ -889,8 +1080,10 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                             anchors.centerIn: parent
                                                             width: 22
                                                             height: 22
+                                                            sourceSize: Qt.size(44, 44)
                                                             source: root.formatFileUrl(modelData.icon)
                                                             fillMode: Image.PreserveAspectFit
+                                                            smooth: true
                                                             asynchronous: true
                                                             visible: modelData.icon !== "" && status === Image.Ready
                                                             antialiasing: true
@@ -906,7 +1099,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                         }
 
                                                         ToolTip.visible: iconMouse.containsMouse
-                                                        ToolTip.delay: 200
+                                                        ToolTip.delay: 150
                                                         ToolTip.text: modelData.class + (modelData.title ? ": " + modelData.title : "")
 
                                                         MouseArea {
@@ -919,18 +1112,18 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                 }
 
                                                 Rectangle {
-                                                    visible: modelData.windows.length > 7
-                                                    width: 34
-                                                    height: 34
-                                                    radius: 8
-                                                    color: Qt.rgba(0, 0, 0, 0.75)
+                                                    visible: cardItem.winCount > 7
+                                                    width: 36
+                                                    height: 36
+                                                    radius: 10
+                                                    color: Qt.rgba(0.05, 0.05, 0.07, 0.82)
                                                     border.width: 1
                                                     border.color: root.themePrimary
                                                     antialiasing: true
 
                                                     Text {
                                                         anchors.centerIn: parent
-                                                        text: "+" + (modelData.windows.length - 7)
+                                                        text: "+" + (cardItem.winCount - 7)
                                                         color: "#FFFFFF"
                                                         font.pixelSize: 11
                                                         font.weight: Font.Bold
@@ -941,20 +1134,22 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                                         Rectangle {
                                             anchors.fill: parent
-                                            radius: root.themeRounding
+                                            radius: cardItem.cardRadius
                                             color: "transparent"
-                                            border.width: cardItem.isSelected ? Math.max(2, root.themeBorderSize + 1) : Math.max(1, root.themeBorderSize)
-                                            border.color: cardItem.isSelected 
-                                                ? root.themePrimary 
-                                                : (cardItem.isActiveWs ? Qt.alpha(root.themePrimary, 0.9) : Qt.alpha(root.themePrimary, 0.4))
+                                            border.width: cardItem.isSelected ? Math.max(2, root.themeBorderSize + 1) : (cardItem.isActiveWs ? 2 : 1)
+                                            border.color: cardItem.isSelected
+                                                          ? root.themePrimary
+                                                          : (cardItem.isActiveWs
+                                                             ? Qt.alpha(root.themePrimary, 0.78)
+                                                             : Qt.rgba(255, 255, 255, 0.22))
                                             antialiasing: true
                                             z: 10
 
-                                            Behavior on border.color { 
-                                                ColorAnimation { 
-                                                    duration: root.animEnabled ? style.fadeDuration : 0 
-                                                    easing.type: style.fadeEasing 
-                                                } 
+                                            Behavior on border.color {
+                                                ColorAnimation {
+                                                    duration: root.animEnabled ? style.fadeDuration : 0
+                                                    easing.type: style.smoothEasing
+                                                }
                                             }
                                         }
 
@@ -963,7 +1158,11 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                             z: 100
                                             hoverEnabled: true
                                             cursorShape: Qt.PointingHandCursor
-                                            onEntered: root.selectedIndex = index
+                                            onPositionChanged: {
+                                                if (root.selectedIndex !== index) {
+                                                    root.selectedIndex = index
+                                                }
+                                            }
                                             onClicked: {
                                                 let wsTarget = (root.workspaceList && root.workspaceList.length > index) ? root.workspaceList[index] : modelData
                                                 root.switchToWorkspace(wsTarget)
@@ -973,14 +1172,30 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                 }
                             }
 
-                            Text {
-                                text: "Arrow Keys / 0-9 / Mouse to navigate  •  Enter / Click to switch  •  Esc to exit"
-                                color: root.themeTextMuted
-                                font.pixelSize: 12
-                                font.weight: Font.Medium
-                                style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                anchors.horizontalCenter: parent.horizontalCenter
+                            Rectangle {
+                                Layout.alignment: Qt.AlignHCenter
+                                Layout.preferredWidth: footerRow.implicitWidth + 28
+                                Layout.preferredHeight: 32
+                                radius: 10
+                                color: Qt.rgba(0, 0, 0, 0.38)
+                                border.width: 1
+                                border.color: Qt.rgba(255, 255, 255, 0.12)
+                                antialiasing: true
+
+                                RowLayout {
+                                    id: footerRow
+                                    anchors.centerIn: parent
+                                    spacing: 8
+
+                                    Text {
+                                        text: "Arrow Keys / 0-9 / Mouse to navigate  •  Enter / Click to switch  •  Esc to exit"
+                                        color: root.themeTextMuted
+                                        font.pixelSize: 12
+                                        font.weight: Font.Medium
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                    }
+                                }
                             }
                         }
                     }

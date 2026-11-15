@@ -10,24 +10,26 @@ import QtQuick.Window
 Scope {
     id: root
 
+    property string iconFontFamily: "FiraCode Nerd Font, Symbols Nerd Font, JetBrainsMono Nerd Font, sans-serif"
+
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
-    property color themeTextMuted: "#a1a1aa"
-    
+    property color themeTextMuted: "#D4D4D8"
+
     property int themeRounding: 24
-    property int themeBorderSize: 1
-    property real themeBgAlpha: 1.0
+    property int themeBorderSize: 2
+    property real themeBgAlpha: 0.78
     property bool animEnabled: true
-    property int animDuration: 380 
-    
-    property color themeBackground: "#141416" 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
+    property int animDuration: 380
+
+    property color themeBackground: "#141416"
+    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.06)
 
     QtObject {
         id: animStyle
         property int animDuration: root.animDuration > 0 ? root.animDuration : 380
-        property int fadeDuration: 280
+        property int fadeDuration: 240
         property var bounceEasing: Easing.OutBack
         property var fadeEasing: Easing.OutCubic
         property real overshoot: 1.4
@@ -38,6 +40,13 @@ Scope {
     property string pendingCommand: ""
     property string targetMonitorName: ""
     property int selectedIndex: 3
+    property string uptimeString: "System Active"
+
+    readonly property color activeAccentColor: {
+        if (root.selectedIndex === 3) return "#FF453A"
+        if (root.selectedIndex === 2) return "#FFCC00"
+        return root.themePrimary
+    }
 
     function updateTargetMonitor() {
         if (root.targetMonitorName !== "") return
@@ -67,6 +76,20 @@ Scope {
 
     property string scriptPath: Quickshell.env("HOME") + "/.config/hypr/scripts/qs_dialog.sh"
 
+    Process {
+        id: uptimeProcess
+        command: [
+            "bash", "-c",
+            "UP=$(uptime -p 2>/dev/null | sed 's/^up //; s/ hours\\?/h/; s/ minutes\\?/m/; s/ days\\?/d/; s/,//g'); [ -z \"$UP\" ] && UP='Active'; printf 'Uptime: %s\\n' \"$UP\""
+        ]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let s = text.trim()
+                if (s !== "") root.uptimeString = s
+            }
+        }
+    }
+
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -75,10 +98,10 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
-                if (match && match[1]) { 
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (match && match[1]) {
                     root.themeBorder = "#" + match[1]
-                    root.themePrimary = "#" + match[1] 
+                    root.themePrimary = "#" + match[1]
                 }
                 let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (bgMatch && bgMatch[1]) {
@@ -97,9 +120,9 @@ Scope {
             try {
                 let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
-                if (rMatch && rMatch[1]) root.themeRounding = Math.min(parseInt(rMatch[1]) + 8, 28)
+                if (rMatch && rMatch[1]) root.themeRounding = Math.min(Math.max(parseInt(rMatch[1]) + 6, 18), 28)
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -121,7 +144,14 @@ Scope {
         }
     }
 
-    Component.onCompleted: { 
+    Timer {
+        id: openAnimTimer
+        interval: 16
+        repeat: false
+        onTriggered: root.isOpened = true
+    }
+
+    Component.onCompleted: {
         root.updateTargetMonitor()
         if (root.targetMonitorName === "") {
             fallbackMonitorTimer.start()
@@ -130,13 +160,14 @@ Scope {
         colorFile.reload()
         generalFile.reload()
         animConfigFile.reload()
-        root.isOpened = true
+        uptimeProcess.running = true
+        openAnimTimer.start()
     }
 
-    Timer { 
+    Timer {
         id: closeTimer
-        interval: animStyle.fadeDuration 
-        onTriggered: Qt.quit() 
+        interval: animStyle.fadeDuration
+        onTriggered: Qt.quit()
     }
 
     function executeCommand(cmd) {
@@ -146,8 +177,8 @@ Scope {
         if (cmd !== "") {
             let envPrefix = "export HYPRLAND_INSTANCE_SIGNATURE='" + (Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") || "") + "'; " +
                              "export WAYLAND_DISPLAY='" + (Quickshell.env("WAYLAND_DISPLAY") || "") + "'; " +
-                             "export XDG_RUNTIME_DIR='" + (Quickshell.env("XDG_RUNTIME_DIR") || "") + "'; ";
-            
+                             "export XDG_RUNTIME_DIR='" + (Quickshell.env("XDG_RUNTIME_DIR") || "") + "'; "
+
             Quickshell.execDetached(["bash", "-c", envPrefix + "nohup " + cmd + " >/dev/null 2>&1 &"])
         }
         closeTimer.interval = animStyle.fadeDuration
@@ -187,78 +218,147 @@ Scope {
         property string cmd: ""
         property color hoverColor: root.themePrimary
         property bool isSelected: root.selectedIndex === btnIndex
+        property bool isHighlighted: (btnMouse.containsMouse || btnRoot.isSelected) && !root.isClosing
 
-        width: 104
-        height: 126
+        width: 118
+        height: 146
+        z: isHighlighted ? 10 : 1
 
-        scale: (btnMouse.containsMouse || btnRoot.isSelected) && !root.isClosing ? 1.08 : 1.0
-        Behavior on scale { 
-            NumberAnimation { 
+        scale: btnMouse.pressed ? 0.94 : (isHighlighted ? 1.08 : 1.0)
+        Behavior on scale {
+            NumberAnimation {
                 duration: root.animEnabled ? animStyle.animDuration : 0
                 easing.type: animStyle.bounceEasing
-                easing.overshoot: animStyle.overshoot 
-            } 
+                easing.overshoot: animStyle.overshoot
+            }
         }
 
         Rectangle {
             anchors.fill: parent
-            radius: Math.max(8, root.themeRounding - 8)
-            color: (btnMouse.containsMouse || btnRoot.isSelected) && !root.isClosing ? Qt.alpha(btnRoot.hoverColor, 0.22) : "transparent"
-            border.width: 1
-            border.color: (btnMouse.containsMouse || btnRoot.isSelected) && !root.isClosing ? Qt.alpha(btnRoot.hoverColor, 0.6) : "transparent"
-            
-            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+            radius: Math.max(12, root.themeRounding - 6)
+            color: btnRoot.isHighlighted
+                   ? Qt.alpha(btnRoot.hoverColor, 0.22)
+                   : Qt.rgba(0.0, 0.0, 0.0, 0.28)
+            border.width: btnRoot.isHighlighted ? 1.5 : 1
+            border.color: btnRoot.isHighlighted
+                          ? Qt.alpha(btnRoot.hoverColor, 0.75)
+                          : Qt.rgba(1.0, 1.0, 1.0, 0.10)
+            antialiasing: true
+
+            Behavior on color {
+                ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+            }
+            Behavior on border.color {
+                ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: 1
+                radius: Math.max(0, parent.radius - 1)
+                opacity: btnRoot.isHighlighted ? 1.0 : 0.0
+                antialiasing: true
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: Qt.alpha(btnRoot.hoverColor, 0.16) }
+                    GradientStop { position: 0.5; color: "transparent" }
+                }
+                Behavior on opacity {
+                    NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                }
+            }
 
             ColumnLayout {
                 anchors.fill: parent
                 anchors.topMargin: 16
                 anchors.bottomMargin: 14
-                anchors.leftMargin: 8
-                anchors.rightMargin: 8
-                spacing: 8
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                spacing: 10
 
-                Item {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 34
-                    
+                Rectangle {
+                    Layout.alignment: Qt.AlignHCenter
+                    width: 48
+                    height: 48
+                    radius: 15
+                    color: btnRoot.isHighlighted
+                           ? Qt.alpha(btnRoot.hoverColor, 0.24)
+                           : Qt.rgba(1.0, 1.0, 1.0, 0.06)
+                    border.width: 1
+                    border.color: btnRoot.isHighlighted
+                                  ? Qt.alpha(btnRoot.hoverColor, 0.55)
+                                  : Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                    antialiasing: true
+
+                    scale: btnRoot.isHighlighted ? 1.06 : 1.0
+                    Behavior on scale {
+                        NumberAnimation {
+                            duration: root.animEnabled ? animStyle.animDuration : 0
+                            easing.type: animStyle.bounceEasing
+                            easing.overshoot: animStyle.overshoot
+                        }
+                    }
+                    Behavior on color {
+                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                    }
+                    Behavior on border.color {
+                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                    }
+
                     Text {
                         anchors.centerIn: parent
                         text: btnRoot.iconText
-                        color: (btnMouse.containsMouse || btnRoot.isSelected) && !root.isClosing ? btnRoot.hoverColor : root.themeText
-                        font.pixelSize: 30
-                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                        font.family: root.iconFontFamily
+                        color: btnRoot.isHighlighted ? btnRoot.hoverColor : root.themeText
+                        font.pixelSize: 24
+                        Behavior on color {
+                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                        }
                     }
                 }
 
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: btnRoot.labelText
-                    color: (btnMouse.containsMouse || btnRoot.isSelected) && !root.isClosing ? btnRoot.hoverColor : root.themeText
+                    color: btnRoot.isHighlighted ? btnRoot.hoverColor : root.themeText
                     font.pixelSize: 13
-                    font.weight: Font.DemiBold
-                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                    font.weight: Font.Bold
+                    style: Text.Raised
+                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                    Behavior on color {
+                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                    }
                 }
 
                 Rectangle {
                     Layout.alignment: Qt.AlignHCenter
-                    width: 26
+                    width: 28
                     height: 20
-                    radius: 5
-                    color: (btnMouse.containsMouse || btnRoot.isSelected) && !root.isClosing ? Qt.alpha(btnRoot.hoverColor, 0.25) : Qt.rgba(1.0, 1.0, 1.0, 0.08)
+                    radius: 6
+                    color: btnRoot.isHighlighted
+                           ? Qt.alpha(btnRoot.hoverColor, 0.28)
+                           : Qt.rgba(0.0, 0.0, 0.0, 0.45)
                     border.width: 1
-                    border.color: (btnMouse.containsMouse || btnRoot.isSelected) && !root.isClosing ? Qt.alpha(btnRoot.hoverColor, 0.5) : Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                    border.color: btnRoot.isHighlighted
+                                  ? Qt.alpha(btnRoot.hoverColor, 0.65)
+                                  : Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                    antialiasing: true
 
-                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                    Behavior on color {
+                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                    }
+                    Behavior on border.color {
+                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                    }
 
                     Text {
                         anchors.centerIn: parent
                         text: btnRoot.shortcutKey
-                        color: (btnMouse.containsMouse || btnRoot.isSelected) && !root.isClosing ? btnRoot.hoverColor : root.themeTextMuted
-                        font.pixelSize: 11
+                        color: btnRoot.isHighlighted ? "#FFFFFF" : root.themeTextMuted
+                        font.pixelSize: 10
                         font.weight: Font.Bold
-                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                        Behavior on color {
+                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                        }
                     }
                 }
             }
@@ -267,7 +367,8 @@ Scope {
         MouseArea {
             id: btnMouse
             anchors.fill: parent
-            hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
             onEntered: root.selectedIndex = btnRoot.btnIndex
             onClicked: root.executeCommand(btnRoot.cmd)
         }
@@ -275,7 +376,7 @@ Scope {
 
     Variants {
         model: Quickshell.screens
-        
+
         delegate: PanelWindow {
             id: powerWindow
             required property var modelData
@@ -285,11 +386,11 @@ Scope {
 
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-power-menu"
-            
+
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            visible: root.isOpened
+            visible: root.targetMonitorName !== "" && isTargetMonitor
 
             anchors {
                 top: true
@@ -297,19 +398,19 @@ Scope {
                 left: true
                 right: true
             }
-            
+
             color: "transparent"
 
             Rectangle {
                 anchors.fill: parent
-                color: "black"
-                opacity: root.isClosing ? 0.0 : (root.isOpened ? 0.6 : 0.0)
+                color: "#000000"
+                opacity: root.isClosing ? 0.0 : (root.isOpened ? 0.58 : 0.0)
 
-                Behavior on opacity { 
-                    NumberAnimation { 
-                        duration: animStyle.fadeDuration 
-                        easing.type: animStyle.fadeEasing 
-                    } 
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: animStyle.fadeDuration
+                        easing.type: animStyle.fadeEasing
+                    }
                 }
 
                 MouseArea {
@@ -335,25 +436,29 @@ Scope {
                     if (event.key === Qt.Key_Escape) {
                         root.dismissMenu()
                         event.accepted = true
-                    } else if (event.key === Qt.Key_Left) {
+                    } else if (event.key === Qt.Key_Left || event.key === Qt.Key_Backtab) {
                         root.selectedIndex = (root.selectedIndex - 1 + 4) % 4
                         event.accepted = true
-                    } else if (event.key === Qt.Key_Right) {
+                    } else if (event.key === Qt.Key_Right || event.key === Qt.Key_Tab) {
                         root.selectedIndex = (root.selectedIndex + 1) % 4
                         event.accepted = true
                     } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Space) {
                         root.executeByIndex(root.selectedIndex)
                         event.accepted = true
                     } else if (event.key === Qt.Key_P || event.text.toLowerCase() === "p") {
+                        root.selectedIndex = 3
                         root.executeCommand("systemctl poweroff")
                         event.accepted = true
                     } else if (event.key === Qt.Key_R || event.text.toLowerCase() === "r") {
+                        root.selectedIndex = 2
                         root.executeCommand("systemctl reboot")
                         event.accepted = true
                     } else if (event.key === Qt.Key_L || event.text.toLowerCase() === "l") {
+                        root.selectedIndex = 0
                         root.executeCommand(root.scriptPath + " lockscreen open")
                         event.accepted = true
                     } else if (event.key === Qt.Key_E || event.text.toLowerCase() === "e") {
+                        root.selectedIndex = 1
                         root.executeCommand("loginctl terminate-user $USER")
                         event.accepted = true
                     }
@@ -361,35 +466,54 @@ Scope {
 
                 Item {
                     anchors.centerIn: parent
-                    implicitWidth: powerLayout.implicitWidth + 48
-                    implicitHeight: powerLayout.implicitHeight + 48
-                    
+                    implicitWidth: mainColumn.implicitWidth + 48
+                    implicitHeight: mainColumn.implicitHeight + 44
+
                     visible: root.targetMonitorName !== "" && isTargetMonitor
 
                     Rectangle {
                         id: cardRect
                         anchors.fill: parent
-                        
+
                         radius: root.themeRounding
-                        color: root.themeBackground 
+                        color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                         border.width: root.themeBorderSize
-                        border.color: Qt.alpha(root.themeBorder, 0.45)
+                        border.color: Qt.alpha(root.activeAccentColor, 0.50)
+                        antialiasing: true
 
                         opacity: root.isClosing ? 0.0 : (root.isOpened ? 1.0 : 0.0)
-                        scale: root.isClosing ? 0.90 : (root.isOpened ? 1.0 : 0.90)
-                        
-                        Behavior on opacity { 
-                            NumberAnimation { 
-                                duration: animStyle.fadeDuration 
-                                easing.type: animStyle.fadeEasing 
-                            } 
+                        scale: root.isClosing ? 0.88 : (root.isOpened ? 1.0 : 0.88)
+
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: animStyle.fadeDuration
+                                easing.type: animStyle.fadeEasing
+                            }
                         }
-                        Behavior on scale { 
-                            NumberAnimation { 
-                                duration: root.animEnabled ? animStyle.animDuration : 0 
-                                easing.type: animStyle.bounceEasing 
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                easing.type: animStyle.bounceEasing
                                 easing.overshoot: animStyle.overshoot
-                            } 
+                            }
+                        }
+                        Behavior on border.color {
+                            ColorAnimation {
+                                duration: animStyle.fadeDuration
+                                easing.type: animStyle.fadeEasing
+                            }
+                        }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            anchors.margins: root.themeBorderSize
+                            radius: Math.max(0, parent.radius - root.themeBorderSize)
+                            antialiasing: true
+                            gradient: Gradient {
+                                GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.10) }
+                                GradientStop { position: 0.4; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
+                                GradientStop { position: 1.0; color: "transparent" }
+                            }
                         }
 
                         MouseArea {
@@ -397,51 +521,172 @@ Scope {
                             onClicked: (mouse) => mouse.accepted = true
                         }
 
-                        RowLayout {
-                            id: powerLayout
+                        ColumnLayout {
+                            id: mainColumn
                             anchors.centerIn: parent
-                            spacing: 12
+                            spacing: 18
 
-                            PowerBtn { 
-                                btnIndex: 0
-                                iconText: "󰌾" 
-                                labelText: "Lock" 
-                                shortcutKey: "L"
-                                cmd: root.scriptPath + " lockscreen open"
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 10
+
+                                Rectangle {
+                                    width: 34
+                                    height: 34
+                                    radius: 10
+                                    color: Qt.alpha(root.activeAccentColor, 0.18)
+                                    border.width: 1
+                                    border.color: Qt.alpha(root.activeAccentColor, 0.45)
+                                    antialiasing: true
+
+                                    Behavior on color {
+                                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                    }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰐥"
+                                        font.family: root.iconFontFamily
+                                        color: root.activeAccentColor
+                                        font.pixelSize: 16
+                                        Behavior on color {
+                                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                        }
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    spacing: 1
+                                    Layout.alignment: Qt.AlignVCenter
+
+                                    Text {
+                                        text: "Power Menu"
+                                        color: "#FFFFFF"
+                                        font.pixelSize: 15
+                                        font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                    }
+
+                                    Text {
+                                        text: root.uptimeString
+                                        color: root.themeTextMuted
+                                        font.pixelSize: 11
+                                        font.weight: Font.Medium
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                    }
+                                }
+
+                                Item { Layout.fillWidth: true }
+
+                                Rectangle {
+                                    Layout.preferredWidth: escRow.implicitWidth + 16
+                                    Layout.preferredHeight: 28
+                                    radius: 8
+                                    color: escMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.35)
+                                    border.width: 1
+                                    border.color: escMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.5) : Qt.rgba(1, 1, 1, 0.14)
+                                    antialiasing: true
+
+                                    scale: escMouse.pressed ? 0.92 : (escMouse.containsMouse ? 1.06 : 1.0)
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+                                    Behavior on color {
+                                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                    }
+
+                                    RowLayout {
+                                        id: escRow
+                                        anchors.centerIn: parent
+                                        spacing: 5
+
+                                        Text {
+                                            text: "ESC"
+                                            color: root.themePrimary
+                                            font.pixelSize: 10
+                                            font.weight: Font.Bold
+                                        }
+
+                                        Text {
+                                            text: "Cancel"
+                                            color: root.themeTextMuted
+                                            font.pixelSize: 11
+                                            font.weight: Font.Medium
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        id: escMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.dismissMenu()
+                                    }
+                                }
                             }
 
-                            PowerBtn { 
-                                btnIndex: 1
-                                iconText: "󰍃" 
-                                labelText: "Logout" 
-                                shortcutKey: "E"
-                                cmd: "loginctl terminate-user $USER" 
+                            Rectangle {
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: 1
+                                color: Qt.rgba(1, 1, 1, 0.10)
                             }
 
-                            Rectangle { 
-                                Layout.preferredWidth: 1 
-                                Layout.preferredHeight: 70
-                                Layout.alignment: Qt.AlignVCenter
-                                color: Qt.alpha(root.themeBorder, 0.2) 
-                                Layout.margins: 10 
-                            }
+                            RowLayout {
+                                id: powerLayout
+                                Layout.alignment: Qt.AlignHCenter
+                                spacing: 14
 
-                            PowerBtn { 
-                                btnIndex: 2
-                                iconText: "󰜉" 
-                                labelText: "Reboot" 
-                                shortcutKey: "R"
-                                cmd: "systemctl reboot" 
-                                hoverColor: "#FFCC00" 
-                            }
+                                PowerBtn {
+                                    btnIndex: 0
+                                    iconText: "󰌾"
+                                    labelText: "Lock"
+                                    shortcutKey: "L"
+                                    cmd: root.scriptPath + " lockscreen open"
+                                }
 
-                            PowerBtn { 
-                                btnIndex: 3
-                                iconText: "󰐥" 
-                                labelText: "Shutdown" 
-                                shortcutKey: "P"
-                                cmd: "systemctl poweroff" 
-                                hoverColor: "#FF453A" 
+                                PowerBtn {
+                                    btnIndex: 1
+                                    iconText: "󰍃"
+                                    labelText: "Logout"
+                                    shortcutKey: "E"
+                                    cmd: "loginctl terminate-user $USER"
+                                }
+
+                                Rectangle {
+                                    Layout.preferredWidth: 1
+                                    Layout.preferredHeight: 88
+                                    Layout.alignment: Qt.AlignVCenter
+                                    color: Qt.rgba(1, 1, 1, 0.14)
+                                    Layout.leftMargin: 4
+                                    Layout.rightMargin: 4
+                                }
+
+                                PowerBtn {
+                                    btnIndex: 2
+                                    iconText: "󰜉"
+                                    labelText: "Reboot"
+                                    shortcutKey: "R"
+                                    cmd: "systemctl reboot"
+                                    hoverColor: "#FFCC00"
+                                }
+
+                                PowerBtn {
+                                    btnIndex: 3
+                                    iconText: "󰐥"
+                                    labelText: "Shutdown"
+                                    shortcutKey: "P"
+                                    cmd: "systemctl poweroff"
+                                    hoverColor: "#FF453A"
+                                }
                             }
                         }
                     }

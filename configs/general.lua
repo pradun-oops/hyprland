@@ -2,7 +2,7 @@ hl.config({
     general = {
         gaps_in          = 5,
         gaps_out         = { top = 10, right = 5, bottom = 5, left = 5 },
-        border_size      = 1,
+        border_size      = 2,
         layout           = "scrolling",
         allow_tearing    = false,
         resize_on_border = true,
@@ -16,8 +16,8 @@ hl.config({
 
     decoration = {
         rounding           = 15,
-        active_opacity     = 0.9,
-        inactive_opacity   = 0.9,
+        active_opacity     = 0.85,
+        inactive_opacity   = 0.85,
         fullscreen_opacity = 1.0,
 
         blur = {

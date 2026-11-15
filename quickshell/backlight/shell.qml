@@ -353,7 +353,7 @@ Scope {
                                 color: Qt.alpha(root.themePrimary, 0.15)
                                 border.width: 1; border.color: Qt.alpha(root.themePrimary, 0.4)
                                 antialiasing: true
-                                Text { anchors.centerIn: parent; text: "󰌌"; font.pixelSize: 22; color: root.themePrimary }
+                                Text { anchors.centerIn: parent; text: "󰌌"; font.pixelSize: 22; color: root.themePrimary; font.family: "FiraCode Nerd Font" }
                             }
                             
                             ColumnLayout {
@@ -364,7 +364,7 @@ Scope {
                                     font.pixelSize: 20
                                     font.weight: Font.Bold
                                     color: root.themeText
-                                    font.family: "sans-serif"
+                                    font.family: "FiraCode Nerd Font"
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.6)
                                 }
@@ -373,7 +373,7 @@ Scope {
                                     font.pixelSize: 13
                                     font.weight: Font.Medium
                                     color: root.themeTextMuted
-                                    font.family: "sans-serif"
+                                    font.family: "FiraCode Nerd Font"
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.5)
                                 }
@@ -386,7 +386,7 @@ Scope {
                                 color: addHover.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.3)
                                 border.width: 1; border.color: addHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
                                 antialiasing: true
-                                Text { anchors.centerIn: parent; text: "󰐕"; font.pixelSize: 18; color: addHover.containsMouse ? root.themePrimary : root.themeText }
+                                Text { anchors.centerIn: parent; text: "󰐕"; font.pixelSize: 18; color: addHover.containsMouse ? root.themePrimary : root.themeText; font.family: "FiraCode Nerd Font" }
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 MouseArea { 
                                     id: addHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; 
@@ -399,7 +399,7 @@ Scope {
                                 color: closeHover.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.3)
                                 border.width: 1; border.color: closeHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
                                 antialiasing: true
-                                Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 18; color: closeHover.containsMouse ? root.themePrimary : root.themeText }
+                                Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 18; color: closeHover.containsMouse ? root.themePrimary : root.themeText; font.family: "FiraCode Nerd Font" }
                                 Behavior on color { ColorAnimation { duration: 150 } }
                                 MouseArea { id: closeHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Qt.quit() }
                             }
@@ -419,13 +419,14 @@ Scope {
                                 
                                 RowLayout {
                                     spacing: 12
-                                    Text { text: "󰃠"; font.pixelSize: 20; color: root.themePrimary; Layout.alignment: Qt.AlignVCenter }
+                                    Text { text: "󰃠"; font.pixelSize: 20; color: root.themePrimary; Layout.alignment: Qt.AlignVCenter; font.family: "FiraCode Nerd Font" }
                                     Text { 
                                         text: "Brightness"
                                         font.pixelSize: 14
                                         font.weight: Font.Bold
                                         color: root.themeText
                                         Layout.alignment: Qt.AlignVCenter
+                                        font.family: "FiraCode Nerd Font"
                                         style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.6)
                                     }
                                     RowLayout {
@@ -443,6 +444,7 @@ Scope {
                                                     text: modelData
                                                     font.weight: Font.Bold
                                                     font.pixelSize: 14
+                                                    font.family: "FiraCode Nerd Font"
                                                     color: root.rgbBrightness === modelData ? "#000000" : "#FFFFFF" 
                                                 }
                                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.rgbBrightness = modelData; root.applyCurrentSettings() } }
@@ -456,13 +458,14 @@ Scope {
 
                                 RowLayout {
                                     spacing: 12
-                                    Text { text: "󰓅"; font.pixelSize: 20; color: root.themePrimary; Layout.alignment: Qt.AlignVCenter }
+                                    Text { text: "󰓅"; font.pixelSize: 20; color: root.themePrimary; Layout.alignment: Qt.AlignVCenter; font.family: "FiraCode Nerd Font" }
                                     Text { 
                                         text: "Speed"
                                         font.pixelSize: 14
                                         font.weight: Font.Bold
                                         color: root.themeText
                                         Layout.alignment: Qt.AlignVCenter
+                                        font.family: "FiraCode Nerd Font"
                                         style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.6)
                                     }
                                     RowLayout {
@@ -480,6 +483,7 @@ Scope {
                                                     text: modelData
                                                     font.weight: Font.Bold
                                                     font.pixelSize: 14
+                                                    font.family: "FiraCode Nerd Font"
                                                     color: root.rgbSpeed === modelData ? "#000000" : "#FFFFFF" 
                                                 }
                                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.rgbSpeed = modelData; root.applyCurrentSettings() } }
@@ -503,7 +507,7 @@ Scope {
                                     Behavior on border.color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                     
                                     Text { 
-                                        anchors.centerIn: parent; text: "󰐥"; font.pixelSize: 18
+                                        anchors.centerIn: parent; text: "󰐥"; font.pixelSize: 18; font.family: "FiraCode Nerd Font"
                                         color: root.rgbPowerState ? root.themePrimary : "#A1A1AA"
                                         Behavior on color { ColorAnimation { duration: 200 } }
                                     }
@@ -563,7 +567,7 @@ Scope {
                                             spacing: 0 
                                             
                                             Text { 
-                                                Layout.alignment: Qt.AlignHCenter; text: model.icon; font.pixelSize: 26
+                                                Layout.alignment: Qt.AlignHCenter; text: model.icon; font.pixelSize: 26; font.family: "FiraCode Nerd Font"
                                                 color: cardRect.isActive || presetMouse.containsMouse ? root.themePrimary : Qt.alpha(root.themePrimary, 0.95)
                                                 visible: !model.isCustom 
                                                 Behavior on color { ColorAnimation { duration: 200 } }
@@ -573,6 +577,7 @@ Scope {
                                                 Layout.alignment: Qt.AlignHCenter; text: model.name; font.pixelSize: 13
                                                 font.weight: cardRect.isActive ? Font.Bold : Font.DemiBold
                                                 color: cardRect.isActive ? "#FFFFFF" : root.themeText
+                                                font.family: "FiraCode Nerd Font"
                                                 style: Text.Raised
                                                 styleColor: Qt.rgba(0, 0, 0, 0.65)
                                                 Behavior on color { ColorAnimation { duration: 200 } }
@@ -592,7 +597,7 @@ Scope {
                                             Behavior on opacity { NumberAnimation { duration: 150 } }
                                             Behavior on color { ColorAnimation { duration: 150 } }
 
-                                            Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 12; color: "#FFFFFF" }
+                                            Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 12; color: "#FFFFFF"; font.family: "FiraCode Nerd Font" }
 
                                             MouseArea {
                                                 id: delHover
@@ -655,6 +660,7 @@ Scope {
                                     font.pixelSize: 20
                                     font.weight: Font.Bold
                                     color: root.themeText
+                                    font.family: "FiraCode Nerd Font"
                                     style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.6)
                                 }
 
@@ -667,7 +673,7 @@ Scope {
                                         id: customNameInput
                                         anchors.fill: parent; anchors.margins: 14
                                         verticalAlignment: TextInput.AlignVCenter
-                                        color: root.themeText; font.pixelSize: 15; font.family: "sans-serif"
+                                        color: root.themeText; font.pixelSize: 15; font.family: "FiraCode Nerd Font"
                                         text: "My Custom Preset"
                                         selectByMouse: true
                                     }
@@ -675,7 +681,7 @@ Scope {
 
                                 RowLayout {
                                     spacing: 16
-                                    Text { text: "Animation:"; color: root.themeTextMuted; font.pixelSize: 15; font.weight: Font.DemiBold }
+                                    Text { text: "Animation:"; color: root.themeTextMuted; font.pixelSize: 15; font.weight: Font.DemiBold; font.family: "FiraCode Nerd Font" }
                                     Repeater {
                                         model: ["static", "breath"]
                                         Rectangle {
@@ -687,6 +693,7 @@ Scope {
                                                 anchors.centerIn: parent
                                                 text: modelData.charAt(0).toUpperCase() + modelData.slice(1)
                                                 font.weight: Font.Bold
+                                                font.family: "FiraCode Nerd Font"
                                                 color: customPresetEditor.customEffectType === modelData ? "#000000" : root.themeText 
                                             }
                                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: customPresetEditor.customEffectType = modelData }
@@ -703,7 +710,7 @@ Scope {
                                         model: customZoneModel
                                         ColumnLayout {
                                             spacing: 12
-                                            Text { text: model.name; color: root.themeTextMuted; font.pixelSize: 14; font.weight: Font.DemiBold; Layout.alignment: Qt.AlignHCenter }
+                                            Text { text: model.name; color: root.themeTextMuted; font.pixelSize: 14; font.weight: Font.DemiBold; font.family: "FiraCode Nerd Font"; Layout.alignment: Qt.AlignHCenter }
                                             
                                             Rectangle {
                                                 width: 90; height: 50; radius: 6
@@ -724,7 +731,7 @@ Scope {
                                                     }
                                                 }
                                             }
-                                            Text { text: "#" + model.colorHex.toUpperCase(); color: root.themeText; font.pixelSize: 14; font.family: "monospace"; Layout.alignment: Qt.AlignHCenter }
+                                            Text { text: "#" + model.colorHex.toUpperCase(); color: root.themeText; font.pixelSize: 14; font.family: "FiraCode Nerd Font"; Layout.alignment: Qt.AlignHCenter }
                                         }
                                     }
                                 }
@@ -738,14 +745,14 @@ Scope {
                                         width: 100; height: 42; radius: Math.max(8, root.themeRounding - 4)
                                         color: "transparent"; border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.2)
                                         antialiasing: true
-                                        Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 15; color: root.themeText }
+                                        Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 15; font.family: "FiraCode Nerd Font"; color: root.themeText }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.isEditingCustom = false }
                                     }
                                     Rectangle {
                                         width: 140; height: 42; radius: Math.max(8, root.themeRounding - 4)
                                         color: Qt.alpha(root.themePrimary, 0.2); border.width: 1; border.color: root.themePrimary
                                         antialiasing: true
-                                        Text { anchors.centerIn: parent; text: "Save Preset"; font.pixelSize: 15; font.weight: Font.Bold; color: root.themePrimary }
+                                        Text { anchors.centerIn: parent; text: "Save Preset"; font.pixelSize: 15; font.weight: Font.Bold; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
                                         MouseArea { 
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: {
@@ -810,8 +817,8 @@ Scope {
                                     }
                                     ColumnLayout {
                                         Layout.fillWidth: true; spacing: 4
-                                        Text { text: "Select Zone Color"; color: root.themeText; font.pixelSize: 18; font.weight: Font.Bold }
-                                        Text { text: root.pickerHex.toUpperCase(); color: root.themeTextMuted; font.pixelSize: 14; font.family: "monospace" }
+                                        Text { text: "Select Zone Color"; color: root.themeText; font.pixelSize: 18; font.weight: Font.Bold; font.family: "FiraCode Nerd Font" }
+                                        Text { text: root.pickerHex.toUpperCase(); color: root.themeTextMuted; font.pixelSize: 14; font.family: "FiraCode Nerd Font" }
                                     }
                                 }
 
@@ -821,7 +828,7 @@ Scope {
                                     Layout.fillWidth: true; Layout.preferredHeight: 32
                                     RowLayout {
                                         anchors.fill: parent; spacing: 12
-                                        Text { text: "R"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; Layout.preferredWidth: 16 }
+                                        Text { text: "R"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: "FiraCode Nerd Font"; Layout.preferredWidth: 16 }
                                         Item {
                                             Layout.fillWidth: true; Layout.fillHeight: true
                                             Rectangle { 
@@ -851,7 +858,7 @@ Scope {
                                                 onPositionChanged: if (pressed) updateVal(mouseX)
                                             }
                                         }
-                                        Text { text: root.pickerR.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: "monospace"; Layout.preferredWidth: 28; horizontalAlignment: Text.AlignRight }
+                                        Text { text: root.pickerR.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: "FiraCode Nerd Font"; Layout.preferredWidth: 28; horizontalAlignment: Text.AlignRight }
                                     }
                                 }
                                 
@@ -859,7 +866,7 @@ Scope {
                                     Layout.fillWidth: true; Layout.preferredHeight: 32
                                     RowLayout {
                                         anchors.fill: parent; spacing: 12
-                                        Text { text: "G"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; Layout.preferredWidth: 16 }
+                                        Text { text: "G"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: "FiraCode Nerd Font"; Layout.preferredWidth: 16 }
                                         Item {
                                             Layout.fillWidth: true; Layout.fillHeight: true
                                             Rectangle { 
@@ -889,7 +896,7 @@ Scope {
                                                 onPositionChanged: if (pressed) updateVal(mouseX)
                                             }
                                         }
-                                        Text { text: root.pickerG.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: "monospace"; Layout.preferredWidth: 28; horizontalAlignment: Text.AlignRight }
+                                        Text { text: root.pickerG.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: "FiraCode Nerd Font"; Layout.preferredWidth: 28; horizontalAlignment: Text.AlignRight }
                                     }
                                 }
                                 
@@ -897,7 +904,7 @@ Scope {
                                     Layout.fillWidth: true; Layout.preferredHeight: 32
                                     RowLayout {
                                         anchors.fill: parent; spacing: 12
-                                        Text { text: "B"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; Layout.preferredWidth: 16 }
+                                        Text { text: "B"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: "FiraCode Nerd Font"; Layout.preferredWidth: 16 }
                                         Item {
                                             Layout.fillWidth: true; Layout.fillHeight: true
                                             Rectangle { 
@@ -927,7 +934,7 @@ Scope {
                                                 onPositionChanged: if (pressed) updateVal(mouseX)
                                             }
                                         }
-                                        Text { text: root.pickerB.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: "monospace"; Layout.preferredWidth: 28; horizontalAlignment: Text.AlignRight }
+                                        Text { text: root.pickerB.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: "FiraCode Nerd Font"; Layout.preferredWidth: 28; horizontalAlignment: Text.AlignRight }
                                     }
                                 }
 
@@ -940,14 +947,14 @@ Scope {
                                         width: 100; height: 42; radius: Math.max(8, root.themeRounding - 4)
                                         color: "transparent"; border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.2)
                                         antialiasing: true
-                                        Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 15; color: root.themeText }
+                                        Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 15; font.family: "FiraCode Nerd Font"; color: root.themeText }
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.isPickingColor = false }
                                     }
                                     Rectangle {
                                         width: 120; height: 42; radius: Math.max(8, root.themeRounding - 4)
                                         color: Qt.alpha(root.themePrimary, 0.2); border.width: 1; border.color: root.themePrimary
                                         antialiasing: true
-                                        Text { anchors.centerIn: parent; text: "Apply"; font.pixelSize: 15; font.weight: Font.Bold; color: root.themePrimary }
+                                        Text { anchors.centerIn: parent; text: "Apply"; font.pixelSize: 15; font.weight: Font.Bold; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
                                         MouseArea { 
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
                                             onClicked: {

@@ -23,14 +23,14 @@ Scope {
     property color themeText: "#ffffff"
     property color themeTextMuted: "#a1a1aa"
     
-    property int themeRounding: 12
+    property int themeRounding: 16
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
     
     property color themeBackground: "#141416" 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
+    property color themeSurface: Qt.rgba(0.0, 0.0, 0.0, 0.35) 
 
     property int volumePct: 0
     property bool isMuted: false
@@ -206,10 +206,10 @@ Scope {
             exclusiveZone: -1
 
             anchors { right: true }
-            margins { right: 12 }
+            margins { right: 16 }
 
-            implicitWidth: 72
-            implicitHeight: 220
+            implicitWidth: 60
+            implicitHeight: 236
             color: "transparent"
 
             Rectangle {
@@ -219,11 +219,11 @@ Scope {
                 radius: root.themeRounding
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                 border.width: root.themeBorderSize
-                border.color: Qt.alpha(root.themePrimary, 0.4)
+                border.color: Qt.alpha(root.themePrimary, 0.40)
                 antialiasing: true
 
                 opacity: root.showOSD ? 1.0 : 0.0
-                scale: root.showOSD ? 1.0 : 0.1
+                scale: root.showOSD ? 1.0 : 0.85
                 enabled: root.showOSD
 
                 transform: Translate {
@@ -293,22 +293,36 @@ Scope {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 12
-                    spacing: 8
+                    anchors.topMargin: 14
+                    anchors.bottomMargin: 14
+                    anchors.leftMargin: 8
+                    anchors.rightMargin: 8
+                    spacing: 12
 
-                    Item {
+                    Rectangle {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.preferredWidth: 32
                         Layout.preferredHeight: 32
-                        
+                        radius: 10
+                        color: Qt.alpha(root.isMuted ? "#FF453A" : root.themePrimary, 0.15)
+                        antialiasing: true
+
+                        Behavior on color { 
+                            ColorAnimation { 
+                                duration: animStyle.fadeDuration
+                                easing.type: animStyle.fadeEasing 
+                            } 
+                        }
+
                         Text {
                             id: iconText
                             anchors.centerIn: parent
                             text: root.isMuted ? "󰖁" : (root.volumePct > 50 ? "󰕾" : (root.volumePct > 0 ? "󰖀" : "󰝟"))
                             color: root.isMuted ? "#FF453A" : root.themePrimary
-                            font.pixelSize: 22
+                            font.pixelSize: 20
+                            font.family: "FiraCode Nerd Font"
                             style: Text.Raised
-                            styleColor: Qt.rgba(0, 0, 0, 0.65)
+                            styleColor: Qt.rgba(0, 0, 0, 0.5)
 
                             scale: root.isMuted ? 0.92 : (mainArea.containsMouse ? 1.08 : 1.0)
 
@@ -329,9 +343,9 @@ Scope {
                     }
 
                     Item {
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.preferredWidth: 10
                         Layout.fillHeight: true
+                        Layout.preferredWidth: 8
+                        Layout.alignment: Qt.AlignHCenter
 
                         Rectangle {
                             anchors.fill: parent
@@ -349,7 +363,7 @@ Scope {
                             Rectangle {
                                 id: fillBar
                                 width: parent.width
-                                height: parent.height * (root.isMuted ? 0 : Math.min(100, root.animatedVolume) / 100)
+                                height: parent.height * (root.isMuted ? 0 : Math.max(0, Math.min(100, root.animatedVolume)) / 100)
                                 anchors.bottom: parent.bottom
                                 radius: parent.radius
                                 color: root.isMuted ? "#FF453A" : root.themePrimary
@@ -368,10 +382,12 @@ Scope {
                     Text {
                         id: labelText
                         Layout.alignment: Qt.AlignHCenter
+                        horizontalAlignment: Text.AlignHCenter
                         text: root.isMuted ? "Mute" : Math.round(Math.min(100, root.animatedVolume)) + "%"
                         color: root.isMuted ? "#FF453A" : root.themeText
                         font.pixelSize: 12
                         font.weight: Font.Bold
+                        font.family: "FiraCode Nerd Font"
                         style: Text.Raised
                         styleColor: Qt.rgba(0, 0, 0, 0.65)
 

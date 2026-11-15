@@ -5,32 +5,41 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
-import Qt5Compat.GraphicalEffects
 
 Scope {
     id: root
+
+    property string fontFamily: "FiraCode Nerd Font"
 
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
     property color themeTextMuted: "#a1a1aa"
-    
-    property int themeRounding: 20
+
+    property int themeRounding: 22
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
+    property real themeBgAlpha: 0.55
     property bool animEnabled: true
-    property int animDuration: 380
-    
-    property color themeBackground: "#141416" 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.12) 
+    property int animDuration: 220
+
+    property color themeBackground: "#141416"
+    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.58)
 
     QtObject {
         id: style
-        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
-        property int fadeDuration: 280
+        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 240) : 200
+        property int fadeDuration: 180
         property var smoothEasing: Easing.OutCubic
         property var fadeEasing: Easing.OutCubic
-        property color hoverColor: Qt.rgba(root.themeText.r, root.themeText.g, root.themeText.b, 0.12)
+    }
+
+    function mixColor(c1, c2, ratio, alphaVal) {
+        let col1 = Qt.color(c1)
+        let col2 = Qt.color(c2)
+        let r = col1.r * (1 - ratio) + col2.r * ratio
+        let g = col1.g * (1 - ratio) + col2.g * ratio
+        let b = col1.b * (1 - ratio) + col2.b * ratio
+        return Qt.rgba(r, g, b, alphaVal)
     }
 
     function escapeShell(arg) {
@@ -40,14 +49,14 @@ Scope {
     Process { id: rootExecProcess }
     function exec(cmd) {
         rootExecProcess.running = false
-        rootExecProcess.command = ["bash", "-c", cmd + " >/dev/null 2>&1 & disown"]
+        rootExecProcess.command = ["bash", "-c", "(" + cmd + ") >/dev/null 2>&1 & disown"]
         rootExecProcess.running = true
     }
 
     property string savedAppsFilePath: Quickshell.env("HOME") + "/.config/quickshell/json/dock_pinned.json"
 
-    ListModel { 
-        id: pinnedAppsModel 
+    ListModel {
+        id: pinnedAppsModel
     }
 
     FileView {
@@ -68,8 +77,8 @@ Scope {
                         return
                     }
                 }
-            } catch(e) {}
-            
+            } catch (e) {}
+
             if (pinnedAppsModel.count === 0) root.loadDefaultApps()
         }
         onLoadFailed: {
@@ -92,17 +101,29 @@ Scope {
         let apps = []
         for (let i = 0; i < pinnedAppsModel.count; i++) {
             let item = pinnedAppsModel.get(i)
-            apps.push({ name: item.name, iconName: item.iconName, cmd: item.cmd, wmClass: item.wmClass, process: item.process, filePath: item.filePath || "" })
+            apps.push({
+                name: item.name,
+                iconName: item.iconName,
+                cmd: item.cmd,
+                wmClass: item.wmClass,
+                process: item.process,
+                filePath: item.filePath || ""
+            })
         }
         let jsonStr = JSON.stringify(apps)
-        
+
         saveProcess.running = false
-        saveProcess.command = ["bash", "-c", "mkdir -p $(dirname '" + root.savedAppsFilePath + "') && echo '" + jsonStr.replace(/'/g, "'\\''") + "' > '" + root.savedAppsFilePath + "'"]
+        saveProcess.command = [
+            "python3", "-c",
+            "import sys, os; os.makedirs(os.path.dirname(sys.argv[1]), exist_ok=True); open(sys.argv[1], 'w', encoding='utf-8').write(sys.argv[2])",
+            root.savedAppsFilePath,
+            jsonStr
+        ]
         saveProcess.running = true
     }
 
     function isAppPinned(app) {
-        if (!app) return false;
+        if (!app) return false
         let targetPath = app.filePath || ""
         let targetClass = (app.wmClass || "").toLowerCase()
         let targetCmd = (app.cmd || "").toLowerCase()
@@ -111,7 +132,7 @@ Scope {
             let pPath = item.filePath || ""
             let pClass = (item.wmClass || "").toLowerCase()
             let pCmd = (item.cmd || "").toLowerCase()
-            
+
             if (targetPath && pPath && targetPath === pPath) return true
             if (targetClass && pClass && (targetClass === pClass || targetClass.includes(pClass) || pClass.includes(targetClass))) return true
             if (targetCmd && pCmd && (targetCmd === pCmd || targetCmd.includes(pCmd) || pCmd.includes(targetCmd))) return true
@@ -120,19 +141,19 @@ Scope {
     }
 
     function togglePinApp(app) {
-        if (!app) return;
+        if (!app) return
         let targetPath = app.filePath || ""
         let targetClass = (app.wmClass || "").toLowerCase()
         let targetCmd = (app.cmd || "").toLowerCase()
         let newList = []
         let found = false
-        
+
         for (let i = 0; i < pinnedAppsModel.count; i++) {
             let item = pinnedAppsModel.get(i)
             let pPath = item.filePath || ""
             let pClass = (item.wmClass || "").toLowerCase()
             let pCmd = (item.cmd || "").toLowerCase()
-            
+
             let isMatch = false
             if (targetPath && pPath && targetPath === pPath) {
                 isMatch = true
@@ -141,7 +162,7 @@ Scope {
             } else if (targetCmd && pCmd && (targetCmd === pCmd || targetCmd.includes(pCmd) || pCmd.includes(targetCmd))) {
                 isMatch = true
             }
-            
+
             if (isMatch) {
                 found = true
             } else {
@@ -155,7 +176,7 @@ Scope {
                 })
             }
         }
-        
+
         if (!found) {
             newList.push({
                 name: app.name,
@@ -166,7 +187,7 @@ Scope {
                 filePath: app.filePath || ""
             })
         }
-        
+
         pinnedAppsModel.clear()
         for (let i = 0; i < newList.length; i++) {
             pinnedAppsModel.append(newList[i])
@@ -182,10 +203,10 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
-                if (match && match[1]) { 
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (match && match[1]) {
                     root.themeBorder = "#" + match[1]
-                    root.themePrimary = "#" + match[1] 
+                    root.themePrimary = "#" + match[1]
                 }
                 let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (bgMatch && bgMatch[1]) {
@@ -204,7 +225,7 @@ Scope {
             try {
                 let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
-                if (rMatch && rMatch[1]) root.themeRounding = Math.min(parseInt(rMatch[1]) + 4, 28)
+                if (rMatch && rMatch[1]) root.themeRounding = Math.min(Math.max(parseInt(rMatch[1]) + 4, 18), 28)
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
@@ -219,7 +240,7 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
 
                 let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
@@ -230,20 +251,20 @@ Scope {
 
     Timer {
         id: bootTimer
-        interval: 150
+        interval: 80
         running: true
         repeat: false
-        onTriggered: { 
+        onTriggered: {
             savedAppsFile.reload()
             colorFile.reload()
             generalFile.reload()
-            animConfigFile.reload() 
+            animConfigFile.reload()
         }
     }
 
     Variants {
         model: Quickshell.screens
-        
+
         delegate: PanelWindow {
             id: dockWindow
             required property var modelData
@@ -254,15 +275,19 @@ Scope {
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            anchors { 
+            anchors {
                 bottom: true
             }
-            
-            implicitWidth: Math.max(masterDockLayout.implicitWidth + 48, 260)
-            
-            property int currentHitboxHeight: 8
+
+            implicitWidth: Math.max(dockContainer.width + 64, 280)
+
+            property int currentHitboxHeight: 140
             implicitHeight: currentHitboxHeight
             color: "transparent"
+
+            mask: Region {
+                item: dockWindow.dockShouldBeVisible ? activeHoverMask : bottomRevealArea
+            }
 
             property string outputName: dockWindow.screen ? dockWindow.screen.name : ""
 
@@ -270,26 +295,26 @@ Scope {
             property real activeTooltipX: 0
 
             property bool isOverlapped: false
-            property bool dockPinnedOpen: false 
-            
+            property bool dockPinnedOpen: false
+
             property bool dockHovered: dockHoverHandler.hovered
             property bool bottomHovered: bottomHoverHandler.hovered
             property bool anyHovered: dockHovered || bottomHovered
-            
+
             property bool dockLatchedOpen: false
 
             onAnyHoveredChanged: {
-                if (anyHovered) { 
+                if (anyHovered) {
                     dockHideTimer.stop()
-                    dockLatchedOpen = true 
-                } else { 
-                    dockHideTimer.restart() 
+                    dockLatchedOpen = true
+                } else {
+                    dockHideTimer.restart()
                 }
             }
-            
+
             Timer {
                 id: dockHideTimer
-                interval: 800 
+                interval: 650
                 repeat: false
                 onTriggered: {
                     if (!dockWindow.anyHovered) {
@@ -300,32 +325,14 @@ Scope {
 
             property bool dockShouldBeVisible: dockPinnedOpen || dockLatchedOpen || !isOverlapped
             property var runningClients: []
+            property string focusedClass: ""
             property var unpinnedApps: []
-
-            Timer {
-                id: hitboxShrinkTimer
-                interval: style.animDuration + 10 
-                onTriggered: {
-                    if (!dockWindow.dockShouldBeVisible) {
-                        dockWindow.currentHitboxHeight = 8
-                    }
-                }
-            }
-
-            onDockShouldBeVisibleChanged: {
-                if (dockShouldBeVisible) {
-                    hitboxShrinkTimer.stop()
-                    currentHitboxHeight = 140
-                } else {
-                    hitboxShrinkTimer.restart()
-                }
-            }
 
             Process { id: launchProcess }
 
             function launchApp(app) {
                 if (!app) return
-                
+
                 let filePath = (app.filePath || "").trim()
                 let cmd = (app.cmd || "").trim()
                 let wmClass = (app.wmClass || "").trim()
@@ -336,14 +343,16 @@ Scope {
                     w=${root.escapeShell(wmClass)}
 
                     if [ -n "$fp" ] && [ -f "$fp" ]; then
-                        gio launch "$fp" 2>/dev/null && exit 0
-                        gtk-launch "$(basename "$fp" .desktop)" 2>/dev/null && exit 0
+                        gio launch "$fp" >/dev/null 2>&1 & disown
+                        exit 0
                     fi
 
                     for target in "$w" "$c" "$(basename "$fp" 2>/dev/null)"; do
                         if [ -n "$target" ]; then
                             clean="\${target%.desktop}"
-                            gtk-launch "$clean" 2>/dev/null && exit 0
+                            if gtk-launch "$clean" >/dev/null 2>&1; then
+                                exit 0
+                            fi
                         fi
                     done
 
@@ -380,11 +389,11 @@ Scope {
                 let newOrder = []
                 for (let i = 0; i < vModel.items.count; i++) {
                     let m = vModel.items.get(i).model
-                    newOrder.push({ 
-                        name: m.name, 
-                        iconName: m.iconName, 
-                        cmd: m.cmd, 
-                        wmClass: m.wmClass, 
+                    newOrder.push({
+                        name: m.name,
+                        iconName: m.iconName,
+                        cmd: m.cmd,
+                        wmClass: m.wmClass,
                         process: m.process,
                         filePath: m.filePath || ""
                     })
@@ -410,24 +419,25 @@ Scope {
                             let output = text.trim()
                             if (!output) return
                             let data = JSON.parse(output)
-                            
+
                             dockWindow.runningClients = data.clients || []
+                            dockWindow.focusedClass = (data.focused || "").toLowerCase()
                             dockWindow.isOverlapped = data.overlap === true
 
                             let info = data.running_info || []
                             let unpinned = []
-                            
+
                             for (let i = 0; i < info.length; i++) {
                                 let app = info[i]
                                 let isPinned = false
                                 let rClass = (app.wmClass || "").toLowerCase()
                                 let rCmd = (app.cmd || "").toLowerCase()
-                                
+
                                 for (let j = 0; j < pinnedAppsModel.count; j++) {
                                     let pItem = pinnedAppsModel.get(j)
                                     let pClass = (pItem.wmClass || "").toLowerCase()
                                     let pCmd = (pItem.cmd || "").toLowerCase()
-                                    
+
                                     if (
                                         (rClass && pClass && (rClass === pClass || rClass.includes(pClass) || pClass.includes(rClass))) ||
                                         (rCmd && pCmd && (rCmd === pCmd || rCmd.includes(pCmd) || pCmd.includes(rCmd)))
@@ -456,7 +466,6 @@ Scope {
                                     }
                                 }
                             }
-
                         } catch (e) {}
                     }
                 }
@@ -464,15 +473,39 @@ Scope {
 
             Timer {
                 id: clientTimer
-                interval: 350
+                interval: 400
                 running: true
                 repeat: true
                 triggeredOnStart: true
                 onTriggered: {
+                    if (clientProcess.running) return
                     let pyScript = `
 import json, subprocess, sys, os, re
 
+CACHE_PATH = "/tmp/qs_dock_meta_cache.json"
+
+def load_cache():
+    if os.path.exists(CACHE_PATH):
+        try:
+            with open(CACHE_PATH, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {"icons": {}, "desktop": {}, "entries": None}
+
+def save_cache(c):
+    try:
+        data = {"icons": c.get("icons", {}), "desktop": c.get("desktop", {})}
+        with open(CACHE_PATH, "w", encoding="utf-8") as f:
+            json.dump(data, f)
+    except Exception:
+        pass
+
+CACHE = load_cache()
+
 def get_desktop_entries():
+    if CACHE.get("entries") is not None:
+        return CACHE["entries"]
     dirs = [
         os.path.expanduser("~/.local/share/applications"),
         "/usr/share/applications",
@@ -489,8 +522,7 @@ def get_desktop_entries():
                     p = os.path.join(d, f)
                     try:
                         with open(p, "r", encoding="utf-8", errors="ignore") as file_obj:
-                            raw = file_obj.read()
-                            lines = raw.splitlines()
+                            lines = file_obj.read().splitlines()
                             exec_l = next((l.split("=", 1)[1].strip() for l in lines if l.startswith("Exec=")), "")
                             name_l = next((l.split("=", 1)[1].strip() for l in lines if l.startswith("Name=")), "")
                             icon_l = next((l.split("=", 1)[1].strip() for l in lines if l.startswith("Icon=")), "")
@@ -508,37 +540,53 @@ def get_desktop_entries():
                         pass
         except Exception:
             pass
+    CACHE["entries"] = entries
     return entries
-
-DESKTOP_ENTRIES = get_desktop_entries()
 
 def resolve_desktop_meta(cls):
     if not cls: return "", cls, cls.capitalize(), cls
     cls_clean = cls.strip().lower()
+    if cls_clean in CACHE["desktop"]:
+        d = CACHE["desktop"][cls_clean]
+        return d[0], d[1], d[2], d[3]
+
+    entries = get_desktop_entries()
     stem = cls_clean.split(".")[-1]
+    res = ("", cls, stem.capitalize(), cls)
 
-    for e in DESKTOP_ENTRIES:
+    for e in entries:
         if e["wm"] and e["wm"].lower() == cls_clean:
-            return e["path"], e["cmd"] or cls, e["name"] or cls, e["icon"] or cls
+            res = (e["path"], e["cmd"] or cls, e["name"] or cls, e["icon"] or cls)
+            break
+    else:
+        for e in entries:
+            if e["stem"] == cls_clean or e["stem"] == stem:
+                res = (e["path"], e["cmd"] or cls, e["name"] or cls, e["icon"] or cls)
+                break
+        else:
+            for e in entries:
+                cmd_base = os.path.basename(e["cmd"].split()[0]).lower() if e["cmd"] else ""
+                if cmd_base and (cmd_base == cls_clean or cmd_base == stem):
+                    res = (e["path"], e["cmd"] or cls, e["name"] or cls, e["icon"] or cls)
+                    break
+            else:
+                for e in entries:
+                    if cls_clean in e["stem"] or stem in e["stem"] or e["stem"] in cls_clean:
+                        res = (e["path"], e["cmd"] or cls, e["name"] or cls, e["icon"] or cls)
+                        break
 
-    for e in DESKTOP_ENTRIES:
-        if e["stem"] == cls_clean or e["stem"] == stem:
-            return e["path"], e["cmd"] or cls, e["name"] or cls, e["icon"] or cls
-
-    for e in DESKTOP_ENTRIES:
-        cmd_base = os.path.basename(e["cmd"].split()[0]).lower() if e["cmd"] else ""
-        if cmd_base and (cmd_base == cls_clean or cmd_base == stem):
-            return e["path"], e["cmd"] or cls, e["name"] or cls, e["icon"] or cls
-
-    for e in DESKTOP_ENTRIES:
-        if cls_clean in e["stem"] or stem in e["stem"] or e["stem"] in cls_clean:
-            return e["path"], e["cmd"] or cls, e["name"] or cls, e["icon"] or cls
-
-    return "", cls, stem.capitalize(), cls
+    CACHE["desktop"][cls_clean] = list(res)
+    return res
 
 def find_icon(icon_name, wm_class="", file_path=""):
     if not icon_name and not wm_class: return ""
     if icon_name and os.path.isabs(icon_name) and os.path.exists(icon_name): return icon_name
+
+    cache_key = f"{icon_name}|{wm_class}"
+    if cache_key in CACHE["icons"]:
+        cached_val = CACHE["icons"][cache_key]
+        if not cached_val.startswith("/") or os.path.exists(cached_val):
+            return cached_val
 
     search_keys = []
     for item in [icon_name, wm_class]:
@@ -593,7 +641,9 @@ def find_icon(icon_name, wm_class="", file_path=""):
                 for key in unique_keys:
                     for ext in extensions:
                         p = os.path.join(target_dir, key + ext)
-                        if os.path.exists(p): return p
+                        if os.path.exists(p):
+                            CACHE["icons"][cache_key] = p
+                            return p
 
     pixmap_dirs = ["/usr/share/pixmaps", os.path.join(home, ".local/share/pixmaps")]
     for pd in pixmap_dirs:
@@ -601,7 +651,9 @@ def find_icon(icon_name, wm_class="", file_path=""):
             for key in unique_keys:
                 for ext in extensions:
                     p = os.path.join(pd, key + ext)
-                    if os.path.exists(p): return p
+                    if os.path.exists(p):
+                        CACHE["icons"][cache_key] = p
+                        return p
 
     for r in icon_roots:
         if os.path.exists(r):
@@ -609,9 +661,13 @@ def find_icon(icon_name, wm_class="", file_path=""):
                 for ext in extensions:
                     for fallback_sub in ["hicolor/scalable/apps", "hicolor/48x48/apps", "hicolor/128x128/apps", "hicolor/256x256/apps", "pixmaps", "hicolor/apps/scalable"]:
                         p = os.path.join(r, fallback_sub, key + ext)
-                        if os.path.exists(p): return p
+                        if os.path.exists(p):
+                            CACHE["icons"][cache_key] = p
+                            return p
 
-    return icon_name or wm_class
+    fallback = icon_name or wm_class
+    CACHE["icons"][cache_key] = fallback
+    return fallback
 
 try:
     target_mon_name = sys.argv[1] if len(sys.argv) > 1 else ""
@@ -627,6 +683,7 @@ try:
     classes = []
     running_info = []
     overlap = False
+    focused_cls = ""
     seen = set()
 
     for c in clients:
@@ -634,7 +691,10 @@ try:
         cls = str(c.get("class", ""))
         initial_cls = str(c.get("initialClass", ""))
         lookup_target = initial_cls if initial_cls else cls
-        
+
+        if c.get("focusHistoryID") == 0 and cls:
+            focused_cls = cls.lower()
+
         if cls:
             classes.append(cls.lower())
             if cls.lower() not in seen:
@@ -649,14 +709,14 @@ try:
                     "iconName": resolved_icon,
                     "filePath": fpath
                 })
-        
+
         if c.get("workspace", {}).get("id") == my_ws_id:
             if c.get("fullscreen"):
                 overlap = True
             else:
                 y = c.get("at", [0,0])[1]
                 h = c.get("size", [0,0])[1]
-                if y + h > logical_height - 120:
+                if y + h > logical_height - 110:
                     overlap = True
 
     pinned_file = os.path.expanduser("~/.config/quickshell/json/dock_pinned.json")
@@ -676,9 +736,10 @@ try:
         except Exception:
             pass
 
-    print(json.dumps({"clients": classes, "overlap": overlap, "running_info": running_info, "pinned_resolved": resolved_pinned}))
+    save_cache(CACHE)
+    print(json.dumps({"clients": classes, "focused": focused_cls, "overlap": overlap, "running_info": running_info, "pinned_resolved": resolved_pinned}))
 except Exception:
-    print(json.dumps({"clients": [], "overlap": False, "running_info": [], "pinned_resolved": []}))
+    print(json.dumps({"clients": [], "focused": "", "overlap": False, "running_info": [], "pinned_resolved": []}))
 `
                     clientProcess.command = ["python3", "-c", pyScript, dockWindow.outputName]
                     clientProcess.running = true
@@ -696,41 +757,50 @@ except Exception:
                     anchors.bottom: parent.bottom
                     height: 8
                     z: 1
-                    
+
                     HoverHandler { id: bottomHoverHandler }
+                }
+
+                Item {
+                    id: activeHoverMask
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.bottom: parent.bottom
+                    width: dockContainer.width + 16
+                    height: dockContainer.height + 24
                 }
 
                 Rectangle {
                     id: sharedTooltip
                     height: 28
-                    width: tooltipLabel.implicitWidth + 24
-                    radius: 14
-                    color: Qt.rgba(0, 0, 0, 0.82)
+                    width: tooltipLabel.implicitWidth + 22
+                    radius: 9
+                    color: Qt.alpha(root.themeBackground, 0.88)
                     border.width: 1
-                    border.color: Qt.rgba(255, 255, 255, 0.18)
+                    border.color: Qt.alpha(root.themePrimary, 0.45)
                     antialiasing: true
                     z: 30
-                    
+
                     anchors.bottom: dockContainer.top
                     anchors.bottomMargin: 12
-                    
+
                     property real targetX: dockWindow.activeTooltipX - (width / 2)
-                    x: Math.max(0, Math.min(targetX, rootContainer.width - width))
-                    Behavior on x { NumberAnimation { duration: 180; easing.type: style.fadeEasing } }
-                    
-                    visible: dockWindow.activeTooltipText !== ""
+                    x: Math.max(8, Math.min(targetX, rootContainer.width - width - 8))
+                    Behavior on x { NumberAnimation { duration: 140; easing.type: style.fadeEasing } }
+
+                    visible: dockWindow.activeTooltipText !== "" && dockWindow.dockShouldBeVisible
                     opacity: visible ? 1.0 : 0.0
-                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                    Behavior on opacity { NumberAnimation { duration: 140; easing.type: style.fadeEasing } }
 
                     Text {
                         id: tooltipLabel
                         anchors.centerIn: parent
                         text: dockWindow.activeTooltipText
-                        color: "#FFFFFF"
-                        font.pixelSize: 12
+                        color: root.themeText
+                        font.family: root.fontFamily
+                        font.pixelSize: 11
                         font.weight: Font.Bold
                         style: Text.Raised
-                        styleColor: Qt.rgba(0, 0, 0, 0.9)
+                        styleColor: Qt.rgba(0, 0, 0, 0.8)
                     }
                 }
 
@@ -739,40 +809,63 @@ except Exception:
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.bottom: parent.bottom
                     transformOrigin: Item.Bottom
-                    
-                    anchors.bottomMargin: dockWindow.dockShouldBeVisible ? 8 : -(dockContainer.height + 20)
-                    Behavior on anchors.bottomMargin { 
-                        NumberAnimation { 
+
+                    anchors.bottomMargin: dockWindow.dockShouldBeVisible ? 10 : -(dockContainer.height + 24)
+                    Behavior on anchors.bottomMargin {
+                        NumberAnimation {
                             duration: root.animEnabled ? style.animDuration : 0
                             easing.type: style.smoothEasing
-                        } 
+                        }
                     }
-                    
-                    scale: 1.0
 
                     width: masterDockLayout.implicitWidth + 28
-                    height: 84
+                    height: 76
                     radius: root.themeRounding
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themePrimary, 0.40)
+                    border.color: dockWindow.dockPinnedOpen ? root.themePrimary : Qt.alpha(root.themePrimary, 0.42)
                     antialiasing: true
 
+                    Behavior on width {
+                        NumberAnimation {
+                            duration: root.animEnabled ? style.animDuration : 0
+                            easing.type: style.smoothEasing
+                        }
+                    }
+                    Behavior on border.color {
+                        ColorAnimation {
+                            duration: style.fadeDuration
+                            easing.type: style.fadeEasing
+                        }
+                    }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: root.themeBorderSize
+                        radius: Math.max(0, parent.radius - root.themeBorderSize)
+                        antialiasing: true
+                        gradient: Gradient {
+                            GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.12) }
+                            GradientStop { position: 0.45; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
+                            GradientStop { position: 1.0; color: "transparent" }
+                        }
+                    }
+
                     opacity: dockWindow.dockShouldBeVisible ? 1.0 : 0.0
-                    Behavior on opacity { 
-                        NumberAnimation { 
+                    Behavior on opacity {
+                        NumberAnimation {
                             duration: root.animEnabled ? style.fadeDuration : 0
-                            easing.type: style.fadeEasing 
-                        } 
+                            easing.type: style.fadeEasing
+                        }
                     }
 
                     HoverHandler { id: dockHoverHandler }
-                    
+
                     MouseArea {
                         id: dockBackgroundClickArea
                         anchors.fill: parent
                         acceptedButtons: Qt.LeftButton
-                        z: 1 
+                        z: 1
                         onDoubleClicked: (mouse) => {
                             if (mouse.button === Qt.LeftButton) {
                                 dockWindow.dockPinnedOpen = !dockWindow.dockPinnedOpen
@@ -783,48 +876,73 @@ except Exception:
                     RowLayout {
                         id: masterDockLayout
                         anchors.centerIn: parent
-                        spacing: 12
+                        spacing: 10
                         z: 10
 
                         Item {
-                            width: 52
-                            height: 52
+                            Layout.preferredWidth: 56
+                            Layout.preferredHeight: 62
                             z: launcherMouse.containsMouse ? 20 : 1
 
-                            scale: launcherMouse.containsMouse ? 1.32 : 1.0
-                            anchors.verticalCenterOffset: launcherMouse.containsMouse ? -8 : 0
-                            
-                            Behavior on scale { 
-                                NumberAnimation { 
-                                    duration: root.animEnabled ? style.animDuration : 0
-                                    easing.type: style.smoothEasing
-                                } 
-                            }
-                            Behavior on anchors.verticalCenterOffset { 
-                                NumberAnimation { 
-                                    duration: root.animEnabled ? style.animDuration : 0
-                                    easing.type: style.smoothEasing
-                                } 
-                            }
+                            Item {
+                                anchors.centerIn: parent
+                                anchors.verticalCenterOffset: launcherMouse.containsMouse ? -6 : -2
+                                width: 48
+                                height: 48
+                                scale: launcherMouse.pressed ? 0.94 : (launcherMouse.containsMouse ? 1.18 : 1.0)
 
-                            Rectangle {
-                                anchors.fill: parent
-                                radius: 16
-                                color: "#27272a"
-                                border.width: 1
-                                border.color: Qt.alpha("#ffffff", 0.15)
-                                antialiasing: true
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? style.animDuration : 0
+                                        easing.type: style.smoothEasing
+                                    }
+                                }
+                                Behavior on anchors.verticalCenterOffset {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? style.animDuration : 0
+                                        easing.type: style.smoothEasing
+                                    }
+                                }
 
-                                Grid {
-                                    anchors.centerIn: parent
-                                    columns: 3
-                                    rows: 3
-                                    spacing: 5
-                                    Repeater {
-                                        model: 9
-                                        delegate: Rectangle {
-                                            width: 5; height: 5; radius: 2.5; color: root.themePrimary
-                                            antialiasing: true
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 14
+                                    color: launcherMouse.containsMouse
+                                           ? root.mixColor(root.themeBackground, root.themePrimary, 0.25, 0.85)
+                                           : Qt.rgba(0.06, 0.06, 0.08, 0.78)
+                                    border.width: 1
+                                    border.color: launcherMouse.containsMouse
+                                                  ? Qt.alpha(root.themePrimary, 0.65)
+                                                  : Qt.rgba(1.0, 1.0, 1.0, 0.16)
+                                    antialiasing: true
+
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: style.fadeDuration
+                                            easing.type: style.fadeEasing
+                                        }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: style.fadeDuration
+                                            easing.type: style.fadeEasing
+                                        }
+                                    }
+
+                                    Grid {
+                                        anchors.centerIn: parent
+                                        columns: 3
+                                        rows: 3
+                                        spacing: 4
+                                        Repeater {
+                                            model: 9
+                                            delegate: Rectangle {
+                                                width: 5
+                                                height: 5
+                                                radius: 2.5
+                                                color: root.themePrimary
+                                                antialiasing: true
+                                            }
                                         }
                                     }
                                 }
@@ -841,7 +959,7 @@ except Exception:
                                 }
                                 onContainsMouseChanged: {
                                     if (containsMouse) {
-                                        let pos = mapToItem(rootContainer, width/2, 0)
+                                        let pos = mapToItem(rootContainer, width / 2, 0)
                                         dockWindow.activeTooltipX = pos.x
                                         dockWindow.activeTooltipText = "App Drawer"
                                     } else if (dockWindow.activeTooltipText === "App Drawer") {
@@ -850,7 +968,7 @@ except Exception:
                                 }
                                 onPositionChanged: {
                                     if (containsMouse) {
-                                        let pos = mapToItem(rootContainer, width/2, 0)
+                                        let pos = mapToItem(rootContainer, width / 2, 0)
                                         dockWindow.activeTooltipX = pos.x
                                     }
                                 }
@@ -858,10 +976,11 @@ except Exception:
                         }
 
                         Rectangle {
-                            Layout.preferredWidth: 2
-                            Layout.preferredHeight: 40
+                            Layout.preferredWidth: 1.5
+                            Layout.preferredHeight: 36
                             radius: 1
-                            color: Qt.alpha(root.themeBorder, 0.25)
+                            color: Qt.alpha(root.themePrimary, 0.28)
+                            visible: pinnedAppsModel.count > 0 || dockWindow.unpinnedApps.length > 0
                             Layout.leftMargin: 2
                             Layout.rightMargin: 2
                             antialiasing: true
@@ -869,32 +988,33 @@ except Exception:
 
                         ListView {
                             id: dockList
-                            Layout.preferredWidth: pinnedAppsModel.count * 76 - 12
-                            Layout.preferredHeight: 64
+                            visible: pinnedAppsModel.count > 0
+                            Layout.preferredWidth: Math.max(0, pinnedAppsModel.count * 66 - 8)
+                            Layout.preferredHeight: 62
                             orientation: ListView.Horizontal
-                            spacing: 12 
-                            interactive: false 
+                            spacing: 8
+                            interactive: false
                             clip: false
 
                             add: Transition {
-                                ParallelAnimation {
-                                    NumberAnimation { properties: "opacity"; from: 0; to: 1; duration: style.fadeDuration; easing.type: style.fadeEasing }
-                                    NumberAnimation { 
-                                        properties: "scale"
-                                        from: 0; to: 1
-                                        duration: root.animEnabled ? style.animDuration : 0
-                                        easing.type: style.smoothEasing
-                                    }
+                                NumberAnimation {
+                                    properties: "opacity"
+                                    from: 0
+                                    to: 1
+                                    duration: style.fadeDuration
+                                    easing.type: style.fadeEasing
                                 }
                             }
                             remove: Transition {
-                                ParallelAnimation {
-                                    NumberAnimation { properties: "opacity"; to: 0; duration: style.fadeDuration; easing.type: style.fadeEasing }
-                                    NumberAnimation { properties: "scale"; to: 0; duration: style.fadeDuration; easing.type: style.fadeEasing }
+                                NumberAnimation {
+                                    properties: "opacity"
+                                    to: 0
+                                    duration: style.fadeDuration
+                                    easing.type: style.fadeEasing
                                 }
                             }
                             displaced: Transition {
-                                NumberAnimation { 
+                                NumberAnimation {
                                     properties: "x,y"
                                     duration: root.animEnabled ? style.animDuration : 0
                                     easing.type: style.smoothEasing
@@ -904,11 +1024,11 @@ except Exception:
                             model: DelegateModel {
                                 id: visualModel
                                 model: pinnedAppsModel
-                                
+
                                 delegate: DropArea {
                                     id: delegateRoot
-                                    width: 64
-                                    height: 64
+                                    width: 58
+                                    height: 62
                                     keys: ["app"]
                                     property int visualIndex: DelegateModel.itemsIndex
                                     z: itemMouse.containsMouse ? 20 : 1
@@ -921,59 +1041,70 @@ except Exception:
 
                                     Item {
                                         id: iconContainer
-                                        width: 64
-                                        height: 64
-                                        
+                                        width: 58
+                                        height: 62
+
                                         Drag.active: itemMouse.dragActive
                                         Drag.source: delegateRoot
-                                        Drag.hotSpot.x: 32
-                                        Drag.hotSpot.y: 32
+                                        Drag.hotSpot.x: 29
+                                        Drag.hotSpot.y: 31
                                         Drag.keys: ["app"]
 
                                         property int instanceCount: {
                                             let count = 0
-                                            let target = model.wmClass.toLowerCase()
+                                            let target = (model.wmClass || "").toLowerCase()
+                                            if (!target) return 0
                                             for (let i = 0; i < dockWindow.runningClients.length; i++) {
-                                                if (dockWindow.runningClients[i].includes(target)) count++
+                                                let c = dockWindow.runningClients[i]
+                                                if (c === target || c.includes(target) || target.includes(c)) count++
                                             }
                                             return count
                                         }
 
-                                        scale: itemMouse.containsMouse && !Drag.active ? 1.32 : (Drag.active ? 1.05 : 1.0)
-                                        anchors.verticalCenterOffset: itemMouse.containsMouse && !Drag.active ? -8 : 0
-                                        
-                                        Behavior on scale { 
-                                            NumberAnimation { 
-                                                duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.smoothEasing
-                                            } 
-                                        }
-                                        Behavior on anchors.verticalCenterOffset { 
-                                            NumberAnimation { 
-                                                duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.smoothEasing
-                                            } 
+                                        property bool isAppFocused: {
+                                            let target = (model.wmClass || "").toLowerCase()
+                                            let foc = dockWindow.focusedClass
+                                            if (!target || !foc) return false
+                                            return foc === target || foc.includes(target) || target.includes(foc)
                                         }
 
                                         states: [
                                             State {
                                                 when: iconContainer.Drag.active
                                                 ParentChange { target: iconContainer; parent: dockContainer }
-                                                PropertyChanges { target: iconContainer; opacity: 0.85 }
+                                                PropertyChanges { target: iconContainer; opacity: 0.88 }
                                             }
                                         ]
 
-                                        Rectangle {
-                                            anchors.fill: parent
-                                            radius: 16
-                                            color: "transparent"
+                                        Item {
+                                            id: glyphBox
+                                            anchors.centerIn: parent
+                                            anchors.verticalCenterOffset: (itemMouse.containsMouse && !iconContainer.Drag.active) ? -6 : -3
+                                            width: 48
+                                            height: 48
+                                            scale: itemMouse.pressed && !iconContainer.Drag.active
+                                                   ? 0.94
+                                                   : (itemMouse.containsMouse && !iconContainer.Drag.active ? 1.18 : (iconContainer.Drag.active ? 1.06 : 1.0))
+
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? style.animDuration : 0
+                                                    easing.type: style.smoothEasing
+                                                }
+                                            }
+                                            Behavior on anchors.verticalCenterOffset {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? style.animDuration : 0
+                                                    easing.type: style.smoothEasing
+                                                }
+                                            }
 
                                             ToolButton {
                                                 anchors.centerIn: parent
                                                 visible: !model.iconName.startsWith("/")
                                                 icon.name: !model.iconName.startsWith("/") ? model.iconName : ""
-                                                icon.width: 52
-                                                icon.height: 52
+                                                icon.width: 48
+                                                icon.height: 48
                                                 icon.color: "transparent"
                                                 background: Item {}
                                                 hoverEnabled: false
@@ -985,20 +1116,37 @@ except Exception:
                                                 anchors.centerIn: parent
                                                 visible: model.iconName.startsWith("/")
                                                 source: model.iconName.startsWith("/") ? "file://" + model.iconName : ""
-                                                sourceSize: Qt.size(52, 52)
+                                                sourceSize: Qt.size(48, 48)
+                                                width: 48
+                                                height: 48
                                                 fillMode: Image.PreserveAspectFit
+                                                smooth: true
                                                 antialiasing: true
                                             }
-                                            
-                                            Row {
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                                anchors.bottom: parent.bottom
-                                                anchors.bottomMargin: 4
-                                                spacing: 4
-                                                visible: iconContainer.instanceCount > 0
-                                                Repeater {
-                                                    model: Math.min(iconContainer.instanceCount, 3)
-                                                    Rectangle { width: 5; height: 5; radius: 2.5; color: root.themePrimary; antialiasing: true }
+                                        }
+
+                                        Row {
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            anchors.bottom: parent.bottom
+                                            anchors.bottomMargin: 1
+                                            spacing: 3
+                                            visible: iconContainer.instanceCount > 0
+
+                                            Repeater {
+                                                model: iconContainer.isAppFocused ? 1 : Math.min(iconContainer.instanceCount, 3)
+                                                Rectangle {
+                                                    width: iconContainer.isAppFocused ? 14 : 5
+                                                    height: 4
+                                                    radius: 2
+                                                    color: root.themePrimary
+                                                    antialiasing: true
+
+                                                    Behavior on width {
+                                                        NumberAnimation {
+                                                            duration: style.fadeDuration
+                                                            easing.type: style.smoothEasing
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -1010,12 +1158,12 @@ except Exception:
                                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                                         hoverEnabled: true
                                         cursorShape: dragActive ? Qt.ClosedHandCursor : Qt.PointingHandCursor
-                                        
+
                                         property bool dragActive: false
 
                                         drag.target: dragActive ? iconContainer : null
                                         drag.axis: Drag.XAxis
-                                        
+
                                         onPressAndHold: (mouse) => {
                                             if (mouse.button === Qt.LeftButton) {
                                                 itemMouse.dragActive = true
@@ -1023,17 +1171,15 @@ except Exception:
                                         }
 
                                         onClicked: (mouse) => {
-                                            if (mouse.button === Qt.LeftButton) {
-                                                if (!itemMouse.dragActive) {
-                                                    dockWindow.launchApp({
-                                                        name: model.name,
-                                                        iconName: model.iconName,
-                                                        cmd: model.cmd,
-                                                        wmClass: model.wmClass,
-                                                        process: model.process,
-                                                        filePath: model.filePath || ""
-                                                    })
-                                                }
+                                            if (mouse.button === Qt.LeftButton && !itemMouse.dragActive) {
+                                                dockWindow.launchApp({
+                                                    name: model.name,
+                                                    iconName: model.iconName,
+                                                    cmd: model.cmd,
+                                                    wmClass: model.wmClass,
+                                                    process: model.process,
+                                                    filePath: model.filePath || ""
+                                                })
                                             }
                                         }
 
@@ -1049,7 +1195,7 @@ except Exception:
                                                 })
                                             }
                                         }
-                                        
+
                                         onReleased: {
                                             if (itemMouse.dragActive) {
                                                 iconContainer.Drag.drop()
@@ -1057,22 +1203,22 @@ except Exception:
                                                 itemMouse.dragActive = false
                                             }
                                         }
-                                        
+
                                         onContainsMouseChanged: {
                                             if (containsMouse && !dragActive) {
-                                                let pos = mapToItem(rootContainer, width/2, 0)
+                                                let pos = mapToItem(rootContainer, width / 2, 0)
                                                 dockWindow.activeTooltipX = pos.x
                                                 dockWindow.activeTooltipText = model.name
                                             } else if (dockWindow.activeTooltipText === model.name) {
                                                 dockWindow.activeTooltipText = ""
                                             }
                                         }
-                                        
+
                                         onDragActiveChanged: {
                                             if (dragActive && dockWindow.activeTooltipText === model.name) {
                                                 dockWindow.activeTooltipText = ""
                                             } else if (!dragActive && containsMouse) {
-                                                let pos = mapToItem(rootContainer, width/2, 0)
+                                                let pos = mapToItem(rootContainer, width / 2, 0)
                                                 dockWindow.activeTooltipX = pos.x
                                                 dockWindow.activeTooltipText = model.name
                                             }
@@ -1080,7 +1226,7 @@ except Exception:
 
                                         onPositionChanged: {
                                             if (containsMouse && !dragActive) {
-                                                let pos = mapToItem(rootContainer, width/2, 0)
+                                                let pos = mapToItem(rootContainer, width / 2, 0)
                                                 dockWindow.activeTooltipX = pos.x
                                             }
                                         }
@@ -1090,60 +1236,67 @@ except Exception:
                         }
 
                         Rectangle {
-                            Layout.preferredWidth: 2
-                            Layout.preferredHeight: 40
+                            Layout.preferredWidth: 1.5
+                            Layout.preferredHeight: 36
                             radius: 1
-                            color: Qt.alpha(root.themeBorder, 0.25)
-                            visible: dockWindow.unpinnedApps.length > 0
-                            Layout.leftMargin: 4
-                            Layout.rightMargin: 4
+                            color: Qt.alpha(root.themePrimary, 0.28)
+                            visible: dockWindow.unpinnedApps.length > 0 && pinnedAppsModel.count > 0
+                            Layout.leftMargin: 2
+                            Layout.rightMargin: 2
                             antialiasing: true
                         }
 
                         ListView {
                             id: unpinnedList
-                            Layout.preferredWidth: Math.min(dockWindow.unpinnedApps.length * 76 - 12, 400)
-                            Layout.preferredHeight: 64
+                            Layout.preferredWidth: Math.min(Math.max(0, dockWindow.unpinnedApps.length * 66 - 8), 390)
+                            Layout.preferredHeight: 62
                             orientation: ListView.Horizontal
-                            spacing: 12
+                            spacing: 8
                             visible: dockWindow.unpinnedApps.length > 0
-                            interactive: dockWindow.unpinnedApps.length > 5 
+                            interactive: dockWindow.unpinnedApps.length > 6
                             clip: false
-                            
+
                             model: dockWindow.unpinnedApps
-                            
+
                             delegate: Item {
-                                width: 64
-                                height: 64
+                                id: unpinnedDelegate
+                                width: 58
+                                height: 62
                                 z: unpinnedMouse.containsMouse ? 20 : 1
-                                
-                                scale: unpinnedMouse.containsMouse ? 1.32 : 1.0
-                                anchors.verticalCenterOffset: unpinnedMouse.containsMouse ? -8 : 0
-                                
-                                Behavior on scale { 
-                                    NumberAnimation { 
-                                        duration: root.animEnabled ? style.animDuration : 0
-                                        easing.type: style.smoothEasing
-                                    } 
-                                }
-                                Behavior on anchors.verticalCenterOffset { 
-                                    NumberAnimation { 
-                                        duration: root.animEnabled ? style.animDuration : 0
-                                        easing.type: style.smoothEasing
-                                    } 
+
+                                property bool isAppFocused: {
+                                    let target = (modelData.wmClass || "").toLowerCase()
+                                    let foc = dockWindow.focusedClass
+                                    if (!target || !foc) return false
+                                    return foc === target || foc.includes(target) || target.includes(foc)
                                 }
 
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: 16
-                                    color: "transparent"
+                                Item {
+                                    anchors.centerIn: parent
+                                    anchors.verticalCenterOffset: unpinnedMouse.containsMouse ? -6 : -3
+                                    width: 48
+                                    height: 48
+                                    scale: unpinnedMouse.pressed ? 0.94 : (unpinnedMouse.containsMouse ? 1.18 : 1.0)
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? style.animDuration : 0
+                                            easing.type: style.smoothEasing
+                                        }
+                                    }
+                                    Behavior on anchors.verticalCenterOffset {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? style.animDuration : 0
+                                            easing.type: style.smoothEasing
+                                        }
+                                    }
 
                                     ToolButton {
                                         anchors.centerIn: parent
                                         visible: !modelData.iconName.startsWith("/")
                                         icon.name: !modelData.iconName.startsWith("/") ? modelData.iconName : ""
-                                        icon.width: 52
-                                        icon.height: 52
+                                        icon.width: 48
+                                        icon.height: 48
                                         icon.color: "transparent"
                                         background: Item {}
                                         hoverEnabled: false
@@ -1155,18 +1308,30 @@ except Exception:
                                         anchors.centerIn: parent
                                         visible: modelData.iconName.startsWith("/")
                                         source: modelData.iconName.startsWith("/") ? "file://" + modelData.iconName : ""
-                                        sourceSize: Qt.size(52, 52)
+                                        sourceSize: Qt.size(48, 48)
+                                        width: 48
+                                        height: 48
                                         fillMode: Image.PreserveAspectFit
+                                        smooth: true
                                         antialiasing: true
                                     }
-                                    
-                                    Rectangle {
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        anchors.bottom: parent.bottom
-                                        anchors.bottomMargin: 4 
-                                        width: 5; height: 5; radius: 2.5
-                                        color: root.themePrimary
-                                        antialiasing: true
+                                }
+
+                                Rectangle {
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    anchors.bottom: parent.bottom
+                                    anchors.bottomMargin: 1
+                                    width: unpinnedDelegate.isAppFocused ? 14 : 5
+                                    height: 4
+                                    radius: 2
+                                    color: root.themePrimary
+                                    antialiasing: true
+
+                                    Behavior on width {
+                                        NumberAnimation {
+                                            duration: style.fadeDuration
+                                            easing.type: style.smoothEasing
+                                        }
                                     }
                                 }
 
@@ -1176,7 +1341,7 @@ except Exception:
                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    
+
                                     onClicked: (mouse) => {
                                         if (mouse.button === Qt.LeftButton) {
                                             dockWindow.launchApp({
@@ -1202,20 +1367,20 @@ except Exception:
                                             })
                                         }
                                     }
-                                    
+
                                     onContainsMouseChanged: {
                                         if (containsMouse) {
-                                            let pos = mapToItem(rootContainer, width/2, 0)
+                                            let pos = mapToItem(rootContainer, width / 2, 0)
                                             dockWindow.activeTooltipX = pos.x
                                             dockWindow.activeTooltipText = modelData.name
                                         } else if (dockWindow.activeTooltipText === modelData.name) {
                                             dockWindow.activeTooltipText = ""
                                         }
                                     }
-                                    
+
                                     onPositionChanged: {
                                         if (containsMouse) {
-                                            let pos = mapToItem(rootContainer, width/2, 0)
+                                            let pos = mapToItem(rootContainer, width / 2, 0)
                                             dockWindow.activeTooltipX = pos.x
                                         }
                                     }

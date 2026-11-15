@@ -10,6 +10,7 @@ import QtQuick.Window
 Scope {
     id: root
 
+    property string fontFamily: "FiraCode Nerd Font"
     property string lockedMonitor: ""
 
     function updateTargetMonitor() {
@@ -21,7 +22,7 @@ Scope {
 
     Timer {
         id: fallbackMonitorTimer
-        interval: 150
+        interval: 120
         repeat: false
         onTriggered: {
             if (root.lockedMonitor === "" && Quickshell.screens.length > 0) {
@@ -35,33 +36,42 @@ Scope {
         function onFocusedMonitorChanged() { root.updateTargetMonitor() }
     }
 
-    property int themeRounding: 24
+    property int themeRounding: 22
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
+    property real themeBgAlpha: 0.55
     property bool animEnabled: true
+    property int animDuration: 220
 
-    property color themeBackground: "#0d0e15" 
-    property color themeSurface: Qt.rgba(0, 0, 0, 0.35)    
-    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)    
+    property color themeBackground: "#141416"
+    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.56)
+    property color themeSurfaceHover: Qt.rgba(0.10, 0.10, 0.14, 0.74)
     property color themeBorder: "#ffb3af"
-    property color themeText: "#FFFFFF"          
-    property color themeTextMuted: "#D4D4D8"
-    property color themePrimary: "#ffb3af"        
+    property color themeText: "#ffffff"
+    property color themeTextMuted: "#a1a1aa"
+    property color themePrimary: "#ffb3af"
+    property color themeOnPrimary: "#141416"
 
     QtObject {
         id: style
-        property int animDuration: 380         
-        property int fadeDuration: 280         
-        property var bounceEasing: Easing.OutBack
-        property var fadeEasing: Easing.OutCubic
-        property real overshoot: 1.5
+        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 240) : 200
+        property int fadeDuration: 180
+        property var smoothEasing: Easing.OutCubic
+    }
+
+    function mixColor(c1, c2, ratio, alphaVal) {
+        let col1 = Qt.color(c1)
+        let col2 = Qt.color(c2)
+        let r = col1.r * (1 - ratio) + col2.r * ratio
+        let g = col1.g * (1 - ratio) + col2.g * ratio
+        let b = col1.b * (1 - ratio) + col2.b * ratio
+        return Qt.rgba(r, g, b, alphaVal)
     }
 
     property string searchQuery: ""
-    property string searchMode: "apps"
-    property string activeSearchQuery: ""
+    property int selectedIndex: 0
 
     property var pinnedApps: []
+    property var allApps: []
 
     FileView {
         id: pinnedFile
@@ -75,16 +85,22 @@ Scope {
                     let d = JSON.parse(content)
                     if (Array.isArray(d)) root.pinnedApps = d
                 }
-            } catch(e) {}
+            } catch (e) {}
             root.updatePinnedModel()
         }
     }
 
     Process { id: savePinnedProcess }
     function savePinnedApps() {
+        let path = Quickshell.env("HOME") + "/.config/quickshell/json/pinned_apps.json"
         let jsonStr = JSON.stringify(root.pinnedApps)
         savePinnedProcess.running = false
-        savePinnedProcess.command = ["bash", "-c", "mkdir -p ~/.config/quickshell/json && echo '" + jsonStr.replace(/'/g, "'\\''") + "' > ~/.config/quickshell/json/pinned_apps.json"]
+        savePinnedProcess.command = [
+            "python3", "-c",
+            "import sys, os; os.makedirs(os.path.dirname(sys.argv[1]), exist_ok=True); open(sys.argv[1], 'w', encoding='utf-8').write(sys.argv[2])",
+            path,
+            jsonStr
+        ]
         savePinnedProcess.running = true
     }
 
@@ -133,96 +149,8 @@ Scope {
                 drawerModel.append(app)
             }
         }
+        root.selectedIndex = drawerModel.count > 0 ? 0 : -1
         root.updatePinnedModel()
-    }
-
-    Timer {
-        id: debounceSearchTimer
-        interval: 80
-        repeat: false
-        property string pendingQuery: ""
-        onTriggered: {
-            performFileSearch(pendingQuery)
-        }
-    }
-
-    Process {
-        id: fileSearchProcess
-        stdout: StdioCollector {
-            onStreamFinished: {
-                if (debounceSearchTimer.pendingQuery.trim().toLowerCase() !== root.activeSearchQuery) return
-
-                let lines = text.split('\n')
-                let activeQ = root.activeSearchQuery.toLowerCase()
-
-                for (let i = 0; i < lines.length; i++) {
-                    let line = lines[i].trim()
-                    if (line !== "") {
-                        let parts = line.split('|')
-                        if (parts.length >= 4) {
-                            let fname = parts[2].trim()
-                            let fnameLower = fname.toLowerCase()
-                            let cleanFname = fnameLower.replace(/^\./, '')
-
-                            if (fnameLower.includes(activeQ) || cleanFname.includes(activeQ)) {
-                                fileModel.append({
-                                    "itemType": parts[0],
-                                    "filePath": parts[1],
-                                    "displayName": parts[2],
-                                    "fileName": parts[1].split('/').pop(),
-                                    "iconName": parts[3],
-                                    "isDir": false
-                                })
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    function triggerFileSearch() {
-        debounceSearchTimer.pendingQuery = root.searchQuery
-        debounceSearchTimer.restart()
-    }
-
-    function performFileSearch(query) {
-        let q = query ? query.trim().toLowerCase() : ""
-        root.activeSearchQuery = q
-        fileModel.clear()
-
-        if (q === "") {
-            if (fileSearchProcess.running) {
-                fileSearchProcess.running = false
-            }
-            return
-        }
-
-        if (fileSearchProcess.running) {
-            fileSearchProcess.running = false
-        }
-
-        // OPTIMIZATION: Exclude hidden directories (-not -path '*/\.*') to drastically speed up bash find execution
-        let bashCmd = `
-            q='` + q.replace(/'/g, "'\\''") + `'
-            find "$HOME" -maxdepth 5 -not -path '*/\.*' -type f -iname "*$q*" 2>/dev/null | head -n 60 | while read -r f; do
-                fname=$(basename "$f")
-                ext="\${fname##*.}"
-                case "\${ext,,}" in
-                    pdf) icon="application-pdf" ;;
-                    png|jpg|jpeg|webp|gif|svg) icon="image-x-generic" ;;
-                    zip|tar|gz|xz|7z|bz2|iso) icon="package-x-generic" ;;
-                    txt|md|log|csv|json|py|sh|c|cpp|rs|qml|html|js|lua|conf|cfg) icon="text-x-generic" ;;
-                    mp3|flac|wav|ogg|m4a) icon="audio-x-generic" ;;
-                    mp4|mkv|mov|avi) icon="video-x-generic" ;;
-                    doc|docx|odt|xls|xlsx|ppt|pptx) icon="x-office-document" ;;
-                    *) icon="text-x-generic" ;;
-                esac
-                echo "file|$f|$fname|$icon"
-            done
-        `
-        fileSearchProcess.command = ["bash", "-c", bashCmd]
-        fileSearchProcess.running = true
     }
 
     FileView {
@@ -233,20 +161,14 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let borderLine = content.split('\n').find(l => l.includes('active_border'))
-                if (borderLine) {
-                    let match = borderLine.match(/([a-fA-F0-9]{6})/)
-                    if (match && match[1]) {
-                        root.themeBorder = "#" + match[1]
-                        root.themePrimary = "#" + match[1]
-                    }
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (match && match[1]) {
+                    root.themeBorder = "#" + match[1]
+                    root.themePrimary = "#" + match[1]
                 }
-                let bgLine = content.split('\n').find(l => l.includes('background'))
-                if (bgLine) {
-                    let match = bgLine.match(/([a-fA-F0-9]{6})/)
-                    if (match && match[1]) {
-                        root.themeBackground = "#" + match[1]
-                    }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) {
+                    root.themeBackground = "#" + bgMatch[1]
                 }
             } catch (e) {}
         }
@@ -276,26 +198,26 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
             } catch (e) {}
         }
     }
 
-    property var allApps: []
-
     function readJsonSync(path, fallback) {
-        var xhr = new XMLHttpRequest();
-        xhr.open("GET", "file://" + path, false); 
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", "file://" + path, false)
         try {
-            xhr.send();
+            xhr.send()
             if (xhr.status === 200 || xhr.status === 0) {
                 if (xhr.responseText.trim() !== "") {
-                    return JSON.parse(xhr.responseText);
+                    return JSON.parse(xhr.responseText)
                 }
             }
         } catch (e) {}
-        return fallback;
+        return fallback
     }
 
     FileView {
@@ -320,15 +242,17 @@ Scope {
 import os, glob, json, re
 
 def find_icon(icon_name):
-    if icon_name.startswith('/'): return icon_name
-    exts = ['.svg', '.png', '.xpm']
+    if not icon_name: return "application-x-executable"
+    if icon_name.startswith("/"): return icon_name
+    exts = [".svg", ".png", ".xpm"]
     dirs = [
-        os.path.expanduser('~/.local/share/icons/WhiteSur/apps/scalable'),
-        os.path.expanduser('~/.local/share/icons/WhiteSur/apps/48'),
-        os.path.expanduser('~/.local/share/icons/WhiteSur/devices/scalable'),
-        '/usr/share/icons/hicolor/scalable/apps',
-        '/usr/share/icons/hicolor/48x48/apps',
-        '/usr/share/pixmaps'
+        os.path.expanduser("~/.local/share/icons/WhiteSur/apps/scalable"),
+        os.path.expanduser("~/.local/share/icons/WhiteSur/apps/48"),
+        os.path.expanduser("~/.local/share/icons/WhiteSur/devices/scalable"),
+        "/usr/share/icons/hicolor/scalable/apps",
+        "/usr/share/icons/hicolor/128x128/apps",
+        "/usr/share/icons/hicolor/48x48/apps",
+        "/usr/share/pixmaps"
     ]
     for d in dirs:
         for ext in exts:
@@ -338,47 +262,55 @@ def find_icon(icon_name):
 
 apps = []
 seen = set()
-app_dirs = ['/usr/share/applications', os.path.expanduser('~/.local/share/applications'), '/var/lib/flatpak/exports/share/applications', os.path.expanduser('~/.local/share/flatpak/exports/share/applications')]
+app_dirs = [
+    "/usr/share/applications",
+    os.path.expanduser("~/.local/share/applications"),
+    "/var/lib/flatpak/exports/share/applications",
+    os.path.expanduser("~/.local/share/flatpak/exports/share/applications")
+]
 
 for d in app_dirs:
     if not os.path.exists(d): continue
-    for f in glob.glob(d + '/*.desktop'):
+    for f in glob.glob(d + "/*.desktop"):
         try:
-            with open(f, 'r', encoding='utf-8') as file:
+            with open(f, "r", encoding="utf-8", errors="ignore") as file:
                 content = file.read()
-                if 'NoDisplay=true' in content or 'Hidden=true' in content: continue
-                name = next((l.split('=',1)[1].strip() for l in content.split('\\n') if l.startswith('Name=')), '')
-                icon = next((l.split('=',1)[1].strip() for l in content.split('\\n') if l.startswith('Icon=')), 'application-x-executable')
-                exec_l = next((l.split('=',1)[1].strip() for l in content.split('\\n') if l.startswith('Exec=')), '')
-                cmd_clean = re.sub('%[fFuUikKc]', '', exec_l).strip()
-                wm_class = next((l.split('=',1)[1].strip() for l in content.split('\\n') if l.startswith('StartupWMClass=')), '')
+                if "NoDisplay=true" in content or "Hidden=true" in content: continue
+                name = next((l.split("=",1)[1].strip() for l in content.split("\\n") if l.startswith("Name=")), "")
+                icon = next((l.split("=",1)[1].strip() for l in content.split("\\n") if l.startswith("Icon=")), "application-x-executable")
+                exec_l = next((l.split("=",1)[1].strip() for l in content.split("\\n") if l.startswith("Exec=")), "")
+                cmd_clean = re.sub("%[fFuUikKc]", "", exec_l).strip()
+                wm_class = next((l.split("=",1)[1].strip() for l in content.split("\\n") if l.startswith("StartupWMClass=")), "")
                 if not wm_class:
                     wm_class = os.path.splitext(os.path.basename(f))[0]
-                
-                if not icon.startswith('/'):
-                    if icon.lower().endswith(('.png', '.svg', '.xpm')): icon = icon.rsplit('.', 1)[0]
-                
-                if 'blueman' in icon.lower(): icon = 'blueman'
-                elif 'bluetooth' in icon.lower(): icon = 'bluetooth'
-                
+
+                if not icon.startswith("/"):
+                    if icon.lower().endswith((".png", ".svg", ".xpm")):
+                        icon = icon.rsplit(".", 1)[0]
+
+                if "blueman" in icon.lower(): icon = "blueman"
+                elif "bluetooth" in icon.lower(): icon = "bluetooth"
+
                 final_icon = find_icon(icon)
-                
+
                 if name and name.lower() not in seen:
                     seen.add(name.lower())
                     apps.append({
-                        'itemType': 'app',
-                        'filePath': f,
-                        'displayName': name,
-                        'fileName': os.path.basename(f),
-                        'iconName': final_icon,
-                        'cmd': cmd_clean if cmd_clean else name.lower(),
-                        'wmClass': wm_class,
-                        'process': wm_class
+                        "itemType": "app",
+                        "filePath": f,
+                        "displayName": name,
+                        "fileName": os.path.basename(f),
+                        "iconName": final_icon,
+                        "cmd": cmd_clean if cmd_clean else name.lower(),
+                        "wmClass": wm_class,
+                        "process": wm_class
                     })
-        except: pass
-apps.sort(key=lambda x: x['displayName'].lower())
-os.makedirs(os.path.expanduser('~/.config/quickshell/json'), exist_ok=True)
-with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') as out:
+        except Exception:
+            pass
+
+apps.sort(key=lambda x: x["displayName"].lower())
+os.makedirs(os.path.expanduser("~/.config/quickshell/json"), exist_ok=True)
+with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", encoding="utf-8") as out:
     json.dump(apps, out)
         `]
         onExited: { appCacheFile.reload() }
@@ -396,23 +328,20 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
         if (Array.isArray(cachedPinned)) {
             root.pinnedApps = cachedPinned
         }
-        
-        // OPTIMIZATION: Only build cache in background if it doesn't exist
+
         let cachedApps = readJsonSync(Quickshell.env("HOME") + "/.config/quickshell/json/app_cache.json", [])
         if (cachedApps && cachedApps.length > 0) {
             root.allApps = cachedApps
             root.filterApps()
             appCacheFile.reload()
-        } else {
-            cacheBuilder.running = true 
         }
+        cacheBuilder.running = true
     }
 
     ListModel { id: drawerModel }
     ListModel { id: pinnedModel }
-    ListModel { id: fileModel }
 
-    Timer { id: closeTimer; interval: 60; onTriggered: Qt.quit() }
+    Timer { id: closeTimer; interval: 80; onTriggered: Qt.quit() }
     Process { id: launchProcess }
 
     function escapeShell(arg) {
@@ -420,13 +349,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
     }
 
     function executeItem(filePath) {
-        let cmd = ""
-        if (filePath.endsWith(".desktop")) {
-            let desktopBase = filePath.split('/').pop()
-            cmd = "gtk-launch " + escapeShell(desktopBase) + " 2>/dev/null || gio launch " + escapeShell(filePath) + " 2>/dev/null || xdg-open " + escapeShell(filePath) + " & disown"
-        } else {
-            cmd = "xdg-open " + escapeShell(filePath) + " & disown"
-        }
+        if (!filePath) return
+        let desktopBase = filePath.split("/").pop()
+        let cmd = "(gtk-launch " + escapeShell(desktopBase) + " 2>/dev/null || gio launch " + escapeShell(filePath) + " 2>/dev/null || xdg-open " + escapeShell(filePath) + ") >/dev/null 2>&1 & disown"
+        launchProcess.running = false
         launchProcess.command = ["bash", "-c", cmd]
         launchProcess.running = true
         closeTimer.start()
@@ -457,12 +383,12 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
             color: "transparent"
 
             Item {
-                id: rootWindowItem 
+                id: rootWindowItem
                 anchors.fill: parent
 
-                Shortcut { 
-                    sequence: "Escape" 
-                    onActivated: Qt.quit() 
+                Shortcut {
+                    sequence: "Escape"
+                    onActivated: Qt.quit()
                 }
 
                 MouseArea {
@@ -472,31 +398,29 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                 Rectangle {
                     id: mainContainer
-                    width: Math.min(1000, parent.width - 80)
-                    height: Math.min(780, parent.height - 80)
+                    width: Math.min(980, parent.width - 80)
+                    height: Math.min(740, parent.height - 80)
                     anchors.centerIn: parent
 
                     radius: root.themeRounding
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themePrimary, 0.40)
+                    border.color: Qt.alpha(root.themePrimary, 0.42)
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     antialiasing: true
+                    clip: true
 
-                    scale: window.visible ? 1.0 : 0.85
-                    opacity: window.visible ? 1.0 : 0.0
-
-                    Behavior on scale {
-                        NumberAnimation {
-                            duration: root.animEnabled ? style.animDuration : 0
-                            easing.type: style.bounceEasing
-                            easing.overshoot: style.overshoot
-                        }
+                    property bool shown: false
+                    Component.onCompleted: {
+                        shown = true
+                        searchInput.forceActiveFocus()
                     }
+
+                    opacity: shown ? 1.0 : 0.0
 
                     Behavior on opacity {
                         NumberAnimation {
                             duration: root.animEnabled ? style.fadeDuration : 0
-                            easing.type: style.fadeEasing
+                            easing.type: style.smoothEasing
                         }
                     }
 
@@ -507,98 +431,131 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 28
+                        anchors.margins: 24
                         spacing: 16
 
                         Rectangle {
                             id: searchBarContainer
                             Layout.fillWidth: true
-                            Layout.preferredHeight: 56
-                            radius: 18
-                            color: Qt.rgba(0, 0, 0, 0.35)
-                            border.width: searchInput.activeFocus ? 2 : 1
-                            border.color: searchInput.activeFocus ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                            Layout.preferredHeight: 54
+                            radius: Math.max(12, root.themeRounding - 6)
+                            color: Qt.rgba(0.02, 0.02, 0.03, 0.58)
+                            border.width: searchInput.activeFocus ? 1.5 : 1
+                            border.color: searchInput.activeFocus ? Qt.alpha(root.themePrimary, 0.70) : Qt.rgba(1, 1, 1, 0.14)
                             antialiasing: true
 
-                            scale: searchInput.activeFocus ? 1.01 : 1.0
-
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: root.animEnabled ? style.animDuration : 0
-                                    easing.type: style.bounceEasing
-                                    easing.overshoot: 1.2
-                                }
-                            }
-
                             Behavior on border.color {
-                                ColorAnimation { duration: style.fadeDuration }
+                                ColorAnimation {
+                                    duration: style.fadeDuration
+                                    easing.type: style.smoothEasing
+                                }
                             }
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: 18
-                                anchors.rightMargin: 10
+                                anchors.leftMargin: 14
+                                anchors.rightMargin: 14
                                 spacing: 12
 
-                                Text {
-                                    text: root.searchMode === "apps" ? "🔍" : "📁"
-                                    font.pixelSize: 18
+                                Rectangle {
+                                    width: 34
+                                    height: 34
+                                    radius: 9
+                                    color: Qt.alpha(root.themePrimary, 0.16)
+                                    border.width: 1
+                                    border.color: Qt.alpha(root.themePrimary, 0.35)
                                     Layout.alignment: Qt.AlignVCenter
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰍉"
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 16
+                                        color: root.themePrimary
+                                    }
                                 }
 
                                 TextField {
                                     id: searchInput
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
-                                    placeholderText: root.searchMode === "apps" ? "Search apps starting with..." : "Search files starting with..."
-                                    placeholderTextColor: Qt.rgba(1.0, 1.0, 1.0, 0.45)
-                                    color: "#FFFFFF"
-                                    font.pixelSize: 16
+                                    placeholderText: "Search applications..."
+                                    placeholderTextColor: Qt.rgba(1.0, 1.0, 1.0, 0.38)
+                                    color: root.themeText
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 14
                                     font.weight: Font.DemiBold
+                                    selectionColor: Qt.alpha(root.themePrimary, 0.35)
+                                    selectedTextColor: root.themeText
                                     background: Item {}
                                     focus: true
 
                                     onTextChanged: {
                                         root.searchQuery = text
-                                        if (root.searchMode === "apps") {
-                                            root.filterApps()
-                                        } else {
-                                            root.triggerFileSearch()
-                                        }
+                                        root.filterApps()
                                     }
 
-                                    Keys.onEscapePressed: Qt.quit()
+                                    Keys.onPressed: (event) => {
+                                        if (event.key === Qt.Key_Escape) {
+                                            Qt.quit()
+                                            event.accepted = true
+                                        } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                                            if (root.selectedIndex >= 0 && root.selectedIndex < drawerModel.count) {
+                                                root.executeItem(drawerModel.get(root.selectedIndex).filePath)
+                                            }
+                                            event.accepted = true
+                                        } else if (drawerModel.count > 0) {
+                                            let cols = Math.max(1, Math.floor(appGrid.width / appGrid.cellWidth))
+                                            if (event.key === Qt.Key_Right) {
+                                                root.selectedIndex = Math.min(drawerModel.count - 1, root.selectedIndex + 1)
+                                                appGrid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+                                                event.accepted = true
+                                            } else if (event.key === Qt.Key_Left) {
+                                                root.selectedIndex = Math.max(0, root.selectedIndex - 1)
+                                                appGrid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+                                                event.accepted = true
+                                            } else if (event.key === Qt.Key_Down) {
+                                                root.selectedIndex = Math.min(drawerModel.count - 1, root.selectedIndex + cols)
+                                                appGrid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+                                                event.accepted = true
+                                            } else if (event.key === Qt.Key_Up) {
+                                                root.selectedIndex = Math.max(0, root.selectedIndex - cols)
+                                                appGrid.positionViewAtIndex(root.selectedIndex, GridView.Contain)
+                                                event.accepted = true
+                                            }
+                                        }
+                                    }
                                 }
 
                                 Rectangle {
                                     width: 28
                                     height: 28
-                                    radius: 14
-                                    color: clearMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.2) : Qt.rgba(0, 0, 0, 0.3)
+                                    radius: 8
+                                    color: clearMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.06)
                                     border.width: 1
-                                    border.color: Qt.rgba(255, 255, 255, 0.12)
+                                    border.color: Qt.rgba(1, 1, 1, 0.12)
                                     antialiasing: true
                                     visible: searchInput.text !== ""
-                                    scale: visible ? 1.0 : 0.0
 
-                                    Behavior on scale {
-                                        NumberAnimation {
-                                            duration: style.animDuration
-                                            easing.type: style.bounceEasing
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: style.fadeDuration
+                                            easing.type: style.smoothEasing
                                         }
                                     }
 
                                     Text {
-                                        text: "✕"
-                                        color: "#FFFFFF"
+                                        text: "󰅖"
+                                        font.family: root.fontFamily
+                                        color: root.themeTextMuted
                                         anchors.centerIn: parent
-                                        font.pixelSize: 12
-                                        font.weight: Font.Bold
+                                        font.pixelSize: 13
                                     }
 
                                     MouseArea {
                                         id: clearMouse
                                         anchors.fill: parent
+                                        hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: {
                                             searchInput.text = ""
@@ -608,89 +565,23 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 }
 
                                 Rectangle {
-                                    id: modeSegment
-                                    Layout.preferredWidth: 160
-                                    Layout.preferredHeight: 38
-                                    radius: 12
-                                    color: Qt.rgba(0, 0, 0, 0.4)
+                                    visible: drawerModel.count > 0
+                                    Layout.preferredWidth: countBadgeText.implicitWidth + 16
+                                    Layout.preferredHeight: 28
+                                    radius: 8
+                                    color: Qt.alpha(root.themePrimary, 0.15)
                                     border.width: 1
-                                    border.color: Qt.rgba(255, 255, 255, 0.12)
+                                    border.color: Qt.alpha(root.themePrimary, 0.35)
                                     antialiasing: true
 
-                                    Rectangle {
-                                        id: activePill
-                                        width: (parent.width - 6) / 2
-                                        height: parent.height - 6
-                                        y: 3
-                                        x: root.searchMode === "apps" ? 3 : (parent.width / 2) + 0
-                                        radius: 10
-                                        color: Qt.alpha(root.themePrimary, 0.35)
-                                        border.color: root.themePrimary
-                                        border.width: 1
-                                        antialiasing: true
-
-                                        Behavior on x {
-                                            NumberAnimation {
-                                                duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.bounceEasing
-                                                easing.overshoot: style.overshoot
-                                            }
-                                        }
-                                    }
-
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        spacing: 0
-
-                                        Item {
-                                            Layout.fillWidth: true
-                                            Layout.fillHeight: true
-
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: "Apps"
-                                                color: root.searchMode === "apps" ? "#FFFFFF" : root.themeTextMuted
-                                                font.weight: Font.Bold
-                                                font.pixelSize: 13
-                                                style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                            }
-
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    root.searchMode = "apps"
-                                                    root.filterApps()
-                                                    searchInput.forceActiveFocus()
-                                                }
-                                            }
-                                        }
-
-                                        Item {
-                                            Layout.fillWidth: true
-                                            Layout.fillHeight: true
-
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: "Files"
-                                                color: root.searchMode === "files" ? "#FFFFFF" : root.themeTextMuted
-                                                font.weight: Font.Bold
-                                                font.pixelSize: 13
-                                                style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                            }
-
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    root.searchMode = "files"
-                                                    root.triggerFileSearch()
-                                                    searchInput.forceActiveFocus()
-                                                }
-                                            }
-                                        }
+                                    Text {
+                                        id: countBadgeText
+                                        anchors.centerIn: parent
+                                        text: drawerModel.count + " apps"
+                                        color: root.themePrimary
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 11
+                                        font.weight: Font.Bold
                                     }
                                 }
                             }
@@ -699,26 +590,56 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                         Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: (root.searchMode === "apps" && drawerModel.count === 0 && pinnedModel.count === 0) || (root.searchMode === "files" && fileModel.count === 0)
+                            visible: drawerModel.count === 0 && (root.searchQuery !== "" || pinnedModel.count === 0)
 
                             ColumnLayout {
                                 anchors.centerIn: parent
                                 spacing: 12
-                                
-                                Text {
-                                    text: root.searchMode === "apps" ? "🚫" : "🔎"
-                                    font.pixelSize: 56
-                                    color: Qt.alpha(root.themeTextMuted, 0.4)
+
+                                Rectangle {
                                     Layout.alignment: Qt.AlignHCenter
+                                    width: 60
+                                    height: 60
+                                    radius: 18
+                                    color: Qt.rgba(0.02, 0.02, 0.03, 0.55)
+                                    border.width: 1
+                                    border.color: Qt.alpha(root.themePrimary, 0.28)
+                                    antialiasing: true
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰀻"
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 26
+                                        color: root.themePrimary
+                                        opacity: 0.75
+                                    }
                                 }
-                                Text {
-                                    text: root.searchMode === "apps" ? "No applications found" : (root.searchQuery === "" ? "Type to search system files..." : "No matching files found")
-                                    font.pixelSize: 16
-                                    font.weight: Font.Bold
-                                    color: root.themeTextMuted
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
+
+                                ColumnLayout {
+                                    spacing: 4
                                     Layout.alignment: Qt.AlignHCenter
+
+                                    Text {
+                                        text: "No Applications Found"
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 15
+                                        font.weight: Font.Bold
+                                        color: root.themeText
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                        Layout.alignment: Qt.AlignHCenter
+                                    }
+
+                                    Text {
+                                        text: "Try a different application name"
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 11
+                                        color: root.themeTextMuted
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                        Layout.alignment: Qt.AlignHCenter
+                                    }
                                 }
                             }
                         }
@@ -727,36 +648,44 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                             id: appsViewContainer
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: root.searchMode === "apps" && (drawerModel.count > 0 || pinnedModel.count > 0)
-                            spacing: 12
+                            visible: drawerModel.count > 0 || (root.searchQuery === "" && pinnedModel.count > 0)
+                            spacing: 14
 
                             Rectangle {
                                 id: pinnedSectionCard
                                 Layout.fillWidth: true
                                 visible: root.searchQuery === "" && pinnedModel.count > 0
-                                implicitHeight: pinnedColumn.implicitHeight + 20
-                                radius: 18
-                                color: Qt.rgba(0, 0, 0, 0.35)
+                                implicitHeight: pinnedColumn.implicitHeight + 24
+                                radius: Math.max(12, root.themeRounding - 6)
+                                color: Qt.rgba(0.02, 0.02, 0.03, 0.50)
                                 border.width: 1
-                                border.color: Qt.rgba(255, 255, 255, 0.12)
+                                border.color: Qt.rgba(1, 1, 1, 0.12)
                                 antialiasing: true
 
                                 ColumnLayout {
                                     id: pinnedColumn
                                     anchors.fill: parent
                                     anchors.margins: 12
-                                    spacing: 8
+                                    spacing: 10
 
                                     RowLayout {
                                         Layout.fillWidth: true
                                         spacing: 8
 
                                         Text {
-                                            text: "󰤱 PINNED"
+                                            text: "󰐃"
                                             color: root.themePrimary
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 13
+                                        }
+
+                                        Text {
+                                            text: "PINNED"
+                                            color: root.themePrimary
+                                            font.family: root.fontFamily
                                             font.pixelSize: 11
                                             font.weight: Font.Bold
-                                            font.letterSpacing: 1.2
+                                            font.letterSpacing: 1.0
                                             style: Text.Raised
                                             styleColor: Qt.rgba(0, 0, 0, 0.7)
                                         }
@@ -764,16 +693,18 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                         Rectangle {
                                             width: pinnedCountText.implicitWidth + 12
                                             height: 18
-                                            radius: 9
-                                            color: Qt.alpha(root.themePrimary, 0.22)
+                                            radius: 6
+                                            color: Qt.alpha(root.themePrimary, 0.18)
                                             border.width: 1
                                             border.color: Qt.alpha(root.themePrimary, 0.4)
                                             antialiasing: true
+
                                             Text {
                                                 id: pinnedCountText
                                                 anchors.centerIn: parent
-                                                text: pinnedModel.count
+                                                text: pinnedModel.count.toString()
                                                 color: root.themePrimary
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 10
                                                 font.weight: Font.Bold
                                             }
@@ -782,9 +713,10 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                         Item { Layout.fillWidth: true }
 
                                         Text {
-                                            text: "Double right-click to unpin"
+                                            text: "Right-click to unpin"
                                             color: root.themeTextMuted
-                                            font.pixelSize: 11
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 10
                                             font.weight: Font.Medium
                                             style: Text.Raised
                                             styleColor: Qt.rgba(0, 0, 0, 0.65)
@@ -794,7 +726,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                     Flickable {
                                         id: pinnedFlickable
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: 116
+                                        Layout.preferredHeight: 108
                                         contentWidth: pinnedRow.implicitWidth
                                         clip: true
                                         boundsBehavior: Flickable.StopAtBounds
@@ -813,28 +745,31 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                                 model: pinnedModel
 
                                                 delegate: Item {
-                                                    width: 92
-                                                    height: 114
+                                                    width: 102
+                                                    height: 106
 
                                                     Rectangle {
                                                         anchors.fill: parent
-                                                        radius: 16
-                                                        color: pMouseArea.containsMouse ? root.themeSurfaceHover : Qt.rgba(0, 0, 0, 0.25)
+                                                        radius: 14
+                                                        color: pMouseArea.containsMouse
+                                                               ? root.mixColor(root.themeBackground, root.themePrimary, 0.20, 0.65)
+                                                               : "transparent"
                                                         border.width: 1
-                                                        border.color: pMouseArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.08)
+                                                        border.color: pMouseArea.containsMouse ? Qt.alpha(root.themePrimary, 0.60) : "transparent"
                                                         antialiasing: true
 
-                                                        scale: pMouseArea.pressed ? 0.94 : (pMouseArea.containsMouse ? 1.05 : 1.0)
-
-                                                        Behavior on scale {
-                                                            NumberAnimation {
-                                                                duration: root.animEnabled ? style.animDuration : 0
-                                                                easing.type: style.bounceEasing
-                                                                easing.overshoot: style.overshoot
+                                                        Behavior on color {
+                                                            ColorAnimation {
+                                                                duration: style.fadeDuration
+                                                                easing.type: style.smoothEasing
                                                             }
                                                         }
-                                                        Behavior on color { ColorAnimation { duration: style.fadeDuration } }
-                                                        Behavior on border.color { ColorAnimation { duration: style.fadeDuration } }
+                                                        Behavior on border.color {
+                                                            ColorAnimation {
+                                                                duration: style.fadeDuration
+                                                                easing.type: style.smoothEasing
+                                                            }
+                                                        }
 
                                                         ColumnLayout {
                                                             anchors.fill: parent
@@ -847,11 +782,11 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                                                 Layout.preferredHeight: 46
 
                                                                 ToolButton {
-                                                                    anchors.fill: parent
+                                                                    anchors.centerIn: parent
                                                                     visible: !model.iconName.startsWith("/")
                                                                     icon.name: !model.iconName.startsWith("/") ? model.iconName : ""
-                                                                    icon.width: 46
-                                                                    icon.height: 46
+                                                                    icon.width: 44
+                                                                    icon.height: 44
                                                                     icon.color: "transparent"
                                                                     background: Item {}
                                                                     hoverEnabled: false
@@ -860,30 +795,34 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                                                 }
 
                                                                 Image {
-                                                                    anchors.fill: parent
+                                                                    anchors.centerIn: parent
                                                                     visible: model.iconName.startsWith("/")
                                                                     source: model.iconName.startsWith("/") ? "file://" + model.iconName : ""
-                                                                    sourceSize: Qt.size(46, 46)
+                                                                    sourceSize: Qt.size(88, 88)
+                                                                    width: 44
+                                                                    height: 44
                                                                     fillMode: Image.PreserveAspectFit
+                                                                    smooth: true
                                                                     antialiasing: true
                                                                 }
                                                             }
 
                                                             Text {
                                                                 text: model.displayName
-                                                                color: "#FFFFFF"
+                                                                color: root.themeText
+                                                                font.family: root.fontFamily
                                                                 font.pixelSize: 11
                                                                 font.weight: Font.Bold
                                                                 horizontalAlignment: Text.AlignHCenter
-                                                                verticalAlignment: Text.AlignTop
-                                                                wrapMode: Text.WordWrap
+                                                                verticalAlignment: Text.AlignVCenter
+                                                                wrapMode: Text.Wrap
                                                                 elide: Text.ElideRight
                                                                 maximumLineCount: 2
-                                                                lineHeight: 1.15
+                                                                lineHeight: 1.1
                                                                 Layout.fillWidth: true
-                                                                Layout.preferredHeight: 30
+                                                                Layout.fillHeight: true
                                                                 style: Text.Raised
-                                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                                                styleColor: Qt.rgba(0, 0, 0, 0.8)
                                                             }
                                                         }
 
@@ -895,14 +834,9 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                                             cursorShape: Qt.PointingHandCursor
                                                             onClicked: (mouse) => {
                                                                 if (mouse.button === Qt.LeftButton) {
-                                                                    executeItem(model.filePath)
-                                                                }
-                                                            }
-                                                            onDoubleClicked: (mouse) => {
-                                                                if (mouse.button === Qt.RightButton) {
+                                                                    root.executeItem(model.filePath)
+                                                                } else if (mouse.button === Qt.RightButton) {
                                                                     root.togglePin(model.filePath)
-                                                                } else if (mouse.button === Qt.LeftButton) {
-                                                                    executeItem(model.filePath)
                                                                 }
                                                             }
                                                         }
@@ -921,10 +855,11 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
 
                                 Text {
                                     text: "ALL APPLICATIONS"
-                                    color: "#FFFFFF"
+                                    color: root.themeTextMuted
+                                    font.family: root.fontFamily
                                     font.pixelSize: 11
                                     font.weight: Font.Bold
-                                    font.letterSpacing: 1.2
+                                    font.letterSpacing: 1.0
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
@@ -932,7 +867,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 Rectangle {
                                     Layout.fillWidth: true
                                     height: 1
-                                    color: Qt.rgba(255, 255, 255, 0.12)
+                                    color: Qt.rgba(1, 1, 1, 0.10)
                                 }
                             }
 
@@ -940,18 +875,26 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                 id: appGrid
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
-                                
+
                                 model: drawerModel
                                 clip: true
+                                boundsBehavior: Flickable.StopAtBounds
 
-                                cellWidth: 110
-                                cellHeight: 150
+                                cellWidth: 116
+                                cellHeight: 124
 
                                 leftMargin: Math.max(0, (width - (Math.floor(width / cellWidth) * cellWidth)) / 2)
 
                                 ScrollBar.vertical: ScrollBar {
-                                    active: appGrid.moving || appGrid.flicking
+                                    id: appScroll
+                                    visible: appGrid.visible && appScroll.size < 1.0
+                                    active: appGrid.moving || appGrid.flicking || hovered
                                     policy: ScrollBar.AsNeeded
+                                    contentItem: Rectangle {
+                                        implicitWidth: 4
+                                        radius: 2
+                                        color: appScroll.pressed ? root.themePrimary : Qt.alpha(root.themeTextMuted, 0.35)
+                                    }
                                 }
 
                                 delegate: Item {
@@ -959,48 +902,54 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                     width: appGrid.cellWidth
                                     height: appGrid.cellHeight
 
+                                    property bool isHighlighted: appMouseArea.containsMouse || (index === root.selectedIndex)
+
                                     Rectangle {
                                         anchors.centerIn: parent
-                                        width: 100
-                                        height: 140
-                                        radius: 18
-                                        color: appMouseArea.containsMouse ? root.themeSurfaceHover : "transparent"
+                                        width: 106
+                                        height: 114
+                                        radius: 14
+                                        color: gridDelegate.isHighlighted
+                                               ? root.mixColor(root.themeBackground, root.themePrimary, 0.20, 0.65)
+                                               : "transparent"
                                         border.width: 1
-                                        border.color: appMouseArea.containsMouse ? root.themePrimary : "transparent"
+                                        border.color: gridDelegate.isHighlighted
+                                                      ? Qt.alpha(root.themePrimary, 0.60)
+                                                      : "transparent"
                                         antialiasing: true
 
-                                        scale: appMouseArea.pressed ? 0.94 : (appMouseArea.containsMouse ? 1.06 : 1.0)
-                                        
-                                        Behavior on scale { 
-                                            NumberAnimation { 
-                                                duration: root.animEnabled ? style.animDuration : 0
-                                                easing.type: style.bounceEasing
-                                                easing.overshoot: style.overshoot
-                                            } 
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: style.fadeDuration
+                                                easing.type: style.smoothEasing
+                                            }
                                         }
-                                        Behavior on color { 
-                                            ColorAnimation { duration: style.fadeDuration } 
-                                        }
-                                        Behavior on border.color { 
-                                            ColorAnimation { duration: style.fadeDuration } 
+                                        Behavior on border.color {
+                                            ColorAnimation {
+                                                duration: style.fadeDuration
+                                                easing.type: style.smoothEasing
+                                            }
                                         }
 
                                         ColumnLayout {
                                             anchors.fill: parent
-                                            anchors.margins: 8
-                                            spacing: 8
+                                            anchors.topMargin: 12
+                                            anchors.bottomMargin: 8
+                                            anchors.leftMargin: 6
+                                            anchors.rightMargin: 6
+                                            spacing: 6
 
                                             Item {
                                                 Layout.alignment: Qt.AlignHCenter
-                                                Layout.preferredWidth: 56
-                                                Layout.preferredHeight: 56
+                                                Layout.preferredWidth: 52
+                                                Layout.preferredHeight: 52
 
                                                 ToolButton {
-                                                    anchors.fill: parent
+                                                    anchors.centerIn: parent
                                                     visible: !model.iconName.startsWith("/")
                                                     icon.name: !model.iconName.startsWith("/") ? model.iconName : ""
-                                                    icon.width: 56
-                                                    icon.height: 56
+                                                    icon.width: 48
+                                                    icon.height: 48
                                                     icon.color: "transparent"
                                                     background: Item {}
                                                     hoverEnabled: false
@@ -1009,29 +958,32 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                                 }
 
                                                 Image {
-                                                    anchors.fill: parent
+                                                    anchors.centerIn: parent
                                                     visible: model.iconName.startsWith("/")
                                                     source: model.iconName.startsWith("/") ? "file://" + model.iconName : ""
-                                                    sourceSize: Qt.size(56, 56)
+                                                    sourceSize: Qt.size(96, 96)
+                                                    width: 48
+                                                    height: 48
                                                     fillMode: Image.PreserveAspectFit
+                                                    smooth: true
                                                     antialiasing: true
                                                 }
                                             }
 
                                             Text {
                                                 text: model.displayName
-                                                color: "#FFFFFF"
-                                                font.pixelSize: 12
+                                                color: root.themeText
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 11
                                                 font.weight: Font.Bold
                                                 horizontalAlignment: Text.AlignHCenter
-                                                verticalAlignment: Text.AlignTop
-                                                wrapMode: Text.WordWrap
+                                                verticalAlignment: Text.AlignVCenter
+                                                wrapMode: Text.Wrap
                                                 elide: Text.ElideRight
-                                                maximumLineCount: 2 
-                                                lineHeight: 1.15
+                                                maximumLineCount: 2
+                                                lineHeight: 1.1
                                                 Layout.fillWidth: true
-                                                Layout.maximumWidth: 88
-                                                Layout.preferredHeight: 36
+                                                Layout.fillHeight: true
                                                 style: Text.Raised
                                                 styleColor: Qt.rgba(0, 0, 0, 0.85)
                                             }
@@ -1043,122 +995,16 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w') a
                                             hoverEnabled: true
                                             acceptedButtons: Qt.LeftButton | Qt.RightButton
                                             cursorShape: Qt.PointingHandCursor
+                                            onEntered: root.selectedIndex = index
                                             onClicked: (mouse) => {
                                                 if (mouse.button === Qt.LeftButton) {
-                                                    executeItem(model.filePath)
-                                                }
-                                            }
-                                            onDoubleClicked: (mouse) => {
-                                                if (mouse.button === Qt.RightButton) {
+                                                    root.executeItem(model.filePath)
+                                                } else if (mouse.button === Qt.RightButton) {
                                                     root.togglePin(model.filePath)
-                                                } else if (mouse.button === Qt.LeftButton) {
-                                                    executeItem(model.filePath)
                                                 }
                                             }
                                         }
                                     }
-                                }
-                            }
-                        }
-
-                        ListView {
-                            id: fileListView
-                            Layout.fillWidth: true
-                            Layout.fillHeight: true
-                            visible: root.searchMode === "files" && fileModel.count > 0
-                            
-                            model: fileModel
-                            clip: true
-                            spacing: 8
-
-                            ScrollBar.vertical: ScrollBar {
-                                active: fileListView.moving || fileListView.flicking
-                                policy: ScrollBar.AsNeeded
-                            }
-
-                            delegate: Rectangle {
-                                width: fileListView.width
-                                height: 52
-                                radius: 14
-                                color: fileMouseArea.containsMouse ? root.themeSurfaceHover : Qt.rgba(0, 0, 0, 0.3)
-                                border.width: 1
-                                border.color: fileMouseArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.1)
-                                antialiasing: true
-
-                                scale: fileMouseArea.pressed ? 0.98 : (fileMouseArea.containsMouse ? 1.02 : 1.0)
-
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? style.animDuration : 0
-                                        easing.type: style.bounceEasing
-                                        easing.overshoot: 1.2
-                                    }
-                                }
-                                Behavior on color { ColorAnimation { duration: style.fadeDuration } }
-
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 16
-                                    anchors.rightMargin: 16
-                                    spacing: 14
-
-                                    ToolButton {
-                                        Layout.preferredWidth: 26
-                                        Layout.preferredHeight: 26
-                                        Layout.alignment: Qt.AlignVCenter
-                                        visible: model.iconName !== undefined && model.iconName !== ""
-                                        icon.name: model.iconName ? (model.iconName.indexOf("/") === 0 ? "" : model.iconName) : ""
-                                        icon.source: model.iconName && model.iconName.indexOf("/") === 0 ? "file://" + model.iconName : ""
-                                        icon.width: 26
-                                        icon.height: 26
-                                        icon.color: "transparent"
-                                        background: Item {}
-                                        hoverEnabled: false
-                                        down: false
-                                        padding: 0
-                                    }
-
-                                    Text {
-                                        visible: !model.iconName
-                                        text: model.isDir ? "📁" : "📄"
-                                        font.pixelSize: 22
-                                        Layout.alignment: Qt.AlignVCenter
-                                    }
-
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 2
-
-                                        Text {
-                                            text: model.displayName
-                                            color: "#FFFFFF"
-                                            font.pixelSize: 14
-                                            font.weight: Font.Bold
-                                            elide: Text.ElideRight
-                                            Layout.fillWidth: true
-                                            style: Text.Raised
-                                            styleColor: Qt.rgba(0, 0, 0, 0.8)
-                                        }
-
-                                        Text {
-                                            text: model.filePath
-                                            color: root.themeTextMuted
-                                            font.pixelSize: 11
-                                            font.weight: Font.Medium
-                                            elide: Text.ElideMiddle
-                                            Layout.fillWidth: true
-                                            style: Text.Raised
-                                            styleColor: Qt.rgba(0, 0, 0, 0.6)
-                                        }
-                                    }
-                                }
-
-                                MouseArea {
-                                    id: fileMouseArea
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: executeItem(model.filePath)
                                 }
                             }
                         }

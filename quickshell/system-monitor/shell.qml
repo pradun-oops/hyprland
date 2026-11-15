@@ -344,13 +344,16 @@ while True:
     except: pass
 
     try:
-        gpu = subprocess.check_output("nvidia-smi --query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,gpu_name --format=csv,noheader,nounits", shell=True).decode().split(',')
+        gpu = subprocess.check_output("nvidia-smi --query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,gpu_name --format=csv,noheader,nounits 2>/dev/null", shell=True).decode().split(',')
         if len(gpu) >= 5:
-            data['gpu_usage'] = int(gpu[0].strip())
-            data['gpu_temp'] = int(gpu[1].strip())
-            data['gpu_mem_used'] = int(gpu[2].strip())
-            data['gpu_mem_total'] = int(gpu[3].strip())
+            data['gpu_usage'] = int(float(gpu[0].strip()))
+            data['gpu_temp'] = int(float(gpu[1].strip()))
+            data['gpu_mem_used'] = int(float(gpu[2].strip()))
+            data['gpu_mem_total'] = int(float(gpu[3].strip()))
             data['gpu_name'] = gpu[4].strip()
+        else:
+            data['gpu_usage'] = data['gpu_temp'] = data['gpu_mem_used'] = data['gpu_mem_total'] = 0
+            data['gpu_name'] = "No GPU Found"
     except:
         data['gpu_usage'] = data['gpu_temp'] = data['gpu_mem_used'] = data['gpu_mem_total'] = 0
         data['gpu_name'] = "No GPU Found"
@@ -480,7 +483,7 @@ while True:
                             RowLayout {
                                 Layout.fillWidth: true
                                 spacing: 12
-                                Text { text: ""; font.pixelSize: 24; color: root.themePrimary }
+                                Text { text: ""; font.pixelSize: 24; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
                                 ColumnLayout {
                                     spacing: 2
                                     Text { 
@@ -508,6 +511,7 @@ while True:
                                     Text { 
                                         text: (root.sysBatStat === "Charging" ? "󰂄 " : "󰁹 ") + root.sysBatCap + "%"
                                         font.pixelSize: 15; font.weight: Font.Bold
+                                        font.family: "FiraCode Nerd Font"
                                         color: root.sysBatStat === "Charging" ? "#a3e635" : "#FFFFFF"
                                         Layout.alignment: Qt.AlignRight
                                         style: Text.Raised
@@ -551,7 +555,7 @@ while True:
                                     ColumnLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
                                         RowLayout {
-                                            Text { text: ""; font.pixelSize: 20; color: root.themePrimary }
+                                            Text { text: ""; font.pixelSize: 20; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
                                             Text { 
                                                 text: "Processor"
                                                 font.pixelSize: 14
@@ -618,7 +622,7 @@ while True:
                                     ColumnLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
                                         RowLayout {
-                                            Text { text: "󰢮"; font.pixelSize: 20; color: root.themePrimary }
+                                            Text { text: "󰢮"; font.pixelSize: 20; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
                                             ColumnLayout {
                                                 spacing: 2
                                                 Text { 
@@ -706,7 +710,7 @@ while True:
                                     ColumnLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
                                         RowLayout {
-                                            Text { text: ""; font.pixelSize: 20; color: root.themePrimary }
+                                            Text { text: ""; font.pixelSize: 20; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
                                             Text { 
                                                 text: "Memory"
                                                 font.pixelSize: 14
@@ -781,7 +785,7 @@ while True:
                                     ColumnLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
                                         RowLayout {
-                                            Text { text: "󰋊"; font.pixelSize: 20; color: root.themePrimary }
+                                            Text { text: "󰋊"; font.pixelSize: 20; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
                                             Text { 
                                                 text: "Storage & NVMe"
                                                 font.pixelSize: 14
@@ -851,7 +855,7 @@ while True:
 
                                     RowLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 20
-                                        Text { text: "󰈀"; font.pixelSize: 24; color: root.themePrimary }
+                                        Text { text: "󰈀"; font.pixelSize: 24; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
                                         Text { 
                                             text: "Network IO"
                                             font.pixelSize: 14
@@ -892,6 +896,7 @@ while True:
                                                 text: "󰇚 " + root.sysNetRx
                                                 font.pixelSize: 14
                                                 font.weight: Font.Bold
+                                                font.family: "FiraCode Nerd Font"
                                                 color: "#38bdf8"
                                                 style: Text.Raised
                                                 styleColor: Qt.rgba(0, 0, 0, 0.75)
@@ -914,6 +919,7 @@ while True:
                                                 text: "󰕒 " + root.sysNetTx
                                                 font.pixelSize: 14
                                                 font.weight: Font.Bold
+                                                font.family: "FiraCode Nerd Font"
                                                 color: "#fb7185"
                                                 style: Text.Raised
                                                 styleColor: Qt.rgba(0, 0, 0, 0.75)
@@ -1011,6 +1017,7 @@ while True:
                                                 anchors.centerIn: parent
                                                 text: "󰅖"
                                                 font.pixelSize: 14
+                                                font.family: "FiraCode Nerd Font"
                                                 color: closeHover.containsMouse ? "#ffffff" : root.themeText 
                                             }
 
@@ -1177,7 +1184,8 @@ while True:
 
                                             Text { 
                                                 anchors.centerIn: parent 
-                                                text: "󰅖"; font.pixelSize: 14 
+                                                text: "󰅖"; font.pixelSize: 14
+                                                font.family: "FiraCode Nerd Font"
                                                 color: killHover.containsMouse ? "#ffffff" : root.themeTextMuted 
                                                 Behavior on color { ColorAnimation { duration: 150 } }
                                             }

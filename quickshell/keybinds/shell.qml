@@ -9,13 +9,22 @@ import QtQuick.Layouts
 Scope {
     id: root
 
+    property string fontFamily: "FiraCode Nerd Font"
+
     QtObject {
         id: animStyle
-        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
-        property int fadeDuration: 280
-        property var bounceEasing: Easing.OutBack
-        property var fadeEasing: Easing.OutCubic
-        property real overshoot: 1.4
+        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 240) : 200
+        property int fadeDuration: 180
+        property var smoothEasing: Easing.OutCubic
+    }
+
+    function mixColor(c1, c2, ratio, alphaVal) {
+        let col1 = Qt.color(c1)
+        let col2 = Qt.color(c2)
+        let r = col1.r * (1 - ratio) + col2.r * ratio
+        let g = col1.g * (1 - ratio) + col2.g * ratio
+        let b = col1.b * (1 - ratio) + col2.b * ratio
+        return Qt.rgba(r, g, b, alphaVal)
     }
 
     property string targetMonitorName: ""
@@ -30,7 +39,7 @@ Scope {
 
     Timer {
         id: fallbackMonitorTimer
-        interval: 150
+        interval: 120
         repeat: false
         onTriggered: {
             if (root.targetMonitorName === "" && Quickshell.screens.length > 0) {
@@ -46,17 +55,19 @@ Scope {
         }
     }
 
-    property int themeRounding: 14
+    property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
+    property real themeBgAlpha: 0.55
     property bool animEnabled: true
-    property int animDuration: 380
-    
-    property color themeBackground: "#141416" 
+    property int animDuration: 220
+
+    property color themeBackground: "#141416"
+    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.56)
+    property color themeSurfaceHover: Qt.rgba(0.10, 0.10, 0.14, 0.74)
     property color themeBorder: "#ffb3af"
-    property color themeText: "#FFFFFF"          
-    property color themeTextMuted: "#D4D4D8"
-    property color themePrimary: "#ffb3af"         
+    property color themeText: "#ffffff"
+    property color themeTextMuted: "#a1a1aa"
+    property color themePrimary: "#ffb3af"
 
     property var fullKeybindsList: [
         { category: "Application Launchers", keys: "SUPER + Return", desc: "Terminal (Kitty)" },
@@ -152,7 +163,7 @@ Scope {
         { category: "Workspaces", keys: "SUPER + ALT + 1..9", desc: "Apply Workspace Preset 1-9" }
     ]
 
-    property var activeKeybinds: []
+    property var activeKeybinds: fullKeybindsList
 
     FileView {
         id: colorFile
@@ -162,7 +173,7 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (match && match[1]) {
                     let hex = "#" + match[1]
                     root.themeBorder = hex
@@ -186,7 +197,7 @@ Scope {
                 let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
-                
+
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
@@ -250,9 +261,11 @@ Scope {
             } catch (e) {
                 root.activeKeybinds = root.fullKeybindsList
             }
-            root.filterKeybinds("")
+            root.filterKeybinds(root.currentSearch)
         }
     }
+
+    property string currentSearch: ""
 
     Component.onCompleted: {
         root.updateTargetMonitor()
@@ -260,6 +273,7 @@ Scope {
             fallbackMonitorTimer.start()
         }
 
+        root.filterKeybinds("")
         colorFile.reload()
         generalConfigFile.reload()
         animConfigFile.reload()
@@ -269,6 +283,7 @@ Scope {
     ListModel { id: filteredModel }
 
     function filterKeybinds(query) {
+        root.currentSearch = query
         filteredModel.clear()
         let q = query.trim().toLowerCase()
         let sourceList = (root.activeKeybinds && root.activeKeybinds.length > 0) ? root.activeKeybinds : root.fullKeybindsList
@@ -327,35 +342,28 @@ Scope {
 
             Rectangle {
                 id: mainCard
-                width: Math.min(820, parent.width - 40)
-                height: Math.min(620, parent.height - 80)
+                width: Math.min(860, parent.width - 48)
+                height: Math.min(640, parent.height - 80)
                 anchors.centerIn: parent
 
                 property bool shown: false
                 Component.onCompleted: shown = true
 
-                scale: shown ? 1.0 : 0.90
                 opacity: shown ? 1.0 : 0.0
 
-                Behavior on scale {
-                    NumberAnimation {
-                        duration: root.animEnabled ? animStyle.animDuration : 0
-                        easing.type: animStyle.bounceEasing
-                        easing.overshoot: animStyle.overshoot
-                    }
-                }
                 Behavior on opacity {
                     NumberAnimation {
-                        duration: animStyle.fadeDuration
-                        easing.type: animStyle.fadeEasing
+                        duration: root.animEnabled ? animStyle.fadeDuration : 0
+                        easing.type: animStyle.smoothEasing
                     }
                 }
 
                 radius: root.themeRounding
                 border.width: root.themeBorderSize
-                border.color: Qt.alpha(root.themePrimary, 0.40)
+                border.color: Qt.alpha(root.themePrimary, 0.42)
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                 antialiasing: true
+                clip: true
 
                 MouseArea {
                     anchors.fill: parent
@@ -364,62 +372,99 @@ Scope {
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 18
-                    spacing: 12
+                    anchors.margins: 22
+                    spacing: 14
 
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 12
 
-                        Text {
-                            text: "⌨"
-                            font.pixelSize: 22
-                            color: root.themePrimary
+                        Rectangle {
+                            Layout.preferredWidth: 40
+                            Layout.preferredHeight: 40
+                            radius: 11
+                            color: Qt.alpha(root.themePrimary, 0.16)
+                            border.width: 1
+                            border.color: Qt.alpha(root.themePrimary, 0.35)
+                            antialiasing: true
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "󰌌"
+                                font.family: root.fontFamily
+                                font.pixelSize: 18
+                                color: root.themePrimary
+                            }
                         }
 
-                        Text {
-                            text: "Keybinds Cheatsheet"
-                            font.pixelSize: 18
-                            font.weight: Font.Bold
-                            color: "#FFFFFF"
-                            style: Text.Raised
-                            styleColor: Qt.rgba(0, 0, 0, 0.8)
+                        ColumnLayout {
+                            spacing: 2
+                            Layout.alignment: Qt.AlignVCenter
+
+                            Text {
+                                text: "Keybinds"
+                                font.family: root.fontFamily
+                                font.pixelSize: 17
+                                font.weight: Font.Bold
+                                color: root.themeText
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                            }
+
+                            Text {
+                                text: "Hyprland & Quickshell shortcuts"
+                                font.family: root.fontFamily
+                                font.pixelSize: 11
+                                font.weight: Font.Medium
+                                color: root.themeTextMuted
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.65)
+                            }
                         }
 
                         Item { Layout.fillWidth: true }
 
                         Rectangle {
-                            Layout.preferredWidth: 260
-                            Layout.preferredHeight: 36
-                            radius: Math.max(4, root.themeRounding - 4)
-                            color: Qt.rgba(0, 0, 0, 0.35)
-                            border.width: 1
-                            border.color: searchInput.activeFocus ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                            Layout.preferredWidth: 280
+                            Layout.preferredHeight: 38
+                            radius: 10
+                            color: Qt.rgba(0.02, 0.02, 0.03, 0.58)
+                            border.width: searchInput.activeFocus ? 1.5 : 1
+                            border.color: searchInput.activeFocus ? Qt.alpha(root.themePrimary, 0.70) : Qt.rgba(1, 1, 1, 0.14)
                             antialiasing: true
 
-                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: animStyle.fadeDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: 10
+                                anchors.leftMargin: 12
                                 anchors.rightMargin: 10
                                 spacing: 8
 
                                 Text {
-                                    text: ""
-                                    font.pixelSize: 13
-                                    color: root.themeTextMuted
+                                    text: "󰍉"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 15
+                                    color: searchInput.activeFocus ? root.themePrimary : root.themeTextMuted
                                 }
 
                                 TextField {
                                     id: searchInput
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
+                                    font.family: root.fontFamily
                                     font.pixelSize: 13
                                     font.weight: Font.DemiBold
-                                    color: "#FFFFFF"
+                                    color: root.themeText
                                     placeholderText: "Search shortcuts..."
-                                    placeholderTextColor: Qt.rgba(1.0, 1.0, 1.0, 0.45)
+                                    placeholderTextColor: Qt.rgba(1.0, 1.0, 1.0, 0.38)
+                                    selectionColor: Qt.alpha(root.themePrimary, 0.35)
+                                    selectedTextColor: root.themeText
                                     verticalAlignment: TextInput.AlignVCenter
                                     background: Item {}
 
@@ -435,8 +480,6 @@ Scope {
                                     }
 
                                     Component.onCompleted: {
-                                        root.activeKeybinds = root.fullKeybindsList
-                                        root.filterKeybinds("")
                                         focusTimer.start()
                                     }
 
@@ -453,154 +496,253 @@ Scope {
 
                                     Keys.onDownPressed: keybindsList.incrementCurrentIndex()
                                     Keys.onUpPressed: keybindsList.decrementCurrentIndex()
+                                    Keys.onEscapePressed: Qt.quit()
+                                }
+
+                                Rectangle {
+                                    width: 22
+                                    height: 22
+                                    radius: 6
+                                    color: clearSearchMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : "transparent"
+                                    visible: searchInput.text !== ""
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰅖"
+                                        font.family: root.fontFamily
+                                        color: root.themeTextMuted
+                                        font.pixelSize: 12
+                                    }
+
+                                    MouseArea {
+                                        id: clearSearchMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            searchInput.text = ""
+                                            searchInput.forceActiveFocus()
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 1
-                        color: Qt.rgba(255, 255, 255, 0.12)
-                    }
-
-                    ListView {
-                        id: keybindsList
+                    Item {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        model: filteredModel
-                        clip: true
-                        spacing: 6
-                        highlightFollowsCurrentItem: true
 
-                        add: Transition {
-                            ParallelAnimation {
-                                NumberAnimation { property: "opacity"; from: 0; to: 1; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
-                                NumberAnimation {
-                                    property: "scale"
-                                    from: 0.94; to: 1.0
-                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                    easing.type: animStyle.bounceEasing
-                                    easing.overshoot: animStyle.overshoot
-                                }
-                            }
-                        }
+                        ColumnLayout {
+                            anchors.centerIn: parent
+                            visible: filteredModel.count === 0
+                            spacing: 12
 
-                        remove: Transition {
-                            ParallelAnimation {
-                                NumberAnimation { property: "opacity"; to: 0; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
-                                NumberAnimation { property: "scale"; to: 0.90; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
-                            }
-                        }
-
-                        displaced: Transition {
-                            NumberAnimation {
-                                properties: "y,x"
-                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                easing.type: animStyle.bounceEasing
-                                easing.overshoot: animStyle.overshoot
-                            }
-                        }
-
-                        ScrollBar.vertical: ScrollBar {
-                            active: keybindsList.moving || keybindsList.flicking
-                            policy: ScrollBar.AsNeeded
-                        }
-
-                        delegate: Rectangle {
-                            id: delegateItem
-                            width: keybindsList.width
-                            height: 42
-                            radius: Math.max(4, root.themeRounding - 6)
-                            color: ListView.isCurrentItem ? Qt.alpha(root.themePrimary, 0.22) : (rowMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.10) : Qt.rgba(0, 0, 0, 0.28))
-                            border.width: 1
-                            border.color: ListView.isCurrentItem ? root.themePrimary : (rowMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(255, 255, 255, 0.06))
-                            antialiasing: true
-
-                            scale: rowMouse.containsMouse ? 1.015 : 1.0
-
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                    easing.type: animStyle.bounceEasing
-                                    easing.overshoot: animStyle.overshoot
-                                }
-                            }
-                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-
-                            property string rawKeys: model.itemKeys || ""
-
-                            MouseArea {
-                                id: rowMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: keybindsList.currentIndex = index
-                            }
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 14
-                                anchors.rightMargin: 14
-                                spacing: 12
+                            Rectangle {
+                                Layout.alignment: Qt.AlignHCenter
+                                width: 54
+                                height: 54
+                                radius: 16
+                                color: Qt.rgba(0.02, 0.02, 0.03, 0.55)
+                                border.width: 1
+                                border.color: Qt.alpha(root.themePrimary, 0.28)
+                                antialiasing: true
 
                                 Text {
-                                    text: model.itemDesc
-                                    color: "#FFFFFF"
-                                    font.pixelSize: 13
-                                    font.weight: Font.DemiBold
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
+                                    anchors.centerIn: parent
+                                    text: "󰌌"
+                                    font.family: root.fontFamily
+                                    color: root.themePrimary
+                                    opacity: 0.75
+                                    font.pixelSize: 24
+                                }
+                            }
+
+                            ColumnLayout {
+                                spacing: 3
+                                Layout.alignment: Qt.AlignHCenter
+
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: "No Matching Shortcuts"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 14
+                                    font.weight: Font.Bold
+                                    color: root.themeText
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
 
-                                Row {
-                                    spacing: 4
-                                    Layout.alignment: Qt.AlignVCenter
+                                Text {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    text: "Try searching by key, action, or category"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 11
+                                    color: root.themeTextMuted
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                }
+                            }
+                        }
 
-                                    Repeater {
-                                        model: delegateItem.rawKeys ? delegateItem.rawKeys.split("+") : []
-                                        delegate: Rectangle {
-                                            height: 24
-                                            width: keyText.implicitWidth + 12
-                                            radius: 5
-                                            color: Qt.rgba(0, 0, 0, 0.65)
-                                            border.width: 1
-                                            border.color: Qt.alpha(root.themePrimary, 0.45)
-                                            antialiasing: true
+                        ListView {
+                            id: keybindsList
+                            anchors.fill: parent
+                            visible: filteredModel.count > 0
+                            model: filteredModel
+                            clip: true
+                            spacing: 7
+                            boundsBehavior: Flickable.StopAtBounds
+                            highlightFollowsCurrentItem: true
 
-                                            Text {
-                                                id: keyText
-                                                anchors.centerIn: parent
-                                                text: modelData.trim()
-                                                font.pixelSize: 11
-                                                font.weight: Font.Bold
-                                                color: "#FFFFFF"
-                                                style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.8)
-                                            }
-                                        }
+                            add: Transition {
+                                NumberAnimation {
+                                    property: "opacity"
+                                    from: 0
+                                    to: 1
+                                    duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+
+                            remove: Transition {
+                                NumberAnimation {
+                                    property: "opacity"
+                                    to: 0
+                                    duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+
+                            displaced: Transition {
+                                NumberAnimation {
+                                    properties: "y"
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+
+                            ScrollBar.vertical: ScrollBar {
+                                id: vbar
+                                visible: keybindsList.visible && vbar.size < 1.0
+                                active: keybindsList.moving || keybindsList.flicking || hovered
+                                policy: ScrollBar.AsNeeded
+                                contentItem: Rectangle {
+                                    implicitWidth: 4
+                                    radius: 2
+                                    color: vbar.pressed ? root.themePrimary : Qt.alpha(root.themeTextMuted, 0.35)
+                                }
+                            }
+
+                            delegate: Rectangle {
+                                id: delegateItem
+                                width: keybindsList.width - (vbar.visible ? 10 : 0)
+                                height: 46
+                                radius: 10
+                                color: ListView.isCurrentItem
+                                       ? root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.76)
+                                       : (rowMouse.containsMouse ? root.themeSurfaceHover : root.themeSurface)
+                                border.width: 1
+                                border.color: ListView.isCurrentItem
+                                              ? Qt.alpha(root.themePrimary, 0.70)
+                                              : (rowMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.42) : Qt.rgba(1, 1, 1, 0.10))
+                                antialiasing: true
+
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: animStyle.fadeDuration
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: animStyle.fadeDuration
+                                        easing.type: animStyle.smoothEasing
                                     }
                                 }
 
-                                Rectangle {
-                                    Layout.preferredHeight: 20
-                                    Layout.preferredWidth: catText.implicitWidth + 10
-                                    radius: 4
-                                    color: Qt.alpha(root.themePrimary, 0.20)
-                                    border.width: 1
-                                    border.color: Qt.alpha(root.themePrimary, 0.4)
-                                    antialiasing: true
+                                property string rawKeys: model.itemKeys || ""
+
+                                MouseArea {
+                                    id: rowMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: keybindsList.currentIndex = index
+                                }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 14
+                                    anchors.rightMargin: 14
+                                    spacing: 12
 
                                     Text {
-                                        id: catText
-                                        anchors.centerIn: parent
-                                        text: model.itemCategory
-                                        font.pixelSize: 10
+                                        text: model.itemDesc
+                                        color: root.themeText
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 12
                                         font.weight: Font.Bold
-                                        color: root.themePrimary
+                                        Layout.fillWidth: true
+                                        elide: Text.ElideRight
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                    }
+
+                                    Row {
+                                        spacing: 5
+                                        Layout.alignment: Qt.AlignVCenter
+
+                                        Repeater {
+                                            model: delegateItem.rawKeys ? delegateItem.rawKeys.split("+") : []
+                                            delegate: Rectangle {
+                                                property string trimmedKey: modelData.trim()
+                                                property bool isModifier: trimmedKey === "SUPER" || trimmedKey === "CTRL" || trimmedKey === "ALT" || trimmedKey === "SHIFT"
+                                                height: 25
+                                                width: keyText.implicitWidth + 14
+                                                radius: 6
+                                                color: isModifier
+                                                       ? Qt.alpha(root.themePrimary, 0.18)
+                                                       : Qt.rgba(0.02, 0.02, 0.03, 0.72)
+                                                border.width: 1
+                                                border.color: isModifier
+                                                              ? Qt.alpha(root.themePrimary, 0.55)
+                                                              : Qt.rgba(1, 1, 1, 0.18)
+                                                antialiasing: true
+
+                                                Text {
+                                                    id: keyText
+                                                    anchors.centerIn: parent
+                                                    text: parent.trimmedKey
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 11
+                                                    font.weight: Font.Bold
+                                                    color: parent.isModifier ? root.themePrimary : root.themeText
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        Layout.preferredHeight: 22
+                                        Layout.preferredWidth: catText.implicitWidth + 14
+                                        radius: 6
+                                        color: Qt.alpha(root.themePrimary, 0.14)
+                                        border.width: 1
+                                        border.color: Qt.alpha(root.themePrimary, 0.35)
+                                        antialiasing: true
+
+                                        Text {
+                                            id: catText
+                                            anchors.centerIn: parent
+                                            text: model.itemCategory
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 10
+                                            font.weight: Font.Bold
+                                            color: root.themePrimary
+                                        }
                                     }
                                 }
                             }
@@ -609,22 +751,31 @@ Scope {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        height: 32
-                        color: Qt.rgba(0, 0, 0, 0.35)
-                        radius: Math.max(4, root.themeRounding - 6)
+                        height: 36
+                        color: Qt.rgba(0.02, 0.02, 0.03, 0.55)
+                        radius: 10
                         border.width: 1
-                        border.color: Qt.rgba(255, 255, 255, 0.08)
+                        border.color: Qt.rgba(1, 1, 1, 0.10)
                         antialiasing: true
 
                         RowLayout {
                             anchors.fill: parent
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
+                            anchors.leftMargin: 14
+                            anchors.rightMargin: 14
+                            spacing: 10
 
                             Text {
-                                text: filteredModel.count + " shortcuts loaded"
+                                text: "󰌌"
+                                font.family: root.fontFamily
+                                font.pixelSize: 13
+                                color: root.themePrimary
+                            }
+
+                            Text {
+                                text: filteredModel.count + " shortcuts"
+                                font.family: root.fontFamily
                                 font.pixelSize: 11
-                                font.weight: Font.Medium
+                                font.weight: Font.Bold
                                 color: root.themeTextMuted
                                 style: Text.Raised
                                 styleColor: Qt.rgba(0, 0, 0, 0.7)
@@ -634,18 +785,31 @@ Scope {
 
                             RowLayout {
                                 spacing: 6
+
                                 Rectangle {
-                                    width: 32; height: 18; radius: 4
-                                    color: Qt.rgba(255, 255, 255, 0.12)
+                                    width: 34
+                                    height: 20
+                                    radius: 5
+                                    color: Qt.alpha(root.themePrimary, 0.16)
                                     border.width: 1
-                                    border.color: Qt.rgba(255, 255, 255, 0.15)
+                                    border.color: Qt.alpha(root.themePrimary, 0.40)
                                     antialiasing: true
-                                    Text { anchors.centerIn: parent; text: "ESC"; font.pixelSize: 9; color: "#FFFFFF"; font.weight: Font.Bold }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "ESC"
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 10
+                                        color: root.themePrimary
+                                        font.weight: Font.Bold
+                                    }
                                 }
-                                Text { 
+
+                                Text {
                                     text: "Close"
+                                    font.family: root.fontFamily
                                     font.pixelSize: 11
-                                    font.weight: Font.Medium
+                                    font.weight: Font.Bold
                                     color: root.themeTextMuted
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.7)

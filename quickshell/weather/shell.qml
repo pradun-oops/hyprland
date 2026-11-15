@@ -10,9 +10,22 @@ import QtQuick.Window
 Scope {
     id: root
 
+    property string fontFamily: "FiraCode Nerd Font"
+
+    function quitApp() {
+        quitTimer.start()
+    }
+
+    Timer {
+        id: quitTimer
+        interval: 60
+        repeat: false
+        onTriggered: Qt.quit()
+    }
+
     Shortcut {
         sequence: "Escape"
-        onActivated: Qt.quit()
+        onActivated: root.quitApp()
     }
 
     property string targetMonitorName: ""
@@ -27,7 +40,7 @@ Scope {
 
     Timer {
         id: fallbackMonitorTimer
-        interval: 150
+        interval: 120
         repeat: false
         onTriggered: {
             if (root.targetMonitorName === "" && Quickshell.screens.length > 0) {
@@ -43,27 +56,34 @@ Scope {
         }
     }
 
-    property int themeRounding: 22
+    property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
+    property real themeBgAlpha: 0.56
     property bool animEnabled: true
-    property int animDuration: 500
-    
-    property color themeBackground: "#121318" 
-    property color themeSurface: Qt.rgba(0, 0, 0, 0.32) 
-    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)
+    property int animDuration: 220
+
+    property color themeBackground: "#141416"
+    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.56)
+    property color themeSurfaceHover: Qt.rgba(0.10, 0.10, 0.14, 0.74)
     property color themeBorder: "#ffb3af"
     property color themePrimary: "#ffb3af"
-    property color themeText: "#FFFFFF"
-    property color themeTextMuted: "#D4D4D8"
+    property color themeText: "#ffffff"
+    property color themeTextMuted: "#a1a1aa"
 
     QtObject {
         id: animStyle
-        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
-        property int fadeDuration: 280
-        property var bounceEasing: Easing.OutBack
-        property var fadeEasing: Easing.OutCubic
-        property real overshoot: 1.5
+        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 240) : 200
+        property int fadeDuration: 180
+        property var smoothEasing: Easing.OutCubic
+    }
+
+    function mixColor(c1, c2, ratio, alphaVal) {
+        let col1 = Qt.color(c1)
+        let col2 = Qt.color(c2)
+        let r = col1.r * (1 - ratio) + col2.r * ratio
+        let g = col1.g * (1 - ratio) + col2.g * ratio
+        let b = col1.b * (1 - ratio) + col2.b * ratio
+        return Qt.rgba(r, g, b, alphaVal)
     }
 
     FileView {
@@ -75,9 +95,9 @@ Scope {
             try {
                 let content = text()
                 let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
-                if (match && match[1]) { 
+                if (match && match[1]) {
                     root.themeBorder = "#" + match[1]
-                    root.themePrimary = "#" + match[1] 
+                    root.themePrimary = "#" + match[1]
                 }
                 let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (bgMatch && bgMatch[1]) {
@@ -96,8 +116,8 @@ Scope {
             try {
                 let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
-                if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
-                
+                if (rMatch && rMatch[1]) root.themeRounding = Math.max(14, parseInt(rMatch[1]))
+
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
@@ -112,7 +132,7 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
 
                 let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
@@ -125,7 +145,8 @@ Scope {
     property bool isFetchingApi: false
     property bool hasData: false
     property string fetchError: ""
-    
+    property string activeCityQuery: ""
+
     property string locName: "Locating..."
     property string currTemp: "--"
     property string currFeel: "--"
@@ -135,14 +156,16 @@ Scope {
     property string currIcon: "󰖐"
     property string currWind: "-- km/h"
     property string currWindGust: "-- km/h"
+    property string currWindDir: "--"
     property string currHum: "--%"
+    property string currDewPoint: "--°C"
     property string currUV: "--"
     property string currUVDesc: "--"
     property string currPress: "-- hPa"
     property string currClouds: "--%"
     property string currSunrise: "--:--"
     property string currSunset: "--:--"
-    
+
     ListModel { id: hourlyModel }
     ListModel { id: forecastModel }
 
@@ -164,7 +187,9 @@ Scope {
         root.currIcon = d.current.icon
         root.currWind = d.current.wind
         root.currWindGust = d.current.wind_gust
+        root.currWindDir = d.current.wind_dir || "--"
         root.currHum = d.current.humidity
+        root.currDewPoint = d.current.dew_point || "--°C"
         root.currUV = d.current.uv
         root.currUVDesc = d.current.uv_desc
         root.currPress = d.current.pressure
@@ -200,7 +225,7 @@ Scope {
                 if (d && !d.error && d.current) {
                     root.applyWeatherData(d)
                 }
-            } catch(e) {}
+            } catch (e) {}
         }
     }
 
@@ -210,14 +235,14 @@ Scope {
             onRead: (data) => {
                 try {
                     let d = JSON.parse(data.trim())
-                    
+
                     if (d.status === "fetching_api") {
                         root.isFetchingApi = true
                         return
                     }
 
                     root.applyWeatherData(d)
-                } catch(e) {
+                } catch (e) {
                     root.isFetching = false
                     root.isFetchingApi = false
                 }
@@ -225,20 +250,24 @@ Scope {
         }
     }
 
-    function fetchWeather(city) {
+    function fetchWeather(city, forceRefresh) {
+        weatherFetcher.running = false
         root.isFetching = true
         root.fetchError = ""
-        
-        let trimmed = city.trim()
-        if (trimmed !== "") {
+
+        let trimmed = city ? city.trim() : ""
+        root.activeCityQuery = trimmed
+        let bypassFlag = (trimmed !== "" || forceRefresh === true) ? "1" : "0"
+
+        if (bypassFlag === "1") {
             root.isFetchingApi = true
         } else {
             root.isFetchingApi = false
         }
 
-        let safeQuery = trimmed.replace(/"/g, '\\"')
-        
-        let pyScript = `import urllib.request, json, urllib.parse, datetime, os, time, sys
+        let safeQuery = trimmed.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
+
+        let pyScript = `import urllib.request, json, urllib.parse, datetime, os, time, sys, math
 
 CACHE_FILE = "/tmp/qs_weather_cache.json"
 CACHE_EXPIRY = 1800
@@ -266,13 +295,28 @@ def get_uv_desc(uv):
     if uv <= 10: return "Very High"
     return "Extreme"
 
+def get_wind_dir(deg):
+    if deg is None: return "--"
+    dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+    idx = int((float(deg) + 22.5) / 45.0) % 8
+    return f"{dirs[idx]} ({int(round(float(deg)))}°)"
+
+def calc_dew_point(temp_c, rh):
+    try:
+        a, b = 17.625, 243.04
+        alpha = math.log(max(1.0, float(rh)) / 100.0) + (a * float(temp_c)) / (b + float(temp_c))
+        return f"{round((b * alpha) / (a - alpha))}°C"
+    except Exception:
+        return "--°C"
+
 try:
     query = "${safeQuery}"
+    bypass = "${bypassFlag}" == "1"
     lat, lon, loc_name = None, None, ""
 
-    if not query:
+    if not bypass and not query:
         if os.path.exists(CACHE_FILE) and (time.time() - os.path.getmtime(CACHE_FILE)) < CACHE_EXPIRY:
-            with open(CACHE_FILE, 'r') as f:
+            with open(CACHE_FILE, 'r', encoding='utf-8') as f:
                 content = f.read().strip()
                 if content:
                     print(content, flush=True)
@@ -308,7 +352,7 @@ try:
 
     url = (
         f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}"
-        "&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_gusts_10m,surface_pressure,cloud_cover"
+        "&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,surface_pressure,cloud_cover"
         "&hourly=temperature_2m,weather_code,precipitation_probability,is_day"
         "&daily=weather_code,temperature_2m_max,temperature_2m_min,sunrise,sunset,uv_index_max,precipitation_sum,precipitation_probability_max,wind_speed_10m_max"
         "&timezone=auto&forecast_days=8"
@@ -316,11 +360,11 @@ try:
     req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
     with urllib.request.urlopen(req, timeout=8) as resp:
         w = json.loads(resp.read().decode())
-        
+
         c = w['current']
         d = w['daily']
         h = w['hourly']
-        
+
         sunrise_raw = d['sunrise'][0].split('T')[1]
         sunset_raw = d['sunset'][0].split('T')[1]
         uv_val = d['uv_index_max'][0] if d['uv_index_max'][0] is not None else 0.0
@@ -337,7 +381,9 @@ try:
                 "icon": get_icon(c['weather_code'], c['is_day']),
                 "wind": f"{c['wind_speed_10m']} km/h",
                 "wind_gust": f"{c.get('wind_gusts_10m', c['wind_speed_10m'])} km/h",
+                "wind_dir": get_wind_dir(c.get('wind_direction_10m')),
                 "humidity": f"{c['relative_humidity_2m']}%",
+                "dew_point": calc_dew_point(c['temperature_2m'], c['relative_humidity_2m']),
                 "uv": str(round(uv_val, 1)),
                 "uv_desc": get_uv_desc(uv_val),
                 "pressure": f"{round(c['surface_pressure'])} hPa",
@@ -370,7 +416,7 @@ try:
             day_name = "Today" if i == 0 else date_obj.strftime("%a")
             d_min = d['temperature_2m_min'][i]
             d_max = d['temperature_2m_max'][i]
-            
+
             data["daily"].append({
                 "day": day_name,
                 "date": date_obj.strftime("%d %b"),
@@ -390,9 +436,10 @@ try:
 
         if not query:
             try:
-                with open(CACHE_FILE, 'w') as f:
+                with open(CACHE_FILE, 'w', encoding='utf-8') as f:
                     f.write(out_str)
-            except: pass
+            except Exception:
+                pass
 
 except Exception as e:
     print(json.dumps({"error": "Failed to fetch weather data. Check your connection."}), flush=True)
@@ -410,7 +457,7 @@ except Exception as e:
         generalConfigFile.reload()
         animConfigFile.reload()
         localCacheReader.reload()
-        root.fetchWeather("")
+        root.fetchWeather("", false)
     }
 
     Variants {
@@ -432,7 +479,7 @@ except Exception as e:
             anchors { top: true; bottom: true; left: true; right: true }
             color: "transparent"
 
-            MouseArea { anchors.fill: parent; onClicked: Qt.quit() }
+            MouseArea { anchors.fill: parent; onClicked: root.quitApp() }
 
             Item {
                 id: mainFocusWrapper
@@ -443,31 +490,23 @@ except Exception as e:
                     if (isTargetMonitor) forceActiveFocus()
                 }
 
-                Keys.onEscapePressed: Qt.quit()
+                Keys.onEscapePressed: root.quitApp()
 
                 Rectangle {
                     id: mainCard
                     width: Math.min(1220, parent.width - 40)
-                    height: Math.min(840, parent.height - 40)
+                    height: Math.min(820, parent.height - 48)
                     anchors.centerIn: parent
 
                     property bool shown: false
                     Component.onCompleted: shown = true
 
-                    scale: shown ? 1.0 : 0.90
                     opacity: shown ? 1.0 : 0.0
 
-                    Behavior on scale {
-                        NumberAnimation {
-                            duration: root.animEnabled ? animStyle.animDuration : 0
-                            easing.type: animStyle.bounceEasing
-                            easing.overshoot: animStyle.overshoot
-                        }
-                    }
                     Behavior on opacity {
                         NumberAnimation {
-                            duration: animStyle.fadeDuration
-                            easing.type: animStyle.fadeEasing
+                            duration: root.animEnabled ? animStyle.fadeDuration : 0
+                            easing.type: animStyle.smoothEasing
                         }
                     }
 
@@ -478,6 +517,18 @@ except Exception as e:
                     antialiasing: true
                     clip: true
 
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: root.themeBorderSize
+                        radius: Math.max(0, parent.radius - root.themeBorderSize)
+                        antialiasing: true
+                        gradient: Gradient {
+                            GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.09) }
+                            GradientStop { position: 0.35; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
+                            GradientStop { position: 1.0; color: "transparent" }
+                        }
+                    }
+
                     MouseArea { anchors.fill: parent; onClicked: (mouse) => mouse.accepted = true }
 
                     ColumnLayout {
@@ -487,45 +538,65 @@ except Exception as e:
 
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 14
+                            spacing: 12
 
                             Rectangle {
-                                width: 42; height: 42; radius: 12
+                                width: 42
+                                height: 42
+                                radius: 12
                                 color: Qt.alpha(root.themePrimary, 0.16)
-                                border.width: 1; border.color: Qt.alpha(root.themePrimary, 0.35)
+                                border.width: 1
+                                border.color: Qt.alpha(root.themePrimary, 0.38)
                                 Layout.alignment: Qt.AlignVCenter
                                 antialiasing: true
 
-                                Text { 
+                                Text {
                                     anchors.centerIn: parent
                                     text: "󰖐"
-                                    font.pixelSize: 22; color: root.themePrimary
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 20
+                                    color: root.themePrimary
                                 }
                             }
-                            
+
                             ColumnLayout {
                                 spacing: 2
                                 Layout.alignment: Qt.AlignVCenter
-                                Text { 
+
+                                Text {
                                     text: "Weather Telemetry"
-                                    font.pixelSize: 18
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 17
                                     font.weight: Font.Bold
-                                    color: "#FFFFFF"
+                                    color: root.themeText
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.8)
                                 }
-                                RowLayout {                                         
-                                    Text { 
-                                        text: root.isFetchingApi ? "Updating telemetry..." : root.locName
-                                        font.pixelSize: 12
+
+                                RowLayout {
+                                    spacing: 8
+
+                                    Text {
+                                        text: "󰍎"
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 11
+                                        color: root.themePrimary
+                                    }
+
+                                    Text {
+                                        text: root.isFetchingApi ? "Syncing live telemetry..." : root.locName
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 11
                                         font.weight: Font.Medium
                                         color: root.themeTextMuted
                                         style: Text.Raised
                                         styleColor: Qt.rgba(0, 0, 0, 0.65)
                                     }
-                                    spacing: 10
+
                                     Rectangle {
-                                        width: 10; height: 10; radius: 5
+                                        width: 8
+                                        height: 8
+                                        radius: 4
                                         color: root.isFetchingApi ? "#facc15" : "#4ade80"
                                         Layout.alignment: Qt.AlignVCenter
                                         antialiasing: true
@@ -535,50 +606,14 @@ except Exception as e:
                             }
 
                             Item { Layout.fillWidth: true }
-                            
-                            Rectangle {
-                                width: 38; height: 38; radius: 10
-                                color: autoGpsHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                border.width: 1
-                                border.color: autoGpsHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
-                                Layout.alignment: Qt.AlignVCenter
-                                antialiasing: true
-                                
-                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                
-                                Text { 
-                                    id: gpsIconText
-                                    anchors.centerIn: parent
-                                    text: "󰤉"
-                                    font.pixelSize: 16
-                                    color: root.themePrimary
-                                    
-                                    RotationAnimator {
-                                        target: gpsIconText
-                                        from: 0; to: 360
-                                        duration: 1000
-                                        loops: Animation.Infinite
-                                        running: root.isFetchingApi
-                                    }
-                                }
-                                
-                                MouseArea {
-                                    id: autoGpsHover
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.fetchWeather("")
-                                }
-                            }
 
                             Rectangle {
-                                Layout.preferredWidth: 260
+                                Layout.preferredWidth: 270
                                 Layout.preferredHeight: 38
                                 radius: 10
-                                color: Qt.rgba(0, 0, 0, 0.35)
-                                border.width: 1
-                                border.color: searchInput.activeFocus ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                color: Qt.rgba(0.02, 0.02, 0.03, 0.60)
+                                border.width: searchInput.activeFocus ? 1.5 : 1
+                                border.color: searchInput.activeFocus ? Qt.alpha(root.themePrimary, 0.75) : Qt.rgba(1, 1, 1, 0.14)
                                 Layout.alignment: Qt.AlignVCenter
                                 antialiasing: true
                                 Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
@@ -586,26 +621,61 @@ except Exception as e:
                                 RowLayout {
                                     anchors.fill: parent
                                     anchors.leftMargin: 12
-                                    anchors.rightMargin: 12
+                                    anchors.rightMargin: 8
                                     spacing: 8
 
-                                    Text { text: "󰍉"; font.pixelSize: 14; color: searchInput.activeFocus ? root.themePrimary : root.themeTextMuted }
+                                    Text {
+                                        text: "󰍉"
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 14
+                                        color: searchInput.activeFocus ? root.themePrimary : root.themeTextMuted
+                                    }
 
                                     TextField {
                                         id: searchInput
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
-                                        font.pixelSize: 13
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 12
                                         font.weight: Font.DemiBold
-                                        color: "#FFFFFF"
-                                        placeholderText: "Type city or region..."
-                                        placeholderTextColor: Qt.rgba(1.0, 1.0, 1.0, 0.45)
+                                        color: root.themeText
+                                        placeholderText: "Search city or region..."
+                                        placeholderTextColor: Qt.rgba(1.0, 1.0, 1.0, 0.40)
+                                        selectionColor: Qt.alpha(root.themePrimary, 0.35)
+                                        selectedTextColor: root.themeText
                                         verticalAlignment: TextInput.AlignVCenter
                                         background: Item {}
                                         onAccepted: {
                                             if (text.trim() !== "") {
-                                                root.fetchWeather(text)
+                                                root.fetchWeather(text, true)
                                                 text = ""
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        visible: searchInput.text !== ""
+                                        width: 22
+                                        height: 22
+                                        radius: 6
+                                        color: clearSearchHover.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : "transparent"
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "󰅖"
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 11
+                                            color: root.themeTextMuted
+                                        }
+
+                                        MouseArea {
+                                            id: clearSearchHover
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                searchInput.text = ""
+                                                searchInput.forceActiveFocus()
                                             }
                                         }
                                     }
@@ -613,87 +683,131 @@ except Exception as e:
                             }
 
                             Rectangle {
-                                width: 38; height: 38; radius: 10
-                                color: closeHover.containsMouse ? "#ff4b6e" : Qt.rgba(0, 0, 0, 0.35)
+                                width: 38
+                                height: 38
+                                radius: 10
+                                color: autoGpsHover.containsMouse
+                                       ? root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.76)
+                                       : root.themeSurface
                                 border.width: 1
-                                border.color: closeHover.containsMouse ? "#ff4b6e" : Qt.rgba(255, 255, 255, 0.12)
+                                border.color: autoGpsHover.containsMouse ? Qt.alpha(root.themePrimary, 0.65) : Qt.rgba(1, 1, 1, 0.14)
                                 Layout.alignment: Qt.AlignVCenter
                                 antialiasing: true
 
                                 Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
                                 Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
-                                Text { 
+                                Text {
+                                    id: gpsIconText
                                     anchors.centerIn: parent
-                                    text: "󰅖"; font.pixelSize: 14
-                                    color: closeHover.containsMouse ? "#ffffff" : root.themeText 
+                                    text: "󰤉"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 16
+                                    color: root.themePrimary
+
+                                    RotationAnimator {
+                                        target: gpsIconText
+                                        from: 0
+                                        to: 360
+                                        duration: 950
+                                        loops: Animation.Infinite
+                                        running: root.isFetchingApi
+                                    }
                                 }
-                                
+
+                                MouseArea {
+                                    id: autoGpsHover
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.fetchWeather("", true)
+                                }
+                            }
+
+                            Rectangle {
+                                width: 38
+                                height: 38
+                                radius: 10
+                                color: closeHover.containsMouse
+                                       ? Qt.rgba(0.93, 0.26, 0.26, 0.34)
+                                       : root.themeSurface
+                                border.width: 1
+                                border.color: closeHover.containsMouse ? "#ff6b6b" : Qt.rgba(1, 1, 1, 0.14)
+                                Layout.alignment: Qt.AlignVCenter
+                                antialiasing: true
+
+                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰅖"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 14
+                                    color: closeHover.containsMouse ? "#ff6b6b" : root.themeText
+                                }
+
                                 MouseArea {
                                     id: closeHover
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onClicked: Qt.quit()
+                                    onClicked: root.quitApp()
                                 }
                             }
                         }
-
-                        Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(255, 255, 255, 0.12) }
 
                         Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             visible: opacity > 0
                             opacity: (root.isFetchingApi && !root.hasData) ? 1.0 : 0.0
-                            scale: (root.isFetchingApi && !root.hasData) ? 1.0 : 0.88
 
-                            Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                            Behavior on scale {
+                            Behavior on opacity {
                                 NumberAnimation {
-                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                    easing.type: animStyle.bounceEasing
-                                    easing.overshoot: animStyle.overshoot
+                                    duration: animStyle.fadeDuration
+                                    easing.type: animStyle.smoothEasing
                                 }
                             }
 
                             ColumnLayout {
                                 anchors.centerIn: parent
-                                spacing: 18
+                                spacing: 16
 
                                 Item {
-                                    Layout.preferredWidth: 60
-                                    Layout.preferredHeight: 60
+                                    Layout.preferredWidth: 58
+                                    Layout.preferredHeight: 58
                                     Layout.alignment: Qt.AlignHCenter
 
                                     Canvas {
                                         id: spinnerCanvas
                                         anchors.fill: parent
                                         onPaint: {
-                                            var ctx = getContext("2d");
-                                            ctx.reset();
-                                            var cx = width / 2;
-                                            var cy = height / 2;
-                                            var r = width / 2 - 5;
+                                            var ctx = getContext("2d")
+                                            ctx.reset()
+                                            var cx = width / 2
+                                            var cy = height / 2
+                                            var r = width / 2 - 5
 
-                                            ctx.beginPath();
-                                            ctx.arc(cx, cy, r, 0, 2 * Math.PI, false);
-                                            ctx.lineWidth = 4;
-                                            ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.08);
-                                            ctx.stroke();
+                                            ctx.beginPath()
+                                            ctx.arc(cx, cy, r, 0, 2 * Math.PI, false)
+                                            ctx.lineWidth = 4
+                                            ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.10)
+                                            ctx.stroke()
 
-                                            ctx.beginPath();
-                                            ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI * 0.6, false);
-                                            ctx.lineWidth = 4;
-                                            ctx.lineCap = "round";
-                                            ctx.strokeStyle = root.themePrimary;
-                                            ctx.stroke();
+                                            ctx.beginPath()
+                                            ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI * 0.6, false)
+                                            ctx.lineWidth = 4
+                                            ctx.lineCap = "round"
+                                            ctx.strokeStyle = root.themePrimary
+                                            ctx.stroke()
                                         }
 
                                         RotationAnimator {
                                             target: spinnerCanvas
-                                            from: 0; to: 360
-                                            duration: 1000
+                                            from: 0
+                                            to: 360
+                                            duration: 950
                                             loops: Animation.Infinite
                                             running: root.isFetchingApi
                                         }
@@ -702,14 +816,16 @@ except Exception as e:
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰖐"
-                                        font.pixelSize: 22
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 21
                                         color: root.themePrimary
                                     }
                                 }
 
                                 Text {
-                                    text: "Fetching live weather updates..."
-                                    font.pixelSize: 14
+                                    text: "Fetching live weather telemetry..."
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 13
                                     font.weight: Font.Bold
                                     color: root.themeTextMuted
                                     style: Text.Raised
@@ -724,25 +840,41 @@ except Exception as e:
                             Layout.fillHeight: true
                             visible: opacity > 0
                             opacity: (!root.isFetching && root.fetchError !== "") ? 1.0 : 0.0
-                            scale: (!root.isFetching && root.fetchError !== "") ? 1.0 : 0.90
 
-                            Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                            Behavior on scale {
+                            Behavior on opacity {
                                 NumberAnimation {
-                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                    easing.type: animStyle.bounceEasing
-                                    easing.overshoot: animStyle.overshoot
+                                    duration: animStyle.fadeDuration
+                                    easing.type: animStyle.smoothEasing
                                 }
                             }
-                            
+
                             ColumnLayout {
                                 anchors.centerIn: parent
                                 spacing: 12
-                                Text { text: "󰖙"; font.pixelSize: 48; color: Qt.alpha(root.themeText, 0.3); Layout.alignment: Qt.AlignHCenter }
-                                Text { 
+
+                                Rectangle {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    width: 56
+                                    height: 56
+                                    radius: 16
+                                    color: Qt.rgba(0.93, 0.26, 0.26, 0.18)
+                                    border.width: 1
+                                    border.color: "#ff6b6b"
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰅙"
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 26
+                                        color: "#ff6b6b"
+                                    }
+                                }
+
+                                Text {
                                     text: root.fetchError
-                                    font.pixelSize: 15
-                                    color: "#fb7185"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 14
+                                    color: "#ff6b6b"
                                     Layout.alignment: Qt.AlignHCenter
                                     font.weight: Font.Bold
                                     style: Text.Raised
@@ -754,166 +886,212 @@ except Exception as e:
                         RowLayout {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            spacing: 20
+                            spacing: 18
                             visible: opacity > 0
                             opacity: (root.hasData && root.fetchError === "") ? 1.0 : 0.0
-                            scale: (root.hasData && root.fetchError === "") ? 1.0 : 0.95
 
-                            Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                            Behavior on scale {
+                            Behavior on opacity {
                                 NumberAnimation {
-                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                    easing.type: animStyle.bounceEasing
-                                    easing.overshoot: animStyle.overshoot
+                                    duration: animStyle.fadeDuration
+                                    easing.type: animStyle.smoothEasing
                                 }
                             }
 
-                            ScrollView {
+                            ColumnLayout {
                                 Layout.fillHeight: true
                                 Layout.fillWidth: true
-                                Layout.preferredWidth: 650
-                                clip: true
-                                contentWidth: availableWidth
-                                ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-                                ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                                Layout.preferredWidth: 660
+                                spacing: 14
 
-                                ColumnLayout {
-                                    width: parent.width
-                                    spacing: 16
+                                Rectangle {
+                                    id: heroCard
+                                    Layout.fillWidth: true
+                                    Layout.preferredHeight: 152
+                                    radius: Math.max(12, root.themeRounding - 4)
+                                    color: root.mixColor(root.themeBackground, root.themePrimary, 0.14, 0.68)
+                                    border.width: 1
+                                    border.color: heroHover.containsMouse
+                                                  ? Qt.alpha(root.themePrimary, 0.68)
+                                                  : Qt.alpha(root.themePrimary, 0.32)
+                                    antialiasing: true
 
-                                    Rectangle {
-                                        id: heroCard
-                                        Layout.fillWidth: true
-                                        Layout.preferredHeight: 160
-                                        radius: Math.max(4, root.themeRounding - 6)
-                                        gradient: Gradient {
-                                            GradientStop { position: 0.0; color: Qt.alpha(root.themePrimary, 0.12) }
-                                            GradientStop { position: 1.0; color: root.themeSurface }
-                                        }
-                                        border.width: 1
-                                        border.color: heroHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
-                                        antialiasing: true
-
-                                        MouseArea {
-                                            id: heroHover
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                        }
-
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.topMargin: 16
-                                            anchors.bottomMargin: 16
-                                            anchors.leftMargin: 22
-                                            anchors.rightMargin: 26
-                                            spacing: 18
-
-                                            Text { 
-                                                text: root.currIcon
-                                                font.pixelSize: 58
-                                                color: root.themePrimary 
-                                                Layout.alignment: Qt.AlignVCenter
-                                            }
-                                            
-                                            ColumnLayout {
-                                                spacing: 6
-                                                Layout.alignment: Qt.AlignVCenter
-                                                
-                                                Text { 
-                                                    text: root.currDesc
-                                                    font.pixelSize: 22
-                                                    font.weight: Font.Bold
-                                                    color: "#FFFFFF"
-                                                    style: Text.Raised
-                                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
-                                                }
-                                                Text { 
-                                                    text: "Feels like " + root.currFeel
-                                                    font.pixelSize: 13
-                                                    font.weight: Font.Medium
-                                                    color: root.themeTextMuted
-                                                    style: Text.Raised
-                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                                }
-                                                
-                                                RowLayout {
-                                                    spacing: 10
-                                                    Rectangle {
-                                                        radius: 6; color: Qt.alpha("#fb7185", 0.18)
-                                                        border.width: 1; border.color: Qt.alpha("#fb7185", 0.45)
-                                                        antialiasing: true
-                                                        implicitWidth: highTxt.implicitWidth + 16; implicitHeight: 24
-                                                        Text { 
-                                                            id: highTxt
-                                                            anchors.centerIn: parent
-                                                            text: "󰖙 High: " + root.currHigh
-                                                            font.pixelSize: 11
-                                                            font.weight: Font.Bold
-                                                            color: "#fb7185"
-                                                            style: Text.Raised
-                                                            styleColor: Qt.rgba(0, 0, 0, 0.6)
-                                                        }
-                                                    }
-                                                    Rectangle {
-                                                        radius: 6; color: Qt.alpha("#38bdf8", 0.18)
-                                                        border.width: 1; border.color: Qt.alpha("#38bdf8", 0.45)
-                                                        antialiasing: true
-                                                        implicitWidth: lowTxt.implicitWidth + 16; implicitHeight: 24
-                                                        Text { 
-                                                            id: lowTxt
-                                                            anchors.centerIn: parent
-                                                            text: "󰖔 Low: " + root.currLow
-                                                            font.pixelSize: 11
-                                                            font.weight: Font.Bold
-                                                            color: "#38bdf8"
-                                                            style: Text.Raised
-                                                            styleColor: Qt.rgba(0, 0, 0, 0.6)
-                                                        }
-                                                    }
-                                                }
-                                            }
-
-                                            Item { Layout.fillWidth: true }
-
-                                            Text { 
-                                                text: root.currTemp
-                                                font.pixelSize: 62; font.weight: Font.Bold
-                                                color: "#FFFFFF"
-                                                style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.9)
-                                                Layout.alignment: Qt.AlignVCenter
-                                            }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: animStyle.fadeDuration
+                                            easing.type: animStyle.smoothEasing
                                         }
                                     }
 
-                                    ColumnLayout {
-                                        Layout.fillWidth: true
-                                        spacing: 8
+                                    MouseArea {
+                                        id: heroHover
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                    }
 
-                                        Text { 
-                                            text: "󱑂 Hourly Forecast (Next 16 Hours)"
-                                            font.pixelSize: 13; font.weight: Font.Bold
-                                            color: "#FFFFFF"
-                                            style: Text.Raised
-                                            styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 20
+                                        anchors.rightMargin: 24
+                                        anchors.topMargin: 16
+                                        anchors.bottomMargin: 16
+                                        spacing: 18
+
+                                        Rectangle {
+                                            width: 78
+                                            height: 78
+                                            radius: 20
+                                            color: Qt.alpha(root.themePrimary, 0.16)
+                                            border.width: 1
+                                            border.color: Qt.alpha(root.themePrimary, 0.38)
+                                            Layout.alignment: Qt.AlignVCenter
+                                            antialiasing: true
+
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: root.currIcon
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 42
+                                                color: root.themePrimary
+                                            }
                                         }
+
+                                        ColumnLayout {
+                                            spacing: 6
+                                            Layout.alignment: Qt.AlignVCenter
+
+                                            Text {
+                                                text: root.currDesc
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 21
+                                                font.weight: Font.Bold
+                                                color: root.themeText
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                            }
+
+                                            Text {
+                                                text: "Feels like " + root.currFeel
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 12
+                                                font.weight: Font.Medium
+                                                color: root.themeTextMuted
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                            }
+
+                                            RowLayout {
+                                                spacing: 8
+                                                Layout.topMargin: 2
+
+                                                Rectangle {
+                                                    radius: 7
+                                                    color: Qt.rgba(0.98, 0.44, 0.52, 0.20)
+                                                    border.width: 1
+                                                    border.color: Qt.rgba(0.98, 0.44, 0.52, 0.45)
+                                                    antialiasing: true
+                                                    implicitWidth: highTxt.implicitWidth + 16
+                                                    implicitHeight: 24
+
+                                                    Text {
+                                                        id: highTxt
+                                                        anchors.centerIn: parent
+                                                        text: "󰁝 High " + root.currHigh
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 11
+                                                        font.weight: Font.Bold
+                                                        color: "#fb7185"
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    radius: 7
+                                                    color: Qt.rgba(0.22, 0.74, 0.97, 0.20)
+                                                    border.width: 1
+                                                    border.color: Qt.rgba(0.22, 0.74, 0.97, 0.45)
+                                                    antialiasing: true
+                                                    implicitWidth: lowTxt.implicitWidth + 16
+                                                    implicitHeight: 24
+
+                                                    Text {
+                                                        id: lowTxt
+                                                        anchors.centerIn: parent
+                                                        text: "󰁅 Low " + root.currLow
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 11
+                                                        font.weight: Font.Bold
+                                                        color: "#38bdf8"
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Item { Layout.fillWidth: true }
+
+                                        Text {
+                                            text: root.currTemp
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 56
+                                            font.weight: Font.Bold
+                                            font.letterSpacing: -2
+                                            color: root.themeText
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                            Layout.alignment: Qt.AlignVCenter
+                                        }
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+
+                                        Text {
+                                            text: "󱑂 HOURLY FORECAST"
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 11
+                                            font.weight: Font.Bold
+                                            font.letterSpacing: 0.9
+                                            color: root.themeTextMuted
+                                        }
+
+                                        Item { Layout.fillWidth: true }
+
+                                        Text {
+                                            text: "Next 16 hours"
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 10
+                                            color: root.themeTextMuted
+                                            opacity: 0.75
+                                        }
+                                    }
+
+                                    Item {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 114
 
                                         ListView {
                                             id: hourlyList
-                                            Layout.fillWidth: true
-                                            Layout.preferredHeight: 112
+                                            anchors.fill: parent
                                             orientation: ListView.Horizontal
                                             model: hourlyModel
                                             spacing: 8
                                             clip: true
+                                            boundsBehavior: Flickable.StopAtBounds
 
                                             delegate: Rectangle {
                                                 width: 78
-                                                height: 112
+                                                height: 114
                                                 radius: 12
-                                                color: hourlyHover.containsMouse ? root.themeSurfaceHover : (model.time === "Now" ? Qt.alpha(root.themePrimary, 0.15) : root.themeSurface)
+                                                color: model.time === "Now"
+                                                       ? root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.76)
+                                                       : (hourlyHover.containsMouse ? root.themeSurfaceHover : root.themeSurface)
                                                 border.width: 1
-                                                border.color: model.time === "Now" ? root.themePrimary : (hourlyHover.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(255, 255, 255, 0.10))
+                                                border.color: model.time === "Now"
+                                                              ? Qt.alpha(root.themePrimary, 0.72)
+                                                              : (hourlyHover.containsMouse ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.10))
                                                 antialiasing: true
 
                                                 Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
@@ -928,418 +1106,587 @@ except Exception as e:
                                                 ColumnLayout {
                                                     anchors.fill: parent
                                                     anchors.margins: 8
-                                                    spacing: 3
+                                                    spacing: 4
 
-                                                    Text { 
+                                                    Text {
                                                         text: model.time
-                                                        font.pixelSize: 11; font.weight: model.time === "Now" ? Font.Bold : Font.DemiBold
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 10
+                                                        font.weight: Font.Bold
                                                         color: model.time === "Now" ? root.themePrimary : root.themeTextMuted
-                                                        Layout.alignment: Qt.AlignHCenter 
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                                        Layout.alignment: Qt.AlignHCenter
                                                     }
-                                                    Text { 
+
+                                                    Text {
                                                         text: model.icon
-                                                        font.pixelSize: 22; color: root.themePrimary
-                                                        Layout.alignment: Qt.AlignHCenter 
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 21
+                                                        color: root.themePrimary
+                                                        Layout.alignment: Qt.AlignHCenter
                                                     }
-                                                    Text { 
+
+                                                    Text {
                                                         text: model.temp
-                                                        font.pixelSize: 13; font.weight: Font.Bold
-                                                        color: "#FFFFFF"
-                                                        Layout.alignment: Qt.AlignHCenter 
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 13
+                                                        font.weight: Font.Bold
+                                                        color: root.themeText
+                                                        Layout.alignment: Qt.AlignHCenter
                                                         style: Text.Raised
                                                         styleColor: Qt.rgba(0, 0, 0, 0.8)
                                                     }
-                                                    Text { 
-                                                        text: model.pop
-                                                        font.pixelSize: 10; font.weight: Font.Bold; color: "#38bdf8"
-                                                        opacity: model.pop === "0%" ? 0.35 : 1.0
-                                                        Layout.alignment: Qt.AlignHCenter 
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
+
+                                                    RowLayout {
+                                                        Layout.alignment: Qt.AlignHCenter
+                                                        spacing: 3
+                                                        opacity: model.pop === "0%" ? 0.38 : 1.0
+
+                                                        Text {
+                                                            text: "󰖗"
+                                                            font.family: root.fontFamily
+                                                            font.pixelSize: 9
+                                                            color: "#38bdf8"
+                                                        }
+
+                                                        Text {
+                                                            text: model.pop
+                                                            font.family: root.fontFamily
+                                                            font.pixelSize: 10
+                                                            font.weight: Font.Bold
+                                                            color: "#38bdf8"
+                                                        }
                                                     }
+                                                }
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            acceptedButtons: Qt.NoButton
+                                            onWheel: (wheel) => {
+                                                let maxScroll = Math.max(0, hourlyList.contentWidth - hourlyList.width)
+                                                let delta = wheel.angleDelta.x !== 0 ? wheel.angleDelta.x : wheel.angleDelta.y
+                                                hourlyList.contentX = Math.max(0, Math.min(maxScroll, hourlyList.contentX - delta * 0.8))
+                                            }
+                                        }
+                                    }
+                                }
+
+                                GridLayout {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    columns: 2
+                                    columnSpacing: 12
+                                    rowSpacing: 12
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        Layout.minimumHeight: 96
+                                        radius: 13
+                                        color: windHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                                        border.width: 1
+                                        border.color: windHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1, 1, 1, 0.10)
+                                        antialiasing: true
+
+                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+
+                                        MouseArea { id: windHover; anchors.fill: parent; hoverEnabled: true }
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 16
+                                            anchors.rightMargin: 18
+                                            spacing: 12
+
+                                            Rectangle {
+                                                width: 44
+                                                height: 44
+                                                radius: 12
+                                                color: Qt.alpha("#38bdf8", 0.16)
+                                                border.width: 1
+                                                border.color: Qt.alpha("#38bdf8", 0.35)
+                                                Layout.alignment: Qt.AlignVCenter
+                                                antialiasing: true
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "󰖝"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 21
+                                                    color: "#38bdf8"
+                                                }
+                                            }
+
+                                            Item { Layout.fillWidth: true }
+
+                                            ColumnLayout {
+                                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                                spacing: 3
+
+                                                Text {
+                                                    text: "WIND"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Bold
+                                                    font.letterSpacing: 1.0
+                                                    color: root.themeTextMuted
+                                                    Layout.alignment: Qt.AlignRight
+                                                }
+
+                                                Text {
+                                                    text: root.currWind
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 17
+                                                    font.weight: Font.Bold
+                                                    color: root.themeText
+                                                    Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                                }
+
+                                                Text {
+                                                    text: "Gusts " + root.currWindGust + " • " + root.currWindDir
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Medium
+                                                    color: root.themeTextMuted
+                                                    Layout.alignment: Qt.AlignRight
                                                 }
                                             }
                                         }
                                     }
 
-                                    GridLayout {
+                                    Rectangle {
                                         Layout.fillWidth: true
-                                        columns: 2
-                                        columnSpacing: 12
-                                        rowSpacing: 12
+                                        Layout.fillHeight: true
+                                        Layout.minimumHeight: 96
+                                        radius: 13
+                                        color: uvHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                                        border.width: 1
+                                        border.color: uvHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1, 1, 1, 0.10)
+                                        antialiasing: true
 
-                                        Rectangle {
-                                            Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
-                                            color: windHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                            border.width: 1
-                                            border.color: windHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
-                                            antialiasing: true
-                                            
-                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
-                                            MouseArea { id: windHover; anchors.fill: parent; hoverEnabled: true }
+                                        MouseArea { id: uvHover; anchors.fill: parent; hoverEnabled: true }
 
-                                            RowLayout {
-                                                anchors.fill: parent
-                                                anchors.leftMargin: 16; anchors.rightMargin: 18
-                                                spacing: 12
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 16
+                                            anchors.rightMargin: 18
+                                            spacing: 12
 
-                                                Rectangle {
-                                                    width: 44; height: 44; radius: 12
-                                                    color: Qt.alpha("#38bdf8", 0.18)
-                                                    border.width: 1; border.color: Qt.alpha("#38bdf8", 0.35)
-                                                    Layout.alignment: Qt.AlignVCenter
-                                                    antialiasing: true
-                                                    Text { anchors.centerIn: parent; text: "󰖝"; font.pixelSize: 22; color: "#38bdf8" }
+                                            Rectangle {
+                                                width: 44
+                                                height: 44
+                                                radius: 12
+                                                color: Qt.alpha("#facc15", 0.16)
+                                                border.width: 1
+                                                border.color: Qt.alpha("#facc15", 0.35)
+                                                Layout.alignment: Qt.AlignVCenter
+                                                antialiasing: true
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "󰖙"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 21
+                                                    color: "#facc15"
+                                                }
+                                            }
+
+                                            Item { Layout.fillWidth: true }
+
+                                            ColumnLayout {
+                                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                                spacing: 3
+
+                                                Text {
+                                                    text: "UV INDEX"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Bold
+                                                    font.letterSpacing: 1.0
+                                                    color: root.themeTextMuted
+                                                    Layout.alignment: Qt.AlignRight
                                                 }
 
-                                                Item { Layout.fillWidth: true }
+                                                Text {
+                                                    text: root.currUV
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 17
+                                                    font.weight: Font.Bold
+                                                    color: root.themeText
+                                                    Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                                }
 
-                                                ColumnLayout {
-                                                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                                                    spacing: 3
-
-                                                    Text { 
-                                                        text: "WIND"
-                                                        font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
-                                                        color: root.themeTextMuted
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                                    }
-                                                    Text { 
-                                                        text: root.currWind
-                                                        font.pixelSize: 18; font.weight: Font.Bold
-                                                        color: "#FFFFFF"
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
-                                                    }
-                                                    Text { 
-                                                        text: "Gusts: " + root.currWindGust
-                                                        font.pixelSize: 11; font.weight: Font.Medium; color: Qt.alpha(root.themeTextMuted, 0.9)
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
-                                                    }
+                                                Text {
+                                                    text: root.currUVDesc
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Bold
+                                                    color: "#facc15"
+                                                    Layout.alignment: Qt.AlignRight
                                                 }
                                             }
                                         }
+                                    }
 
-                                        Rectangle {
-                                            Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
-                                            color: uvHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                            border.width: 1
-                                            border.color: uvHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
-                                            antialiasing: true
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        Layout.minimumHeight: 96
+                                        radius: 13
+                                        color: humHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                                        border.width: 1
+                                        border.color: humHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1, 1, 1, 0.10)
+                                        antialiasing: true
 
-                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
-                                            MouseArea { id: uvHover; anchors.fill: parent; hoverEnabled: true }
+                                        MouseArea { id: humHover; anchors.fill: parent; hoverEnabled: true }
 
-                                            RowLayout {
-                                                anchors.fill: parent
-                                                anchors.leftMargin: 16; anchors.rightMargin: 18
-                                                spacing: 12
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 16
+                                            anchors.rightMargin: 18
+                                            spacing: 12
 
-                                                Rectangle {
-                                                    width: 44; height: 44; radius: 12
-                                                    color: Qt.alpha("#facc15", 0.18)
-                                                    border.width: 1; border.color: Qt.alpha("#facc15", 0.35)
-                                                    Layout.alignment: Qt.AlignVCenter
-                                                    antialiasing: true
-                                                    Text { anchors.centerIn: parent; text: "󰖙"; font.pixelSize: 22; color: "#facc15" }
+                                            Rectangle {
+                                                width: 44
+                                                height: 44
+                                                radius: 12
+                                                color: Qt.alpha("#a78bfa", 0.16)
+                                                border.width: 1
+                                                border.color: Qt.alpha("#a78bfa", 0.35)
+                                                Layout.alignment: Qt.AlignVCenter
+                                                antialiasing: true
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "󰖎"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 21
+                                                    color: "#a78bfa"
+                                                }
+                                            }
+
+                                            Item { Layout.fillWidth: true }
+
+                                            ColumnLayout {
+                                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                                spacing: 3
+
+                                                Text {
+                                                    text: "HUMIDITY"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Bold
+                                                    font.letterSpacing: 1.0
+                                                    color: root.themeTextMuted
+                                                    Layout.alignment: Qt.AlignRight
                                                 }
 
-                                                Item { Layout.fillWidth: true }
+                                                Text {
+                                                    text: root.currHum
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 17
+                                                    font.weight: Font.Bold
+                                                    color: root.themeText
+                                                    Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                                }
 
-                                                ColumnLayout {
-                                                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                                                    spacing: 3
-
-                                                    Text { 
-                                                        text: "UV INDEX"
-                                                        font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
-                                                        color: root.themeTextMuted
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                                    }
-                                                    Text { 
-                                                        text: root.currUV
-                                                        font.pixelSize: 18; font.weight: Font.Bold
-                                                        color: "#FFFFFF"
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
-                                                    }
-                                                    Text { 
-                                                        text: root.currUVDesc
-                                                        font.pixelSize: 11; font.weight: Font.Bold; color: "#facc15"
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
-                                                    }
+                                                Text {
+                                                    text: "Dew Point " + root.currDewPoint
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Medium
+                                                    color: root.themeTextMuted
+                                                    Layout.alignment: Qt.AlignRight
                                                 }
                                             }
                                         }
+                                    }
 
-                                        Rectangle {
-                                            Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
-                                            color: humHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                            border.width: 1
-                                            border.color: humHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
-                                            antialiasing: true
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        Layout.minimumHeight: 96
+                                        radius: 13
+                                        color: pressHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                                        border.width: 1
+                                        border.color: pressHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1, 1, 1, 0.10)
+                                        antialiasing: true
 
-                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
-                                            MouseArea { id: humHover; anchors.fill: parent; hoverEnabled: true }
+                                        MouseArea { id: pressHover; anchors.fill: parent; hoverEnabled: true }
 
-                                            RowLayout {
-                                                anchors.fill: parent
-                                                anchors.leftMargin: 16; anchors.rightMargin: 18
-                                                spacing: 12
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 16
+                                            anchors.rightMargin: 18
+                                            spacing: 12
 
-                                                Rectangle {
-                                                    width: 44; height: 44; radius: 12
-                                                    color: Qt.alpha("#a78bfa", 0.18)
-                                                    border.width: 1; border.color: Qt.alpha("#a78bfa", 0.35)
-                                                    Layout.alignment: Qt.AlignVCenter
-                                                    antialiasing: true
-                                                    Text { anchors.centerIn: parent; text: "󰖎"; font.pixelSize: 22; color: "#a78bfa" }
+                                            Rectangle {
+                                                width: 44
+                                                height: 44
+                                                radius: 12
+                                                color: Qt.alpha("#fb923c", 0.16)
+                                                border.width: 1
+                                                border.color: Qt.alpha("#fb923c", 0.35)
+                                                Layout.alignment: Qt.AlignVCenter
+                                                antialiasing: true
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "󰡴"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 21
+                                                    color: "#fb923c"
+                                                }
+                                            }
+
+                                            Item { Layout.fillWidth: true }
+
+                                            ColumnLayout {
+                                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                                spacing: 3
+
+                                                Text {
+                                                    text: "PRESSURE"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Bold
+                                                    font.letterSpacing: 1.0
+                                                    color: root.themeTextMuted
+                                                    Layout.alignment: Qt.AlignRight
                                                 }
 
-                                                Item { Layout.fillWidth: true }
+                                                Text {
+                                                    text: root.currPress
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 17
+                                                    font.weight: Font.Bold
+                                                    color: root.themeText
+                                                    Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                                }
 
-                                                ColumnLayout {
-                                                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                                                    spacing: 3
-
-                                                    Text { 
-                                                        text: "HUMIDITY"
-                                                        font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
-                                                        color: root.themeTextMuted
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                                    }
-                                                    Text { 
-                                                        text: root.currHum
-                                                        font.pixelSize: 18; font.weight: Font.Bold
-                                                        color: "#FFFFFF"
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
-                                                    }
-                                                    Text { 
-                                                        text: "Relative Dew Point"
-                                                        font.pixelSize: 11; font.weight: Font.Medium; color: Qt.alpha(root.themeTextMuted, 0.9)
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
-                                                    }
+                                                Text {
+                                                    text: "Surface Barometric"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Medium
+                                                    color: root.themeTextMuted
+                                                    Layout.alignment: Qt.AlignRight
                                                 }
                                             }
                                         }
+                                    }
 
-                                        Rectangle {
-                                            Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
-                                            color: pressHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                            border.width: 1
-                                            border.color: pressHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
-                                            antialiasing: true
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        Layout.minimumHeight: 96
+                                        radius: 13
+                                        color: cloudsHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                                        border.width: 1
+                                        border.color: cloudsHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1, 1, 1, 0.10)
+                                        antialiasing: true
 
-                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
-                                            MouseArea { id: pressHover; anchors.fill: parent; hoverEnabled: true }
+                                        MouseArea { id: cloudsHover; anchors.fill: parent; hoverEnabled: true }
 
-                                            RowLayout {
-                                                anchors.fill: parent
-                                                anchors.leftMargin: 16; anchors.rightMargin: 18
-                                                spacing: 12
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 16
+                                            anchors.rightMargin: 18
+                                            spacing: 12
 
-                                                Rectangle {
-                                                    width: 44; height: 44; radius: 12
-                                                    color: Qt.alpha("#fb923c", 0.18)
-                                                    border.width: 1; border.color: Qt.alpha("#fb923c", 0.35)
-                                                    Layout.alignment: Qt.AlignVCenter
-                                                    antialiasing: true
-                                                    Text { anchors.centerIn: parent; text: "󰖜"; font.pixelSize: 22; color: "#fb923c" }
+                                            Rectangle {
+                                                width: 44
+                                                height: 44
+                                                radius: 12
+                                                color: Qt.alpha("#38bdf8", 0.16)
+                                                border.width: 1
+                                                border.color: Qt.alpha("#38bdf8", 0.35)
+                                                Layout.alignment: Qt.AlignVCenter
+                                                antialiasing: true
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "󰅟"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 21
+                                                    color: "#38bdf8"
+                                                }
+                                            }
+
+                                            Item { Layout.fillWidth: true }
+
+                                            ColumnLayout {
+                                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                                spacing: 3
+
+                                                Text {
+                                                    text: "CLOUD COVER"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Bold
+                                                    font.letterSpacing: 1.0
+                                                    color: root.themeTextMuted
+                                                    Layout.alignment: Qt.AlignRight
                                                 }
 
-                                                Item { Layout.fillWidth: true }
+                                                Text {
+                                                    text: root.currClouds
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 17
+                                                    font.weight: Font.Bold
+                                                    color: root.themeText
+                                                    Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                                }
 
-                                                ColumnLayout {
-                                                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                                                    spacing: 3
-
-                                                    Text { 
-                                                        text: "PRESSURE"
-                                                        font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
-                                                        color: root.themeTextMuted
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                                    }
-                                                    Text { 
-                                                        text: root.currPress
-                                                        font.pixelSize: 18; font.weight: Font.Bold
-                                                        color: "#FFFFFF"
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
-                                                    }
-                                                    Text { 
-                                                        text: "Barometric Sea Level"
-                                                        font.pixelSize: 11; font.weight: Font.Medium; color: Qt.alpha(root.themeTextMuted, 0.9)
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
-                                                    }
+                                                Text {
+                                                    text: "Sky Coverage"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Medium
+                                                    color: root.themeTextMuted
+                                                    Layout.alignment: Qt.AlignRight
                                                 }
                                             }
                                         }
+                                    }
 
-                                        Rectangle {
-                                            Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
-                                            color: cloudsHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                            border.width: 1
-                                            border.color: cloudsHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
-                                            antialiasing: true
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.fillHeight: true
+                                        Layout.minimumHeight: 96
+                                        radius: 13
+                                        color: sunHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                                        border.width: 1
+                                        border.color: sunHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1, 1, 1, 0.10)
+                                        antialiasing: true
 
-                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
 
-                                            MouseArea { id: cloudsHover; anchors.fill: parent; hoverEnabled: true }
+                                        MouseArea { id: sunHover; anchors.fill: parent; hoverEnabled: true }
 
-                                            RowLayout {
-                                                anchors.fill: parent
-                                                anchors.leftMargin: 16; anchors.rightMargin: 18
-                                                spacing: 12
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 16
+                                            anchors.rightMargin: 18
+                                            spacing: 12
 
-                                                Rectangle {
-                                                    width: 44; height: 44; radius: 12
-                                                    color: Qt.alpha("#38bdf8", 0.18)
-                                                    border.width: 1; border.color: Qt.alpha("#38bdf8", 0.35)
-                                                    Layout.alignment: Qt.AlignVCenter
-                                                    antialiasing: true
-                                                    Text { anchors.centerIn: parent; text: "󰅟"; font.pixelSize: 22; color: "#38bdf8" }
-                                                }
+                                            Rectangle {
+                                                width: 44
+                                                height: 44
+                                                radius: 12
+                                                color: Qt.alpha("#f59e0b", 0.16)
+                                                border.width: 1
+                                                border.color: Qt.alpha("#f59e0b", 0.35)
+                                                Layout.alignment: Qt.AlignVCenter
+                                                antialiasing: true
 
-                                                Item { Layout.fillWidth: true }
-
-                                                ColumnLayout {
-                                                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                                                    spacing: 3
-
-                                                    Text { 
-                                                        text: "CLOUD COVER"
-                                                        font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
-                                                        color: root.themeTextMuted
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                                    }
-                                                    Text { 
-                                                        text: root.currClouds
-                                                        font.pixelSize: 18; font.weight: Font.Bold
-                                                        color: "#FFFFFF"
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
-                                                    }
-                                                    Text { 
-                                                        text: "Sky Obscuration"
-                                                        font.pixelSize: 11; font.weight: Font.Medium; color: Qt.alpha(root.themeTextMuted, 0.9)
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
-                                                    }
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "󰖚"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 21
+                                                    color: "#f59e0b"
                                                 }
                                             }
-                                        }
 
-                                        Rectangle {
-                                            Layout.fillWidth: true; Layout.preferredHeight: 106; radius: 14
-                                            color: sunHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                            border.width: 1
-                                            border.color: sunHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
-                                            antialiasing: true
+                                            Item { Layout.fillWidth: true }
 
-                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                            ColumnLayout {
+                                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                                spacing: 3
 
-                                            MouseArea { id: sunHover; anchors.fill: parent; hoverEnabled: true }
-
-                                            RowLayout {
-                                                anchors.fill: parent
-                                                anchors.leftMargin: 16; anchors.rightMargin: 18
-                                                spacing: 12
-
-                                                Rectangle {
-                                                    width: 44; height: 44; radius: 12
-                                                    color: Qt.alpha("#f59e0b", 0.18)
-                                                    border.width: 1; border.color: Qt.alpha("#f59e0b", 0.35)
-                                                    Layout.alignment: Qt.AlignVCenter
-                                                    antialiasing: true
-                                                    Text { anchors.centerIn: parent; text: "󰖚"; font.pixelSize: 22; color: "#f59e0b" }
+                                                Text {
+                                                    text: "SUN SCHEDULE"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Bold
+                                                    font.letterSpacing: 1.0
+                                                    color: root.themeTextMuted
+                                                    Layout.alignment: Qt.AlignRight
                                                 }
 
-                                                Item { Layout.fillWidth: true }
+                                                RowLayout {
+                                                    Layout.alignment: Qt.AlignRight
+                                                    spacing: 7
 
-                                                ColumnLayout {
-                                                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                                                    spacing: 3
-
-                                                    Text { 
-                                                        text: "SUN SCHEDULE"
-                                                        font.pixelSize: 10; font.weight: Font.Bold; font.letterSpacing: 1.1
-                                                        color: root.themeTextMuted
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                                    }
-                                                    
                                                     RowLayout {
-                                                        Layout.alignment: Qt.AlignRight
-                                                        spacing: 8
-                                                        
-                                                        RowLayout {
-                                                            spacing: 3
-                                                            Text { text: "󰅶"; font.pixelSize: 12; color: "#f59e0b" }
-                                                            Text { 
-                                                                text: root.currSunrise
-                                                                font.pixelSize: 13; font.weight: Font.Bold; color: "#FFFFFF" 
-                                                                style: Text.Raised
-                                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
-                                                            }
+                                                        spacing: 3
+                                                        Text {
+                                                            text: "󰅶"
+                                                            font.family: root.fontFamily
+                                                            font.pixelSize: 12
+                                                            color: "#f59e0b"
                                                         }
-                                                        Text { text: "•"; font.pixelSize: 10; color: root.themeTextMuted }
-                                                        RowLayout {
-                                                            spacing: 3
-                                                            Text { text: "󰅔"; font.pixelSize: 12; color: "#f97316" }
-                                                            Text { 
-                                                                text: root.currSunset
-                                                                font.pixelSize: 13; font.weight: Font.Bold; color: "#FFFFFF" 
-                                                                style: Text.Raised
-                                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
-                                                            }
+                                                        Text {
+                                                            text: root.currSunrise
+                                                            font.family: root.fontFamily
+                                                            font.pixelSize: 13
+                                                            font.weight: Font.Bold
+                                                            color: root.themeText
+                                                            style: Text.Raised
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.75)
                                                         }
                                                     }
-                                                    
-                                                    Text { 
-                                                        text: "Sunrise & Sunset"
-                                                        font.pixelSize: 11; font.weight: Font.Medium; color: Qt.alpha(root.themeTextMuted, 0.9)
-                                                        Layout.alignment: Qt.AlignRight
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
+
+                                                    Text {
+                                                        text: "•"
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 10
+                                                        color: root.themeTextMuted
                                                     }
+
+                                                    RowLayout {
+                                                        spacing: 3
+                                                        Text {
+                                                            text: "󰅔"
+                                                            font.family: root.fontFamily
+                                                            font.pixelSize: 12
+                                                            color: "#f97316"
+                                                        }
+                                                        Text {
+                                                            text: root.currSunset
+                                                            font.family: root.fontFamily
+                                                            font.pixelSize: 13
+                                                            font.weight: Font.Bold
+                                                            color: root.themeText
+                                                            style: Text.Raised
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                        }
+                                                    }
+                                                }
+
+                                                Text {
+                                                    text: "Sunrise & Sunset"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Medium
+                                                    color: root.themeTextMuted
+                                                    Layout.alignment: Qt.AlignRight
                                                 }
                                             }
                                         }
@@ -1347,20 +1694,39 @@ except Exception as e:
                                 }
                             }
 
-                            Rectangle { Layout.fillHeight: true; width: 1; color: Qt.rgba(255, 255, 255, 0.12) }
+                            Rectangle {
+                                Layout.fillHeight: true
+                                width: 1
+                                color: Qt.rgba(1, 1, 1, 0.10)
+                            }
 
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
-                                Layout.preferredWidth: 450
+                                Layout.preferredWidth: 460
                                 spacing: 10
 
-                                Text { 
-                                    text: "󰸗 7-Day Extended Forecast"
-                                    font.pixelSize: 15; font.weight: Font.Bold; color: "#FFFFFF"
-                                    Layout.bottomMargin: 8
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                RowLayout {
+                                    Layout.fillWidth: true
+
+                                    Text {
+                                        text: "󰸗 7-DAY FORECAST"
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 11
+                                        font.weight: Font.Bold
+                                        font.letterSpacing: 0.9
+                                        color: root.themeTextMuted
+                                    }
+
+                                    Item { Layout.fillWidth: true }
+
+                                    Text {
+                                        text: "Weekly outlook"
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 10
+                                        color: root.themeTextMuted
+                                        opacity: 0.75
+                                    }
                                 }
 
                                 ListView {
@@ -1370,19 +1736,31 @@ except Exception as e:
                                     model: forecastModel
                                     spacing: 8
                                     clip: true
-                                    
-                                    ScrollBar.vertical: ScrollBar { 
-                                        active: forecastListView.moving || forecastListView.flicking
-                                        policy: ScrollBar.AsNeeded 
+                                    boundsBehavior: Flickable.StopAtBounds
+
+                                    ScrollBar.vertical: ScrollBar {
+                                        id: vbar
+                                        visible: forecastListView.visible && vbar.size < 1.0
+                                        active: forecastListView.moving || forecastListView.flicking || hovered
+                                        policy: ScrollBar.AsNeeded
+                                        contentItem: Rectangle {
+                                            implicitWidth: 4
+                                            radius: 2
+                                            color: vbar.pressed ? root.themePrimary : Qt.alpha(root.themeTextMuted, 0.35)
+                                        }
                                     }
 
                                     delegate: Rectangle {
-                                        width: forecastListView.width
-                                        height: 62
+                                        width: forecastListView.width - (vbar.visible ? 10 : 0)
+                                        height: 64
                                         radius: 12
-                                        color: forecastItemHover.containsMouse ? root.themeSurfaceHover : (model.day === "Today" ? Qt.alpha(root.themePrimary, 0.15) : root.themeSurface)
+                                        color: model.day === "Today"
+                                               ? root.mixColor(root.themeBackground, root.themePrimary, 0.18, 0.74)
+                                               : (forecastItemHover.containsMouse ? root.themeSurfaceHover : root.themeSurface)
                                         border.width: 1
-                                        border.color: forecastItemHover.containsMouse ? root.themePrimary : (model.day === "Today" ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(255, 255, 255, 0.10))
+                                        border.color: model.day === "Today"
+                                                      ? Qt.alpha(root.themePrimary, 0.65)
+                                                      : (forecastItemHover.containsMouse ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.10))
                                         antialiasing: true
 
                                         Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
@@ -1396,98 +1774,135 @@ except Exception as e:
 
                                         RowLayout {
                                             anchors.fill: parent
-                                            anchors.leftMargin: 14; anchors.rightMargin: 14
+                                            anchors.leftMargin: 14
+                                            anchors.rightMargin: 14
                                             spacing: 10
 
                                             ColumnLayout {
-                                                Layout.preferredWidth: 55
+                                                Layout.preferredWidth: 56
                                                 spacing: 2
                                                 Layout.alignment: Qt.AlignVCenter
-                                                Text { 
+
+                                                Text {
                                                     text: model.day
-                                                    font.pixelSize: 13; font.weight: Font.Bold
-                                                    color: model.day === "Today" ? root.themePrimary : "#FFFFFF"
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 12
+                                                    font.weight: Font.Bold
+                                                    color: model.day === "Today" ? root.themePrimary : root.themeText
                                                     style: Text.Raised
                                                     styleColor: Qt.rgba(0, 0, 0, 0.8)
                                                 }
-                                                Text { 
+
+                                                Text {
                                                     text: model.date
-                                                    font.pixelSize: 10; font.weight: Font.Medium; color: root.themeTextMuted 
-                                                    style: Text.Raised
-                                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Medium
+                                                    color: root.themeTextMuted
                                                 }
                                             }
 
                                             RowLayout {
                                                 Layout.fillWidth: true
-                                                Layout.preferredWidth: 125
+                                                Layout.preferredWidth: 126
                                                 spacing: 8
                                                 Layout.alignment: Qt.AlignVCenter
-                                                Text { text: model.icon; font.pixelSize: 20; color: root.themePrimary; Layout.alignment: Qt.AlignVCenter }
-                                                Text { 
-                                                    text: model.desc
-                                                    font.pixelSize: 12; font.weight: Font.Medium; color: root.themeTextMuted
-                                                    elide: Text.ElideRight
-                                                    Layout.fillWidth: true 
+
+                                                Text {
+                                                    text: model.icon
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 19
+                                                    color: root.themePrimary
                                                     Layout.alignment: Qt.AlignVCenter
-                                                    style: Text.Raised
-                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                                }
+
+                                                Text {
+                                                    text: model.desc
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 11
+                                                    font.weight: Font.Medium
+                                                    color: root.themeText
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                    Layout.alignment: Qt.AlignVCenter
                                                 }
                                             }
 
                                             ColumnLayout {
-                                                Layout.preferredWidth: 55
+                                                Layout.preferredWidth: 58
                                                 spacing: 2
                                                 Layout.alignment: Qt.AlignVCenter
+
                                                 RowLayout {
                                                     spacing: 3
-                                                    Text { text: "󰖗"; font.pixelSize: 11; color: "#38bdf8"; opacity: model.pop === "0%" ? 0.35 : 1.0 }
-                                                    Text { 
+                                                    Text {
+                                                        text: "󰖗"
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 10
+                                                        color: "#38bdf8"
+                                                        opacity: model.pop === "0%" ? 0.38 : 1.0
+                                                    }
+                                                    Text {
                                                         text: model.pop
-                                                        font.pixelSize: 11; font.weight: Font.Bold; color: "#FFFFFF" 
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 10
+                                                        font.weight: Font.Bold
+                                                        color: model.pop === "0%" ? root.themeTextMuted : "#38bdf8"
                                                     }
                                                 }
-                                                Text { 
+
+                                                Text {
                                                     text: model.precip
-                                                    font.pixelSize: 10; font.weight: Font.Medium; color: root.themeTextMuted 
-                                                    style: Text.Raised
-                                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 9
+                                                    font.weight: Font.Medium
+                                                    color: root.themeTextMuted
                                                 }
                                             }
 
-                                            Text { 
+                                            Text {
                                                 text: model.min
-                                                font.pixelSize: 13; font.weight: Font.Medium; color: root.themeTextMuted
-                                                Layout.preferredWidth: 26; horizontalAlignment: Text.AlignRight
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 12
+                                                font.weight: Font.Medium
+                                                color: root.themeTextMuted
+                                                Layout.preferredWidth: 28
+                                                horizontalAlignment: Text.AlignRight
                                                 Layout.alignment: Qt.AlignVCenter
-                                                style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                                             }
 
                                             Rectangle {
-                                                Layout.preferredWidth: 65
+                                                Layout.preferredWidth: 68
                                                 Layout.preferredHeight: 6
                                                 radius: 3
-                                                color: Qt.rgba(255, 255, 255, 0.12)
+                                                color: Qt.rgba(1, 1, 1, 0.12)
                                                 Layout.alignment: Qt.AlignVCenter
                                                 antialiasing: true
+                                                clip: true
 
                                                 Rectangle {
                                                     x: parent.width * model.left_ratio
                                                     width: parent.width * model.width_ratio
                                                     height: parent.height
                                                     radius: 3
-                                                    color: root.themePrimary
                                                     antialiasing: true
+                                                    gradient: Gradient {
+                                                        orientation: Gradient.Horizontal
+                                                        GradientStop { position: 0.0; color: "#38bdf8" }
+                                                        GradientStop { position: 0.5; color: root.themePrimary }
+                                                        GradientStop { position: 1.0; color: "#fb7185" }
+                                                    }
                                                 }
                                             }
 
-                                            Text { 
+                                            Text {
                                                 text: model.max
-                                                font.pixelSize: 13; font.weight: Font.Bold; color: "#FFFFFF"
-                                                Layout.preferredWidth: 26
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 12
+                                                font.weight: Font.Bold
+                                                color: root.themeText
+                                                Layout.preferredWidth: 28
+                                                horizontalAlignment: Text.AlignLeft
                                                 Layout.alignment: Qt.AlignVCenter
                                                 style: Text.Raised
                                                 styleColor: Qt.rgba(0, 0, 0, 0.8)

@@ -12,25 +12,35 @@ Scope {
     QtObject {
         id: animStyle
         property int animDuration: root.animDuration > 0 ? root.animDuration : 380
-        property int fadeDuration: 280
+        property int fadeDuration: 240
         property var bounceEasing: Easing.OutBack
         property var fadeEasing: Easing.OutCubic
-        property real overshoot: 1.4
+        property real overshoot: 0.15
     }
 
+    property string fontFamily: "FiraCode Nerd Font"
+
     property color themeBackground: "#141416"
-    property color themeSurface: Qt.rgba(0, 0, 0, 0.25)
-    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)
-    property color themePrimary: "#a2d398"
-    property color themeBorder: "#a2d398"
-    property color themeText: "#FFFFFF"
-    property color themeTextMuted: "#D4D4D8"
-    property color themeAccent: "#f5a97f" 
-    property int themeRounding: 15
+    property color themeSurface: Qt.rgba(0.04, 0.04, 0.06, 0.55)
+    property color themeSurfaceHover: Qt.rgba(0.12, 0.12, 0.15, 0.70)
+    property color themePrimary: "#ffffff"
+    property color themeBorder: "#ffffff"
+    property color themeText: "#ffffff"
+    property color themeTextMuted: "#a1a1aa"
+    property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
+    property real themeBgAlpha: 0.55
     property bool animEnabled: true
     property int animDuration: 380
+
+    function mixColor(c1, c2, ratio, alphaVal) {
+        let col1 = Qt.color(c1)
+        let col2 = Qt.color(c2)
+        let r = col1.r * (1 - ratio) + col2.r * ratio
+        let g = col1.g * (1 - ratio) + col2.g * ratio
+        let b = col1.b * (1 - ratio) + col2.b * ratio
+        return Qt.rgba(r, g, b, alphaVal)
+    }
 
     FileView {
         id: colorsLuaFile
@@ -45,6 +55,10 @@ Scope {
                     let hex = "#" + activeMatch[1]
                     root.themePrimary = hex
                     root.themeBorder = hex
+                }
+                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (bgMatch && bgMatch[1]) {
+                    root.themeBackground = "#" + bgMatch[1]
                 }
             } catch(e) {}
         }
@@ -92,7 +106,7 @@ Scope {
     property string targetMonitorName: ""
 
     Timer {
-        interval: 60000 
+        interval: 60000
         running: true
         repeat: true
         onTriggered: {
@@ -105,7 +119,6 @@ Scope {
 
     function updateTargetMonitor() {
         if (root.targetMonitorName !== "") return
-
         if (Hyprland.focusedMonitor && Hyprland.focusedMonitor.name) {
             root.targetMonitorName = Hyprland.focusedMonitor.name
         }
@@ -129,35 +142,6 @@ Scope {
         }
     }
 
-    property var indianStaticHolidays: ({
-        "2026-01-14": ["Makar Sankranti / Pongal"],
-        "2026-01-26": ["Republic Day"],
-        "2026-03-03": ["Holika Dahan"],
-        "2026-03-04": ["Holi"],
-        "2026-03-19": ["Ugadi / Gudi Padwa"],
-        "2026-03-21": ["Eid al-Fitr"],
-        "2026-03-26": ["Ram Navami"],
-        "2026-04-03": ["Good Friday"],
-        "2026-04-14": ["Vaisakhi / Ambedkar Jayanti"],
-        "2026-05-01": ["Buddha Purnima"],
-        "2026-05-27": ["Bakrid / Eid al-Adha"],
-        "2026-06-26": ["Muharram"],
-        "2026-08-15": ["Independence Day"],
-        "2026-08-26": ["Onam / Id-e-Milad"],
-        "2026-08-28": ["Raksha Bandhan"],
-        "2026-09-04": ["Janmashtami"],
-        "2026-09-14": ["Ganesh Chaturthi"],
-        "2026-10-02": ["Mahatma Gandhi Jayanti"],
-        "2026-10-18": ["Durga Puja (Ashtami)"],
-        "2026-10-20": ["Dussehra (Vijayadashami)"],
-        "2026-11-08": ["Diwali (Deepavali)"],
-        "2026-11-09": ["Govardhan Puja"],
-        "2026-11-11": ["Bhai Dooj"],
-        "2026-11-15": ["Chhath Puja"],
-        "2026-11-24": ["Guru Nanak Jayanti"],
-        "2026-12-25": ["Christmas Day"]
-    })
-
     function formatDateKey(d) {
         if (!d) return ""
         let y = d.getFullYear()
@@ -166,32 +150,24 @@ Scope {
         return y + "-" + m + "-" + day
     }
 
-    function fetchIndianHolidays(year) {
-        var xhr = new XMLHttpRequest()
-        xhr.open("GET", "https://date.nager.at/api/v3/PublicHolidays/" + year + "/IN")
-        xhr.timeout = 5000 
-        xhr.onreadystatechange = function() {
-            if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
+    Process {
+        id: holidaySyncProcess
+        command: [
+            "python3", "-c",
+            "import urllib.request, json, os, re\ncache = os.path.expanduser('~/.config/quickshell/json/holidays_cache.json')\nos.makedirs(os.path.dirname(cache), exist_ok=True)\nout = {}\nif os.path.exists(cache):\n    try: out = json.load(open(cache, encoding='utf-8'))\n    except Exception: out = {}\ntry:\n    url = 'https://calendar.google.com/calendar/ical/en.indian%23holiday%40group.v.calendar.google.com/public/basic.ics'\n    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})\n    ics = urllib.request.urlopen(req, timeout=5).read().decode('utf-8', errors='ignore')\n    fresh = {}\n    for ev in ics.split('BEGIN:VEVENT')[1:]:\n        d = re.search(r'DTSTART(?:;[^:]*)?:(\\d{4})(\\d{2})(\\d{2})', ev)\n        s = re.search(r'SUMMARY(?:;[^:]*)?:(.+)', ev)\n        if d and s:\n            k = f'{d.group(1)}-{d.group(2)}-{d.group(3)}'\n            name = s.group(1).strip().replace('\\\\,', ',')\n            fresh.setdefault(k, [])\n            if name not in fresh[k]: fresh[k].append(name)\n    if fresh:\n        out = fresh\n        json.dump(out, open(cache, 'w', encoding='utf-8'))\nexcept Exception: pass\nprint(json.dumps(out))"
+        ]
+        stdout: StdioCollector {
+            onStreamFinished: {
                 try {
-                    var holidays = JSON.parse(xhr.responseText)
-                    var fetched = {}
-                    for (var i = 0; i < holidays.length; i++) {
-                        var item = holidays[i]
-                        var key = item.date
-                        if (!fetched[key]) fetched[key] = []
-                        fetched[key].push(item.localName)
-                    }
-                    root.apiEvents = fetched
+                    let parsed = JSON.parse(text.trim())
+                    if (parsed) root.apiEvents = parsed
                 } catch(e) {}
             }
         }
-        xhr.onerror = function() {}
-        xhr.ontimeout = function() {}
-        xhr.send()
     }
 
     Component.onCompleted: {
-        fetchIndianHolidays(displayedDate.getFullYear())
+        holidaySyncProcess.running = true
         root.updateTargetMonitor()
         if (root.targetMonitorName === "") {
             fallbackMonitorTimer.start()
@@ -199,6 +175,7 @@ Scope {
         colorsLuaFile.reload()
         generalLuaFile.reload()
         animConfigFile.reload()
+        eventsConfigFile.reload()
     }
 
     FileView {
@@ -217,15 +194,16 @@ Scope {
     Process { id: saveEventsProcess }
 
     function saveUserEvents() {
-        let jsonDir = Quickshell.env("HOME") + "/.config/quickshell/json"
-        let jsonFile = jsonDir + "/calendar_events.json"
-        let jsonTmp = jsonFile + ".tmp"
+        let path = Quickshell.env("HOME") + "/.config/quickshell/json/calendar_events.json"
         let jsonStr = JSON.stringify(root.userEvents)
 
-        let cmd = "mkdir -p '" + jsonDir + "' && echo '" + jsonStr.replace(/'/g, "'\\''") + "' > '" + jsonTmp + "' && mv '" + jsonTmp + "' '" + jsonFile + "'"
-
         saveEventsProcess.running = false
-        saveEventsProcess.command = ["bash", "-c", cmd]
+        saveEventsProcess.command = [
+            "python3", "-c",
+            "import sys, os; os.makedirs(os.path.dirname(sys.argv[1]), exist_ok=True); open(sys.argv[1], 'w', encoding='utf-8').write(sys.argv[2])",
+            path,
+            jsonStr
+        ]
         saveEventsProcess.running = true
     }
 
@@ -253,12 +231,6 @@ Scope {
     function getEventsForDate(cellDate) {
         let key = formatDateKey(cellDate)
         let list = []
-
-        if (root.indianStaticHolidays[key]) {
-            for (let i = 0; i < root.indianStaticHolidays[key].length; i++) {
-                list.push({ type: "holiday", text: root.indianStaticHolidays[key][i] })
-            }
-        }
 
         if (root.apiEvents[key] && Array.isArray(root.apiEvents[key])) {
             for (let i = 0; i < root.apiEvents[key].length; i++) {
@@ -312,510 +284,443 @@ Scope {
                 onClicked: Qt.quit()
             }
 
-            Rectangle {
-                id: mainCard
-                anchors.top: parent.top
-                anchors.topMargin: 50
-                anchors.horizontalCenter: parent.horizontalCenter
+            Item {
+                id: dragContainer
+                width: mainCard.width
+                height: mainCard.height
+                x: (calendarWindow.width - width) / 2
+                y: 52
 
-                width: 440
-                height: cardLayout.implicitHeight + 48
-                radius: root.themeRounding
-                color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
-                border.color: Qt.alpha(root.themePrimary, 0.4)
-                border.width: root.themeBorderSize
-                antialiasing: true
-
-                focus: true 
-
-                MouseArea {
-                    anchors.fill: parent
-                    onClicked: (mouse) => mouse.accepted = true
+                DragHandler {
+                    target: dragContainer
+                    cursorShape: Qt.ClosedHandCursor
                 }
 
-                Keys.onPressed: (event) => {
-                    let d = new Date(root.selectedDate)
-                    let changed = false
-                    
-                    if (event.key === Qt.Key_Left) { d.setDate(d.getDate() - 1); changed = true }
-                    else if (event.key === Qt.Key_Right) { d.setDate(d.getDate() + 1); changed = true }
-                    else if (event.key === Qt.Key_Up) { d.setDate(d.getDate() - 7); changed = true }
-                    else if (event.key === Qt.Key_Down) { d.setDate(d.getDate() + 7); changed = true }
-                    
-                    if (changed) {
-                        root.selectedDate = d
-                        if (d.getMonth() !== root.displayedDate.getMonth() || d.getFullYear() !== root.displayedDate.getFullYear()) {
-                            root.displayedDate = new Date(d.getFullYear(), d.getMonth(), 1)
-                            root.fetchIndianHolidays(d.getFullYear())
-                            gridAnim.restart()
-                        }
-                        event.accepted = true
-                    }
-                }
+                Rectangle {
+                    id: mainCard
+                    width: 440
+                    height: cardLayout.implicitHeight + 44
+                    radius: root.themeRounding
+                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                    border.color: Qt.alpha(root.themePrimary, 0.40)
+                    border.width: root.themeBorderSize
+                    antialiasing: true
+                    clip: true
 
-                function getDayInfo(idx, baseDate) {
-                    let year = baseDate.getFullYear()
-                    let month = baseDate.getMonth()
+                    focus: true
 
-                    let firstDay = new Date(year, month, 1).getDay()
-                    let daysInMonth = new Date(year, month + 1, 0).getDate()
-                    let daysInPrevMonth = new Date(year, month, 0).getDate()
-
-                    let dayNum = 0
-                    let isCurrentMonth = false
-                    let cellDate = new Date()
-
-                    if (idx < firstDay) {
-                        dayNum = daysInPrevMonth - (firstDay - 1 - idx)
-                        isCurrentMonth = false
-                        cellDate = new Date(year, month - 1, dayNum)
-                    } else if (idx < firstDay + daysInMonth) {
-                        dayNum = idx - firstDay + 1
-                        isCurrentMonth = true
-                        cellDate = new Date(year, month, dayNum)
-                    } else {
-                        dayNum = idx - (firstDay + daysInMonth) + 1
-                        isCurrentMonth = false
-                        cellDate = new Date(year, month + 1, dayNum)
-                    }
-
-                    let now = root.currentDate
-                    let isToday = isCurrentMonth &&
-                                  (dayNum === now.getDate()) &&
-                                  (month === now.getMonth()) &&
-                                  (year === now.getFullYear())
-
-                    let key = root.formatDateKey(cellDate)
-                    let isSelected = (key === root.formatDateKey(root.selectedDate))
-                    let eventList = root.getEventsForDate(cellDate)
-
-                    return {
-                        day: dayNum,
-                        dateObj: cellDate,
-                        isCurrent: isCurrentMonth,
-                        isToday: isToday,
-                        isSelected: isSelected,
-                        events: eventList
-                    }
-                }
-
-                ColumnLayout {
-                    id: cardLayout
-                    anchors.top: parent.top
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.margins: 24
-                    spacing: 18
-
-                    RowLayout {
-                        Layout.fillWidth: true
-
-                        ColumnLayout {
-                            spacing: 2
-                            Text {
-                                text: root.displayedDate.toLocaleDateString(Qt.locale(), "MMMM")
-                                color: root.themeText
-                                font.pixelSize: 24
-                                font.weight: Font.Bold
-                                style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.75)
-                            }
-                            Text {
-                                text: root.displayedDate.toLocaleDateString(Qt.locale(), "yyyy")
-                                color: root.themeTextMuted
-                                font.pixelSize: 14
-                                font.weight: Font.DemiBold
-                                style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.7)
-                            }
-                        }
-
-                        Item { Layout.fillWidth: true }
-
-                        RowLayout {
-                            spacing: 8
-
-                            Rectangle {
-                                Layout.preferredWidth: 34
-                                Layout.preferredHeight: 34
-                                radius: 17
-                                color: prevNav.containsMouse ? Qt.rgba(255, 255, 255, 0.18) : Qt.rgba(0, 0, 0, 0.3)
-                                border.width: 1
-                                border.color: Qt.rgba(255, 255, 255, 0.12)
-                                antialiasing: true
-
-                                scale: prevNav.pressed ? 0.90 : (prevNav.containsMouse ? 1.08 : 1.0)
-
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
-                                    }
-                                }
-                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "‹"
-                                    color: root.themeText
-                                    font.pixelSize: 20
-                                    font.weight: Font.Bold
-                                    anchors.verticalCenterOffset: -1
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
-                                }
-
-                                MouseArea {
-                                    id: prevNav
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        let newD = new Date(root.displayedDate.getFullYear(), root.displayedDate.getMonth() - 1, 1)
-                                        root.displayedDate = newD
-                                        root.fetchIndianHolidays(newD.getFullYear())
-                                        gridAnim.restart()
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                Layout.preferredWidth: 34
-                                Layout.preferredHeight: 34
-                                radius: 17
-                                color: todayNav.containsMouse ? Qt.rgba(255, 255, 255, 0.18) : Qt.rgba(0, 0, 0, 0.3)
-                                border.width: 1
-                                border.color: Qt.rgba(255, 255, 255, 0.12)
-                                antialiasing: true
-
-                                scale: todayNav.pressed ? 0.90 : (todayNav.containsMouse ? 1.08 : 1.0)
-
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
-                                    }
-                                }
-                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "•"
-                                    color: root.themePrimary
-                                    font.pixelSize: 18
-                                    font.weight: Font.Black
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
-                                }
-
-                                MouseArea {
-                                    id: todayNav
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        root.displayedDate = new Date()
-                                        root.selectedDate = new Date()
-                                        root.fetchIndianHolidays(root.displayedDate.getFullYear())
-                                        gridAnim.restart()
-                                    }
-                                }
-                            }
-
-                            Rectangle {
-                                Layout.preferredWidth: 34
-                                Layout.preferredHeight: 34
-                                radius: 17
-                                color: nextNav.containsMouse ? Qt.rgba(255, 255, 255, 0.18) : Qt.rgba(0, 0, 0, 0.3)
-                                border.width: 1
-                                border.color: Qt.rgba(255, 255, 255, 0.12)
-                                antialiasing: true
-
-                                scale: nextNav.pressed ? 0.90 : (nextNav.containsMouse ? 1.08 : 1.0)
-
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
-                                    }
-                                }
-                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "›"
-                                    color: root.themeText
-                                    font.pixelSize: 20
-                                    font.weight: Font.Bold
-                                    anchors.verticalCenterOffset: -1
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
-                                }
-
-                                MouseArea {
-                                    id: nextNav
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        let newD = new Date(root.displayedDate.getFullYear(), root.displayedDate.getMonth() + 1, 1)
-                                        root.displayedDate = newD
-                                        root.fetchIndianHolidays(newD.getFullYear())
-                                        gridAnim.restart()
-                                    }
-                                }
-                            }
+                    Behavior on height {
+                        NumberAnimation {
+                            duration: root.animEnabled ? animStyle.animDuration : 0
+                            easing.type: animStyle.bounceEasing
+                            easing.overshoot: animStyle.overshoot
                         }
                     }
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        radius: Math.max(8, root.themeRounding - 4)
-                        color: Qt.rgba(0, 0, 0, 0.35)
-                        border.width: 1
-                        border.color: Qt.rgba(255, 255, 255, 0.1)
-                        antialiasing: true
-                        implicitHeight: calBoxCol.implicitHeight + 20
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: (mouse) => mouse.accepted = true
+                    }
 
-                        ColumnLayout {
-                            id: calBoxCol
-                            anchors.fill: parent
-                            anchors.margins: 10
-                            spacing: 12
+                    Keys.onPressed: (event) => {
+                        let d = new Date(root.selectedDate)
+                        let changed = false
 
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 0
-                                Repeater {
-                                    model: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
-                                    Text {
-                                        Layout.fillWidth: true
-                                        horizontalAlignment: Text.AlignHCenter
-                                        text: modelData
-                                        color: index === 0 || index === 6 ? root.themePrimary : root.themeText
-                                        font.pixelSize: 13
-                                        font.weight: Font.Bold
-                                        style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
-                                    }
-                                }
+                        if (event.key === Qt.Key_Left) { d.setDate(d.getDate() - 1); changed = true }
+                        else if (event.key === Qt.Key_Right) { d.setDate(d.getDate() + 1); changed = true }
+                        else if (event.key === Qt.Key_Up) { d.setDate(d.getDate() - 7); changed = true }
+                        else if (event.key === Qt.Key_Down) { d.setDate(d.getDate() + 7); changed = true }
+
+                        if (changed) {
+                            root.selectedDate = d
+                            if (d.getMonth() !== root.displayedDate.getMonth() || d.getFullYear() !== root.displayedDate.getFullYear()) {
+                                root.displayedDate = new Date(d.getFullYear(), d.getMonth(), 1)
+                                gridAnim.restart()
                             }
+                            event.accepted = true
+                        }
+                    }
 
-                            Grid {
-                                id: daysGrid
-                                columns: 7
-                                spacing: 4
-                                Layout.alignment: Qt.AlignHCenter
+                    function getDayInfo(idx, baseDate) {
+                        let year = baseDate.getFullYear()
+                        let month = baseDate.getMonth()
 
-                                NumberAnimation { 
-                                    id: gridAnim 
-                                    target: daysGrid 
-                                    property: "opacity" 
-                                    from: 0.0 
-                                    to: 1.0 
-                                    duration: animStyle.fadeDuration
-                                    easing.type: animStyle.fadeEasing 
-                                }
+                        let firstDay = new Date(year, month, 1).getDay()
+                        let daysInMonth = new Date(year, month + 1, 0).getDate()
+                        let daysInPrevMonth = new Date(year, month, 0).getDate()
 
-                                Repeater {
-                                    model: 42
-                                    delegate: Rectangle {
-                                        id: dayCell
-                                        width: 48
-                                        height: 44
-                                        radius: 10
-                                        antialiasing: true
+                        let dayNum = 0
+                        let isCurrentMonth = false
+                        let cellDate = new Date()
 
-                                        property var dayInfo: mainCard.getDayInfo(index, root.displayedDate)
+                        if (idx < firstDay) {
+                            dayNum = daysInPrevMonth - (firstDay - 1 - idx)
+                            isCurrentMonth = false
+                            cellDate = new Date(year, month - 1, dayNum)
+                        } else if (idx < firstDay + daysInMonth) {
+                            dayNum = idx - firstDay + 1
+                            isCurrentMonth = true
+                            cellDate = new Date(year, month, dayNum)
+                        } else {
+                            dayNum = idx - (firstDay + daysInMonth) + 1
+                            isCurrentMonth = false
+                            cellDate = new Date(year, month + 1, dayNum)
+                        }
 
-                                        color: dayInfo.isToday 
-                                             ? root.themePrimary 
-                                             : (dayInfo.isSelected 
-                                                ? Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.3) 
-                                                : (cellHover.containsMouse ? root.themeSurfaceHover : "transparent"))
+                        let now = root.currentDate
+                        let isToday = isCurrentMonth &&
+                                      (dayNum === now.getDate()) &&
+                                      (month === now.getMonth()) &&
+                                      (year === now.getFullYear())
 
-                                        border.color: dayInfo.isSelected && !dayInfo.isToday 
-                                                    ? root.themePrimary 
-                                                    : (cellHover.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : "transparent")
-                                        border.width: dayInfo.isSelected ? 2 : 1
+                        let key = root.formatDateKey(cellDate)
+                        let isSelected = (key === root.formatDateKey(root.selectedDate))
+                        let eventList = root.getEventsForDate(cellDate)
 
-                                        scale: cellHover.pressed ? 0.92 : (cellHover.containsMouse ? 1.06 : 1.0)
-
-                                        Behavior on scale {
-                                            NumberAnimation {
-                                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                                easing.type: animStyle.bounceEasing
-                                                easing.overshoot: animStyle.overshoot
-                                            }
-                                        }
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-
-                                        ColumnLayout {
-                                            anchors.centerIn: parent
-                                            spacing: 3
-
-                                            Text {
-                                                Layout.alignment: Qt.AlignHCenter
-                                                text: dayCell.dayInfo.day.toString()
-                                                font.pixelSize: 15
-                                                font.weight: dayCell.dayInfo.isToday || dayCell.dayInfo.isSelected ? Font.Bold : Font.DemiBold
-                                                color: dayCell.dayInfo.isToday 
-                                                     ? root.themeBackground 
-                                                     : (dayCell.dayInfo.isCurrent ? "#FFFFFF" : Qt.rgba(1.0, 1.0, 1.0, 0.45))
-                                                style: dayCell.dayInfo.isToday ? Text.Normal : Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
-                                            }
-
-                                            Row {
-                                                Layout.alignment: Qt.AlignHCenter
-                                                spacing: 3
-
-                                                property bool hasHoliday: dayCell.dayInfo.events.some(e => e.type === "holiday")
-                                                property bool hasTodo: dayCell.dayInfo.events.some(e => e.type === "todo")
-
-                                                Rectangle {
-                                                    width: 5; height: 5; radius: 2.5
-                                                    color: dayCell.dayInfo.isToday ? root.themeBackground : root.themePrimary
-                                                    visible: parent.hasHoliday
-                                                    antialiasing: true
-                                                }
-                                                Rectangle {
-                                                    width: 5; height: 5; radius: 2.5
-                                                    color: dayCell.dayInfo.isToday ? root.themeBackground : root.themeAccent
-                                                    visible: parent.hasTodo
-                                                    antialiasing: true
-                                                }
-                                            }
-                                        }
-
-                                        MouseArea {
-                                            id: cellHover
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                root.selectedDate = dayCell.dayInfo.dateObj
-                                                
-                                                if (dayCell.dayInfo.dateObj.getMonth() !== root.displayedDate.getMonth()) {
-                                                    root.displayedDate = new Date(dayCell.dayInfo.dateObj.getFullYear(), dayCell.dayInfo.dateObj.getMonth(), 1)
-                                                    root.fetchIndianHolidays(root.displayedDate.getFullYear())
-                                                    gridAnim.restart()
-                                                }
-                                                
-                                                taskInputField.forceActiveFocus()
-                                            }
-                                        }
-                                    }
-                                }
-                            }
+                        return {
+                            day: dayNum,
+                            dateObj: cellDate,
+                            isCurrent: isCurrentMonth,
+                            isToday: isToday,
+                            isSelected: isSelected,
+                            events: eventList
                         }
                     }
 
                     ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 10
+                        id: cardLayout
+                        anchors.top: parent.top
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.margins: 22
+                        spacing: 16
 
-                        Text {
-                            text: "Events & Tasks for " + root.selectedDate.toLocaleDateString(Qt.locale(), "MMM d, yyyy")
-                            color: root.themePrimary
-                            font.pixelSize: 14
-                            font.weight: Font.Bold
-                            style: Text.Raised
-                            styleColor: Qt.rgba(0, 0, 0, 0.7)
-                        }
-
-                        ScrollView {
-                            id: eventsScrollView
+                        RowLayout {
                             Layout.fillWidth: true
-                            Layout.maximumHeight: 150
-                            Layout.preferredHeight: Math.min(eventListCol.implicitHeight, 150)
-                            clip: true
-                            ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                            spacing: 12
 
-                            ColumnLayout {
-                                id: eventListCol
-                                width: eventsScrollView.availableWidth > 0 ? eventsScrollView.availableWidth : eventsScrollView.width
-                                spacing: 8
-
-                                property var activeEvents: root.getEventsForDate(root.selectedDate)
+                            Rectangle {
+                                Layout.alignment: Qt.AlignVCenter
+                                width: 40
+                                height: 40
+                                radius: 12
+                                color: Qt.alpha(root.themePrimary, 0.16)
+                                border.width: 1
+                                border.color: Qt.alpha(root.themePrimary, 0.35)
+                                antialiasing: true
 
                                 Text {
-                                    text: "No events or tasks scheduled for this date."
-                                    color: root.themeTextMuted
-                                    font.pixelSize: 13
-                                    font.weight: Font.Medium
+                                    anchors.centerIn: parent
+                                    text: "󰃭"
+                                    color: root.themePrimary
+                                    font.pixelSize: 20
+                                    font.family: root.fontFamily
+                                }
+                            }
+
+                            ColumnLayout {
+                                spacing: 2
+
+                                Text {
+                                    text: root.displayedDate.toLocaleDateString(Qt.locale(), "MMMM")
+                                    color: root.themeText
+                                    font.pixelSize: 20
+                                    font.weight: Font.Bold
+                                    font.family: root.fontFamily
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                    visible: parent.activeEvents.length === 0
                                 }
 
-                                Repeater {
-                                    model: parent.activeEvents
-                                    delegate: Rectangle {
-                                        Layout.fillWidth: true
-                                        height: 34
-                                        radius: 6
-                                        color: modelData.type === "holiday" ? Qt.rgba(root.themePrimary.r, root.themePrimary.g, root.themePrimary.b, 0.25) : Qt.rgba(0, 0, 0, 0.35)
-                                        border.color: modelData.type === "holiday" ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
-                                        border.width: 1
-                                        antialiasing: true
+                                Text {
+                                    text: root.displayedDate.toLocaleDateString(Qt.locale(), "yyyy")
+                                    color: root.themePrimary
+                                    opacity: 0.85
+                                    font.pixelSize: 12
+                                    font.weight: Font.Bold
+                                    font.family: root.fontFamily
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                }
+                            }
 
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.leftMargin: modelData.type === "holiday" ? 10 : 8
-                                            anchors.rightMargin: 8
-                                            spacing: 8
+                            Item { Layout.fillWidth: true }
 
-                                            Text {
-                                                text: modelData.type === "holiday" ? ("🇮🇳 " + modelData.text) : ("• " + modelData.text)
-                                                color: modelData.type === "holiday" ? root.themePrimary : "#FFFFFF"
-                                                font.pixelSize: 13
-                                                font.weight: modelData.type === "holiday" ? Font.Bold : Font.Medium
-                                                style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                                elide: Text.ElideRight
-                                                Layout.fillWidth: true
-                                                Layout.alignment: Qt.AlignVCenter
-                                            }
+                            RowLayout {
+                                spacing: 8
 
-                                            Rectangle {
-                                                Layout.preferredWidth: 24
-                                                Layout.preferredHeight: 24
-                                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                                                radius: 12
-                                                color: delBtnMouse.containsMouse ? Qt.rgba(1.0, 0.3, 0.3, 0.25) : "transparent"
-                                                visible: modelData.type === "todo"
-                                                antialiasing: true
+                                Rectangle {
+                                    Layout.preferredWidth: 34
+                                    Layout.preferredHeight: 34
+                                    radius: 10
+                                    color: prevNav.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                                    border.width: 1
+                                    border.color: prevNav.containsMouse ? Qt.alpha(root.themePrimary, 0.5) : Qt.rgba(1, 1, 1, 0.14)
+                                    antialiasing: true
 
-                                                scale: delBtnMouse.pressed ? 0.88 : (delBtnMouse.containsMouse ? 1.15 : 1.0)
+                                    scale: prevNav.pressed ? 0.92 : (prevNav.containsMouse ? 1.06 : 1.0)
 
-                                                Behavior on scale {
-                                                    NumberAnimation {
-                                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                                        easing.type: animStyle.bounceEasing
-                                                        easing.overshoot: animStyle.overshoot
-                                                    }
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰅁"
+                                        color: root.themeText
+                                        font.pixelSize: 16
+                                        font.family: root.fontFamily
+                                    }
+
+                                    MouseArea {
+                                        id: prevNav
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            let newD = new Date(root.displayedDate.getFullYear(), root.displayedDate.getMonth() - 1, 1)
+                                            root.displayedDate = newD
+                                            gridAnim.restart()
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.preferredWidth: 34
+                                    Layout.preferredHeight: 34
+                                    radius: 10
+                                    color: todayNav.containsMouse 
+                                           ? root.mixColor(root.themeBackground, root.themePrimary, 0.28, 0.75) 
+                                           : root.themeSurface
+                                    border.width: 1
+                                    border.color: todayNav.containsMouse ? Qt.alpha(root.themePrimary, 0.6) : Qt.rgba(1, 1, 1, 0.14)
+                                    antialiasing: true
+
+                                    scale: todayNav.pressed ? 0.92 : (todayNav.containsMouse ? 1.06 : 1.0)
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰃯"
+                                        color: root.themePrimary
+                                        font.pixelSize: 15
+                                        font.family: root.fontFamily
+                                    }
+
+                                    MouseArea {
+                                        id: todayNav
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            root.displayedDate = new Date()
+                                            root.selectedDate = new Date()
+                                            gridAnim.restart()
+                                        }
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.preferredWidth: 34
+                                    Layout.preferredHeight: 34
+                                    radius: 10
+                                    color: nextNav.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                                    border.width: 1
+                                    border.color: nextNav.containsMouse ? Qt.alpha(root.themePrimary, 0.5) : Qt.rgba(1, 1, 1, 0.14)
+                                    antialiasing: true
+
+                                    scale: nextNav.pressed ? 0.92 : (nextNav.containsMouse ? 1.06 : 1.0)
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰅂"
+                                        color: root.themeText
+                                        font.pixelSize: 16
+                                        font.family: root.fontFamily
+                                    }
+
+                                    MouseArea {
+                                        id: nextNav
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            let newD = new Date(root.displayedDate.getFullYear(), root.displayedDate.getMonth() + 1, 1)
+                                            root.displayedDate = newD
+                                            gridAnim.restart()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            radius: Math.max(8, root.themeRounding - 6)
+                            color: Qt.rgba(0.02, 0.02, 0.03, 0.55)
+                            border.width: 1
+                            border.color: Qt.alpha(root.themePrimary, 0.25)
+                            antialiasing: true
+                            implicitHeight: calBoxCol.implicitHeight + 24
+
+                            ColumnLayout {
+                                id: calBoxCol
+                                anchors.fill: parent
+                                anchors.margins: 12
+                                spacing: 10
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 0
+                                    Repeater {
+                                        model: 7
+                                        Text {
+                                            Layout.fillWidth: true
+                                            horizontalAlignment: Text.AlignHCenter
+                                            text: Qt.locale().dayName(index, Locale.ShortFormat).slice(0, 2)
+                                            color: index === 0 || index === 6 ? root.themePrimary : root.themeTextMuted
+                                            font.pixelSize: 12
+                                            font.weight: Font.Bold
+                                            font.family: root.fontFamily
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                        }
+                                    }
+                                }
+
+                                Grid {
+                                    id: daysGrid
+                                    columns: 7
+                                    spacing: 5
+                                    Layout.alignment: Qt.AlignHCenter
+
+                                    NumberAnimation {
+                                        id: gridAnim
+                                        target: daysGrid
+                                        property: "opacity"
+                                        from: 0.0
+                                        to: 1.0
+                                        duration: animStyle.fadeDuration
+                                        easing.type: animStyle.fadeEasing
+                                    }
+
+                                    Repeater {
+                                        model: 42
+                                        delegate: Rectangle {
+                                            id: dayCell
+                                            width: 48
+                                            height: 44
+                                            radius: Math.max(6, root.themeRounding - 10)
+                                            antialiasing: true
+
+                                            property var dayInfo: mainCard.getDayInfo(index, root.displayedDate)
+
+                                            color: dayInfo.isToday
+                                                 ? root.themePrimary
+                                                 : (dayInfo.isSelected
+                                                    ? root.mixColor(root.themeBackground, root.themePrimary, 0.28, 0.78)
+                                                    : (cellHover.containsMouse ? root.themeSurfaceHover : "transparent"))
+
+                                            border.color: dayInfo.isToday
+                                                        ? Qt.rgba(1, 1, 1, 0.45)
+                                                        : (dayInfo.isSelected
+                                                           ? root.themePrimary
+                                                           : (cellHover.containsMouse ? Qt.alpha(root.themePrimary, 0.45) : "transparent"))
+                                            border.width: dayInfo.isSelected || dayInfo.isToday ? 1.5 : 1
+
+                                            scale: cellHover.pressed ? 0.92 : (cellHover.containsMouse ? 1.06 : 1.0)
+
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
                                                 }
-                                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                            }
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                            ColumnLayout {
+                                                anchors.centerIn: parent
+                                                spacing: 3
 
                                                 Text {
-                                                    anchors.centerIn: parent
-                                                    text: "✕"
-                                                    color: delBtnMouse.containsMouse ? "#ff4d4d" : root.themeTextMuted
-                                                    font.pixelSize: 12
-                                                    font.weight: Font.Bold
+                                                    Layout.alignment: Qt.AlignHCenter
+                                                    text: dayCell.dayInfo.day.toString()
+                                                    font.pixelSize: 13
+                                                    font.family: root.fontFamily
+                                                    font.weight: dayCell.dayInfo.isToday || dayCell.dayInfo.isSelected ? Font.Bold : Font.Medium
+                                                    color: dayCell.dayInfo.isToday
+                                                         ? "#141416"
+                                                         : (dayCell.dayInfo.isCurrent ? root.themeText : Qt.rgba(1.0, 1.0, 1.0, 0.30))
+                                                    style: dayCell.dayInfo.isToday ? Text.Normal : Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
 
-                                                MouseArea {
-                                                    id: delBtnMouse
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    cursorShape: Qt.PointingHandCursor
-                                                    onClicked: root.removeEventForSelectedDate(modelData.index)
+                                                Row {
+                                                    Layout.alignment: Qt.AlignHCenter
+                                                    spacing: 3
+
+                                                    property bool hasHoliday: dayCell.dayInfo.events.some(e => e.type === "holiday")
+                                                    property bool hasTodo: dayCell.dayInfo.events.some(e => e.type === "todo")
+
+                                                    Rectangle {
+                                                        width: 10
+                                                        height: 4
+                                                        radius: 2
+                                                        color: dayCell.dayInfo.isToday ? "#141416" : root.themePrimary
+                                                        visible: parent.hasHoliday
+                                                        antialiasing: true
+                                                    }
+                                                    Rectangle {
+                                                        width: 4
+                                                        height: 4
+                                                        radius: 2
+                                                        color: dayCell.dayInfo.isToday ? "#141416" : root.themeText
+                                                        visible: parent.hasTodo
+                                                        antialiasing: true
+                                                    }
+                                                }
+                                            }
+
+                                            MouseArea {
+                                                id: cellHover
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: {
+                                                    root.selectedDate = dayCell.dayInfo.dateObj
+
+                                                    if (dayCell.dayInfo.dateObj.getMonth() !== root.displayedDate.getMonth()) {
+                                                        root.displayedDate = new Date(dayCell.dayInfo.dateObj.getFullYear(), dayCell.dayInfo.dateObj.getMonth(), 1)
+                                                        gridAnim.restart()
+                                                    }
+
+                                                    taskInputField.forceActiveFocus()
                                                 }
                                             }
                                         }
@@ -824,82 +729,278 @@ Scope {
                             }
                         }
 
-                        RowLayout {
+                        ColumnLayout {
                             Layout.fillWidth: true
-                            spacing: 8
+                            spacing: 10
 
-                            Rectangle {
+                            RowLayout {
                                 Layout.fillWidth: true
-                                implicitHeight: 38
-                                radius: 8
-                                color: Qt.rgba(0, 0, 0, 0.35)
-                                border.color: taskInputField.activeFocus ? root.themeAccent : Qt.rgba(255, 255, 255, 0.15)
-                                border.width: 1
-                                antialiasing: true
+                                spacing: 8
 
-                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                Text {
+                                    text: "󰃰"
+                                    color: root.themePrimary
+                                    font.pixelSize: 15
+                                    font.family: root.fontFamily
+                                }
 
-                                TextInput {
-                                    id: taskInputField
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 12
-                                    anchors.rightMargin: 12
-                                    verticalAlignment: Text.AlignVCenter
-                                    color: "#FFFFFF"
+                                Text {
+                                    text: root.selectedDate.toLocaleDateString(Qt.locale(), Locale.LongFormat)
+                                    color: root.themeText
                                     font.pixelSize: 13
-                                    clip: true
+                                    font.weight: Font.Bold
+                                    font.family: root.fontFamily
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                }
+
+                                Rectangle {
+                                    visible: eventListCol.activeEvents.length > 0
+                                    width: countLabel.implicitWidth + 14
+                                    height: 22
+                                    radius: 6
+                                    color: Qt.alpha(root.themePrimary, 0.18)
+                                    border.width: 1
+                                    border.color: Qt.alpha(root.themePrimary, 0.4)
 
                                     Text {
-                                        text: "Enter task for " + root.selectedDate.toLocaleDateString(Qt.locale(), "MMM d") + "..."
-                                        color: Qt.rgba(1.0, 1.0, 1.0, 0.65)
-                                        font.pixelSize: 13
-                                        style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        visible: !taskInputField.text && !taskInputField.activeFocus
-                                    }
-
-                                    onAccepted: {
-                                        root.addEventForSelectedDate(taskInputField.text)
-                                        taskInputField.text = ""
+                                        id: countLabel
+                                        anchors.centerIn: parent
+                                        text: eventListCol.activeEvents.length.toString()
+                                        color: root.themePrimary
+                                        font.pixelSize: 11
+                                        font.weight: Font.Bold
+                                        font.family: root.fontFamily
                                     }
                                 }
                             }
 
-                            Rectangle {
-                                Layout.preferredWidth: 38
-                                Layout.preferredHeight: 38
-                                radius: 8
-                                color: addBtnMouse.containsMouse ? Qt.darker(root.themeAccent, 1.1) : root.themeAccent
-                                antialiasing: true
+                            ScrollView {
+                                id: eventsScrollView
+                                Layout.fillWidth: true
+                                Layout.maximumHeight: 148
+                                Layout.preferredHeight: Math.min(Math.max(eventListCol.implicitHeight, 44), 148)
+                                clip: true
+                                ScrollBar.vertical.policy: ScrollBar.AsNeeded
 
-                                scale: addBtnMouse.pressed ? 0.90 : (addBtnMouse.containsMouse ? 1.08 : 1.0)
+                                ColumnLayout {
+                                    id: eventListCol
+                                    width: eventsScrollView.availableWidth > 0 ? eventsScrollView.availableWidth : eventsScrollView.width
+                                    spacing: 8
 
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
+                                    property var activeEvents: root.getEventsForDate(root.selectedDate)
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        height: 44
+                                        radius: 10
+                                        color: Qt.rgba(0.02, 0.02, 0.03, 0.40)
+                                        border.width: 1
+                                        border.color: Qt.rgba(1, 1, 1, 0.08)
+                                        visible: parent.activeEvents.length === 0
+
+                                        RowLayout {
+                                            anchors.centerIn: parent
+                                            spacing: 8
+
+                                            Text {
+                                                text: "󰄬"
+                                                color: root.themeTextMuted
+                                                font.pixelSize: 14
+                                                font.family: root.fontFamily
+                                            }
+
+                                            Text {
+                                                text: root.selectedDate.toLocaleDateString(Qt.locale(), Locale.ShortFormat)
+                                                color: root.themeTextMuted
+                                                font.pixelSize: 12
+                                                font.family: root.fontFamily
+                                            }
+                                        }
+                                    }
+
+                                    Repeater {
+                                        model: parent.activeEvents
+                                        delegate: Rectangle {
+                                            Layout.fillWidth: true
+                                            height: 38
+                                            radius: 10
+                                            color: modelData.type === "holiday"
+                                                 ? root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.72)
+                                                 : Qt.rgba(0.03, 0.03, 0.05, 0.58)
+                                            border.color: modelData.type === "holiday"
+                                                        ? Qt.alpha(root.themePrimary, 0.55)
+                                                        : Qt.rgba(1, 1, 1, 0.14)
+                                            border.width: 1
+                                            antialiasing: true
+
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 12
+                                                anchors.rightMargin: 10
+                                                spacing: 10
+
+                                                Text {
+                                                    text: modelData.type === "holiday" ? "󰃰" : "󰄱"
+                                                    color: root.themePrimary
+                                                    font.pixelSize: 15
+                                                    font.family: root.fontFamily
+                                                }
+
+                                                Text {
+                                                    text: modelData.text
+                                                    color: modelData.type === "holiday" ? root.themePrimary : root.themeText
+                                                    font.pixelSize: 12
+                                                    font.weight: modelData.type === "holiday" ? Font.Bold : Font.Medium
+                                                    font.family: root.fontFamily
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                    Layout.alignment: Qt.AlignVCenter
+                                                }
+
+                                                Rectangle {
+                                                    Layout.preferredWidth: 26
+                                                    Layout.preferredHeight: 26
+                                                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                                    radius: 8
+                                                    color: delBtnMouse.containsMouse ? Qt.rgba(0.93, 0.26, 0.26, 0.35) : "transparent"
+                                                    border.width: delBtnMouse.containsMouse ? 1 : 0
+                                                    border.color: "#ff6b6b"
+                                                    visible: modelData.type === "todo"
+                                                    antialiasing: true
+
+                                                    scale: delBtnMouse.pressed ? 0.88 : (delBtnMouse.containsMouse ? 1.1 : 1.0)
+
+                                                    Behavior on scale {
+                                                        NumberAnimation {
+                                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                                            easing.type: animStyle.bounceEasing
+                                                            easing.overshoot: animStyle.overshoot
+                                                        }
+                                                    }
+                                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: "󰅖"
+                                                        color: delBtnMouse.containsMouse ? "#ff6b6b" : root.themeTextMuted
+                                                        font.pixelSize: 13
+                                                        font.family: root.fontFamily
+                                                    }
+
+                                                    MouseArea {
+                                                        id: delBtnMouse
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: root.removeEventForSelectedDate(modelData.index)
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
-                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                            }
 
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "+"
-                                    color: "#141416"
-                                    font.pixelSize: 22
-                                    font.weight: Font.Bold
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 10
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    implicitHeight: 40
+                                    radius: 10
+                                    color: Qt.rgba(0.02, 0.02, 0.03, 0.58)
+                                    border.color: taskInputField.activeFocus ? root.themePrimary : Qt.rgba(1, 1, 1, 0.16)
+                                    border.width: taskInputField.activeFocus ? 1.5 : 1
+                                    antialiasing: true
+
+                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 12
+                                        anchors.rightMargin: 12
+                                        spacing: 8
+
+                                        Text {
+                                            text: "󰏫"
+                                            color: taskInputField.activeFocus ? root.themePrimary : root.themeTextMuted
+                                            font.pixelSize: 14
+                                            font.family: root.fontFamily
+                                        }
+
+                                        TextInput {
+                                            id: taskInputField
+                                            Layout.fillWidth: true
+                                            Layout.fillHeight: true
+                                            verticalAlignment: Text.AlignVCenter
+                                            color: root.themeText
+                                            font.pixelSize: 13
+                                            font.family: root.fontFamily
+                                            selectionColor: Qt.alpha(root.themePrimary, 0.4)
+                                            selectedTextColor: root.themeText
+                                            clip: true
+
+                                            Text {
+                                                text: root.selectedDate.toLocaleDateString(Qt.locale(), "MMM d")
+                                                color: Qt.rgba(1.0, 1.0, 1.0, 0.38)
+                                                font.pixelSize: 12
+                                                font.family: root.fontFamily
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                visible: !taskInputField.text && !taskInputField.activeFocus
+                                            }
+
+                                            onAccepted: {
+                                                root.addEventForSelectedDate(taskInputField.text)
+                                                taskInputField.text = ""
+                                            }
+                                        }
+                                    }
                                 }
 
-                                MouseArea {
-                                    id: addBtnMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        root.addEventForSelectedDate(taskInputField.text)
-                                        taskInputField.text = ""
+                                Rectangle {
+                                    Layout.preferredWidth: 40
+                                    Layout.preferredHeight: 40
+                                    radius: 10
+                                    color: addBtnMouse.containsMouse ? Qt.lighter(root.themePrimary, 1.1) : root.themePrimary
+                                    border.width: 1
+                                    border.color: Qt.rgba(1, 1, 1, 0.4)
+                                    antialiasing: true
+
+                                    scale: addBtnMouse.pressed ? 0.90 : (addBtnMouse.containsMouse ? 1.06 : 1.0)
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
+                                    }
+                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰐕"
+                                        color: "#141416"
+                                        font.pixelSize: 18
+                                        font.weight: Font.Bold
+                                        font.family: root.fontFamily
+                                    }
+
+                                    MouseArea {
+                                        id: addBtnMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            root.addEventForSelectedDate(taskInputField.text)
+                                            taskInputField.text = ""
+                                        }
                                     }
                                 }
                             }

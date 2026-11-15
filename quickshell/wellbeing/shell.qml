@@ -5,9 +5,28 @@ import Quickshell.Hyprland
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 
 Scope {
     id: root
+
+    property string fontFamily: "FiraCode Nerd Font"
+
+    function quitApp() {
+        quitTimer.start()
+    }
+
+    Timer {
+        id: quitTimer
+        interval: 60
+        repeat: false
+        onTriggered: Qt.quit()
+    }
+
+    Shortcut {
+        sequence: "Escape"
+        onActivated: root.quitApp()
+    }
 
     property string targetMonitorName: ""
 
@@ -21,7 +40,7 @@ Scope {
 
     Timer {
         id: fallbackMonitorTimer
-        interval: 150
+        interval: 120
         repeat: false
         onTriggered: {
             if (root.targetMonitorName === "" && Quickshell.screens.length > 0) {
@@ -37,57 +56,108 @@ Scope {
         }
     }
 
-    property int themeRounding: 15
+    property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
-    
+    property real themeBgAlpha: 0.55
+
     property bool animEnabled: true
-    property int animDuration: 380
-    
-    property color themeBackground: "#121214" 
-    property color themeCardBg: Qt.rgba(0.09, 0.09, 0.12, 0.85)
+    property int animDuration: 220
+
+    property color themeBackground: "#141416"
+    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.56)
+    property color themeSurfaceHover: Qt.rgba(0.10, 0.10, 0.14, 0.74)
     property color themeBorder: "#d6bbfb"
-    property color themeText: "#FFFFFF"          
-    property color themeTextMuted: "#D4D4D8"
-    property color themePrimary: "#d6bbfb"        
+    property color themeText: "#ffffff"
+    property color themeTextMuted: "#a1a1aa"
+    property color themePrimary: "#d6bbfb"
 
     QtObject {
         id: animStyle
-        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
-        property int fadeDuration: 280
-        property var bounceEasing: Easing.OutBack
-        property var fadeEasing: Easing.OutCubic
-        property real overshoot: 1.4
+        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 240) : 200
+        property int fadeDuration: 180
+        property var smoothEasing: Easing.OutCubic
     }
 
-    property real dailyLimit: 14400 
+    function mixColor(c1, c2, ratio, alphaVal) {
+        let col1 = Qt.color(c1)
+        let col2 = Qt.color(c2)
+        let r = col1.r * (1 - ratio) + col2.r * ratio
+        let g = col1.g * (1 - ratio) + col2.g * ratio
+        let b = col1.b * (1 - ratio) + col2.b * ratio
+        return Qt.rgba(r, g, b, alphaVal)
+    }
+
+    property real dailyLimit: 14400
     property real todayTotal: 0
     property real maxHistoryTotal: 1
     property int appSwitches: 0
     property string peakHour: "--:--"
-    
+
     property int selectedDayIndex: -1
     property real selectedTotal: 0
     property var fullData: null
 
+    property var cachedIconMap: ({})
+    property var cachedNameMap: ({})
+
     ListModel { id: appModel }
     ListModel { id: historyModel }
 
-    function loadAppBreakdown(dayIndex) {
-        root.selectedDayIndex = dayIndex;
-        appModel.clear();
-        let sourceApps = [];
-        
-        if (dayIndex === -1) {
-            root.selectedTotal = root.todayTotal;
-            sourceApps = root.fullData ? root.fullData.today_apps : [];
-        } else if (root.fullData && root.fullData.history[dayIndex]) {
-            root.selectedTotal = root.fullData.history[dayIndex].total;
-            sourceApps = root.fullData.history[dayIndex].apps || [];
+    FileView {
+        id: appCacheFile
+        path: Quickshell.env("HOME") + "/.config/quickshell/json/app_cache.json"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let raw = text().trim()
+                if (!raw) return
+                let list = JSON.parse(raw)
+                let iMap = {}
+                let nMap = {}
+                for (let i = 0; i < list.length; i++) {
+                    let entry = list[i]
+                    let dName = String(entry.displayName || "").trim()
+                    let icon = String(entry.iconName || "").trim()
+                    let wm = String(entry.wmClass || "").trim().toLowerCase()
+                    let fName = String(entry.fileName || "").trim().toLowerCase()
+                    if (fName.endsWith(".desktop")) fName = fName.slice(0, -8)
+
+                    if (wm !== "") {
+                        if (icon !== "") iMap[wm] = icon
+                        if (dName !== "") nMap[wm] = dName
+                    }
+                    if (fName !== "") {
+                        if (icon !== "") iMap[fName] = icon
+                        if (dName !== "") nMap[fName] = dName
+                    }
+                    if (dName !== "") {
+                        let dLower = dName.toLowerCase()
+                        if (icon !== "") iMap[dLower] = icon
+                        nMap[dLower] = dName
+                    }
+                }
+                root.cachedIconMap = iMap
+                root.cachedNameMap = nMap
+            } catch (e) {}
         }
-        
+    }
+
+    function loadAppBreakdown(dayIndex) {
+        root.selectedDayIndex = dayIndex
+        appModel.clear()
+        let sourceApps = []
+
+        if (dayIndex === -1) {
+            root.selectedTotal = root.todayTotal
+            sourceApps = root.fullData ? root.fullData.today_apps : []
+        } else if (root.fullData && root.fullData.history[dayIndex]) {
+            root.selectedTotal = root.fullData.history[dayIndex].total
+            sourceApps = root.fullData.history[dayIndex].apps || []
+        }
+
         for (let i = 0; i < sourceApps.length; i++) {
-            appModel.append(sourceApps[i]);
+            appModel.append(sourceApps[i])
         }
     }
 
@@ -98,23 +168,23 @@ Scope {
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
-                    let data = JSON.parse(this.text.trim());
-                    root.fullData = data;
-                    root.todayTotal = data.today_total;
-                    root.appSwitches = data.app_switches || 0;
-                    root.peakHour = data.peak_hour || "--:--";
-                    
-                    root.loadAppBreakdown(-1);
-                    
-                    historyModel.clear();
-                    let mTotal = 1;
+                    let data = JSON.parse(this.text.trim())
+                    root.fullData = data
+                    root.todayTotal = data.today_total || 0
+                    root.appSwitches = data.app_switches || 0
+                    root.peakHour = data.peak_hour || "--:--"
+
+                    root.loadAppBreakdown(root.selectedDayIndex)
+
+                    historyModel.clear()
+                    let mTotal = 1
                     for (let i = 0; i < data.history.length; i++) {
-                        historyModel.append(data.history[i]);
+                        historyModel.append(data.history[i])
                         if (data.history[i].total > mTotal) {
-                            mTotal = data.history[i].total;
+                            mTotal = data.history[i].total
                         }
                     }
-                    root.maxHistoryTotal = mTotal;
+                    root.maxHistoryTotal = mTotal
                 } catch (e) {}
             }
         }
@@ -125,23 +195,39 @@ Scope {
         command: ["sqlite3", Quickshell.env("HOME") + "/.local/share/wellbeing/wellbeing.db", "DELETE FROM usage;"]
         running: false
         onExited: {
-            dataFetcher.running = true;
+            root.todayTotal = 0
+            root.selectedTotal = 0
+            root.appSwitches = 0
+            root.peakHour = "--:--"
+            root.selectedDayIndex = -1
+            appModel.clear()
+            dataFetcher.running = false
+            dataFetcher.running = true
         }
     }
 
     function formatTime(secs) {
-        let totalMins = Math.floor(secs / 60);
-        if (totalMins < 1) return "< 1m";
-        let h = Math.floor(totalMins / 60);
-        let m = totalMins % 60;
-        if (h > 0) return h + "h " + m + "m";
-        return m + "m";
+        if (!secs || secs <= 0) return "0m"
+        let totalMins = Math.floor(secs / 60)
+        if (totalMins < 1) return "< 1m"
+        let h = Math.floor(totalMins / 60)
+        let m = totalMins % 60
+        if (h > 0) return h + "h " + m + "m"
+        return m + "m"
+    }
+
+    function formatPercent(duration, total) {
+        if (!total || total <= 0 || !duration || duration <= 0) return "0%"
+        let pct = Math.round((duration / total) * 100)
+        return (pct < 1 ? "<1" : pct) + "%"
     }
 
     function formatAppName(appName) {
-        if (!appName) return "Unknown";
-        let str = appName.trim();
-        let lower = str.toLowerCase();
+        if (!appName) return "Unknown"
+        let str = appName.trim()
+        let lower = str.toLowerCase()
+
+        if (root.cachedNameMap[lower]) return root.cachedNameMap[lower]
 
         const nameMap = {
             "zen": "Zen Browser",
@@ -151,7 +237,8 @@ Scope {
             "codium": "VSCodium",
             "vscodium": "VSCodium",
             "code": "VS Code",
-            "code-oss": "VS Code",
+            "code-oss": "Code OSS",
+            "code - oss": "Code OSS",
             "vscode": "VS Code",
             "visual-studio-code": "VS Code",
             "org.gnome.nautilus": "Files",
@@ -252,45 +339,49 @@ Scope {
             "xdg-desktop-portal-gnome": "GNOME Portal",
             "xdg-desktop-portal-hyprland": "Hyprland Portal",
             "xdg-desktop-portal": "Desktop Portal"
-        };
+        }
 
-        if (nameMap[lower]) return nameMap[lower];
+        if (nameMap[lower]) return nameMap[lower]
 
         if (lower.indexOf("virtualbox") !== -1 || lower.indexOf("vbox") !== -1) {
-            if (lower.indexOf("vm") !== -1 || lower.indexOf("machine") !== -1) return "VirtualBox VM";
-            return "VirtualBox";
+            if (lower.indexOf("vm") !== -1 || lower.indexOf("machine") !== -1) return "VirtualBox VM"
+            return "VirtualBox"
         }
         if (lower.indexOf("portal") !== -1) {
-            if (lower.indexOf("gtk") !== -1) return "File Chooser Portal";
-            return "Desktop Portal";
+            if (lower.indexOf("gtk") !== -1) return "File Chooser Portal"
+            return "Desktop Portal"
         }
-        if (lower.indexOf("baobab") !== -1) return "Disk Usage Analyzer";
-        if (lower.indexOf("ptyxis") !== -1) return "Terminal";
-        if (lower.indexOf("gparted") !== -1) return "GParted";
-        if (lower.indexOf("powerstats") !== -1 || lower.indexOf("power stats") !== -1) return "Power Statistics";
-        if (lower.indexOf("blueman") !== -1) return "Bluetooth Manager";
-        if (lower.indexOf("nvidia") !== -1) return "NVIDIA Settings";
-        if (lower.indexOf("qt5ct") !== -1) return "Qt5 Settings";
-        if (lower.indexOf("qt6ct") !== -1) return "Qt6 Settings";
-        if (lower.indexOf("nwg-look") !== -1) return "GTK Settings";
-        if (lower.indexOf("legionaura") !== -1) return "Legion Aura";
+        if (lower.indexOf("baobab") !== -1) return "Disk Usage Analyzer"
+        if (lower.indexOf("ptyxis") !== -1) return "Terminal"
+        if (lower.indexOf("gparted") !== -1) return "GParted"
+        if (lower.indexOf("powerstats") !== -1 || lower.indexOf("power stats") !== -1) return "Power Statistics"
+        if (lower.indexOf("blueman") !== -1) return "Bluetooth Manager"
+        if (lower.indexOf("nvidia") !== -1) return "NVIDIA Settings"
+        if (lower.indexOf("qt5ct") !== -1) return "Qt5 Settings"
+        if (lower.indexOf("qt6ct") !== -1) return "Qt6 Settings"
+        if (lower.indexOf("nwg-look") !== -1) return "GTK Settings"
+        if (lower.indexOf("legionaura") !== -1) return "Legion Aura"
 
-        let parts = str.split(".");
-        let base = parts[parts.length - 1];
-        if (!base && parts.length > 1) base = parts[parts.length - 2];
-        if (!base) base = str;
+        let parts = str.split(".")
+        let base = parts[parts.length - 1]
+        if (!base && parts.length > 1) base = parts[parts.length - 2]
+        if (!base) base = str
 
-        base = base.replace(/([a-z])([A-Z])/g, "$1 $2");
-        base = base.replace(/[-_]+/g, " ");
+        base = base.replace(/([a-z])([A-Z])/g, "$1 $2")
+        base = base.replace(/[-_]+/g, " ")
 
-        let words = base.trim().split(/\s+/);
-        return words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+        let words = base.trim().split(/\s+/)
+        return words.map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")
     }
 
     function getSysIcon(appName) {
-        if (!appName) return "application-x-executable";
-        let str = appName.trim();
-        let lower = str.toLowerCase();
+        if (!appName) return ""
+        let str = appName.trim()
+        let lower = str.toLowerCase()
+
+        if (root.cachedIconMap[lower]) return root.cachedIconMap[lower]
+        let formattedLower = root.formatAppName(str).toLowerCase()
+        if (root.cachedIconMap[formattedLower]) return root.cachedIconMap[formattedLower]
 
         const iconMap = {
             "zen": "zen-browser",
@@ -299,8 +390,9 @@ Scope {
             "zen-browser": "zen-browser",
             "codium": "vscodium",
             "vscodium": "vscodium",
-            "code": "visual-studio-code",
-            "code-oss": "visual-studio-code",
+            "code": "vscodium",
+            "code-oss": "vscodium",
+            "code - oss": "vscodium",
             "vscode": "visual-studio-code",
             "visual-studio-code": "visual-studio-code",
             "nautilus": "org.gnome.Nautilus",
@@ -391,28 +483,45 @@ Scope {
             "xdg-desktop-portal-gnome": "preferences-system",
             "xdg-desktop-portal-hyprland": "preferences-system",
             "xdg-desktop-portal": "preferences-system"
-        };
-
-        if (iconMap[lower]) return iconMap[lower];
-
-        if (lower.indexOf("virtualbox") !== -1 || lower.indexOf("vbox") !== -1) return "virtualbox";
-        if (lower.indexOf("portal") !== -1) return "preferences-system";
-        if (lower.indexOf("baobab") !== -1) return "org.gnome.baobab";
-        if (lower.indexOf("gparted") !== -1) return "gparted";
-        if (lower.indexOf("powerstats") !== -1 || lower.indexOf("power stats") !== -1) return "org.gnome.PowerStats";
-        if (lower.indexOf("blueman") !== -1 || lower.indexOf("bluetooth") !== -1) return "blueman";
-        if (lower.indexOf("nvidia") !== -1) return "nvidia-settings";
-        if (lower.indexOf("ptyxis") !== -1) return "org.gnome.Ptyxis";
-        if (lower.indexOf("qt5ct") !== -1) return "qt5ct";
-        if (lower.indexOf("qt6ct") !== -1) return "qt6ct";
-        if (lower.indexOf("nwg-look") !== -1) return "nwg-look";
-        if (lower.indexOf("legionaura") !== -1) return "preferences-desktop-keyboard";
-
-        if (str.indexOf(".") !== -1) {
-            return str;
         }
 
-        return lower;
+        if (iconMap[lower]) return iconMap[lower]
+        if (lower.indexOf("code") !== -1 || lower.indexOf("codium") !== -1) return "vscodium"
+        if (lower.indexOf("virtualbox") !== -1 || lower.indexOf("vbox") !== -1) return "virtualbox"
+        if (lower.indexOf("portal") !== -1) return "preferences-system"
+        if (lower.indexOf("baobab") !== -1) return "org.gnome.baobab"
+        if (lower.indexOf("gparted") !== -1) return "gparted"
+        if (lower.indexOf("powerstats") !== -1 || lower.indexOf("power stats") !== -1) return "org.gnome.PowerStats"
+        if (lower.indexOf("blueman") !== -1 || lower.indexOf("bluetooth") !== -1) return "blueman"
+        if (lower.indexOf("nvidia") !== -1) return "nvidia-settings"
+        if (lower.indexOf("ptyxis") !== -1) return "org.gnome.Ptyxis"
+        if (lower.indexOf("qt5ct") !== -1) return "qt5ct"
+        if (lower.indexOf("qt6ct") !== -1) return "qt6ct"
+        if (lower.indexOf("nwg-look") !== -1) return "nwg-look"
+        if (lower.indexOf("legionaura") !== -1) return "preferences-desktop-keyboard"
+
+        if (str.indexOf(".") !== -1) return str
+        return lower.replace(/\s+/g, "-")
+    }
+
+    function getFallbackGlyph(appName) {
+        let lower = (appName || "").toLowerCase()
+        if (lower.indexOf("code") !== -1 || lower.indexOf("codium") !== -1) return "󰨞"
+        if (lower.indexOf("zen") !== -1 || lower.indexOf("firefox") !== -1 || lower.indexOf("chrome") !== -1 || lower.indexOf("brave") !== -1) return "󰈹"
+        if (lower.indexOf("kitty") !== -1 || lower.indexOf("term") !== -1 || lower.indexOf("ptyxis") !== -1 || lower.indexOf("foot") !== -1) return "󰞷"
+        if (lower.indexOf("nautilus") !== -1 || lower.indexOf("files") !== -1) return "󰉋"
+        if (lower.indexOf("virtualbox") !== -1 || lower.indexOf("vbox") !== -1) return "󰢹"
+        if (lower.indexOf("spotify") !== -1 || lower.indexOf("music") !== -1 || lower.indexOf("vlc") !== -1 || lower.indexOf("mpv") !== -1) return "󰓇"
+        if (lower.indexOf("discord") !== -1 || lower.indexOf("vesktop") !== -1 || lower.indexOf("telegram") !== -1) return "󰙯"
+        if (lower.indexOf("settings") !== -1 || lower.indexOf("control") !== -1) return "󰒓"
+        return "󰀻"
+    }
+
+    function resolveIconSource(iconVal) {
+        if (!iconVal || iconVal === "") return ""
+        if (iconVal.startsWith("/")) return "file://" + iconVal
+        if (iconVal.startsWith("file://")) return iconVal
+        return "image://icon/" + iconVal
     }
 
     FileView {
@@ -444,8 +553,8 @@ Scope {
             try {
                 let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
-                if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
-                
+                if (rMatch && rMatch[1]) root.themeRounding = Math.max(14, parseInt(rMatch[1]))
+
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
@@ -460,7 +569,7 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
 
                 let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
@@ -474,6 +583,7 @@ Scope {
         if (root.targetMonitorName === "") {
             fallbackMonitorTimer.start()
         }
+        appCacheFile.reload()
         colorFile.reload()
         generalConfigFile.reload()
         animConfigFile.reload()
@@ -498,7 +608,7 @@ Scope {
 
             Shortcut {
                 sequence: "Escape"
-                onActivated: Qt.quit()
+                onActivated: root.quitApp()
             }
 
             anchors {
@@ -512,171 +622,323 @@ Scope {
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: Qt.quit()
+                onClicked: root.quitApp()
             }
 
             Rectangle {
                 id: mainCard
-                width: Math.min(960, parent.width - 40)
+                width: Math.min(980, parent.width - 48)
                 height: Math.min(680, parent.height - 80)
                 anchors.centerIn: parent
 
                 radius: root.themeRounding
                 border.width: root.themeBorderSize
-                border.color: Qt.alpha(root.themePrimary, 0.40)
+                border.color: Qt.alpha(root.themePrimary, 0.42)
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                 antialiasing: true
+                clip: true
 
                 property bool shown: false
                 Component.onCompleted: shown = true
 
-                scale: shown ? 1.0 : 0.90
                 opacity: shown ? 1.0 : 0.0
-
-                Behavior on scale {
-                    NumberAnimation {
-                        duration: root.animEnabled ? animStyle.animDuration : 0
-                        easing.type: animStyle.bounceEasing
-                        easing.overshoot: animStyle.overshoot
-                    }
-                }
 
                 Behavior on opacity {
                     NumberAnimation {
-                        duration: animStyle.fadeDuration
-                        easing.type: animStyle.fadeEasing
+                        duration: root.animEnabled ? animStyle.fadeDuration : 0
+                        easing.type: animStyle.smoothEasing
+                    }
+                }
+
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: root.themeBorderSize
+                    radius: Math.max(0, parent.radius - root.themeBorderSize)
+                    antialiasing: true
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.09) }
+                        GradientStop { position: 0.35; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
+                        GradientStop { position: 1.0; color: "transparent" }
                     }
                 }
 
                 MouseArea {
                     anchors.fill: parent
-                    onClicked: (mouse) => mouse.accepted = true 
+                    onClicked: (mouse) => mouse.accepted = true
                 }
 
                 ColumnLayout {
                     anchors.fill: parent
-                    anchors.margins: 20
-                    spacing: 14
+                    anchors.margins: 22
+                    spacing: 16
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 20
+                        spacing: 12
 
-                        RowLayout {
-                            spacing: 10
-                            Text { 
+                        Rectangle {
+                            Layout.preferredWidth: 40
+                            Layout.preferredHeight: 40
+                            radius: 11
+                            color: Qt.alpha(root.themePrimary, 0.16)
+                            border.width: 1
+                            border.color: Qt.alpha(root.themePrimary, 0.38)
+                            antialiasing: true
+
+                            Text {
+                                anchors.centerIn: parent
                                 text: "󰓏"
-                                font.pixelSize: 22
+                                font.family: root.fontFamily
+                                font.pixelSize: 19
                                 color: root.themePrimary
-                                Layout.alignment: Qt.AlignVCenter
-                            }
-                            Text { 
-                                text: "Digital Wellbeing"
-                                font.pixelSize: 18
-                                font.weight: Font.Bold
-                                color: "#FFFFFF"
-                                style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.85)
-                                Layout.alignment: Qt.AlignVCenter
                             }
                         }
-                        Item { Layout.fillWidth: true }
-                    }
 
-                    Rectangle {
-                        Layout.fillWidth: true
-                        height: 1
-                        color: Qt.rgba(255, 255, 255, 0.12)
+                        ColumnLayout {
+                            spacing: 2
+                            Layout.alignment: Qt.AlignVCenter
+
+                            Text {
+                                text: "Digital Wellbeing"
+                                font.family: root.fontFamily
+                                font.pixelSize: 17
+                                font.weight: Font.Bold
+                                color: root.themeText
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.8)
+                            }
+
+                            Text {
+                                text: "Screen time & application activity"
+                                font.family: root.fontFamily
+                                font.pixelSize: 11
+                                font.weight: Font.Medium
+                                color: root.themeTextMuted
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                            }
+                        }
+
+                        Item { Layout.fillWidth: true }
+
+                        Rectangle {
+                            Layout.preferredWidth: goalRow.implicitWidth + 20
+                            Layout.preferredHeight: 32
+                            radius: 9
+                            color: Qt.alpha(root.themePrimary, 0.14)
+                            border.width: 1
+                            border.color: Qt.alpha(root.themePrimary, 0.35)
+                            antialiasing: true
+
+                            RowLayout {
+                                id: goalRow
+                                anchors.centerIn: parent
+                                spacing: 6
+
+                                Text {
+                                    text: "󰥔"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 13
+                                    color: root.themePrimary
+                                }
+
+                                Text {
+                                    text: "Daily Goal: " + root.formatTime(root.dailyLimit)
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 11
+                                    font.weight: Font.Bold
+                                    color: root.themePrimary
+                                }
+                            }
+                        }
                     }
 
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        spacing: 20
+                        spacing: 16
 
                         ColumnLayout {
-                            Layout.preferredWidth: 320
-                            Layout.minimumWidth: 320
-                            Layout.maximumWidth: 320
+                            Layout.preferredWidth: 344
+                            Layout.minimumWidth: 344
+                            Layout.maximumWidth: 344
                             Layout.fillHeight: true
-                            spacing: 20
+                            spacing: 16
 
                             Rectangle {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 260
-                                radius: root.themeRounding
-                                color: Qt.rgba(0, 0, 0, 0.25)
+                                Layout.preferredHeight: 266
+                                radius: Math.max(12, root.themeRounding - 4)
+                                color: root.themeSurface
                                 border.width: 1
-                                border.color: Qt.rgba(255, 255, 255, 0.08)
+                                border.color: Qt.rgba(1, 1, 1, 0.12)
                                 antialiasing: true
 
                                 ColumnLayout {
                                     anchors.fill: parent
-                                    anchors.margins: 24
-                                    spacing: 0
-                                    
-                                    Text {
-                                        text: "Today's Screen Time"
-                                        color: root.themeTextMuted
-                                        font.pixelSize: 14
-                                        Layout.alignment: Qt.AlignHCenter
-                                    }
-
-                                    Item { Layout.fillHeight: true }
-                                    
-                                    Text {
-                                        text: root.formatTime(root.todayTotal)
-                                        color: root.todayTotal > root.dailyLimit ? "#ef4444" : root.themePrimary
-                                        font.pixelSize: 46
-                                        font.weight: Font.Bold
-                                        Layout.alignment: Qt.AlignHCenter
-                                        style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.5)
-                                    }
-
-                                    Rectangle {
-                                        Layout.alignment: Qt.AlignHCenter
-                                        Layout.topMargin: 16
-                                        width: 180
-                                        height: 6
-                                        radius: 3
-                                        color: Qt.rgba(255, 255, 255, 0.08)
-                                        clip: true
-                                        
-                                        Rectangle {
-                                            width: root.todayTotal > 0 ? Math.min(parent.width, parent.width * (root.todayTotal / root.dailyLimit)) : 0
-                                            height: parent.height
-                                            radius: 3
-                                            color: root.todayTotal > root.dailyLimit ? "#ef4444" : root.themePrimary
-                                            Behavior on width { NumberAnimation { duration: 800; easing.type: Easing.OutCubic } }
-                                        }
-                                    }
-
-                                    Item { Layout.fillHeight: true }
+                                    anchors.margins: 18
+                                    spacing: 10
 
                                     RowLayout {
                                         Layout.fillWidth: true
-                                        Layout.alignment: Qt.AlignHCenter
-                                        spacing: 0
-                                        
-                                        ColumnLayout {
-                                            Layout.fillWidth: true
-                                            spacing: 8
-                                            Text { text: "App Switches"; color: root.themeTextMuted; font.pixelSize: 11; Layout.alignment: Qt.AlignHCenter }
-                                            Text { text: root.appSwitches.toString(); color: root.themeText; font.pixelSize: 15; font.weight: Font.Bold; Layout.alignment: Qt.AlignHCenter }
+
+                                        Text {
+                                            text: "TODAY'S SCREEN TIME"
+                                            color: root.themeTextMuted
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 10
+                                            font.weight: Font.Bold
+                                            font.letterSpacing: 0.9
                                         }
-                                        
+
+                                        Item { Layout.fillWidth: true }
+
                                         Rectangle {
-                                            Layout.preferredWidth: 1
-                                            Layout.preferredHeight: 36
-                                            color: Qt.rgba(255, 255, 255, 0.1)
+                                            Layout.preferredWidth: statusBadgeText.implicitWidth + 14
+                                            Layout.preferredHeight: 20
+                                            radius: 6
+                                            color: root.todayTotal > root.dailyLimit
+                                                   ? Qt.rgba(0.93, 0.26, 0.26, 0.22)
+                                                   : Qt.alpha(root.themePrimary, 0.18)
+                                            border.width: 1
+                                            border.color: root.todayTotal > root.dailyLimit
+                                                          ? "#ff6b6b"
+                                                          : Qt.alpha(root.themePrimary, 0.42)
+
+                                            Text {
+                                                id: statusBadgeText
+                                                anchors.centerIn: parent
+                                                text: root.todayTotal > root.dailyLimit ? "Over Limit" : "On Track"
+                                                color: root.todayTotal > root.dailyLimit ? "#ff6b6b" : root.themePrimary
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 10
+                                                font.weight: Font.Bold
+                                            }
                                         }
-                                        
-                                        ColumnLayout {
-                                            Layout.fillWidth: true
+                                    }
+
+                                    Item { Layout.fillHeight: true }
+
+                                    ColumnLayout {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        spacing: 8
+
+                                        Text {
+                                            text: root.formatTime(root.todayTotal)
+                                            color: root.todayTotal > root.dailyLimit ? "#ff6b6b" : root.themePrimary
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 42
+                                            font.weight: Font.Bold
+                                            Layout.alignment: Qt.AlignHCenter
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                        }
+
+                                        Rectangle {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            width: 210
+                                            height: 7
+                                            radius: 3.5
+                                            color: Qt.rgba(1, 1, 1, 0.10)
+                                            clip: true
+
+                                            Rectangle {
+                                                width: root.todayTotal > 0 ? Math.min(parent.width, parent.width * (root.todayTotal / root.dailyLimit)) : 0
+                                                height: parent.height
+                                                radius: 3.5
+                                                color: root.todayTotal > root.dailyLimit ? "#ff6b6b" : root.themePrimary
+                                                Behavior on width {
+                                                    NumberAnimation {
+                                                        duration: root.animEnabled ? 420 : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Text {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            text: root.formatPercent(root.todayTotal, root.dailyLimit) + " of daily goal"
+                                            color: root.themeTextMuted
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 10
+                                            font.weight: Font.Medium
+                                        }
+                                    }
+
+                                    Item { Layout.fillHeight: true }
+
+                                    Rectangle {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 62
+                                        radius: 12
+                                        color: Qt.rgba(0.02, 0.02, 0.03, 0.55)
+                                        border.width: 1
+                                        border.color: Qt.rgba(1, 1, 1, 0.09)
+                                        antialiasing: true
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 10
+                                            anchors.rightMargin: 10
                                             spacing: 8
-                                            Text { text: "Peak Activity"; color: root.themeTextMuted; font.pixelSize: 11; Layout.alignment: Qt.AlignHCenter }
-                                            Text { text: root.peakHour; color: root.themeText; font.pixelSize: 15; font.weight: Font.Bold; Layout.alignment: Qt.AlignHCenter }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                Layout.preferredWidth: 1
+                                                Layout.alignment: Qt.AlignVCenter
+                                                spacing: 3
+
+                                                Text {
+                                                    text: "App Switches"
+                                                    color: root.themeTextMuted
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Medium
+                                                    Layout.alignment: Qt.AlignHCenter
+                                                }
+
+                                                Text {
+                                                    text: root.appSwitches.toString()
+                                                    color: root.themeText
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 14
+                                                    font.weight: Font.Bold
+                                                    Layout.alignment: Qt.AlignHCenter
+                                                }
+                                            }
+
+                                            Rectangle {
+                                                Layout.preferredWidth: 1
+                                                Layout.preferredHeight: 34
+                                                Layout.alignment: Qt.AlignVCenter
+                                                color: Qt.rgba(1, 1, 1, 0.14)
+                                            }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                Layout.preferredWidth: 1
+                                                Layout.alignment: Qt.AlignVCenter
+                                                spacing: 3
+
+                                                Text {
+                                                    text: "Peak Hour"
+                                                    color: root.themeTextMuted
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: Font.Medium
+                                                    Layout.alignment: Qt.AlignHCenter
+                                                }
+
+                                                Text {
+                                                    text: root.peakHour
+                                                    color: root.themeText
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 14
+                                                    font.weight: Font.Bold
+                                                    Layout.alignment: Qt.AlignHCenter
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -685,10 +947,10 @@ Scope {
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
-                                radius: root.themeRounding
-                                color: Qt.rgba(0, 0, 0, 0.25)
+                                radius: Math.max(12, root.themeRounding - 4)
+                                color: root.themeSurface
                                 border.width: 1
-                                border.color: Qt.rgba(255, 255, 255, 0.08)
+                                border.color: Qt.rgba(1, 1, 1, 0.12)
                                 antialiasing: true
 
                                 ColumnLayout {
@@ -696,39 +958,89 @@ Scope {
                                     anchors.margins: 18
                                     spacing: 12
 
-                                    Text {
-                                        text: "Past 7 Days"
-                                        color: root.themeTextMuted
-                                        font.pixelSize: 14
-                                        font.weight: Font.Medium
+                                    RowLayout {
+                                        Layout.fillWidth: true
+
+                                        Text {
+                                            text: "PAST 7 DAYS"
+                                            color: root.themeTextMuted
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 10
+                                            font.weight: Font.Bold
+                                            font.letterSpacing: 0.9
+                                        }
+
+                                        Item { Layout.fillWidth: true }
+
+                                        Text {
+                                            text: "Click bar to filter"
+                                            color: root.themeTextMuted
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 10
+                                            opacity: 0.75
+                                        }
                                     }
 
                                     RowLayout {
+                                        id: barsRow
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
-                                        spacing: 10
+                                        spacing: 8
 
                                         Repeater {
                                             model: historyModel
                                             Item {
+                                                id: barColItem
                                                 Layout.fillWidth: true
                                                 Layout.fillHeight: true
 
+                                                property bool isBarSelected: root.selectedDayIndex === index
+                                                property bool isBarHovered: barMouse.containsMouse
+
+                                                Rectangle {
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                    anchors.bottom: dayLabel.top
+                                                    anchors.bottomMargin: 8
+                                                    width: 26
+                                                    height: Math.max(0, barColItem.height - 28)
+                                                    radius: 6
+                                                    color: Qt.rgba(1, 1, 1, 0.04)
+                                                }
+
                                                 Rectangle {
                                                     id: barRect
-                                                    width: 24
-                                                    property real targetHeight: Math.max(4, (model.total / root.maxHistoryTotal) * (parent.height - 30))
+                                                    width: 26
+                                                    property real maxBarH: Math.max(0, barColItem.height - 28)
+                                                    property real targetHeight: model.total > 0 ? Math.max(6, (model.total / root.maxHistoryTotal) * maxBarH) : 4
                                                     height: mainCard.shown ? targetHeight : 0
                                                     anchors.bottom: dayLabel.top
                                                     anchors.bottomMargin: 8
                                                     anchors.horizontalCenter: parent.horizontalCenter
-                                                    color: root.selectedDayIndex === index ? "#FFFFFF" : root.themePrimary
-                                                    radius: 4
-                                                    opacity: barMouse.containsMouse || root.selectedDayIndex === index ? 1.0 : (model.total > 0 ? 0.7 : 0.2)
+                                                    color: barColItem.isBarSelected
+                                                           ? "#ffffff"
+                                                           : (barColItem.isBarHovered ? Qt.lighter(root.themePrimary, 1.1) : root.themePrimary)
+                                                    radius: 6
+                                                    opacity: barColItem.isBarSelected || barColItem.isBarHovered ? 1.0 : (model.total > 0 ? 0.78 : 0.25)
                                                     antialiasing: true
-                                                    Behavior on height { NumberAnimation { duration: 600; easing.type: Easing.OutBack; easing.overshoot: 1.1 } }
-                                                    Behavior on opacity { NumberAnimation { duration: 150 } }
-                                                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                                                    Behavior on height {
+                                                        NumberAnimation {
+                                                            duration: root.animEnabled ? 380 : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                    Behavior on opacity {
+                                                        NumberAnimation {
+                                                            duration: animStyle.fadeDuration
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                    Behavior on color {
+                                                        ColorAnimation {
+                                                            duration: animStyle.fadeDuration
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
                                                 }
 
                                                 Text {
@@ -736,9 +1048,10 @@ Scope {
                                                     text: model.day
                                                     anchors.bottom: parent.bottom
                                                     anchors.horizontalCenter: parent.horizontalCenter
-                                                    color: root.selectedDayIndex === index ? "#FFFFFF" : root.themeTextMuted
-                                                    font.pixelSize: 11
-                                                    font.weight: root.selectedDayIndex === index ? Font.Bold : Font.Medium
+                                                    color: barColItem.isBarSelected ? root.themePrimary : root.themeTextMuted
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 10
+                                                    font.weight: barColItem.isBarSelected ? Font.Bold : Font.Medium
                                                 }
 
                                                 MouseArea {
@@ -747,40 +1060,44 @@ Scope {
                                                     hoverEnabled: true
                                                     cursorShape: Qt.PointingHandCursor
                                                     onClicked: {
-                                                        root.loadAppBreakdown(index);
+                                                        root.loadAppBreakdown(root.selectedDayIndex === index ? -1 : index)
                                                     }
                                                 }
 
                                                 Rectangle {
+                                                    id: barTooltip
                                                     visible: barMouse.containsMouse && model.total > 0
-                                                    width: tooltipLayout.implicitWidth + 24
-                                                    height: tooltipLayout.implicitHeight + 16
+                                                    width: Math.max(tooltipLayout.implicitWidth + 22, 110)
+                                                    height: tooltipLayout.implicitHeight + 14
                                                     anchors.bottom: barRect.top
-                                                    anchors.bottomMargin: 10
-                                                    anchors.horizontalCenter: parent.horizontalCenter
-                                                    color: Qt.rgba(0.08, 0.08, 0.11, 0.95)
-                                                    radius: 8
+                                                    anchors.bottomMargin: 8
+                                                    x: Math.max(-barColItem.x, Math.min((barColItem.width - width) / 2, barsRow.width - barColItem.x - width))
+                                                    color: Qt.rgba(0.05, 0.05, 0.07, 0.94)
+                                                    radius: 9
                                                     border.width: 1
-                                                    border.color: Qt.alpha(root.themePrimary, 0.5)
-                                                    z: 10
+                                                    border.color: Qt.alpha(root.themePrimary, 0.55)
+                                                    z: 20
                                                     antialiasing: true
 
                                                     ColumnLayout {
                                                         id: tooltipLayout
                                                         anchors.centerIn: parent
-                                                        spacing: 4
+                                                        spacing: 3
+
                                                         Text {
                                                             text: root.formatTime(model.total)
-                                                            color: "#FFFFFF"
-                                                            font.pixelSize: 13
+                                                            color: root.themePrimary
+                                                            font.family: root.fontFamily
+                                                            font.pixelSize: 12
                                                             font.weight: Font.Bold
                                                             Layout.alignment: Qt.AlignHCenter
                                                         }
+
                                                         RowLayout {
                                                             Layout.alignment: Qt.AlignHCenter
-                                                            spacing: 6
+                                                            spacing: 5
                                                             visible: model.top_app !== ""
-                                                            
+
                                                             Item {
                                                                 width: 14
                                                                 height: 14
@@ -789,34 +1106,31 @@ Scope {
                                                                 Image {
                                                                     id: tooltipIcon
                                                                     anchors.fill: parent
-                                                                    source: model.top_app ? "image://icon/" + root.getSysIcon(model.top_app) : ""
-                                                                    sourceSize: Qt.size(14, 14)
+                                                                    property string resolvedSrc: model.top_app ? root.resolveIconSource(root.getSysIcon(model.top_app)) : ""
+                                                                    source: resolvedSrc
+                                                                    sourceSize: Qt.size(28, 28)
                                                                     fillMode: Image.PreserveAspectFit
+                                                                    smooth: true
                                                                     asynchronous: true
                                                                     visible: status === Image.Ready
-
-                                                                    property bool fallbackAttempted: false
-                                                                    onStatusChanged: {
-                                                                        if (status === Image.Error && !fallbackAttempted) {
-                                                                            fallbackAttempted = true
-                                                                            source = "image://icon/application-x-executable"
-                                                                        }
-                                                                    }
                                                                 }
 
                                                                 Text {
                                                                     anchors.centerIn: parent
-                                                                    visible: !tooltipIcon.visible
-                                                                    text: "󰀻"
+                                                                    visible: tooltipIcon.status !== Image.Ready
+                                                                    text: root.getFallbackGlyph(model.top_app)
+                                                                    font.family: root.fontFamily
                                                                     font.pixelSize: 12
-                                                                    color: root.themeTextMuted
+                                                                    color: root.themePrimary
                                                                 }
                                                             }
 
                                                             Text {
                                                                 text: root.formatAppName(model.top_app)
-                                                                color: root.themeTextMuted
-                                                                font.pixelSize: 11
+                                                                color: root.themeText
+                                                                font.family: root.fontFamily
+                                                                font.pixelSize: 10
+                                                                font.weight: Font.Medium
                                                             }
                                                         }
                                                     }
@@ -832,158 +1146,256 @@ Scope {
                             Layout.fillWidth: true
                             Layout.minimumWidth: 300
                             Layout.fillHeight: true
-                            radius: root.themeRounding
-                            color: Qt.rgba(0, 0, 0, 0.25)
+                            radius: Math.max(12, root.themeRounding - 4)
+                            color: root.themeSurface
                             border.width: 1
-                            border.color: Qt.rgba(255, 255, 255, 0.08)
+                            border.color: Qt.rgba(1, 1, 1, 0.12)
                             clip: true
                             antialiasing: true
 
-                            Text {
-                                anchors.centerIn: parent
-                                visible: appModel.count === 0
-                                text: "No activity recorded."
-                                color: root.themeTextMuted
-                                font.pixelSize: 14
-                                font.weight: Font.Medium
-                            }
-
-                            ListView {
-                                id: appList
+                            ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 14
-                                spacing: 8
-                                model: appModel
-                                clip: true
+                                anchors.margins: 18
+                                spacing: 12
 
-                                ScrollBar.vertical: ScrollBar {
-                                    active: appList.moving || appList.flicking
-                                    policy: ScrollBar.AsNeeded
-                                }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
 
-                                header: Item {
-                                    width: appList.width
-                                    height: 42
-                                    RowLayout {
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 4
-                                        anchors.rightMargin: 4
-                                        
-                                        Text {
-                                            text: root.selectedDayIndex === -1 ? "App Usage Breakdown" : "Breakdown: " + historyModel.get(root.selectedDayIndex).day
-                                            color: root.selectedDayIndex === -1 ? root.themeTextMuted : "#FFFFFF"
-                                            font.pixelSize: 14
-                                            font.weight: Font.Medium
-                                            Layout.fillWidth: true
-                                        }
-                                        
-                                        Rectangle {
-                                            visible: root.selectedDayIndex !== -1
-                                            width: 90
-                                            height: 24
-                                            radius: 4
-                                            color: Qt.rgba(255, 255, 255, 0.1)
-                                            border.width: 1
-                                            border.color: Qt.rgba(255, 255, 255, 0.15)
-                                            antialiasing: true
-                                            
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: "Back to Today"
-                                                color: "#FFFFFF"
-                                                font.pixelSize: 11
-                                                font.weight: Font.Medium
-                                            }
-                                            
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: root.loadAppBreakdown(-1)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                delegate: Item {
-                                    width: appList.width
-                                    height: 54
-
-                                    MouseArea {
-                                        id: appMouse
-                                        anchors.fill: parent
-                                        hoverEnabled: true
+                                    Text {
+                                        text: root.selectedDayIndex === -1
+                                              ? "APP USAGE BREAKDOWN"
+                                              : ("BREAKDOWN • " + historyModel.get(root.selectedDayIndex).day.toUpperCase())
+                                        color: root.selectedDayIndex === -1 ? root.themeTextMuted : root.themePrimary
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 10
+                                        font.weight: Font.Bold
+                                        font.letterSpacing: 0.9
+                                        Layout.fillWidth: true
                                     }
 
                                     Rectangle {
-                                        anchors.fill: parent
-                                        radius: 8
-                                        color: Qt.rgba(255, 255, 255, appMouse.containsMouse ? 0.06 : 0.02)
+                                        visible: root.selectedDayIndex !== -1
+                                        Layout.preferredWidth: backBtnText.implicitWidth + 16
+                                        Layout.preferredHeight: 24
+                                        radius: 7
+                                        color: backBtnMouse.containsMouse
+                                               ? root.mixColor(root.themeBackground, root.themePrimary, 0.25, 0.8)
+                                               : Qt.rgba(1, 1, 1, 0.08)
+                                        border.width: 1
+                                        border.color: Qt.alpha(root.themePrimary, 0.45)
                                         antialiasing: true
-                                        Behavior on color { ColorAnimation { duration: 150 } }
 
-                                        Rectangle {
-                                            anchors.left: parent.left
-                                            anchors.top: parent.top
-                                            anchors.bottom: parent.bottom
-                                            width: root.selectedTotal > 0 ? parent.width * (model.duration / root.selectedTotal) : 0
-                                            radius: 8
-                                            color: Qt.alpha(root.themePrimary, 0.20)
-                                            antialiasing: true
-                                            Behavior on width { NumberAnimation { duration: 800; easing.type: Easing.OutCubic } }
+                                        Text {
+                                            id: backBtnText
+                                            anchors.centerIn: parent
+                                            text: "Today"
+                                            color: root.themeText
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 10
+                                            font.weight: Font.Bold
                                         }
 
-                                        RowLayout {
+                                        MouseArea {
+                                            id: backBtnMouse
                                             anchors.fill: parent
-                                            anchors.leftMargin: 16
-                                            anchors.rightMargin: 16
-                                            spacing: 16
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.loadAppBreakdown(-1)
+                                        }
+                                    }
+                                }
 
-                                            Item {
-                                                width: 24
-                                                height: 24
-                                                Layout.alignment: Qt.AlignVCenter
+                                Item {
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    visible: appModel.count === 0
 
-                                                Image {
-                                                    id: appIcon
-                                                    anchors.fill: parent
-                                                    source: "image://icon/" + root.getSysIcon(model.app)
-                                                    sourceSize: Qt.size(24, 24)
-                                                    fillMode: Image.PreserveAspectFit
-                                                    asynchronous: true
-                                                    visible: status === Image.Ready
+                                    ColumnLayout {
+                                        anchors.centerIn: parent
+                                        spacing: 10
 
-                                                    property bool fallbackAttempted: false
-                                                    onStatusChanged: {
-                                                        if (status === Image.Error && !fallbackAttempted) {
-                                                            fallbackAttempted = true
-                                                            source = "image://icon/application-x-executable"
-                                                        }
+                                        Rectangle {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            width: 52
+                                            height: 52
+                                            radius: 15
+                                            color: Qt.rgba(0.02, 0.02, 0.03, 0.55)
+                                            border.width: 1
+                                            border.color: Qt.alpha(root.themePrimary, 0.28)
+
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "󰓏"
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 22
+                                                color: root.themePrimary
+                                                opacity: 0.75
+                                            }
+                                        }
+
+                                        Text {
+                                            Layout.alignment: Qt.AlignHCenter
+                                            text: "No activity recorded"
+                                            color: root.themeTextMuted
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 12
+                                            font.weight: Font.Medium
+                                        }
+                                    }
+                                }
+
+                                ListView {
+                                    id: appList
+                                    Layout.fillWidth: true
+                                    Layout.fillHeight: true
+                                    visible: appModel.count > 0
+                                    spacing: 8
+                                    model: appModel
+                                    clip: true
+                                    boundsBehavior: Flickable.StopAtBounds
+
+                                    ScrollBar.vertical: ScrollBar {
+                                        id: vbar
+                                        visible: appList.visible && vbar.size < 1.0
+                                        active: appList.moving || appList.flicking || hovered
+                                        policy: ScrollBar.AsNeeded
+                                        contentItem: Rectangle {
+                                            implicitWidth: 4
+                                            radius: 2
+                                            color: vbar.pressed ? root.themePrimary : Qt.alpha(root.themeTextMuted, 0.35)
+                                        }
+                                    }
+
+                                    delegate: Item {
+                                        width: appList.width - (vbar.visible ? 10 : 0)
+                                        height: 56
+
+                                        MouseArea {
+                                            id: appMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                        }
+
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            radius: 11
+                                            color: appMouse.containsMouse
+                                                   ? Qt.rgba(1, 1, 1, 0.07)
+                                                   : Qt.rgba(0.02, 0.02, 0.03, 0.45)
+                                            border.width: 1
+                                            border.color: appMouse.containsMouse
+                                                          ? Qt.alpha(root.themePrimary, 0.45)
+                                                          : Qt.rgba(1, 1, 1, 0.08)
+                                            antialiasing: true
+                                            clip: true
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: animStyle.fadeDuration
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on border.color {
+                                                ColorAnimation {
+                                                    duration: animStyle.fadeDuration
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+
+                                            Rectangle {
+                                                anchors.left: parent.left
+                                                anchors.top: parent.top
+                                                anchors.bottom: parent.bottom
+                                                width: root.selectedTotal > 0 ? parent.width * Math.min(1.0, model.duration / root.selectedTotal) : 0
+                                                color: Qt.alpha(root.themePrimary, 0.16)
+                                                antialiasing: true
+                                                Behavior on width {
+                                                    NumberAnimation {
+                                                        duration: root.animEnabled ? 420 : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                            }
+
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 12
+                                                anchors.rightMargin: 14
+                                                spacing: 12
+
+                                                Rectangle {
+                                                    width: 36
+                                                    height: 36
+                                                    radius: 9
+                                                    color: Qt.rgba(1, 1, 1, 0.07)
+                                                    border.width: 1
+                                                    border.color: Qt.rgba(1, 1, 1, 0.12)
+                                                    Layout.alignment: Qt.AlignVCenter
+                                                    antialiasing: true
+
+                                                    Image {
+                                                        id: appIcon
+                                                        anchors.centerIn: parent
+                                                        width: 24
+                                                        height: 24
+                                                        property string resolvedSrc: root.resolveIconSource(root.getSysIcon(model.app))
+                                                        source: resolvedSrc
+                                                        sourceSize: Qt.size(48, 48)
+                                                        fillMode: Image.PreserveAspectFit
+                                                        smooth: true
+                                                        asynchronous: true
+                                                        visible: status === Image.Ready
+                                                    }
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        visible: appIcon.status !== Image.Ready
+                                                        text: root.getFallbackGlyph(model.app)
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 17
+                                                        color: root.themePrimary
+                                                    }
+                                                }
+
+                                                ColumnLayout {
+                                                    Layout.fillWidth: true
+                                                    Layout.alignment: Qt.AlignVCenter
+                                                    spacing: 2
+
+                                                    Text {
+                                                        text: root.formatAppName(model.app)
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 13
+                                                        font.weight: Font.Bold
+                                                        color: root.themeText
+                                                        Layout.fillWidth: true
+                                                        elide: Text.ElideRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                    }
+
+                                                    Text {
+                                                        text: root.formatPercent(model.duration, root.selectedTotal) + " of active time"
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 10
+                                                        font.weight: Font.Medium
+                                                        color: root.themeTextMuted
+                                                        Layout.fillWidth: true
+                                                        elide: Text.ElideRight
                                                     }
                                                 }
 
                                                 Text {
-                                                    anchors.centerIn: parent
-                                                    visible: !appIcon.visible
-                                                    text: "󰀻"
-                                                    font.pixelSize: 20
+                                                    text: root.formatTime(model.duration)
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 13
+                                                    font.weight: Font.Bold
                                                     color: root.themePrimary
+                                                    Layout.alignment: Qt.AlignVCenter
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                                 }
-                                            }
-
-                                            Text {
-                                                text: root.formatAppName(model.app)
-                                                font.pixelSize: 15
-                                                font.weight: Font.Medium
-                                                color: root.themeText
-                                                Layout.fillWidth: true
-                                                elide: Text.ElideRight
-                                            }
-
-                                            Text {
-                                                text: root.formatTime(model.duration)
-                                                font.pixelSize: 14
-                                                font.weight: Font.Bold
-                                                color: root.themeText
                                             }
                                         }
                                     }
@@ -994,75 +1406,101 @@ Scope {
 
                     Rectangle {
                         Layout.fillWidth: true
-                        height: 32
-                        color: Qt.rgba(0, 0, 0, 0.35)
+                        height: 36
+                        color: Qt.rgba(0.02, 0.02, 0.03, 0.55)
                         border.width: 1
-                        border.color: Qt.rgba(255, 255, 255, 0.08)
-                        radius: Math.max(4, root.themeRounding - 6)
+                        border.color: Qt.rgba(1, 1, 1, 0.10)
+                        radius: 10
                         antialiasing: true
 
                         RowLayout {
                             anchors.fill: parent
                             anchors.leftMargin: 14
                             anchors.rightMargin: 14
+                            spacing: 10
 
                             Text {
-                                text: "Data stored locally in SQLite"
-                                font.pixelSize: 12
+                                text: "󰆼"
+                                font.family: root.fontFamily
+                                font.pixelSize: 13
+                                color: root.themePrimary
+                            }
+
+                            Text {
+                                text: "Local SQLite Wellbeing Database"
+                                font.family: root.fontFamily
+                                font.pixelSize: 11
                                 font.weight: Font.Medium
                                 color: root.themeTextMuted
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
-                                style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                             }
 
                             RowLayout {
                                 spacing: 8
-                                
+
                                 Rectangle {
-                                    width: 60; height: 20; radius: 4
-                                    color: Qt.rgba(239, 68, 68, 0.15)
-                                    border.width: 1; border.color: Qt.rgba(239, 68, 68, 0.3)
+                                    Layout.preferredWidth: clearText.implicitWidth + 18
+                                    Layout.preferredHeight: 24
+                                    radius: 7
+                                    color: clearMouse.containsMouse
+                                           ? Qt.rgba(0.93, 0.26, 0.26, 0.32)
+                                           : Qt.rgba(0.93, 0.26, 0.26, 0.18)
+                                    border.width: 1
+                                    border.color: "#ff6b6b"
                                     antialiasing: true
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "CLEAR"
-                                        font.pixelSize: 10
-                                        color: "#ef4444"
-                                        font.weight: Font.Bold
-                                        style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
+
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: animStyle.fadeDuration
+                                            easing.type: animStyle.smoothEasing
+                                        }
                                     }
+
+                                    Text {
+                                        id: clearText
+                                        anchors.centerIn: parent
+                                        text: "Clear Data"
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 10
+                                        color: "#ff6b6b"
+                                        font.weight: Font.Bold
+                                    }
+
                                     MouseArea {
+                                        id: clearMouse
                                         anchors.fill: parent
+                                        hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: resetDataProcess.running = true
                                     }
                                 }
-                                
-                                Rectangle { 
-                                    width: 34; height: 20; radius: 4
-                                    color: Qt.rgba(255, 255, 255, 0.12)
-                                    border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.15)
+
+                                Rectangle {
+                                    width: 34
+                                    height: 24
+                                    radius: 7
+                                    color: Qt.alpha(root.themePrimary, 0.16)
+                                    border.width: 1
+                                    border.color: Qt.alpha(root.themePrimary, 0.40)
                                     antialiasing: true
-                                    Text { 
+
+                                    Text {
                                         anchors.centerIn: parent
                                         text: "ESC"
+                                        font.family: root.fontFamily
                                         font.pixelSize: 10
-                                        color: "#FFFFFF"
+                                        color: root.themePrimary
                                         font.weight: Font.Bold
-                                        style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
-                                    } 
+                                    }
                                 }
-                                Text { 
+
+                                Text {
                                     text: "Close"
-                                    font.pixelSize: 12
-                                    font.weight: Font.Medium
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 11
+                                    font.weight: Font.Bold
                                     color: root.themeTextMuted
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
                                 }
                             }
                         }
@@ -1070,5 +1508,5 @@ Scope {
                 }
             }
         }
-    } 
+    }
 }

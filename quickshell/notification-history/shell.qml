@@ -10,33 +10,44 @@ import QtQuick.Window
 Scope {
     id: root
 
+    function quitApp() {
+        quitTimer.start()
+    }
+
+    Timer {
+        id: quitTimer
+        interval: 60
+        repeat: false
+        onTriggered: Qt.quit()
+    }
+
     Shortcut {
         sequence: "Escape"
-        onActivated: Qt.quit()
+        onActivated: root.quitApp()
     }
+
+    property string iconFontFamily: "FiraCode Nerd Font, Symbols Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
     property color themeTextMuted: "#D4D4D8"
-    
+
     property int themeRounding: 22
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
-    property int animDuration: 380
-    
-    property color themeBackground: "#141416" 
-    property color themeSurface: Qt.rgba(0, 0, 0, 0.35) 
+    property int animDuration: 240
+
+    property color themeBackground: "#141416"
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.35)
     property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.14)
 
     QtObject {
         id: animStyle
-        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
-        property int fadeDuration: 280
-        property var bounceEasing: Easing.OutBack
+        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
+        property int fadeDuration: 200
         property var fadeEasing: Easing.OutCubic
-        property real overshoot: 0.1
     }
 
     property string targetMonitorName: ""
@@ -75,10 +86,10 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
-                if (match && match[1]) { 
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (match && match[1]) {
                     root.themeBorder = "#" + match[1]
-                    root.themePrimary = "#" + match[1] 
+                    root.themePrimary = "#" + match[1]
                 }
                 let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (bgMatch && bgMatch[1]) {
@@ -98,7 +109,7 @@ Scope {
                 let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
-                
+
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
@@ -136,7 +147,7 @@ Scope {
 
     Process { id: execProcess }
     function exec(cmd) {
-        execProcess.running = false;
+        execProcess.running = false
         execProcess.command = ["bash", "-c", cmd + " >/dev/null 2>&1 & disown"]
         execProcess.running = true
     }
@@ -155,15 +166,16 @@ Scope {
                 for (let i = 0; i < data.length; i++) {
                     historyModel.append(data[i])
                 }
-            } catch(e) {
+            } catch (e) {
                 historyModel.clear()
             }
         }
     }
 
     function clearAllHistory() {
+        historyModel.clear()
         let path = Quickshell.env("HOME") + "/.config/quickshell/notification_history.json"
-        exec("echo '[]' > " + path)
+        exec("echo '[]' > '" + path + "'")
     }
 
     function formatTimeAgo(timestamp) {
@@ -216,21 +228,21 @@ Scope {
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: Qt.quit()
+                onClicked: root.quitApp()
             }
 
             Item {
                 anchors.centerIn: parent
                 implicitWidth: 440
                 implicitHeight: 680
-                
+
                 visible: root.targetMonitorName !== "" && isTargetMonitor
                 focus: isTargetMonitor
 
                 Component.onCompleted: {
                     if (isTargetMonitor) forceActiveFocus()
                 }
-                Keys.onEscapePressed: Qt.quit()
+                Keys.onEscapePressed: root.quitApp()
 
                 MouseArea {
                     anchors.fill: parent
@@ -250,20 +262,11 @@ Scope {
                     property bool shown: false
                     Component.onCompleted: shown = true
 
-                    scale: shown ? 1.0 : 0.90
                     opacity: shown ? 1.0 : 0.0
-
-                    Behavior on scale {
-                        NumberAnimation {
-                            duration: root.animEnabled ? animStyle.animDuration : 0
-                            easing.type: animStyle.bounceEasing
-                            easing.overshoot: animStyle.overshoot
-                        }
-                    }
 
                     Behavior on opacity {
                         NumberAnimation {
-                            duration: animStyle.fadeDuration
+                            duration: root.animEnabled ? animStyle.fadeDuration : 0
                             easing.type: animStyle.fadeEasing
                         }
                     }
@@ -289,6 +292,7 @@ Scope {
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰂚"
+                                    font.family: root.iconFontFamily
                                     color: root.themePrimary
                                     font.pixelSize: 20
                                 }
@@ -318,15 +322,6 @@ Scope {
                                         border.width: 1
                                         border.color: Qt.alpha(root.themePrimary, 0.5)
                                         antialiasing: true
-
-                                        scale: historyModel.count > 0 ? 1.0 : 0.8
-                                        Behavior on scale {
-                                            NumberAnimation {
-                                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                                easing.type: animStyle.bounceEasing
-                                                easing.overshoot: animStyle.overshoot
-                                            }
-                                        }
 
                                         Text {
                                             id: badgeText
@@ -361,14 +356,6 @@ Scope {
                                 border.color: clearBtnArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.18)
                                 antialiasing: true
 
-                                scale: clearBtnArea.containsMouse ? 1.08 : 1.0
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
-                                    }
-                                }
                                 Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                 Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
@@ -379,6 +366,7 @@ Scope {
 
                                     Text {
                                         text: "󰆴"
+                                        font.family: root.iconFontFamily
                                         color: clearBtnArea.containsMouse ? root.themePrimary : root.themeTextMuted
                                         font.pixelSize: 13
                                     }
@@ -431,6 +419,7 @@ Scope {
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰂛"
+                                        font.family: root.iconFontFamily
                                         color: Qt.alpha(root.themeTextMuted, 0.6)
                                         font.pixelSize: 30
                                     }
@@ -465,34 +454,40 @@ Scope {
                             ListView {
                                 id: historyList
                                 anchors.fill: parent
+                                visible: historyModel.count > 0
                                 model: historyModel
                                 spacing: 10
                                 clip: true
+                                boundsBehavior: Flickable.StopAtBounds
+
+                                ScrollBar.vertical: ScrollBar {
+                                    id: vbar
+                                    visible: historyModel.count > 0 && vbar.size < 1.0
+                                    active: historyList.moving || historyList.flicking || hovered
+                                    policy: ScrollBar.AsNeeded
+                                    contentItem: Rectangle {
+                                        implicitWidth: 4
+                                        radius: 2
+                                        color: vbar.pressed ? root.themePrimary : Qt.alpha(root.themeTextMuted, 0.35)
+                                    }
+                                }
 
                                 add: Transition {
-                                    ParallelAnimation {
-                                        NumberAnimation { property: "opacity"; from: 0; to: 1; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
-                                        NumberAnimation {
-                                            property: "scale"
-                                            from: 0.90; to: 1.0
-                                            duration: root.animEnabled ? animStyle.animDuration : 0
-                                            easing.type: animStyle.bounceEasing
-                                            easing.overshoot: animStyle.overshoot
-                                        }
-                                        NumberAnimation {
-                                            property: "x"
-                                            from: 18; to: 0
-                                            duration: root.animEnabled ? animStyle.animDuration : 0
-                                            easing.type: animStyle.bounceEasing
-                                            easing.overshoot: animStyle.overshoot
-                                        }
+                                    NumberAnimation {
+                                        property: "opacity"
+                                        from: 0
+                                        to: 1
+                                        duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.fadeEasing
                                     }
                                 }
 
                                 remove: Transition {
-                                    ParallelAnimation {
-                                        NumberAnimation { property: "opacity"; to: 0; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
-                                        NumberAnimation { property: "scale"; to: 0.88; duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                    NumberAnimation {
+                                        property: "opacity"
+                                        to: 0
+                                        duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.fadeEasing
                                     }
                                 }
 
@@ -500,8 +495,7 @@ Scope {
                                     NumberAnimation {
                                         properties: "y,x"
                                         duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
+                                        easing.type: animStyle.fadeEasing
                                     }
                                 }
 
@@ -514,7 +508,7 @@ Scope {
                                         id: card
                                         width: parent.width - 12
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        
+
                                         property bool isExpanded: false
                                         property bool hasBody: model.body !== undefined && model.body.trim() !== ""
 
@@ -527,21 +521,10 @@ Scope {
                                         border.color: cardArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
                                         antialiasing: true
 
-                                        scale: cardArea.containsMouse ? 1.0 : 1.0
-
-                                        Behavior on scale {
+                                        Behavior on height {
                                             NumberAnimation {
                                                 duration: root.animEnabled ? animStyle.animDuration : 0
-                                                easing.type: animStyle.bounceEasing
-                                                easing.overshoot: animStyle.overshoot
-                                            }
-                                        }
-
-                                        Behavior on height {
-                                            NumberAnimation { 
-                                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                                easing.type: animStyle.bounceEasing
-                                                easing.overshoot: 1.2
+                                                easing.type: animStyle.fadeEasing
                                             }
                                         }
                                         Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
@@ -581,6 +564,7 @@ Scope {
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: root.getAppGlyph(model.appName, model.summary)
+                                                    font.family: root.iconFontFamily
                                                     color: root.themePrimary
                                                     font.pixelSize: 18
                                                 }
@@ -628,27 +612,21 @@ Scope {
                                                         color: expandHover.containsMouse ? Qt.rgba(255, 255, 255, 0.18) : "transparent"
                                                         antialiasing: true
 
-                                                        scale: expandHover.containsMouse ? 1.15 : 1.0
-                                                        Behavior on scale {
-                                                            NumberAnimation {
-                                                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                                                easing.type: animStyle.bounceEasing
-                                                                easing.overshoot: animStyle.overshoot
-                                                            }
-                                                        }
                                                         Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                                         Text {
                                                             anchors.centerIn: parent
                                                             text: card.isExpanded ? "󰅃" : "󰅀"
+                                                            font.family: root.iconFontFamily
                                                             color: card.isExpanded ? root.themePrimary : root.themeTextMuted
-                                                            font.pixelSize: 12
+                                                            font.pixelSize: 14
                                                         }
 
                                                         MouseArea {
                                                             id: expandHover
                                                             anchors.fill: parent
                                                             hoverEnabled: true
+                                                            cursorShape: Qt.PointingHandCursor
                                                             onClicked: card.isExpanded = !card.isExpanded
                                                         }
                                                     }
@@ -675,7 +653,7 @@ Scope {
                                                     font.weight: Font.Medium
                                                     lineHeight: 1.3
                                                     Layout.fillWidth: true
-                                                    wrapMode: Text.WordWrap
+                                                    wrapMode: card.isExpanded ? Text.WrapAnywhere : Text.NoWrap
                                                     maximumLineCount: card.isExpanded ? 12 : 1
                                                     elide: Text.ElideRight
                                                     style: Text.Raised
