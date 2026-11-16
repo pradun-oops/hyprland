@@ -10,7 +10,8 @@ import QtQuick.Window
 Scope {
     id: root
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     function quitApp() {
         quitTimer.start()
@@ -58,7 +59,7 @@ Scope {
 
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.56
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 220
 
@@ -553,7 +554,7 @@ except Exception as e:
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰖐"
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     font.pixelSize: 20
                                     color: root.themePrimary
                                 }
@@ -578,7 +579,7 @@ except Exception as e:
 
                                     Text {
                                         text: "󰍎"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         font.pixelSize: 11
                                         color: root.themePrimary
                                     }
@@ -626,7 +627,7 @@ except Exception as e:
 
                                     Text {
                                         text: "󰍉"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         font.pixelSize: 14
                                         color: searchInput.activeFocus ? root.themePrimary : root.themeTextMuted
                                     }
@@ -663,7 +664,7 @@ except Exception as e:
                                         Text {
                                             anchors.centerIn: parent
                                             text: "󰅖"
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             font.pixelSize: 11
                                             color: root.themeTextMuted
                                         }
@@ -701,7 +702,7 @@ except Exception as e:
                                     id: gpsIconText
                                     anchors.centerIn: parent
                                     text: "󰤉"
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     font.pixelSize: 16
                                     color: root.themePrimary
 
@@ -742,7 +743,7 @@ except Exception as e:
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰅖"
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     font.pixelSize: 14
                                     color: closeHover.containsMouse ? "#ff6b6b" : root.themeText
                                 }
@@ -816,7 +817,7 @@ except Exception as e:
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰖐"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         font.pixelSize: 21
                                         color: root.themePrimary
                                     }
@@ -864,7 +865,7 @@ except Exception as e:
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰅙"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         font.pixelSize: 26
                                         color: "#ff6b6b"
                                     }
@@ -949,7 +950,7 @@ except Exception as e:
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: root.currIcon
-                                                font.family: root.fontFamily
+                                                font.family: root.iconFontFamily
                                                 font.pixelSize: 42
                                                 color: root.themePrimary
                                             }
@@ -989,17 +990,28 @@ except Exception as e:
                                                     border.width: 1
                                                     border.color: Qt.rgba(0.98, 0.44, 0.52, 0.45)
                                                     antialiasing: true
-                                                    implicitWidth: highTxt.implicitWidth + 16
+                                                    implicitWidth: highRow.implicitWidth + 16
                                                     implicitHeight: 24
 
-                                                    Text {
-                                                        id: highTxt
+                                                    RowLayout {
+                                                        id: highRow
                                                         anchors.centerIn: parent
-                                                        text: "󰁝 High " + root.currHigh
-                                                        font.family: root.fontFamily
-                                                        font.pixelSize: 11
-                                                        font.weight: Font.Bold
-                                                        color: "#fb7185"
+                                                        spacing: 4
+
+                                                        Text {
+                                                            text: "󰁝"
+                                                            font.family: root.iconFontFamily
+                                                            font.pixelSize: 11
+                                                            color: "#fb7185"
+                                                        }
+
+                                                        Text {
+                                                            text: "High " + root.currHigh
+                                                            font.family: root.fontFamily
+                                                            font.pixelSize: 11
+                                                            font.weight: Font.Bold
+                                                            color: "#fb7185"
+                                                        }
                                                     }
                                                 }
 
@@ -1009,17 +1021,28 @@ except Exception as e:
                                                     border.width: 1
                                                     border.color: Qt.rgba(0.22, 0.74, 0.97, 0.45)
                                                     antialiasing: true
-                                                    implicitWidth: lowTxt.implicitWidth + 16
+                                                    implicitWidth: lowRow.implicitWidth + 16
                                                     implicitHeight: 24
 
-                                                    Text {
-                                                        id: lowTxt
+                                                    RowLayout {
+                                                        id: lowRow
                                                         anchors.centerIn: parent
-                                                        text: "󰁅 Low " + root.currLow
-                                                        font.family: root.fontFamily
-                                                        font.pixelSize: 11
-                                                        font.weight: Font.Bold
-                                                        color: "#38bdf8"
+                                                        spacing: 4
+
+                                                        Text {
+                                                            text: "󰁅"
+                                                            font.family: root.iconFontFamily
+                                                            font.pixelSize: 11
+                                                            color: "#38bdf8"
+                                                        }
+
+                                                        Text {
+                                                            text: "Low " + root.currLow
+                                                            font.family: root.fontFamily
+                                                            font.pixelSize: 11
+                                                            font.weight: Font.Bold
+                                                            color: "#38bdf8"
+                                                        }
                                                     }
                                                 }
                                             }
@@ -1047,9 +1070,17 @@ except Exception as e:
 
                                     RowLayout {
                                         Layout.fillWidth: true
+                                        spacing: 6
 
                                         Text {
-                                            text: "󱑂 HOURLY FORECAST"
+                                            text: "󱑂"
+                                            font.family: root.iconFontFamily
+                                            font.pixelSize: 12
+                                            color: root.themePrimary
+                                        }
+
+                                        Text {
+                                            text: "HOURLY FORECAST"
                                             font.family: root.fontFamily
                                             font.pixelSize: 11
                                             font.weight: Font.Bold
@@ -1119,7 +1150,7 @@ except Exception as e:
 
                                                     Text {
                                                         text: model.icon
-                                                        font.family: root.fontFamily
+                                                        font.family: root.iconFontFamily
                                                         font.pixelSize: 21
                                                         color: root.themePrimary
                                                         Layout.alignment: Qt.AlignHCenter
@@ -1143,7 +1174,7 @@ except Exception as e:
 
                                                         Text {
                                                             text: "󰖗"
-                                                            font.family: root.fontFamily
+                                                            font.family: root.iconFontFamily
                                                             font.pixelSize: 9
                                                             color: "#38bdf8"
                                                         }
@@ -1213,7 +1244,7 @@ except Exception as e:
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: "󰖝"
-                                                    font.family: root.fontFamily
+                                                    font.family: root.iconFontFamily
                                                     font.pixelSize: 21
                                                     color: "#38bdf8"
                                                 }
@@ -1292,7 +1323,7 @@ except Exception as e:
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: "󰖙"
-                                                    font.family: root.fontFamily
+                                                    font.family: root.iconFontFamily
                                                     font.pixelSize: 21
                                                     color: "#facc15"
                                                 }
@@ -1371,7 +1402,7 @@ except Exception as e:
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: "󰖎"
-                                                    font.family: root.fontFamily
+                                                    font.family: root.iconFontFamily
                                                     font.pixelSize: 21
                                                     color: "#a78bfa"
                                                 }
@@ -1450,7 +1481,7 @@ except Exception as e:
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: "󰡴"
-                                                    font.family: root.fontFamily
+                                                    font.family: root.iconFontFamily
                                                     font.pixelSize: 21
                                                     color: "#fb923c"
                                                 }
@@ -1529,7 +1560,7 @@ except Exception as e:
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: "󰅟"
-                                                    font.family: root.fontFamily
+                                                    font.family: root.iconFontFamily
                                                     font.pixelSize: 21
                                                     color: "#38bdf8"
                                                 }
@@ -1608,7 +1639,7 @@ except Exception as e:
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: "󰖚"
-                                                    font.family: root.fontFamily
+                                                    font.family: root.iconFontFamily
                                                     font.pixelSize: 21
                                                     color: "#f59e0b"
                                                 }
@@ -1638,7 +1669,7 @@ except Exception as e:
                                                         spacing: 3
                                                         Text {
                                                             text: "󰅶"
-                                                            font.family: root.fontFamily
+                                                            font.family: root.iconFontFamily
                                                             font.pixelSize: 12
                                                             color: "#f59e0b"
                                                         }
@@ -1664,7 +1695,7 @@ except Exception as e:
                                                         spacing: 3
                                                         Text {
                                                             text: "󰅔"
-                                                            font.family: root.fontFamily
+                                                            font.family: root.iconFontFamily
                                                             font.pixelSize: 12
                                                             color: "#f97316"
                                                         }
@@ -1708,9 +1739,17 @@ except Exception as e:
 
                                 RowLayout {
                                     Layout.fillWidth: true
+                                    spacing: 6
 
                                     Text {
-                                        text: "󰸗 7-DAY FORECAST"
+                                        text: "󰸗"
+                                        font.family: root.iconFontFamily
+                                        font.pixelSize: 12
+                                        color: root.themePrimary
+                                    }
+
+                                    Text {
+                                        text: "7-DAY FORECAST"
                                         font.family: root.fontFamily
                                         font.pixelSize: 11
                                         font.weight: Font.Bold
@@ -1810,7 +1849,7 @@ except Exception as e:
 
                                                 Text {
                                                     text: model.icon
-                                                    font.family: root.fontFamily
+                                                    font.family: root.iconFontFamily
                                                     font.pixelSize: 19
                                                     color: root.themePrimary
                                                     Layout.alignment: Qt.AlignVCenter
@@ -1837,7 +1876,7 @@ except Exception as e:
                                                     spacing: 3
                                                     Text {
                                                         text: "󰖗"
-                                                        font.family: root.fontFamily
+                                                        font.family: root.iconFontFamily
                                                         font.pixelSize: 10
                                                         color: "#38bdf8"
                                                         opacity: model.pop === "0%" ? 0.38 : 1.0

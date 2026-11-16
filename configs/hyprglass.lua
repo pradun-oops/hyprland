@@ -3,7 +3,7 @@ if hl.plugin.hyprglass then
 
     hg.preset("liquid", {
         glass_opacity        = 1.0, 
-        blur_strength        = 1.5, 
+        blur_strength        = 1.0, 
         blur_iterations      = 0.0,   
         refraction_strength  = 1.0, 
         chromatic_aberration = 0.0, 
@@ -14,7 +14,7 @@ if hl.plugin.hyprglass then
         lens_distortion      = 0.0,
 
         dark = {
-            brightness        = 1.5,
+            brightness        = 1.0,
             contrast          = 1,
             saturation        = 1,
             vibrancy          = 1,
@@ -24,7 +24,7 @@ if hl.plugin.hyprglass then
         },
 
         light = {
-            brightness        = 1.5,
+            brightness        = 1.0,
             contrast          = 1,
             saturation        = 1,
             vibrancy          = 1,

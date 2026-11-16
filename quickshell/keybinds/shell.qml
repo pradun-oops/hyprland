@@ -9,7 +9,8 @@ import QtQuick.Layouts
 Scope {
     id: root
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     QtObject {
         id: animStyle
@@ -57,7 +58,7 @@ Scope {
 
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.55
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 220
 
@@ -391,7 +392,7 @@ Scope {
                             Text {
                                 anchors.centerIn: parent
                                 text: "󰌌"
-                                font.family: root.fontFamily
+                                font.family: root.iconFontFamily
                                 font.pixelSize: 18
                                 color: root.themePrimary
                             }
@@ -448,7 +449,7 @@ Scope {
 
                                 Text {
                                     text: "󰍉"
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     font.pixelSize: 15
                                     color: searchInput.activeFocus ? root.themePrimary : root.themeTextMuted
                                 }
@@ -509,7 +510,7 @@ Scope {
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰅖"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         color: root.themeTextMuted
                                         font.pixelSize: 12
                                     }
@@ -551,7 +552,7 @@ Scope {
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰌌"
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     color: root.themePrimary
                                     opacity: 0.75
                                     font.pixelSize: 24
@@ -766,7 +767,7 @@ Scope {
 
                             Text {
                                 text: "󰌌"
-                                font.family: root.fontFamily
+                                font.family: root.iconFontFamily
                                 font.pixelSize: 13
                                 color: root.themePrimary
                             }

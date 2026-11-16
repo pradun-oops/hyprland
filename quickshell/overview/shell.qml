@@ -11,7 +11,8 @@ import QtQuick.Effects
 Scope {
     id: root
 
-    property string iconFontFamily: "FiraCode Nerd Font, Symbols Nerd Font, JetBrainsMono Nerd Font, sans-serif"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
@@ -21,7 +22,7 @@ Scope {
 
     property int themeRounding: 22
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.55
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 220
 
@@ -800,6 +801,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                                         Text {
                                             text: "Workspace Overview"
+                                            font.family: root.fontFamily
                                             color: "#FFFFFF"
                                             font.pixelSize: 20
                                             font.weight: Font.Bold
@@ -821,6 +823,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                 id: winCountBadge
                                                 anchors.centerIn: parent
                                                 text: root.totalWindowsCount + (root.totalWindowsCount === 1 ? " window" : " windows")
+                                                font.family: root.fontFamily
                                                 color: root.themePrimary
                                                 font.pixelSize: 11
                                                 font.weight: Font.Bold
@@ -830,6 +833,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                                     Text {
                                         text: "Select a workspace to switch focus"
+                                        font.family: root.fontFamily
                                         color: root.themeTextMuted
                                         font.pixelSize: 12
                                         font.weight: Font.Medium
@@ -872,6 +876,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: "ESC"
+                                                font.family: root.fontFamily
                                                 color: root.themePrimary
                                                 font.pixelSize: 9
                                                 font.weight: Font.Bold
@@ -880,6 +885,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                                         Text {
                                             text: "Close"
+                                            font.family: root.fontFamily
                                             color: "#FFFFFF"
                                             font.pixelSize: 12
                                             font.weight: Font.DemiBold
@@ -924,6 +930,14 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                         property bool isActiveWs: modelData.isActive
                                         property int winCount: modelData.windows ? modelData.windows.length : 0
                                         property int cardRadius: Math.max(12, root.themeRounding - 6)
+
+                                        scale: cardMouse.containsMouse || cardItem.isSelected ? 1.05 : 1.0
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? 180 : 0
+                                                easing.type: Easing.OutCubic
+                                            }
+                                        }
 
                                         Item {
                                             id: bgContainer
@@ -1009,6 +1023,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                                                 Text {
                                                     text: modelData.name
+                                                    font.family: root.fontFamily
                                                     color: modelData.isSpecial ? "#facc15" : "#FFFFFF"
                                                     font.pixelSize: 13
                                                     font.weight: Font.Bold
@@ -1029,6 +1044,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                     Text {
                                                         id: activeLabel
                                                         text: "ACTIVE"
+                                                        font.family: root.fontFamily
                                                         color: "#000000"
                                                         font.pixelSize: 9
                                                         font.weight: Font.Bold
@@ -1093,6 +1109,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                             anchors.centerIn: parent
                                                             visible: modelData.icon === "" || imgIcon.status !== Image.Ready
                                                             text: modelData.class.substring(0, 2).toUpperCase()
+                                                            font.family: root.fontFamily
                                                             color: "#FFFFFF"
                                                             font.pixelSize: 11
                                                             font.weight: Font.Bold
@@ -1124,6 +1141,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                     Text {
                                                         anchors.centerIn: parent
                                                         text: "+" + (cardItem.winCount - 7)
+                                                        font.family: root.fontFamily
                                                         color: "#FFFFFF"
                                                         font.pixelSize: 11
                                                         font.weight: Font.Bold
@@ -1154,6 +1172,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                         }
 
                                         MouseArea {
+                                            id: cardMouse
                                             anchors.fill: parent
                                             z: 100
                                             hoverEnabled: true
@@ -1189,6 +1208,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                                     Text {
                                         text: "Arrow Keys / 0-9 / Mouse to navigate  •  Enter / Click to switch  •  Esc to exit"
+                                        font.family: root.fontFamily
                                         color: root.themeTextMuted
                                         font.pixelSize: 12
                                         font.weight: Font.Medium

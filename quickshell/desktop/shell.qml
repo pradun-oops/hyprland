@@ -9,11 +9,12 @@ import QtQuick.Window
 Scope {
     id: root
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     property int savedMarginTop: 50
     property int savedMarginRight: 50
-    
+
     property string userName: Quickshell.env("USER") || "User"
 
     FileView {
@@ -31,7 +32,7 @@ Scope {
                 if (data.marginRight !== undefined && !isNaN(data.marginRight)) {
                     root.savedMarginRight = Math.max(0, parseInt(data.marginRight))
                 }
-            } catch(e) {}
+            } catch (e) {}
         }
     }
 
@@ -61,16 +62,25 @@ Scope {
     property color themeBorder: "#ffb3af"
     property color themePrimary: "#ffb3af"
     property color themeText: "#FFFFFF"
-    property color themeTextMuted: "#D4D4D8" 
-    
-    property int themeRounding: 12
+    property color themeTextMuted: "#a1a1aa"
+
+    property int themeRounding: 22
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
-    property int animDuration: 500
+    property int animDuration: 320
 
-    property color themeBackground: "#141416" 
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08) 
+    property color themeBackground: "#141416"
+    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.055)
+
+    function mixColor(c1, c2, ratio, alphaVal) {
+        let col1 = Qt.color(c1)
+        let col2 = Qt.color(c2)
+        let r = col1.r * (1 - ratio) + col2.r * ratio
+        let g = col1.g * (1 - ratio) + col2.g * ratio
+        let b = col1.b * (1 - ratio) + col2.b * ratio
+        return Qt.rgba(r, g, b, alphaVal)
+    }
 
     property string currentHour: "00"
     property string currentMinute: "00"
@@ -79,10 +89,10 @@ Scope {
     property string currentDay: "Monday"
     property string currentTimeExact: "00:00"
 
-    property string weatherLat: "23.3441" 
+    property string weatherLat: "23.3441"
     property string weatherLon: "85.3096"
-    
-    property string currentWeatherIcon: "☁️"
+
+    property string currentWeatherIcon: "󰖐"
     property int currentWeatherTemp: 0
     property int currentWeatherFeelsLike: 0
     property string currentWeatherDesc: "Fetching..."
@@ -92,7 +102,7 @@ Scope {
 
     property int cpuPercent: 0
     property int ramPercent: 0
-    property string ramUsedTotal: "0 GB / 0 GB"
+    property string ramUsedTotal: "0.0 / 0.0 GB"
     property int diskPercent: 0
     property int gpuPercent: 0
 
@@ -108,11 +118,11 @@ Scope {
     property string currentSinkFullName: "Detecting audio..."
     property string currentSinkIcon: "󰕾"
     property string currentSinkId: ""
-    
+
     Process {
         id: sysInfoProcess
         command: [
-            "bash", "-c", 
+            "bash", "-c",
             "NAME=$(getent passwd $USER | cut -d: -f5 | cut -d, -f1); [ -z \"$NAME\" ] && NAME=$USER; echo \"$NAME\""
         ]
         stdout: StdioCollector {
@@ -120,7 +130,7 @@ Scope {
                 try {
                     let fName = text.trim()
                     root.userName = fName !== "" ? fName : (Quickshell.env("USER") || "User")
-                } catch(e) {}
+                } catch (e) {}
             }
         }
     }
@@ -200,7 +210,7 @@ Scope {
                         root.currentSinkFullName = "No audio sinks found"
                         root.currentSinkIcon = "󰝟"
                     }
-                } catch(e) {}
+                } catch (e) {}
             }
         }
     }
@@ -230,6 +240,13 @@ Scope {
                 }
             }
         }
+    }
+
+    Process { id: execProcess }
+    function exec(cmd) {
+        execProcess.running = false
+        execProcess.command = ["bash", "-c", "(" + cmd + ") >/dev/null 2>&1 & disown"]
+        execProcess.running = true
     }
 
     function cycleAudioSink() {
@@ -290,10 +307,10 @@ Scope {
             try {
                 let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
-                if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
-                
+                if (rMatch && rMatch[1]) root.themeRounding = Math.max(14, parseInt(rMatch[1]))
+
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
-                if (bMatch && bMatch[1]) root.themeBorderSize = parseInt(bMatch[1])
+                if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
         }
     }
@@ -310,32 +327,25 @@ Scope {
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
 
                 let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
-                if (speedMatch && speedMatch[1]) root.animDuration = parseFloat(speedMatch[1]) * 100
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
             } catch (e) {}
         }
     }
-    
+
     Component.onCompleted: {
         colorFile.reload()
         generalConfigFile.reload()
         animConfigFile.reload()
-        posConfigFile.reload() 
+        posConfigFile.reload()
         procStatFile.reload()
         procMemFile.reload()
-        
-        sysInfoProcess.running = true 
+
+        sysInfoProcess.running = true
         metricsProcess.running = true
         refreshAudio()
-        
+
         root.fetchWeather()
         root.fetchLocation()
-    }
-
-    Process { id: execProcess }
-    function exec(cmd) {
-        execProcess.running = false
-        execProcess.command = ["bash", "-c", cmd + " >/dev/null 2>&1 & disown"]
-        execProcess.running = true
     }
 
     Timer {
@@ -348,14 +358,14 @@ Scope {
             let rawHours = now.getHours()
             root.currentPeriod = rawHours >= 12 ? "PM" : "AM"
             let hours12 = rawHours % 12 || 12
-            
+
             root.currentHour = hours12.toString().padStart(2, '0')
             root.currentMinute = now.getMinutes().toString().padStart(2, '0')
             root.currentTimeExact = root.currentHour + ":" + root.currentMinute
 
             let days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
             let months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
-            
+
             root.currentDay = days[now.getDay()]
             root.currentDate = now.getDate().toString().padStart(2, '0') + " " + months[now.getMonth()] + " " + now.getFullYear()
         }
@@ -379,7 +389,7 @@ Scope {
                     }
                 }
                 root.prevCpuTimes = [idle, total]
-            } catch(e) {}
+            } catch (e) {}
         }
     }
 
@@ -403,7 +413,7 @@ Scope {
                     root.ramPercent = Math.max(0, Math.min(100, Math.round((usedKb / totalKb) * 100)))
                     root.ramUsedTotal = usedGb.toFixed(1) + " / " + totalGb.toFixed(1) + " GB"
                 }
-            } catch(e) {}
+            } catch (e) {}
         }
     }
 
@@ -457,7 +467,7 @@ Scope {
                     root.diskTemp = d.disk_t || 0
                     root.diskPercent = d.disk_p || 0
                     root.gpuPercent = d.gpu_u || 0
-                } catch(e) {}
+                } catch (e) {}
             }
         }
     }
@@ -489,21 +499,21 @@ Scope {
                     root.currentWeatherHumidity = d.relative_humidity_2m + "%"
                     root.currentWeatherWind = Math.round(d.wind_speed_10m) + " km/h"
                     root.currentWeatherPressure = Math.round(d.surface_pressure) + " hPa"
-                    
+
                     var code = d.weather_code
                     var desc = "Clear"
-                    var icon = "☀️"
-                    
-                    if (code === 1 || code === 2 || code === 3) { desc = "Cloudy"; icon = "☁️" }
-                    if (code >= 45 && code <= 48) { desc = "Fog"; icon = "🌫️" }
-                    if (code >= 51 && code <= 67) { desc = "Rain"; icon = "🌧️" }
-                    if (code >= 71 && code <= 77) { desc = "Snow"; icon = "❄️" }
-                    if (code >= 95 && code <= 99) { desc = "Storm"; icon = "⛈" }
-                    if (code === 3) { desc = "Overcast" } 
-                    
+                    var icon = "󰖙"
+
+                    if (code === 1 || code === 2) { desc = "Partly Cloudy"; icon = "󰖕" }
+                    else if (code === 3) { desc = "Overcast"; icon = "󰖐" }
+                    else if (code >= 45 && code <= 48) { desc = "Fog"; icon = "󰖑" }
+                    else if (code >= 51 && code <= 67) { desc = "Rain"; icon = "󰖗" }
+                    else if (code >= 71 && code <= 77) { desc = "Snow"; icon = "󰖘" }
+                    else if (code >= 95 && code <= 99) { desc = "Storm"; icon = "󰙾" }
+
                     root.currentWeatherDesc = desc
                     root.currentWeatherIcon = icon
-                } catch(e) {}
+                } catch (e) {}
             }
         }
         xhr.send()
@@ -521,7 +531,7 @@ Scope {
                             root.weatherLat = d.lat.toString()
                             root.weatherLon = d.lon.toString()
                         }
-                    } catch(e) {}
+                    } catch (e) {}
                 }
                 root.fetchWeather()
             }
@@ -530,7 +540,7 @@ Scope {
     }
 
     Timer {
-        interval: 1800000 
+        interval: 1800000
         running: true
         repeat: true
         onTriggered: {
@@ -538,97 +548,152 @@ Scope {
         }
     }
 
-    component CircularGauge : Item {
-        id: gaugeRoot
-        property string label: "CPU"
-        property real value: 0
-        property string unit: "%"
-        
-        property real animatedValue: 0
-        onValueChanged: animatedValue = value
-        onAnimatedValueChanged: canvas.requestPaint()
+    component TelemetryCard : Rectangle {
+        id: cardRoot
+        property string title: "CPU"
+        property string iconGlyph: ""
+        property real usageValue: 0
+        property int tempValue: 0
+        property string subtitle: ""
 
-        function getTlpColor(val) {
-            if (gaugeRoot.unit === "°C") {
-                if (val < 55) return "#4ade80"       
-                if (val < 80) return "#facc15"       
-                return "#f87171"   
-            } else {
-                if (val < 60) return "#4ade80"       
-                if (val < 85) return "#facc15"       
-                return "#f87171"                     
-            }
-        }
+        property real animatedUsage: 0
+        onUsageValueChanged: animatedUsage = Math.min(Math.max(usageValue, 0), 100)
 
-        Behavior on animatedValue {
+        Behavior on animatedUsage {
             NumberAnimation {
-                duration: root.animEnabled ? root.animDuration : 0
+                duration: root.animEnabled ? Math.max(260, root.animDuration) : 0
                 easing.type: Easing.OutQuint
             }
         }
-        
-        width: 84
-        height: 84
 
-        Canvas {
-            id: canvas
-            anchors.fill: parent
-            renderTarget: Canvas.FramebufferObject
-            onPaint: {
-                var ctx = getContext("2d")
-                ctx.reset()
-                
-                var centerX = width / 2
-                var centerY = height / 2
-                var radius = Math.min(width, height) / 2 - 6
-                
-                ctx.beginPath()
-                ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI)
-                ctx.lineWidth = 6
-                ctx.strokeStyle = root.themeSurface
-                ctx.stroke()
-                
-                ctx.beginPath()
-                var maxVal = 100
-                var fillRatio = Math.min(Math.max(gaugeRoot.animatedValue / maxVal, 0), 1)
-                ctx.arc(centerX, centerY, radius, -Math.PI / 2, -Math.PI / 2 + (2 * Math.PI * fillRatio))
-                ctx.lineWidth = 6
-                ctx.strokeStyle = gaugeRoot.getTlpColor(gaugeRoot.animatedValue)
-                ctx.lineCap = "round"
-                ctx.stroke()
-            }
+        function getUsageColor(val) {
+            if (val < 60) return "#4ade80"
+            if (val < 85) return "#facc15"
+            return "#f87171"
         }
-        
+
+        function getTempColor(val) {
+            if (val < 55) return "#4ade80"
+            if (val < 80) return "#facc15"
+            return "#f87171"
+        }
+
+        radius: Math.max(10, root.themeRounding - 6)
+        color: Qt.rgba(0.03, 0.03, 0.04, 0.52)
+        border.width: 1
+        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.09)
+        antialiasing: true
+        implicitHeight: 92
+
         ColumnLayout {
-            anchors.centerIn: parent
-            spacing: 2
-            Text {
-                Layout.alignment: Qt.AlignHCenter
-                text: gaugeRoot.value.toFixed(0) + gaugeRoot.unit
-                color: root.themeText
-                font.family: root.fontFamily
-                font.pixelSize: 14
-                font.weight: Font.Bold
-                style: Text.Raised
-                styleColor: Qt.rgba(0, 0, 0, 0.75)
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 8
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+
+                Rectangle {
+                    width: 24
+                    height: 24
+                    radius: 7
+                    color: Qt.alpha(root.themePrimary, 0.15)
+                    border.width: 1
+                    border.color: Qt.alpha(root.themePrimary, 0.30)
+                    antialiasing: true
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: cardRoot.iconGlyph
+                        font.family: root.iconFontFamily
+                        font.pixelSize: 12
+                        color: root.themePrimary
+                    }
+                }
+
+                Text {
+                    text: cardRoot.title
+                    color: root.themeTextMuted
+                    font.family: root.fontFamily
+                    font.pixelSize: 11
+                    font.weight: Font.Bold
+                    font.letterSpacing: 0.6
+                    Layout.fillWidth: true
+                }
+
+                Rectangle {
+                    visible: cardRoot.tempValue > 0
+                    Layout.preferredHeight: 20
+                    Layout.preferredWidth: tempText.implicitWidth + 12
+                    radius: 6
+                    color: Qt.alpha(cardRoot.getTempColor(cardRoot.tempValue), 0.14)
+                    border.width: 1
+                    border.color: Qt.alpha(cardRoot.getTempColor(cardRoot.tempValue), 0.35)
+                    antialiasing: true
+
+                    Text {
+                        id: tempText
+                        anchors.centerIn: parent
+                        text: cardRoot.tempValue + "°C"
+                        color: cardRoot.getTempColor(cardRoot.tempValue)
+                        font.family: root.fontFamily
+                        font.pixelSize: 10
+                        font.weight: Font.Bold
+                    }
+                }
             }
-            Text {
-                Layout.alignment: Qt.AlignHCenter
-                text: gaugeRoot.label
-                color: root.themeTextMuted
-                font.family: root.fontFamily
-                font.pixelSize: 9
-                font.letterSpacing: 0.5
-                font.weight: Font.Bold
-                style: Text.Raised
-                styleColor: Qt.rgba(0, 0, 0, 0.7)
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+
+                Text {
+                    text: Math.round(cardRoot.usageValue) + "%"
+                    color: root.themeText
+                    font.family: root.fontFamily
+                    font.pixelSize: 20
+                    font.weight: Font.Bold
+                    style: Text.Raised
+                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                }
+
+                Item { Layout.fillWidth: true }
+
+                Text {
+                    visible: cardRoot.subtitle !== ""
+                    text: cardRoot.subtitle
+                    color: root.themeTextMuted
+                    font.family: root.fontFamily
+                    font.pixelSize: 10
+                    font.weight: Font.Medium
+                    Layout.alignment: Qt.AlignBottom
+                    Layout.bottomMargin: 2
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: 6
+                radius: 3
+                color: Qt.rgba(1.0, 1.0, 1.0, 0.10)
+                antialiasing: true
+                clip: true
+
+                Rectangle {
+                    width: parent.width * (cardRoot.animatedUsage / 100.0)
+                    height: parent.height
+                    radius: 3
+                    color: cardRoot.getUsageColor(cardRoot.animatedUsage)
+                    antialiasing: true
+                }
             }
         }
     }
 
     Variants {
         model: Quickshell.screens
-        
+
         delegate: PanelWindow {
             id: desktopDashboard
             required property var modelData
@@ -653,8 +718,8 @@ Scope {
 
             Item {
                 id: bgCard
-                width: 460
-                height: cardLayout.implicitHeight + 48
+                width: 444
+                height: cardLayout.implicitHeight + 40
 
                 Binding {
                     target: bgCard
@@ -673,17 +738,33 @@ Scope {
                 opacity: 0
                 Component.onCompleted: opacity = 1
                 Behavior on opacity {
-                    NumberAnimation { duration: root.animEnabled ? root.animDuration : 0 }
+                    NumberAnimation {
+                        duration: root.animEnabled ? root.animDuration : 0
+                        easing.type: Easing.OutCubic
+                    }
                 }
 
                 Rectangle {
                     id: bgCardShape
                     anchors.fill: parent
-                    radius: root.themeRounding 
-                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                    radius: root.themeRounding
+                    color: Qt.alpha(root.themeBackground, Math.min(0.84, root.themeBgAlpha + 0.14))
                     border.width: root.themeBorderSize
-                    border.color: dragArea.drag.active ? root.themePrimary : Qt.alpha(root.themePrimary, 0.4)
-                    antialiasing: true 
+                    border.color: dragArea.drag.active ? root.themePrimary : Qt.alpha(root.themePrimary, 0.42)
+                    antialiasing: true
+                    clip: true
+
+                    Rectangle {
+                        anchors.fill: parent
+                        anchors.margins: root.themeBorderSize
+                        radius: Math.max(0, parent.radius - root.themeBorderSize)
+                        antialiasing: true
+                        gradient: Gradient {
+                            GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.10) }
+                            GradientStop { position: 0.35; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
+                            GradientStop { position: 1.0; color: "transparent" }
+                        }
+                    }
                 }
 
                 MouseArea {
@@ -709,110 +790,145 @@ Scope {
                     anchors.top: parent.top
                     anchors.left: parent.left
                     anchors.right: parent.right
-                    anchors.margins: 24 
-                    spacing: 18 
-                    
+                    anchors.margins: 20
+                    spacing: 12
+
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 12
-                        
-                        Rectangle {
-                            width: 50
-                            height: 50
-                            radius: 25
-                            color: root.themeSurface
-                            border.color: root.themePrimary
-                            border.width: root.themeBorderSize
-                            antialiasing: true
+
+                        Item {
+                            width: 48
+                            height: 48
                             Layout.alignment: Qt.AlignVCenter
-                            
-                            Image {
-                                id: profilePic
-                                source: "file://" + Quickshell.env("HOME") + "/.face.icon"
-                                visible: false 
-                                
-                                onStatusChanged: {
-                                    if (status === Image.Error) {
-                                        let currentSource = source.toString()
-                                        if (currentSource.indexOf(".face.icon") !== -1) {
-                                            source = "file://" + Quickshell.env("HOME") + "/.face"
-                                        } else if (currentSource.indexOf(".face") !== -1) {
-                                            source = "file:///var/lib/AccountsService/icons/" + (Quickshell.env("USER") || "pradun")
-                                        } else {
-                                            fallbackText.visible = true
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: 24
+                                color: Qt.rgba(0.03, 0.03, 0.04, 0.65)
+                                border.color: root.themePrimary
+                                border.width: 2
+                                antialiasing: true
+
+                                Image {
+                                    id: profilePic
+                                    source: "file://" + Quickshell.env("HOME") + "/.face.icon"
+                                    visible: false
+
+                                    onStatusChanged: {
+                                        if (status === Image.Error) {
+                                            let currentSource = source.toString()
+                                            if (currentSource.indexOf(".face.icon") !== -1) {
+                                                source = "file://" + Quickshell.env("HOME") + "/.face"
+                                            } else if (currentSource.indexOf(".face") !== -1) {
+                                                source = "file:///var/lib/AccountsService/icons/" + (Quickshell.env("USER") || "pradun")
+                                            } else {
+                                                fallbackText.visible = true
+                                            }
+                                        } else if (status === Image.Ready) {
+                                            fallbackText.visible = false
+                                            avatarCanvas.loadImage(source)
                                         }
-                                    } else if (status === Image.Ready) {
-                                        fallbackText.visible = false
-                                        avatarCanvas.loadImage(source)
                                     }
                                 }
-                            }
-                            
-                            Canvas {
-                                id: avatarCanvas
-                                anchors.fill: parent
-                                anchors.margins: root.themeBorderSize 
-                                antialiasing: true
-                                renderTarget: Canvas.FramebufferObject
-                                
-                                onImageLoaded: requestPaint()
-                                onPaint: {
-                                    if (profilePic.status !== Image.Ready) return
-                                    var ctx = getContext("2d")
-                                    ctx.reset()
-                                    ctx.imageSmoothingEnabled = true
-                                    
-                                    var r = width / 2
-                                    ctx.beginPath()
-                                    ctx.arc(r, r, r, 0, 2 * Math.PI)
-                                    ctx.clip()
-                                    
-                                    ctx.drawImage(profilePic.source, 0, 0, width, height)
+
+                                Canvas {
+                                    id: avatarCanvas
+                                    anchors.fill: parent
+                                    anchors.margins: 2
+                                    antialiasing: true
+                                    renderTarget: Canvas.FramebufferObject
+
+                                    onImageLoaded: requestPaint()
+                                    onPaint: {
+                                        if (profilePic.status !== Image.Ready) return
+                                        var ctx = getContext("2d")
+                                        ctx.reset()
+                                        ctx.imageSmoothingEnabled = true
+
+                                        var r = width / 2
+                                        ctx.beginPath()
+                                        ctx.arc(r, r, r, 0, 2 * Math.PI)
+                                        ctx.clip()
+
+                                        ctx.drawImage(profilePic.source, 0, 0, width, height)
+                                    }
+                                }
+
+                                Text {
+                                    id: fallbackText
+                                    anchors.centerIn: parent
+                                    text: root.userName.charAt(0).toUpperCase()
+                                    color: root.themePrimary
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 18
+                                    font.weight: Font.Bold
+                                    visible: false
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                 }
                             }
-                            
-                            Text {
-                                id: fallbackText
-                                anchors.centerIn: parent
-                                text: root.userName.charAt(0).toUpperCase()
-                                color: root.themePrimary
-                                font.family: root.fontFamily
-                                font.pixelSize: 18
-                                font.weight: Font.Bold
-                                visible: false
-                                style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+
+                            Rectangle {
+                                width: 12
+                                height: 12
+                                radius: 6
+                                color: "#4ade80"
+                                border.width: 2
+                                border.color: root.themeBackground
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                antialiasing: true
                             }
                         }
-                        
-                        Text {
-                            Layout.fillWidth: true 
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
                             Layout.alignment: Qt.AlignVCenter
-                            text: root.userName
-                            color: "#FFFFFF"
-                            font.family: root.fontFamily
-                            font.pixelSize: 18
-                            font.weight: Font.Bold
-                            style: Text.Raised
-                            styleColor: Qt.rgba(0, 0, 0, 0.85)
-                            elide: Text.ElideRight
+                            spacing: 1
+
+                            Text {
+                                text: "CONTROL CENTER"
+                                color: root.themePrimary
+                                font.family: root.fontFamily
+                                font.pixelSize: 9
+                                font.weight: Font.Bold
+                                font.letterSpacing: 1.2
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: root.userName
+                                color: root.themeText
+                                font.family: root.fontFamily
+                                font.pixelSize: 17
+                                font.weight: Font.Bold
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                elide: Text.ElideRight
+                            }
                         }
 
                         Rectangle {
                             id: audioSwitchBtn
                             Layout.alignment: Qt.AlignVCenter
-                            Layout.preferredHeight: 32
-                            Layout.preferredWidth: audioBtnLayout.implicitWidth + 22
-                            radius: 16
-                            color: audioBtnMouse.containsMouse ? Qt.rgba(1.0, 1.0, 1.0, 0.14) : root.themeSurface
+                            Layout.preferredHeight: 34
+                            Layout.preferredWidth: audioBtnLayout.implicitWidth + 20
+                            radius: 11
+                            color: audioBtnMouse.containsMouse
+                                   ? root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.78)
+                                   : Qt.rgba(0.03, 0.03, 0.04, 0.55)
                             border.width: 1
-                            border.color: audioBtnMouse.containsMouse ? root.themePrimary : Qt.alpha(root.themeBorder, 0.25)
-                            scale: audioBtnMouse.pressed ? 0.94 : (audioBtnMouse.containsMouse ? 1.04 : 1.0)
+                            border.color: audioBtnMouse.containsMouse
+                                          ? Qt.alpha(root.themePrimary, 0.65)
+                                          : Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                            scale: audioBtnMouse.pressed ? 0.94 : (audioBtnMouse.containsMouse ? 1.03 : 1.0)
+                            antialiasing: true
 
                             Behavior on scale {
                                 NumberAnimation {
-                                    duration: root.animEnabled ? 180 : 0
-                                    easing.type: Easing.OutBack
+                                    duration: root.animEnabled ? 170 : 0
+                                    easing.type: Easing.OutCubic
                                 }
                             }
                             Behavior on color { ColorAnimation { duration: 150 } }
@@ -821,16 +937,22 @@ Scope {
                             RowLayout {
                                 id: audioBtnLayout
                                 anchors.centerIn: parent
-                                spacing: 6
+                                spacing: 7
 
-                                Text {
-                                    text: root.currentSinkIcon
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 14
-                                    color: root.themePrimary
+                                Rectangle {
+                                    width: 22
+                                    height: 22
+                                    radius: 6
+                                    color: Qt.alpha(root.themePrimary, 0.16)
                                     Layout.alignment: Qt.AlignVCenter
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: root.currentSinkIcon
+                                        font.family: root.iconFontFamily
+                                        font.pixelSize: 12
+                                        color: root.themePrimary
+                                    }
                                 }
 
                                 Text {
@@ -839,22 +961,17 @@ Scope {
                                     font.family: root.fontFamily
                                     font.pixelSize: 12
                                     font.weight: Font.DemiBold
-                                    Layout.maximumWidth: 100
+                                    Layout.maximumWidth: 96
                                     elide: Text.ElideRight
                                     Layout.alignment: Qt.AlignVCenter
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
 
                                 Text {
                                     text: "⇄"
                                     color: root.themeTextMuted
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 11
-                                    font.weight: Font.Bold
+                                    font.family: root.iconFontFamily
+                                    font.pixelSize: 12
                                     Layout.alignment: Qt.AlignVCenter
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                                 }
                             }
 
@@ -868,238 +985,339 @@ Scope {
                         }
                     }
 
-                    Rectangle { Layout.fillWidth: true; height: 1; color: root.themeSurface }
-
-                    ColumnLayout {
+                    RowLayout {
                         Layout.fillWidth: true
-                        spacing: 6
+                        spacing: 10
 
-                        RowLayout {
+                        Rectangle {
                             Layout.fillWidth: true
-                            spacing: 12
+                            Layout.preferredWidth: 1.25
+                            implicitHeight: clockCol.implicitHeight + 24
+                            radius: Math.max(10, root.themeRounding - 6)
+                            color: Qt.rgba(0.03, 0.03, 0.04, 0.52)
+                            border.width: 1
+                            border.color: Qt.rgba(1.0, 1.0, 1.0, 0.09)
+                            antialiasing: true
 
-                            RowLayout {
-                                Layout.alignment: Qt.AlignVCenter
-                                spacing: 6
+                            ColumnLayout {
+                                id: clockCol
+                                anchors.fill: parent
+                                anchors.margins: 14
+                                spacing: 4
 
-                                Text {
-                                    text: root.currentTimeExact
-                                    color: "#FFFFFF"
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 48
-                                    font.weight: Font.Bold
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
-                                }
-
-                                Text {
-                                    text: root.currentPeriod
-                                    color: root.themePrimary
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 15
-                                    font.weight: Font.Black
-                                    Layout.alignment: Qt.AlignBottom
-                                    Layout.bottomMargin: 8
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
-                                }
-                            }
-
-                            Item { Layout.fillWidth: true }
-
-                            RowLayout {
-                                Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
-                                spacing: 10
-
-                                Text {
-                                    text: root.currentWeatherIcon
-                                    font.pixelSize: 34
-                                    Layout.alignment: Qt.AlignVCenter
-                                }
-
-                                ColumnLayout {
-                                    Layout.alignment: Qt.AlignVCenter
-                                    spacing: 0
+                                RowLayout {
+                                    spacing: 6
 
                                     Text {
-                                        text: root.currentWeatherTemp + "°C"
-                                        color: "#FFFFFF"
+                                        text: root.currentTimeExact
+                                        color: root.themeText
                                         font.family: root.fontFamily
-                                        font.pixelSize: 24
+                                        font.pixelSize: 38
                                         font.weight: Font.Bold
-                                        Layout.alignment: Qt.AlignRight
                                         style: Text.Raised
                                         styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
 
-                                    Text {
-                                        text: root.currentWeatherDesc
-                                        color: root.themeTextMuted
-                                        font.family: root.fontFamily
-                                        font.pixelSize: 13
-                                        font.weight: Font.Medium
-                                        Layout.alignment: Qt.AlignRight
-                                        style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                    Rectangle {
+                                        Layout.preferredWidth: periodText.implicitWidth + 10
+                                        Layout.preferredHeight: 20
+                                        radius: 6
+                                        color: Qt.alpha(root.themePrimary, 0.16)
+                                        border.width: 1
+                                        border.color: Qt.alpha(root.themePrimary, 0.35)
+                                        Layout.alignment: Qt.AlignBottom
+                                        Layout.bottomMargin: 6
+                                        antialiasing: true
+
+                                        Text {
+                                            id: periodText
+                                            anchors.centerIn: parent
+                                            text: root.currentPeriod
+                                            color: root.themePrimary
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 10
+                                            font.weight: Font.Black
+                                        }
                                     }
+                                }
+
+                                Text {
+                                    text: root.currentDay
+                                    color: root.themePrimary
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 12
+                                    font.weight: Font.Bold
+                                }
+
+                                Text {
+                                    text: root.currentDate
+                                    color: root.themeTextMuted
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 11
+                                    font.weight: Font.Medium
+                                    font.letterSpacing: 0.5
                                 }
                             }
                         }
 
-                        RowLayout {
+                        Rectangle {
                             Layout.fillWidth: true
-                            spacing: 12
+                            Layout.preferredWidth: 1.0
+                            Layout.fillHeight: true
+                            radius: Math.max(10, root.themeRounding - 6)
+                            color: Qt.rgba(0.03, 0.03, 0.04, 0.52)
+                            border.width: 1
+                            border.color: Qt.rgba(1.0, 1.0, 1.0, 0.09)
+                            antialiasing: true
 
-                            Text {
-                                text: root.currentDay + ", " + root.currentDate
-                                color: root.themeTextMuted
-                                font.family: root.fontFamily
-                                font.pixelSize: 13
-                                font.weight: Font.DemiBold
-                                font.letterSpacing: 0.6
-                                Layout.alignment: Qt.AlignVCenter | Qt.AlignLeft
-                                style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.75)
-                            }
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.margins: 14
+                                spacing: 4
 
-                            Item { Layout.fillWidth: true }
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
 
-                            Text {
-                                text: "Feels like " + root.currentWeatherFeelsLike + "°C"
-                                color: root.themeTextMuted
-                                font.family: root.fontFamily
-                                font.pixelSize: 12
-                                font.weight: Font.Medium
-                                Layout.alignment: Qt.AlignVCenter | Qt.AlignRight
-                                style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                    Rectangle {
+                                        width: 36
+                                        height: 36
+                                        radius: 10
+                                        color: Qt.alpha(root.themePrimary, 0.15)
+                                        border.width: 1
+                                        border.color: Qt.alpha(root.themePrimary, 0.30)
+                                        antialiasing: true
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: root.currentWeatherIcon
+                                            font.family: root.iconFontFamily
+                                            font.pixelSize: 20
+                                            color: root.themePrimary
+                                        }
+                                    }
+
+                                    Item { Layout.fillWidth: true }
+
+                                    Text {
+                                        text: root.currentWeatherTemp + "°"
+                                        color: root.themeText
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 30
+                                        font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                    }
+                                }
+
+                                Item { Layout.fillHeight: true }
+
+                                Text {
+                                    text: root.currentWeatherDesc
+                                    color: root.themeText
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 12
+                                    font.weight: Font.DemiBold
+                                    Layout.alignment: Qt.AlignRight
+                                    elide: Text.ElideRight
+                                    Layout.maximumWidth: 140
+                                }
+
+                                Text {
+                                    text: "Feels like " + root.currentWeatherFeelsLike + "°C"
+                                    color: root.themeTextMuted
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 11
+                                    font.weight: Font.Medium
+                                    Layout.alignment: Qt.AlignRight
+                                }
                             }
                         }
                     }
 
                     Rectangle {
                         Layout.fillWidth: true
-                        implicitHeight: weatherGrid.implicitHeight + 24 
-                        radius: Math.max(6, root.themeRounding - 4) 
-                        color: root.themeSurface
+                        implicitHeight: envRow.implicitHeight + 18
+                        radius: Math.max(10, root.themeRounding - 6)
+                        color: Qt.rgba(0.03, 0.03, 0.04, 0.52)
+                        border.width: 1
+                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.09)
                         antialiasing: true
-                        
+
                         RowLayout {
-                            id: weatherGrid
+                            id: envRow
                             anchors.fill: parent
-                            anchors.margins: 12 
-                            spacing: 8
-                            
-                            ColumnLayout {
+                            anchors.margins: 9
+                            spacing: 6
+
+                            RowLayout {
                                 Layout.fillWidth: true
                                 Layout.preferredWidth: 1
-                                spacing: 6
-                                Text { 
-                                    text: "💧 Humidity"
-                                    color: root.themeTextMuted
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 11
-                                    font.weight: Font.Bold
-                                    Layout.alignment: Qt.AlignHCenter
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                spacing: 8
+
+                                Item { Layout.fillWidth: true }
+
+                                Text {
+                                    text: "󰖌"
+                                    font.family: root.iconFontFamily
+                                    font.pixelSize: 15
+                                    color: root.themePrimary
                                 }
-                                Text { 
-                                    text: root.currentWeatherHumidity
-                                    color: "#FFFFFF"
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 13
-                                    font.weight: Font.DemiBold
-                                    Layout.alignment: Qt.AlignHCenter
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+
+                                ColumnLayout {
+                                    spacing: 1
+                                    Text {
+                                        text: "HUMIDITY"
+                                        color: root.themeTextMuted
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 9
+                                        font.weight: Font.Bold
+                                        font.letterSpacing: 0.5
+                                    }
+                                    Text {
+                                        text: root.currentWeatherHumidity
+                                        color: root.themeText
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 12
+                                        font.weight: Font.Bold
+                                    }
                                 }
+
+                                Item { Layout.fillWidth: true }
                             }
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.preferredWidth: 1
-                                spacing: 6
-                                Text { 
-                                    text: "💨 Wind"
-                                    color: root.themeTextMuted
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 11
-                                    font.weight: Font.Bold
-                                    Layout.alignment: Qt.AlignHCenter
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
-                                }
-                                Text { 
-                                    text: root.currentWeatherWind
-                                    color: "#FFFFFF"
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 13
-                                    font.weight: Font.DemiBold
-                                    Layout.alignment: Qt.AlignHCenter
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
-                                }
+
+                            Rectangle {
+                                width: 1
+                                Layout.fillHeight: true
+                                Layout.topMargin: 4
+                                Layout.bottomMargin: 4
+                                color: Qt.rgba(1.0, 1.0, 1.0, 0.10)
                             }
-                            ColumnLayout {
+
+                            RowLayout {
                                 Layout.fillWidth: true
                                 Layout.preferredWidth: 1
-                                spacing: 6
-                                Text { 
-                                    text: "⏲️ Pressure"
-                                    color: root.themeTextMuted
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 11
-                                    font.weight: Font.Bold
-                                    Layout.alignment: Qt.AlignHCenter
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                spacing: 8
+
+                                Item { Layout.fillWidth: true }
+
+                                Text {
+                                    text: "󰖝"
+                                    font.family: root.iconFontFamily
+                                    font.pixelSize: 15
+                                    color: root.themePrimary
                                 }
-                                Text { 
-                                    text: root.currentWeatherPressure
-                                    color: "#FFFFFF"
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 13
-                                    font.weight: Font.DemiBold
-                                    Layout.alignment: Qt.AlignHCenter
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+
+                                ColumnLayout {
+                                    spacing: 1
+                                    Text {
+                                        text: "WIND"
+                                        color: root.themeTextMuted
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 9
+                                        font.weight: Font.Bold
+                                        font.letterSpacing: 0.5
+                                    }
+                                    Text {
+                                        text: root.currentWeatherWind
+                                        color: root.themeText
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 12
+                                        font.weight: Font.Bold
+                                    }
                                 }
+
+                                Item { Layout.fillWidth: true }
+                            }
+
+                            Rectangle {
+                                width: 1
+                                Layout.fillHeight: true
+                                Layout.topMargin: 4
+                                Layout.bottomMargin: 4
+                                color: Qt.rgba(1.0, 1.0, 1.0, 0.10)
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 1
+                                spacing: 8
+
+                                Item { Layout.fillWidth: true }
+
+                                Text {
+                                    text: "󰡳"
+                                    font.family: root.iconFontFamily
+                                    font.pixelSize: 15
+                                    color: root.themePrimary
+                                }
+
+                                ColumnLayout {
+                                    spacing: 1
+                                    Text {
+                                        text: "PRESSURE"
+                                        color: root.themeTextMuted
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 9
+                                        font.weight: Font.Bold
+                                        font.letterSpacing: 0.5
+                                    }
+                                    Text {
+                                        text: root.currentWeatherPressure
+                                        color: root.themeText
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 12
+                                        font.weight: Font.Bold
+                                    }
+                                }
+
+                                Item { Layout.fillWidth: true }
                             }
                         }
                     }
 
-                    RowLayout {
+                    GridLayout {
                         Layout.fillWidth: true
-                        Layout.topMargin: 4
-                        spacing: 8 
+                        columns: 2
+                        rowSpacing: 10
+                        columnSpacing: 10
 
-                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "CPU"; value: root.cpuPercent; unit: "%" } }
-                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "RAM"; value: root.ramPercent; unit: "%" } }
-                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "GPU"; value: root.gpuPercent; unit: "%" } }
-                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "DISK"; value: root.diskPercent; unit: "%" } }
-                    }
+                        TelemetryCard {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1
+                            title: "CPU"
+                            iconGlyph: ""
+                            usageValue: root.cpuPercent
+                            tempValue: root.cpuTemp
+                        }
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Layout.topMargin: 0
-                        spacing: 8
+                        TelemetryCard {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1
+                            title: "MEMORY"
+                            iconGlyph: ""
+                            usageValue: root.ramPercent
+                            tempValue: root.ramTemp
+                            subtitle: root.ramUsedTotal
+                        }
 
-                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "CPU TEMP"; value: root.cpuTemp; unit: "°C" } }
-                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "RAM TEMP"; value: root.ramTemp; unit: "°C" } }
-                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "GPU TEMP"; value: root.gpuTemp; unit: "°C" } }
-                        Item { Layout.fillWidth: true; height: 84; CircularGauge { anchors.centerIn: parent; label: "DISK TEMP"; value: root.diskTemp; unit: "°C" } }
-                    }
-                    
-                    Text {
-                        Layout.alignment: Qt.AlignHCenter
-                        Layout.topMargin: 2
-                        text: "Memory Used: " + root.ramUsedTotal
-                        color: root.themeTextMuted
-                        font.family: root.fontFamily
-                        font.pixelSize: 11
-                        font.weight: Font.Medium
-                        style: Text.Raised
-                        styleColor: Qt.rgba(0, 0, 0, 0.7)
+                        TelemetryCard {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1
+                            title: "GPU"
+                            iconGlyph: "󰢮"
+                            usageValue: root.gpuPercent
+                            tempValue: root.gpuTemp
+                        }
+
+                        TelemetryCard {
+                            Layout.fillWidth: true
+                            Layout.preferredWidth: 1
+                            title: "STORAGE"
+                            iconGlyph: "󰋊"
+                            usageValue: root.diskPercent
+                            tempValue: root.diskTemp
+                        }
                     }
                 }
             }

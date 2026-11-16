@@ -10,6 +10,9 @@ import QtQuick.Window
 Scope {
     id: root
 
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
+
     Shortcut {
         sequence: "Escape"
         onActivated: Qt.quit()
@@ -48,7 +51,7 @@ Scope {
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
-    
+
     property color themeBackground: "#141416"
     property color themeSurface: Qt.rgba(0, 0, 0, 0.32)
     property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)
@@ -75,9 +78,9 @@ Scope {
             try {
                 let content = text()
                 let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
-                if (match && match[1]) { 
+                if (match && match[1]) {
                     root.themeBorder = "#" + match[1]
-                    root.themePrimary = "#" + match[1] 
+                    root.themePrimary = "#" + match[1]
                 }
                 let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (bgMatch && bgMatch[1]) {
@@ -97,7 +100,7 @@ Scope {
                 let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
                 if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
-                
+
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
             } catch (e) {}
@@ -140,11 +143,11 @@ Scope {
     property string sysNetTx: "0 B/s"
     property string sysUptime: "0h 0m"
     property int sysProcsCount: 0
-    
+
     property int sysBatCap: 0
     property string sysBatStat: "Unknown"
-    property real maxNetRate: 1.0 
-    
+    property real maxNetRate: 1.0
+
     property string procTab: "user"
 
     ListModel { id: cpuHistModel }
@@ -154,7 +157,7 @@ Scope {
     ListModel { id: processModel }
 
     function initHistories() {
-        for(let i = 0; i < 35; i++) {
+        for (let i = 0; i < 35; i++) {
             cpuHistModel.append({value: 0})
             gpuHistModel.append({value: 0})
             ramHistModel.append({value: 0})
@@ -178,7 +181,7 @@ Scope {
             onRead: (data) => {
                 try {
                     let d = JSON.parse(data)
-                    
+
                     root.sysCpuUsage = d.cpu_usage
                     root.sysCpuTemp = d.cpu_temp
                     root.sysRamTotal = d.ram_total
@@ -217,15 +220,15 @@ Scope {
 
                     root.userProcsData = d.procs_user || []
                     root.sysProcsData = d.procs_sys || []
-                    
+
                     updateProcessModel()
-                } catch(e) {}
+                } catch (e) {}
             }
         }
     }
 
     function updateProcessModel() {
-        let activeList = root.procTab === "user" ? root.userProcsData : root.sysProcsData;
+        let activeList = root.procTab === "user" ? root.userProcsData : root.sysProcsData
         if (activeList) {
             for (let i = 0; i < activeList.length; i++) {
                 if (i < processModel.count) {
@@ -483,19 +486,26 @@ while True:
                             RowLayout {
                                 Layout.fillWidth: true
                                 spacing: 12
-                                Text { text: ""; font.pixelSize: 24; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
+                                Text {
+                                    text: ""
+                                    font.pixelSize: 24
+                                    font.family: root.iconFontFamily
+                                    color: root.themePrimary
+                                }
                                 ColumnLayout {
                                     spacing: 2
-                                    Text { 
+                                    Text {
                                         text: "System Monitor"
+                                        font.family: root.fontFamily
                                         font.pixelSize: 18
                                         font.weight: Font.Bold
                                         color: "#FFFFFF"
                                         style: Text.Raised
                                         styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
-                                    Text { 
+                                    Text {
                                         text: "Uptime: " + root.sysUptime + "  •  Processes: " + root.sysProcsCount
+                                        font.family: root.fontFamily
                                         font.pixelSize: 11
                                         font.weight: Font.Medium
                                         color: root.themeTextMuted
@@ -504,21 +514,34 @@ while True:
                                     }
                                 }
                                 Item { Layout.fillWidth: true }
-                                
+
                                 ColumnLayout {
                                     spacing: 2
                                     Layout.alignment: Qt.AlignRight
-                                    Text { 
-                                        text: (root.sysBatStat === "Charging" ? "󰂄 " : "󰁹 ") + root.sysBatCap + "%"
-                                        font.pixelSize: 15; font.weight: Font.Bold
-                                        font.family: "FiraCode Nerd Font"
-                                        color: root.sysBatStat === "Charging" ? "#a3e635" : "#FFFFFF"
+                                    RowLayout {
+                                        spacing: 5
                                         Layout.alignment: Qt.AlignRight
-                                        style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                        Text {
+                                            text: root.sysBatStat === "Charging" ? "󰂄" : "󰁹"
+                                            font.pixelSize: 15
+                                            font.family: root.iconFontFamily
+                                            color: root.sysBatStat === "Charging" ? "#a3e635" : "#FFFFFF"
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                        }
+                                        Text {
+                                            text: root.sysBatCap + "%"
+                                            font.pixelSize: 15
+                                            font.weight: Font.Bold
+                                            font.family: root.fontFamily
+                                            color: root.sysBatStat === "Charging" ? "#a3e635" : "#FFFFFF"
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                        }
                                     }
-                                    Text { 
+                                    Text {
                                         text: root.sysBatStat
+                                        font.family: root.fontFamily
                                         font.pixelSize: 10
                                         font.weight: Font.Medium
                                         color: root.themeTextMuted
@@ -555,9 +578,15 @@ while True:
                                     ColumnLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
                                         RowLayout {
-                                            Text { text: ""; font.pixelSize: 20; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
-                                            Text { 
+                                            Text {
+                                                text: ""
+                                                font.pixelSize: 20
+                                                font.family: root.iconFontFamily
+                                                color: root.themePrimary
+                                            }
+                                            Text {
                                                 text: "Processor"
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 14
                                                 font.weight: Font.Bold
                                                 color: "#FFFFFF"
@@ -565,8 +594,9 @@ while True:
                                                 styleColor: Qt.rgba(0, 0, 0, 0.8)
                                             }
                                             Item { Layout.fillWidth: true }
-                                            Text { 
+                                            Text {
                                                 text: root.sysCpuUsage + "%"
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 15
                                                 font.weight: Font.Bold
                                                 color: "#FFFFFF"
@@ -575,8 +605,9 @@ while True:
                                             }
                                         }
                                         RowLayout {
-                                            Text { 
+                                            Text {
                                                 text: "Temp: " + root.sysCpuTemp
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 11
                                                 font.weight: Font.Medium
                                                 color: root.themeTextMuted
@@ -586,7 +617,7 @@ while True:
                                             Item { Layout.fillWidth: true }
                                         }
                                         Item { Layout.fillHeight: true }
-                                        
+
                                         RowLayout {
                                             Layout.fillWidth: true; Layout.preferredHeight: 40; spacing: 4
                                             Repeater {
@@ -622,19 +653,26 @@ while True:
                                     ColumnLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
                                         RowLayout {
-                                            Text { text: "󰢮"; font.pixelSize: 20; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
+                                            Text {
+                                                text: "󰢮"
+                                                font.pixelSize: 20
+                                                font.family: root.iconFontFamily
+                                                color: root.themePrimary
+                                            }
                                             ColumnLayout {
                                                 spacing: 2
-                                                Text { 
+                                                Text {
                                                     text: "Graphics"
+                                                    font.family: root.fontFamily
                                                     font.pixelSize: 14
                                                     font.weight: Font.Bold
                                                     color: "#FFFFFF"
                                                     style: Text.Raised
                                                     styleColor: Qt.rgba(0, 0, 0, 0.8)
                                                 }
-                                                Text { 
+                                                Text {
                                                     text: root.sysGpuName
+                                                    font.family: root.fontFamily
                                                     font.pixelSize: 10
                                                     font.weight: Font.Medium
                                                     color: root.themeTextMuted
@@ -645,8 +683,9 @@ while True:
                                                 }
                                             }
                                             Item { Layout.fillWidth: true }
-                                            Text { 
+                                            Text {
                                                 text: root.sysGpuUsage + "%"
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 15
                                                 font.weight: Font.Bold
                                                 color: "#FFFFFF"
@@ -655,8 +694,9 @@ while True:
                                             }
                                         }
                                         RowLayout {
-                                            Text { 
+                                            Text {
                                                 text: "VRAM: " + root.sysGpuMemUsed + "MB / " + root.sysGpuMemTotal + "MB"
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 11
                                                 font.weight: Font.Medium
                                                 color: root.themeTextMuted
@@ -664,8 +704,9 @@ while True:
                                                 styleColor: Qt.rgba(0, 0, 0, 0.7)
                                             }
                                             Item { Layout.fillWidth: true }
-                                            Text { 
+                                            Text {
                                                 text: root.sysGpuTemp
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 12
                                                 font.weight: Font.Bold
                                                 color: "#fb7185"
@@ -674,7 +715,7 @@ while True:
                                             }
                                         }
                                         Item { Layout.fillHeight: true }
-                                        
+
                                         RowLayout {
                                             Layout.fillWidth: true; Layout.preferredHeight: 40; spacing: 4
                                             Repeater {
@@ -710,9 +751,15 @@ while True:
                                     ColumnLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
                                         RowLayout {
-                                            Text { text: ""; font.pixelSize: 20; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
-                                            Text { 
+                                            Text {
+                                                text: ""
+                                                font.pixelSize: 20
+                                                font.family: root.iconFontFamily
+                                                color: root.themePrimary
+                                            }
+                                            Text {
                                                 text: "Memory"
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 14
                                                 font.weight: Font.Bold
                                                 color: "#FFFFFF"
@@ -720,8 +767,9 @@ while True:
                                                 styleColor: Qt.rgba(0, 0, 0, 0.8)
                                             }
                                             Item { Layout.fillWidth: true }
-                                            Text { 
+                                            Text {
                                                 text: root.sysRamPerc + "%"
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 15
                                                 font.weight: Font.Bold
                                                 color: "#FFFFFF"
@@ -730,8 +778,9 @@ while True:
                                             }
                                         }
                                         RowLayout {
-                                            Text { 
+                                            Text {
                                                 text: "Used: " + root.sysRamUsed + " GB / " + root.sysRamTotal + " GB"
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 11
                                                 font.weight: Font.Medium
                                                 color: root.themeTextMuted
@@ -739,8 +788,9 @@ while True:
                                                 styleColor: Qt.rgba(0, 0, 0, 0.7)
                                             }
                                             Item { Layout.fillWidth: true }
-                                            Text { 
+                                            Text {
                                                 text: "Temp: " + root.sysRamTemp
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 11
                                                 font.weight: Font.Bold
                                                 color: "#facc15"
@@ -749,7 +799,7 @@ while True:
                                             }
                                         }
                                         Item { Layout.fillHeight: true }
-                                        
+
                                         RowLayout {
                                             Layout.fillWidth: true; Layout.preferredHeight: 40; spacing: 4
                                             Repeater {
@@ -785,9 +835,15 @@ while True:
                                     ColumnLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 10
                                         RowLayout {
-                                            Text { text: "󰋊"; font.pixelSize: 20; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
-                                            Text { 
+                                            Text {
+                                                text: "󰋊"
+                                                font.pixelSize: 20
+                                                font.family: root.iconFontFamily
+                                                color: root.themePrimary
+                                            }
+                                            Text {
                                                 text: "Storage & NVMe"
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 14
                                                 font.weight: Font.Bold
                                                 color: "#FFFFFF"
@@ -795,8 +851,9 @@ while True:
                                                 styleColor: Qt.rgba(0, 0, 0, 0.8)
                                             }
                                             Item { Layout.fillWidth: true }
-                                            Text { 
+                                            Text {
                                                 text: root.sysDiskPerc + "%"
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 15
                                                 font.weight: Font.Bold
                                                 color: "#FFFFFF"
@@ -805,8 +862,9 @@ while True:
                                             }
                                         }
                                         RowLayout {
-                                            Text { 
+                                            Text {
                                                 text: "Used: " + root.sysDiskUsed + " / " + root.sysDiskTotal
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 11
                                                 font.weight: Font.Medium
                                                 color: root.themeTextMuted
@@ -814,8 +872,9 @@ while True:
                                                 styleColor: Qt.rgba(0, 0, 0, 0.7)
                                             }
                                             Item { Layout.fillWidth: true }
-                                            Text { 
+                                            Text {
                                                 text: "Temp: " + root.sysDiskTemp
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 11
                                                 font.weight: Font.Bold
                                                 color: "#facc15"
@@ -827,13 +886,13 @@ while True:
                                         Rectangle {
                                             Layout.fillWidth: true; height: 8; radius: 4; color: Qt.rgba(255, 255, 255, 0.12)
                                             antialiasing: true
-                                            Rectangle { 
+                                            Rectangle {
                                                 width: parent.width * (root.sysDiskPerc / 100)
                                                 height: parent.height
                                                 radius: 4
                                                 color: root.themePrimary
                                                 antialiasing: true
-                                                Behavior on width { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } } 
+                                                Behavior on width { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                             }
                                         }
                                     }
@@ -855,16 +914,22 @@ while True:
 
                                     RowLayout {
                                         anchors.fill: parent; anchors.margins: 18; spacing: 20
-                                        Text { text: "󰈀"; font.pixelSize: 24; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
-                                        Text { 
+                                        Text {
+                                            text: "󰈀"
+                                            font.pixelSize: 24
+                                            font.family: root.iconFontFamily
+                                            color: root.themePrimary
+                                        }
+                                        Text {
                                             text: "Network IO"
+                                            font.family: root.fontFamily
                                             font.pixelSize: 14
                                             font.weight: Font.Bold
                                             color: "#FFFFFF"
                                             style: Text.Raised
                                             styleColor: Qt.rgba(0, 0, 0, 0.8)
                                         }
-                                        
+
                                         RowLayout {
                                             Layout.fillWidth: true; Layout.fillHeight: true; Layout.margins: 4; spacing: 3
                                             Repeater {
@@ -887,22 +952,34 @@ while True:
                                                 }
                                             }
                                         }
-                                        
+
                                         Rectangle { width: 1; height: 30; color: Qt.rgba(255, 255, 255, 0.15) }
 
                                         ColumnLayout {
                                             spacing: 2; Layout.preferredWidth: 100
-                                            Text { 
-                                                text: "󰇚 " + root.sysNetRx
-                                                font.pixelSize: 14
-                                                font.weight: Font.Bold
-                                                font.family: "FiraCode Nerd Font"
-                                                color: "#38bdf8"
-                                                style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                            RowLayout {
+                                                spacing: 5
+                                                Text {
+                                                    text: "󰇚"
+                                                    font.pixelSize: 14
+                                                    font.family: root.iconFontFamily
+                                                    color: "#38bdf8"
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                }
+                                                Text {
+                                                    text: root.sysNetRx
+                                                    font.pixelSize: 14
+                                                    font.weight: Font.Bold
+                                                    font.family: root.fontFamily
+                                                    color: "#38bdf8"
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                }
                                             }
-                                            Text { 
+                                            Text {
                                                 text: "Download"
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 10
                                                 font.weight: Font.Medium
                                                 color: root.themeTextMuted
@@ -915,17 +992,29 @@ while True:
 
                                         ColumnLayout {
                                             spacing: 2; Layout.preferredWidth: 100
-                                            Text { 
-                                                text: "󰕒 " + root.sysNetTx
-                                                font.pixelSize: 14
-                                                font.weight: Font.Bold
-                                                font.family: "FiraCode Nerd Font"
-                                                color: "#fb7185"
-                                                style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                            RowLayout {
+                                                spacing: 5
+                                                Text {
+                                                    text: "󰕒"
+                                                    font.pixelSize: 14
+                                                    font.family: root.iconFontFamily
+                                                    color: "#fb7185"
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                }
+                                                Text {
+                                                    text: root.sysNetTx
+                                                    font.pixelSize: 14
+                                                    font.weight: Font.Bold
+                                                    font.family: root.fontFamily
+                                                    color: "#fb7185"
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                }
                                             }
-                                            Text { 
+                                            Text {
                                                 text: "Upload"
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 10
                                                 font.weight: Font.Medium
                                                 color: root.themeTextMuted
@@ -954,7 +1043,7 @@ while True:
 
                                     RowLayout {
                                         anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 12
-                                        
+
                                         Rectangle {
                                             Layout.preferredHeight: 30; Layout.preferredWidth: 120
                                             radius: 6
@@ -966,9 +1055,10 @@ while True:
                                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                             Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
-                                            Text { 
+                                            Text {
                                                 anchors.centerIn: parent
                                                 text: "User Procs"
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 12
                                                 font.weight: Font.Bold
                                                 color: root.procTab === "user" ? "#FFFFFF" : root.themeTextMuted
@@ -989,9 +1079,10 @@ while True:
                                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                             Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
-                                            Text { 
+                                            Text {
                                                 anchors.centerIn: parent
                                                 text: "System Procs"
+                                                font.family: root.fontFamily
                                                 font.pixelSize: 12
                                                 font.weight: Font.Bold
                                                 color: root.procTab === "system" ? "#FFFFFF" : root.themeTextMuted
@@ -1000,9 +1091,9 @@ while True:
                                             }
                                             MouseArea { id: sysTabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.procTab = "system" }
                                         }
-                                        
+
                                         Item { Layout.fillWidth: true }
-                                        
+
                                         Rectangle {
                                             width: 28; height: 28; radius: 6
                                             color: closeHover.containsMouse ? "#ff4b6e" : Qt.alpha(root.themeText, 0.08)
@@ -1013,12 +1104,12 @@ while True:
                                             Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
                                             Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
-                                            Text { 
+                                            Text {
                                                 anchors.centerIn: parent
                                                 text: "󰅖"
                                                 font.pixelSize: 14
-                                                font.family: "FiraCode Nerd Font"
-                                                color: closeHover.containsMouse ? "#ffffff" : root.themeText 
+                                                font.family: root.iconFontFamily
+                                                color: closeHover.containsMouse ? "#ffffff" : root.themeText
                                             }
 
                                             MouseArea {
@@ -1043,6 +1134,7 @@ while True:
 
                                 Text {
                                     text: "PROCESS"
+                                    font.family: root.fontFamily
                                     font.pixelSize: 10
                                     font.weight: Font.Bold
                                     font.letterSpacing: 1.1
@@ -1055,6 +1147,7 @@ while True:
                                 Text {
                                     Layout.preferredWidth: 62
                                     text: "PID"
+                                    font.family: root.fontFamily
                                     font.pixelSize: 10
                                     font.weight: Font.Bold
                                     font.letterSpacing: 1.1
@@ -1067,6 +1160,7 @@ while True:
                                 Text {
                                     Layout.preferredWidth: 50
                                     text: "CPU"
+                                    font.family: root.fontFamily
                                     font.pixelSize: 10
                                     font.weight: Font.Bold
                                     font.letterSpacing: 1.1
@@ -1079,6 +1173,7 @@ while True:
                                 Text {
                                     Layout.preferredWidth: 50
                                     text: "MEM"
+                                    font.family: root.fontFamily
                                     font.pixelSize: 10
                                     font.weight: Font.Bold
                                     font.letterSpacing: 1.1
@@ -1124,9 +1219,10 @@ while True:
                                     RowLayout {
                                         anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 10
 
-                                        Text { 
+                                        Text {
                                             text: model.name
                                             color: "#FFFFFF"
+                                            font.family: root.fontFamily
                                             font.pixelSize: 13
                                             font.weight: Font.Bold
                                             elide: Text.ElideRight
@@ -1140,6 +1236,7 @@ while True:
                                             Layout.preferredWidth: 62
                                             text: model.pid
                                             color: root.themeTextMuted
+                                            font.family: root.fontFamily
                                             font.pixelSize: 11
                                             font.weight: Font.DemiBold
                                             horizontalAlignment: Text.AlignHCenter
@@ -1152,6 +1249,7 @@ while True:
                                             Layout.preferredWidth: 50
                                             text: model.cpu + "%"
                                             color: root.themePrimary
+                                            font.family: root.fontFamily
                                             font.pixelSize: 12
                                             font.weight: Font.Bold
                                             horizontalAlignment: Text.AlignRight
@@ -1164,6 +1262,7 @@ while True:
                                             Layout.preferredWidth: 50
                                             text: model.mem + "%"
                                             color: "#38bdf8"
+                                            font.family: root.fontFamily
                                             font.pixelSize: 12
                                             font.weight: Font.Bold
                                             horizontalAlignment: Text.AlignRight
@@ -1182,14 +1281,15 @@ while True:
                                             Behavior on color { ColorAnimation { duration: 150 } }
                                             Behavior on border.color { ColorAnimation { duration: 150 } }
 
-                                            Text { 
-                                                anchors.centerIn: parent 
-                                                text: "󰅖"; font.pixelSize: 14
-                                                font.family: "FiraCode Nerd Font"
-                                                color: killHover.containsMouse ? "#ffffff" : root.themeTextMuted 
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "󰅖"
+                                                font.pixelSize: 14
+                                                font.family: root.iconFontFamily
+                                                color: killHover.containsMouse ? "#ffffff" : root.themeTextMuted
                                                 Behavior on color { ColorAnimation { duration: 150 } }
                                             }
-                                            
+
                                             MouseArea {
                                                 id: killHover
                                                 anchors.fill: parent

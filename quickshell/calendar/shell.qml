@@ -18,7 +18,8 @@ Scope {
         property real overshoot: 0.15
     }
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     property color themeBackground: "#141416"
     property color themeSurface: Qt.rgba(0.04, 0.04, 0.06, 0.55)
@@ -29,7 +30,7 @@ Scope {
     property color themeTextMuted: "#a1a1aa"
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.55
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
 
@@ -414,7 +415,7 @@ Scope {
                                     text: "󰃭"
                                     color: root.themePrimary
                                     font.pixelSize: 20
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                 }
                             }
 
@@ -474,7 +475,7 @@ Scope {
                                         text: "󰅁"
                                         color: root.themeText
                                         font.pixelSize: 16
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                     }
 
                                     MouseArea {
@@ -518,7 +519,7 @@ Scope {
                                         text: "󰃯"
                                         color: root.themePrimary
                                         font.pixelSize: 15
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                     }
 
                                     MouseArea {
@@ -560,7 +561,7 @@ Scope {
                                         text: "󰅂"
                                         color: root.themeText
                                         font.pixelSize: 16
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                     }
 
                                     MouseArea {
@@ -741,7 +742,7 @@ Scope {
                                     text: "󰃰"
                                     color: root.themePrimary
                                     font.pixelSize: 15
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                 }
 
                                 Text {
@@ -809,7 +810,7 @@ Scope {
                                                 text: "󰄬"
                                                 color: root.themeTextMuted
                                                 font.pixelSize: 14
-                                                font.family: root.fontFamily
+                                                font.family: root.iconFontFamily
                                             }
 
                                             Text {
@@ -846,7 +847,7 @@ Scope {
                                                     text: modelData.type === "holiday" ? "󰃰" : "󰄱"
                                                     color: root.themePrimary
                                                     font.pixelSize: 15
-                                                    font.family: root.fontFamily
+                                                    font.family: root.iconFontFamily
                                                 }
 
                                                 Text {
@@ -889,7 +890,7 @@ Scope {
                                                         text: "󰅖"
                                                         color: delBtnMouse.containsMouse ? "#ff6b6b" : root.themeTextMuted
                                                         font.pixelSize: 13
-                                                        font.family: root.fontFamily
+                                                        font.family: root.iconFontFamily
                                                     }
 
                                                     MouseArea {
@@ -931,7 +932,7 @@ Scope {
                                             text: "󰏫"
                                             color: taskInputField.activeFocus ? root.themePrimary : root.themeTextMuted
                                             font.pixelSize: 14
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                         }
 
                                         TextInput {
@@ -989,7 +990,7 @@ Scope {
                                         color: "#141416"
                                         font.pixelSize: 18
                                         font.weight: Font.Bold
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                     }
 
                                     MouseArea {

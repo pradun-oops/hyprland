@@ -18,7 +18,8 @@ Scope {
         property real overshoot: 0.15
     }
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     property color themeBackground: "#141416"
     property color themeSurface: Qt.rgba(0.04, 0.04, 0.06, 0.65)
@@ -28,7 +29,7 @@ Scope {
     property color themeTextMuted: "#a1a1aa"
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.55
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
 
@@ -322,7 +323,7 @@ Scope {
                                 Text {
                                     anchors.centerIn: parent
                                     text: root.isProcessing ? "󰑮" : "󰆦"
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     color: root.themePrimary
                                     font.pixelSize: 15
 
@@ -558,7 +559,7 @@ Scope {
                                 Text {
                                     text: "󰩭"
                                     color: root.themePrimary
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     font.pixelSize: 12
                                 }
 

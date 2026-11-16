@@ -10,7 +10,8 @@ import QtQuick.Window
 Scope {
     id: root
 
-    property string iconFontFamily: "FiraCode Nerd Font, Symbols Nerd Font, JetBrainsMono Nerd Font, sans-serif"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
@@ -19,7 +20,7 @@ Scope {
 
     property int themeRounding: 24
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.78
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
 
@@ -319,6 +320,7 @@ Scope {
                 Text {
                     Layout.alignment: Qt.AlignHCenter
                     text: btnRoot.labelText
+                    font.family: root.fontFamily
                     color: btnRoot.isHighlighted ? btnRoot.hoverColor : root.themeText
                     font.pixelSize: 13
                     font.weight: Font.Bold
@@ -353,6 +355,7 @@ Scope {
                     Text {
                         anchors.centerIn: parent
                         text: btnRoot.shortcutKey
+                        font.family: root.fontFamily
                         color: btnRoot.isHighlighted ? "#FFFFFF" : root.themeTextMuted
                         font.pixelSize: 10
                         font.weight: Font.Bold
@@ -564,6 +567,7 @@ Scope {
 
                                     Text {
                                         text: "Power Menu"
+                                        font.family: root.fontFamily
                                         color: "#FFFFFF"
                                         font.pixelSize: 15
                                         font.weight: Font.Bold
@@ -573,6 +577,7 @@ Scope {
 
                                     Text {
                                         text: root.uptimeString
+                                        font.family: root.fontFamily
                                         color: root.themeTextMuted
                                         font.pixelSize: 11
                                         font.weight: Font.Medium
@@ -611,6 +616,7 @@ Scope {
 
                                         Text {
                                             text: "ESC"
+                                            font.family: root.fontFamily
                                             color: root.themePrimary
                                             font.pixelSize: 10
                                             font.weight: Font.Bold
@@ -618,6 +624,7 @@ Scope {
 
                                         Text {
                                             text: "Cancel"
+                                            font.family: root.fontFamily
                                             color: root.themeTextMuted
                                             font.pixelSize: 11
                                             font.weight: Font.Medium

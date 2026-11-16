@@ -13,7 +13,8 @@ import Quickshell.Services.Mpris
 ShellRoot {
     id: root
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     property bool authVisible: false
     property bool unlocking: false
@@ -686,7 +687,7 @@ print(wp)
 
                                 Text {
                                     text: "󰌾"
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     font.pixelSize: 15
                                     color: passwordField.activeFocus ? root.themePrimary : root.themeTextMuted
                                     Layout.alignment: Qt.AlignVCenter
@@ -735,7 +736,7 @@ print(wp)
                                     Text {
                                         anchors.centerIn: parent
                                         text: root.showPassword ? "󰈈" : "󰈉"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         font.pixelSize: 15
                                         color: eyeMouseArea.containsMouse ? root.themePrimary : root.themeTextMuted
                                     }
@@ -768,7 +769,7 @@ print(wp)
                                     Text {
                                         anchors.centerIn: parent
                                         text: root.isAuthenticating ? "󰑮" : "󰁔"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         font.pixelSize: 15
                                         font.weight: Font.Bold
                                         color: root.passwordInput.length > 0 ? root.themeOnPrimary : root.themeTextMuted
@@ -874,7 +875,7 @@ print(wp)
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰝚"
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     font.pixelSize: 20
                                     color: root.themePrimary
                                     visible: albumArt.status !== Image.Ready
@@ -934,7 +935,7 @@ print(wp)
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰒮"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         font.pixelSize: 14
                                         color: root.themeText
                                     }
@@ -964,7 +965,7 @@ print(wp)
                                     Text {
                                         anchors.centerIn: parent
                                         text: (root.activePlayer && root.activePlayer.isPlaying) ? "󰏤" : "󰐊"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         font.pixelSize: 17
                                         color: root.themeOnPrimary
                                     }
@@ -996,7 +997,7 @@ print(wp)
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰒭"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         font.pixelSize: 14
                                         color: root.themeText
                                     }
@@ -1038,7 +1039,7 @@ print(wp)
 
                             Text {
                                 text: "󰌾"
-                                font.family: root.fontFamily
+                                font.family: root.iconFontFamily
                                 font.pixelSize: 12
                                 color: root.themePrimary
                             }

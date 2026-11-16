@@ -9,7 +9,8 @@ import QtQuick.Layouts
 Scope {
     id: root
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
@@ -19,7 +20,7 @@ Scope {
 
     property int themeRounding: 18
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.62
+    property real themeBgAlpha: 0.25
     property bool animEnabled: true
     property int animDuration: 260
 
@@ -756,7 +757,7 @@ print(json.dumps({
                                         text: "󰁅"
                                         color: "#38bdf8"
                                         font.pixelSize: 12
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     Text {
@@ -791,7 +792,7 @@ print(json.dumps({
                                         text: "󰁝"
                                         color: root.themePrimary
                                         font.pixelSize: 12
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     Text {
@@ -890,7 +891,7 @@ print(json.dumps({
                                     text: "󰐃"
                                     color: root.themePrimary
                                     font.pixelSize: 11
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
                             }
@@ -935,7 +936,7 @@ print(json.dumps({
                                         text: ""
                                         color: parseInt(root.cpuTemp) >= 80 ? "#ff6b6b" : root.themePrimary
                                         font.pixelSize: 12
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     Text {
@@ -962,7 +963,7 @@ print(json.dumps({
                                         text: "󰢮"
                                         color: parseInt(root.gpuTemp) >= 80 ? "#ff6b6b" : root.themePrimary
                                         font.pixelSize: 13
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         anchors.verticalCenter: parent.verticalCenter
                                     }
                                     Text {
@@ -1001,7 +1002,7 @@ print(json.dumps({
                                     text: root.getVolIcon(root.volumePct, root.isMuted)
                                     color: root.isMuted ? "#ff6b6b" : root.themePrimary
                                     font.pixelSize: 13
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     anchors.verticalCenter: parent.verticalCenter
                                     Behavior on color { ColorAnimation { duration: style.fadeDuration } }
                                 }
@@ -1067,7 +1068,7 @@ print(json.dumps({
                                     text: root.getBatIcon(parseInt(root.batCap), root.isCharging)
                                     color: root.isCharging ? "#4ade80" : (parseInt(root.batCap) <= 20 ? "#ff6b6b" : root.themePrimary)
                                     font.pixelSize: 13
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     anchors.verticalCenter: parent.verticalCenter
                                     Behavior on color { ColorAnimation { duration: style.fadeDuration } }
                                 }
@@ -1136,7 +1137,7 @@ print(json.dumps({
                                     text: appsHover.hovered ? "󰅁" : "󰅂"
                                     color: root.themePrimary
                                     font.pixelSize: 13
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     anchors.verticalCenter: parent.verticalCenter
                                 }
 
@@ -1181,7 +1182,7 @@ print(json.dumps({
                                                 anchors.centerIn: parent
                                                 visible: !trayIconImg.visible
                                                 text: modelData.glyph || "󰀻"
-                                                font.family: root.fontFamily
+                                                font.family: root.iconFontFamily
                                                 font.pixelSize: 12
                                                 color: root.themePrimary
                                             }
@@ -1229,7 +1230,7 @@ print(json.dumps({
                                     text: "󰖩"
                                     color: root.themePrimary
                                     font.pixelSize: 14
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                 }
                                 MouseArea {
                                     id: netMouse
@@ -1259,7 +1260,7 @@ print(json.dumps({
                                     text: "󰐥"
                                     color: pwrBarMouse.containsMouse ? "#ff6b6b" : root.themePrimary
                                     font.pixelSize: 14
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     Behavior on color { ColorAnimation { duration: style.fadeDuration } }
                                 }
                                 MouseArea {

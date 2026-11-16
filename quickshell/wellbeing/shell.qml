@@ -10,7 +10,8 @@ import QtQuick.Window
 Scope {
     id: root
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     function quitApp() {
         quitTimer.start()
@@ -58,7 +59,7 @@ Scope {
 
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.55
+    property real themeBgAlpha: 0.5
 
     property bool animEnabled: true
     property int animDuration: 220
@@ -688,7 +689,7 @@ Scope {
                             Text {
                                 anchors.centerIn: parent
                                 text: "󰓏"
-                                font.family: root.fontFamily
+                                font.family: root.iconFontFamily
                                 font.pixelSize: 19
                                 color: root.themePrimary
                             }
@@ -737,7 +738,7 @@ Scope {
 
                                 Text {
                                     text: "󰥔"
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     font.pixelSize: 13
                                     color: root.themePrimary
                                 }
@@ -1119,7 +1120,7 @@ Scope {
                                                                     anchors.centerIn: parent
                                                                     visible: tooltipIcon.status !== Image.Ready
                                                                     text: root.getFallbackGlyph(model.top_app)
-                                                                    font.family: root.fontFamily
+                                                                    font.family: root.iconFontFamily
                                                                     font.pixelSize: 12
                                                                     color: root.themePrimary
                                                                 }
@@ -1227,7 +1228,7 @@ Scope {
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: "󰓏"
-                                                font.family: root.fontFamily
+                                                font.family: root.iconFontFamily
                                                 font.pixelSize: 22
                                                 color: root.themePrimary
                                                 opacity: 0.75
@@ -1352,7 +1353,7 @@ Scope {
                                                         anchors.centerIn: parent
                                                         visible: appIcon.status !== Image.Ready
                                                         text: root.getFallbackGlyph(model.app)
-                                                        font.family: root.fontFamily
+                                                        font.family: root.iconFontFamily
                                                         font.pixelSize: 17
                                                         color: root.themePrimary
                                                     }
@@ -1421,7 +1422,7 @@ Scope {
 
                             Text {
                                 text: "󰆼"
-                                font.family: root.fontFamily
+                                font.family: root.iconFontFamily
                                 font.pixelSize: 13
                                 color: root.themePrimary
                             }

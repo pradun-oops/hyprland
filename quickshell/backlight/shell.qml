@@ -15,6 +15,9 @@ Scope {
         onActivated: Qt.quit()
     }
 
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
+
     property string targetMonitorName: ""
 
     function updateTargetMonitor() {
@@ -46,37 +49,38 @@ Scope {
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.5
     property bool animEnabled: true
-    property int animDuration: 350
-    
-    property color themeBackground: "#0d0d12" 
-    property color themeSurface: Qt.rgba(0, 0, 0, 0.32) 
+    property int animDuration: 380
+
+    property color themeBackground: "#0d0d12"
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.32)
     property color themeBorder: "#ff4b6e"
     property color themePrimary: "#ff4b6e"
-    property string rawThemeHex: "ff4b6e" 
+    property string rawThemeHex: "ff4b6e"
     property color themeText: "#FFFFFF"
     property color themeTextMuted: "#E4E4E7"
 
     QtObject {
         id: animStyle
-        property int animDuration: root.animDuration > 0 ? root.animDuration : 350
-        property int fadeDuration: 200
+        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
+        property int fadeDuration: 240
         property var bounceEasing: Easing.OutBack
         property var fadeEasing: Easing.OutCubic
-        property real overshoot: 1.2
+        property real overshoot: 0.25
     }
 
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
         watchChanges: true
+        onFileChanged: reload()
         onLoaded: {
             try {
                 let content = text()
-                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/)
-                if (match && match[1]) { 
+                let match = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
+                if (match && match[1]) {
                     root.rawThemeHex = match[1]
                     root.themeBorder = "#" + match[1]
-                    root.themePrimary = "#" + match[1] 
+                    root.themePrimary = "#" + match[1]
                 }
                 let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
                 if (bgMatch && bgMatch[1]) root.themeBackground = "#" + bgMatch[1]
@@ -88,6 +92,7 @@ Scope {
         id: generalConfigFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/general.lua"
         watchChanges: true
+        onFileChanged: reload()
         onLoaded: {
             try {
                 let content = text()
@@ -99,17 +104,33 @@ Scope {
         }
     }
 
+    FileView {
+        id: animConfigFile
+        path: Quickshell.env("HOME") + "/.config/hypr/configs/animations.lua"
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: {
+            try {
+                let content = text()
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
+                if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
+                let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
+                if (speedMatch && speedMatch[1]) root.animDuration = Math.round(parseFloat(speedMatch[1]) * 100)
+            } catch (e) {}
+        }
+    }
+
     property int rgbBrightness: 2
     property int rgbSpeed: 2
-    property bool rgbPowerState: false 
-    
+    property bool rgbPowerState: false
+
     property string savedName: "Ocean Wave"
     property string savedType: "wave"
     property string savedColors: ""
 
     Process { id: actionProcess }
     Process { id: fileProcess }
-    
+
     Process {
         id: initProcess
         command: ["bash", "-c", `mkdir -p "${Quickshell.env("HOME")}/.config/quickshell/json" && if [ ! -f "${Quickshell.env("HOME")}/.config/quickshell/json/rgb_custom.json" ]; then echo "[]" > "${Quickshell.env("HOME")}/.config/quickshell/json/rgb_custom.json"; fi`]
@@ -127,12 +148,12 @@ Scope {
             actionProcess.command = ["bash", "-c", "legionaura off"]
             actionProcess.running = true
         } else {
-            executeAuraCommand(root.savedName, root.savedType, root.savedColors, true) 
+            executeAuraCommand(root.savedName, root.savedType, root.savedColors, true)
         }
     }
 
     function applyCurrentSettings() {
-        if (!root.rgbPowerState) return 
+        if (!root.rgbPowerState) return
         executeAuraCommand(root.savedName, root.savedType, root.savedColors, true)
     }
 
@@ -141,9 +162,9 @@ Scope {
             root.savedName = cmdName
             root.savedType = cmdType
             root.savedColors = cmdColors
-            root.rgbPowerState = true 
+            root.rgbPowerState = true
         }
-        
+
         let finalCmd = ""
         if (cmdType === "dynamic") {
             finalCmd = `legionaura static ${root.rawThemeHex} ${root.rawThemeHex} ${root.rawThemeHex} ${root.rawThemeHex} --brightness ${root.rgbBrightness}`
@@ -156,7 +177,7 @@ Scope {
         } else if (cmdType === "breath") {
             finalCmd = `legionaura breath ${cmdColors} --speed ${root.rgbSpeed} --brightness ${root.rgbBrightness}`
         }
-        
+
         actionProcess.running = false
         actionProcess.command = ["bash", "-c", finalCmd]
         actionProcess.running = true
@@ -216,7 +237,7 @@ Scope {
         presetModel.clear()
         defaultPresets.forEach(p => presetModel.append(p))
         if (!jsonText || jsonText.trim() === "") return
-        
+
         try {
             let parsed = JSON.parse(jsonText)
             if (Array.isArray(parsed)) {
@@ -237,7 +258,7 @@ Scope {
 
     FileView {
         id: customPresetsReader
-        watchChanges: false 
+        watchChanges: false
         onLoaded: root.rebuildPresetModel(text())
     }
 
@@ -272,7 +293,9 @@ Scope {
     Component.onCompleted: {
         root.updateTargetMonitor()
         if (root.targetMonitorName === "") fallbackMonitorTimer.start()
-        colorFile.reload(); generalConfigFile.reload()
+        colorFile.reload()
+        generalConfigFile.reload()
+        animConfigFile.reload()
     }
 
     property bool isEditingCustom: false
@@ -301,7 +324,7 @@ Scope {
 
             anchors { top: true; bottom: true; left: true; right: true }
             color: "transparent"
-            
+
             MouseArea { anchors.fill: parent; onClicked: Qt.quit() }
 
             Item {
@@ -317,90 +340,120 @@ Scope {
 
                 Rectangle {
                     id: mainCard
-                    width: 1100
-                    height: 800
+                    width: Math.min(1100, win.width - 48)
+                    height: Math.min(800, win.height - 48)
                     anchors.centerIn: parent
 
                     property bool shown: false
                     Component.onCompleted: shown = true
 
-                    scale: shown ? 1.0 : 0.95
+                    scale: shown ? 1.0 : 0.90
                     opacity: shown ? 1.0 : 0.0
 
-                    Behavior on scale { NumberAnimation { duration: root.animEnabled ? animStyle.animDuration : 0; easing.type: animStyle.bounceEasing; easing.overshoot: animStyle.overshoot } }
-                    Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                    Behavior on scale {
+                        NumberAnimation {
+                            duration: root.animEnabled ? animStyle.animDuration : 0
+                            easing.type: animStyle.bounceEasing
+                            easing.overshoot: animStyle.overshoot
+                        }
+                    }
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: animStyle.fadeDuration
+                            easing.type: animStyle.fadeEasing
+                        }
+                    }
 
                     radius: root.themeRounding > 0 ? root.themeRounding : 16
                     border.width: root.themeBorderSize
                     border.color: Qt.alpha(root.themePrimary, 0.40)
                     antialiasing: true
-                    
+                    clip: true
+
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
 
                     MouseArea { anchors.fill: parent; onClicked: (mouse) => mouse.accepted = true }
 
                     ColumnLayout {
                         anchors.fill: parent
-                        anchors.margins: 28
-                        spacing: 24
+                        anchors.margins: 26
+                        spacing: 20
 
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 16
-                            
+
                             Rectangle {
                                 width: 44; height: 44; radius: Math.max(8, root.themeRounding - 4)
                                 color: Qt.alpha(root.themePrimary, 0.15)
                                 border.width: 1; border.color: Qt.alpha(root.themePrimary, 0.4)
                                 antialiasing: true
-                                Text { anchors.centerIn: parent; text: "󰌌"; font.pixelSize: 22; color: root.themePrimary; font.family: "FiraCode Nerd Font" }
+                                Text { anchors.centerIn: parent; text: "󰌌"; font.pixelSize: 22; color: root.themePrimary; font.family: root.iconFontFamily }
                             }
-                            
+
                             ColumnLayout {
                                 spacing: 2
                                 Layout.alignment: Qt.AlignVCenter
-                                Text { 
+                                Text {
                                     text: "Lenovo LOQ RGB Controller"
                                     font.pixelSize: 20
                                     font.weight: Font.Bold
                                     color: root.themeText
-                                    font.family: "FiraCode Nerd Font"
+                                    font.family: root.fontFamily
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.6)
                                 }
-                                Text { 
+                                Text {
                                     text: "Legionaura Service Integration"
                                     font.pixelSize: 13
                                     font.weight: Font.Medium
                                     color: root.themeTextMuted
-                                    font.family: "FiraCode Nerd Font"
+                                    font.family: root.fontFamily
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.5)
                                 }
                             }
-                            
+
                             Item { Layout.fillWidth: true }
 
                             Rectangle {
-                                width: 36; height: 36; radius: 18
+                                width: 38; height: 38; radius: 19
                                 color: addHover.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.3)
                                 border.width: 1; border.color: addHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
                                 antialiasing: true
-                                Text { anchors.centerIn: parent; text: "󰐕"; font.pixelSize: 18; color: addHover.containsMouse ? root.themePrimary : root.themeText; font.family: "FiraCode Nerd Font" }
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                                MouseArea { 
-                                    id: addHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; 
-                                    onClicked: root.isEditingCustom = true 
+                                scale: addHover.pressed ? 0.92 : (addHover.containsMouse ? 1.06 : 1.0)
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                        easing.type: animStyle.bounceEasing
+                                        easing.overshoot: animStyle.overshoot
+                                    }
+                                }
+                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                Text { anchors.centerIn: parent; text: "󰐕"; font.pixelSize: 18; color: addHover.containsMouse ? root.themePrimary : root.themeText; font.family: root.iconFontFamily }
+                                MouseArea {
+                                    id: addHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.isEditingCustom = true
                                 }
                             }
-                            
+
                             Rectangle {
-                                width: 36; height: 36; radius: 18
+                                width: 38; height: 38; radius: 19
                                 color: closeHover.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.3)
                                 border.width: 1; border.color: closeHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
                                 antialiasing: true
-                                Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 18; color: closeHover.containsMouse ? root.themePrimary : root.themeText; font.family: "FiraCode Nerd Font" }
-                                Behavior on color { ColorAnimation { duration: 150 } }
+                                scale: closeHover.pressed ? 0.92 : (closeHover.containsMouse ? 1.06 : 1.0)
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                        easing.type: animStyle.bounceEasing
+                                        easing.overshoot: animStyle.overshoot
+                                    }
+                                }
+                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 18; color: closeHover.containsMouse ? root.themePrimary : root.themeText; font.family: root.iconFontFamily }
                                 MouseArea { id: closeHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Qt.quit() }
                             }
                         }
@@ -413,42 +466,62 @@ Scope {
                             border.width: 1
                             border.color: Qt.rgba(255, 255, 255, 0.10)
                             antialiasing: true
-                            
+
                             RowLayout {
-                                anchors.fill: parent; anchors.margins: 12; spacing: 20
-                                
+                                anchors.fill: parent
+                                anchors.leftMargin: 16
+                                anchors.rightMargin: 16
+                                anchors.topMargin: 12
+                                anchors.bottomMargin: 12
+                                spacing: 20
+
                                 RowLayout {
                                     spacing: 12
-                                    Text { text: "󰃠"; font.pixelSize: 20; color: root.themePrimary; Layout.alignment: Qt.AlignVCenter; font.family: "FiraCode Nerd Font" }
-                                    Text { 
+                                    Text { text: "󰃠"; font.pixelSize: 20; color: root.themePrimary; Layout.alignment: Qt.AlignVCenter; font.family: root.iconFontFamily }
+                                    Text {
                                         text: "Brightness"
                                         font.pixelSize: 14
                                         font.weight: Font.Bold
                                         color: root.themeText
                                         Layout.alignment: Qt.AlignVCenter
-                                        font.family: "FiraCode Nerd Font"
+                                        font.family: root.fontFamily
                                         style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.6)
                                     }
                                     RowLayout {
-                                        spacing: 6
+                                        spacing: 8
                                         Repeater {
                                             model: [1, 2]
                                             Rectangle {
-                                                width: 40; height: 34; radius: Math.max(4, root.themeRounding - 6)
+                                                width: 40; height: 34; radius: Math.max(6, root.themeRounding - 6)
                                                 color: root.rgbBrightness === modelData ? root.themePrimary : Qt.rgba(0, 0, 0, 0.3)
                                                 border.width: 1
                                                 border.color: root.rgbBrightness === modelData ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
                                                 antialiasing: true
-                                                Text { 
+                                                scale: briMouse.pressed ? 0.92 : (briMouse.containsMouse ? 1.05 : 1.0)
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                                        easing.type: animStyle.bounceEasing
+                                                        easing.overshoot: animStyle.overshoot
+                                                    }
+                                                }
+                                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                                Text {
                                                     anchors.centerIn: parent
                                                     text: modelData
                                                     font.weight: Font.Bold
                                                     font.pixelSize: 14
-                                                    font.family: "FiraCode Nerd Font"
-                                                    color: root.rgbBrightness === modelData ? "#000000" : "#FFFFFF" 
+                                                    font.family: root.fontFamily
+                                                    color: root.rgbBrightness === modelData ? "#000000" : "#FFFFFF"
                                                 }
-                                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.rgbBrightness = modelData; root.applyCurrentSettings() } }
-                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                MouseArea {
+                                                    id: briMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: { root.rgbBrightness = modelData; root.applyCurrentSettings() }
+                                                }
                                             }
                                         }
                                     }
@@ -458,60 +531,83 @@ Scope {
 
                                 RowLayout {
                                     spacing: 12
-                                    Text { text: "󰓅"; font.pixelSize: 20; color: root.themePrimary; Layout.alignment: Qt.AlignVCenter; font.family: "FiraCode Nerd Font" }
-                                    Text { 
+                                    Text { text: "󰓅"; font.pixelSize: 20; color: root.themePrimary; Layout.alignment: Qt.AlignVCenter; font.family: root.iconFontFamily }
+                                    Text {
                                         text: "Speed"
                                         font.pixelSize: 14
                                         font.weight: Font.Bold
                                         color: root.themeText
                                         Layout.alignment: Qt.AlignVCenter
-                                        font.family: "FiraCode Nerd Font"
+                                        font.family: root.fontFamily
                                         style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.6)
                                     }
                                     RowLayout {
-                                        spacing: 6
+                                        spacing: 8
                                         Repeater {
                                             model: [1, 2, 3, 4]
                                             Rectangle {
-                                                width: 40; height: 34; radius: Math.max(4, root.themeRounding - 6)
+                                                width: 40; height: 34; radius: Math.max(6, root.themeRounding - 6)
                                                 color: root.rgbSpeed === modelData ? root.themePrimary : Qt.rgba(0, 0, 0, 0.3)
                                                 border.width: 1
                                                 border.color: root.rgbSpeed === modelData ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
                                                 antialiasing: true
-                                                Text { 
+                                                scale: spdMouse.pressed ? 0.92 : (spdMouse.containsMouse ? 1.05 : 1.0)
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                                        easing.type: animStyle.bounceEasing
+                                                        easing.overshoot: animStyle.overshoot
+                                                    }
+                                                }
+                                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                                Text {
                                                     anchors.centerIn: parent
                                                     text: modelData
                                                     font.weight: Font.Bold
                                                     font.pixelSize: 14
-                                                    font.family: "FiraCode Nerd Font"
-                                                    color: root.rgbSpeed === modelData ? "#000000" : "#FFFFFF" 
+                                                    font.family: root.fontFamily
+                                                    color: root.rgbSpeed === modelData ? "#000000" : "#FFFFFF"
                                                 }
-                                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { root.rgbSpeed = modelData; root.applyCurrentSettings() } }
-                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                MouseArea {
+                                                    id: spdMouse
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: { root.rgbSpeed = modelData; root.applyCurrentSettings() }
+                                                }
                                             }
                                         }
                                     }
                                 }
-                                
+
                                 Item { Layout.fillWidth: true }
-                                
+
                                 Rectangle {
                                     Layout.alignment: Qt.AlignVCenter
                                     width: 56; height: 36; radius: Math.max(8, root.themeRounding)
                                     color: root.rgbPowerState ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.35)
-                                    border.width: 2 
+                                    border.width: 2
                                     border.color: root.rgbPowerState ? root.themePrimary : Qt.rgba(255, 255, 255, 0.2)
                                     antialiasing: true
-                                    
-                                    Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
-                                    Behavior on border.color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
-                                    
-                                    Text { 
-                                        anchors.centerIn: parent; text: "󰐥"; font.pixelSize: 18; font.family: "FiraCode Nerd Font"
-                                        color: root.rgbPowerState ? root.themePrimary : "#A1A1AA"
-                                        Behavior on color { ColorAnimation { duration: 200 } }
+                                    scale: pwrMouse.pressed ? 0.92 : (pwrMouse.containsMouse ? 1.06 : 1.0)
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.animDuration : 0
+                                            easing.type: animStyle.bounceEasing
+                                            easing.overshoot: animStyle.overshoot
+                                        }
                                     }
-                                    MouseArea { anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.togglePower() }
+                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                    Text {
+                                        anchors.centerIn: parent; text: "󰐥"; font.pixelSize: 18; font.family: root.iconFontFamily
+                                        color: root.rgbPowerState ? root.themePrimary : "#A1A1AA"
+                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                    }
+                                    MouseArea { id: pwrMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.togglePower() }
                                 }
                             }
                         }
@@ -524,11 +620,12 @@ Scope {
                                 id: presetGrid
                                 anchors.fill: parent
                                 model: presetModel
-                                cellWidth: width / 5
-                                cellHeight: height / 6
+                                cellWidth: Math.floor(width / 5)
+                                cellHeight: Math.floor(height / 6)
                                 clip: true
-                                interactive: true 
-                                
+                                interactive: true
+                                boundsBehavior: Flickable.StopAtBounds
+
                                 delegate: Item {
                                     id: presetDelegate
                                     property int itemIndex: index
@@ -538,21 +635,27 @@ Scope {
                                     Rectangle {
                                         id: cardRect
                                         anchors.fill: parent
-                                        anchors.margins: 6
+                                        anchors.margins: 7
                                         radius: root.themeRounding
                                         antialiasing: true
-                                        
+
                                         property bool isActive: root.savedName === model.name && root.rgbPowerState
-                                        
+
                                         color: isActive ? Qt.alpha(root.themePrimary, 0.30) : (presetMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.14) : root.themeSurface)
                                         border.width: isActive ? 2 : 1
                                         border.color: isActive ? root.themePrimary : (presetMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(255, 255, 255, 0.08))
-                                        
-                                        scale: presetMouse.containsMouse ? 1.03 : 1.0
 
-                                        Behavior on scale { NumberAnimation { duration: animStyle.animDuration; easing.type: animStyle.bounceEasing } }
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        scale: presetMouse.pressed ? 0.95 : (presetMouse.containsMouse ? 1.03 : 1.0)
+
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                                easing.type: animStyle.bounceEasing
+                                                easing.overshoot: animStyle.overshoot
+                                            }
+                                        }
+                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
 
                                         MouseArea {
                                             id: presetMouse
@@ -564,40 +667,57 @@ Scope {
 
                                         ColumnLayout {
                                             anchors.centerIn: parent
-                                            spacing: 0 
-                                            
-                                            Text { 
-                                                Layout.alignment: Qt.AlignHCenter; text: model.icon; font.pixelSize: 26; font.family: "FiraCode Nerd Font"
+                                            width: parent.width - 20
+                                            spacing: 4
+
+                                            Text {
+                                                Layout.alignment: Qt.AlignHCenter
+                                                text: model.icon
+                                                font.pixelSize: 26
+                                                font.family: root.iconFontFamily
                                                 color: cardRect.isActive || presetMouse.containsMouse ? root.themePrimary : Qt.alpha(root.themePrimary, 0.95)
-                                                visible: !model.isCustom 
-                                                Behavior on color { ColorAnimation { duration: 200 } }
+                                                visible: !model.isCustom
+                                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
                                             }
-                                            
-                                            Text { 
-                                                Layout.alignment: Qt.AlignHCenter; text: model.name; font.pixelSize: 13
+
+                                            Text {
+                                                Layout.alignment: Qt.AlignHCenter
+                                                Layout.maximumWidth: parent.width
+                                                horizontalAlignment: Text.AlignHCenter
+                                                elide: Text.ElideRight
+                                                text: model.name
+                                                font.pixelSize: 13
                                                 font.weight: cardRect.isActive ? Font.Bold : Font.DemiBold
                                                 color: cardRect.isActive ? "#FFFFFF" : root.themeText
-                                                font.family: "FiraCode Nerd Font"
+                                                font.family: root.fontFamily
                                                 style: Text.Raised
                                                 styleColor: Qt.rgba(0, 0, 0, 0.65)
-                                                Behavior on color { ColorAnimation { duration: 200 } }
+                                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
                                             }
                                         }
 
                                         Rectangle {
                                             width: 24; height: 24; radius: 12
-                                            anchors { top: parent.top; right: parent.right; margins: 6 }
+                                            anchors { top: parent.top; right: parent.right; margins: 8 }
                                             color: delHover.containsMouse ? "#ff4b6e" : Qt.rgba(0, 0, 0, 0.5)
                                             border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.15)
                                             antialiasing: true
-                                            
+                                            scale: delHover.pressed ? 0.90 : (delHover.containsMouse ? 1.08 : 1.0)
+
                                             opacity: model.isCustom && (presetMouse.containsMouse || delHover.containsMouse) ? 1.0 : 0.0
                                             visible: opacity > 0
-                                            
-                                            Behavior on opacity { NumberAnimation { duration: 150 } }
-                                            Behavior on color { ColorAnimation { duration: 150 } }
 
-                                            Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 12; color: "#FFFFFF"; font.family: "FiraCode Nerd Font" }
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
+                                            Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration } }
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+
+                                            Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 12; color: "#FFFFFF"; font.family: root.iconFontFamily }
 
                                             MouseArea {
                                                 id: delHover
@@ -625,9 +745,9 @@ Scope {
                         opacity: root.isEditingCustom ? 1.0 : 0.0
                         visible: opacity > 0
                         z: 10
-                        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                        
-                        MouseArea { anchors.fill: parent; onClicked: root.isEditingCustom = false } 
+                        Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                        MouseArea { anchors.fill: parent; onClicked: root.isEditingCustom = false }
 
                         ListModel {
                             id: customZoneModel
@@ -639,28 +759,38 @@ Scope {
 
                         Rectangle {
                             id: customPresetEditor
-                            width: 600; height: 460 
+                            width: Math.min(600, mainCard.width - 48)
+                            height: Math.min(460, mainCard.height - 48)
                             anchors.centerIn: parent
                             radius: root.themeRounding
                             color: Qt.alpha(root.themeBackground, 0.95)
                             border.width: root.themeBorderSize; border.color: Qt.alpha(root.themeBorder, 0.4)
                             antialiasing: true
-                            
-                            MouseArea { anchors.fill: parent } 
-                            
+                            scale: root.isEditingCustom ? 1.0 : 0.90
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
+
+                            MouseArea { anchors.fill: parent }
+
                             property string customEffectType: "static"
 
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 36
-                                spacing: 24
+                                anchors.margins: 32
+                                spacing: 22
 
-                                Text { 
+                                Text {
                                     text: "Create Custom 4-Zone Preset"
                                     font.pixelSize: 20
                                     font.weight: Font.Bold
                                     color: root.themeText
-                                    font.family: "FiraCode Nerd Font"
+                                    font.family: root.fontFamily
                                     style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.6)
                                 }
 
@@ -671,17 +801,22 @@ Scope {
                                     antialiasing: true
                                     TextInput {
                                         id: customNameInput
-                                        anchors.fill: parent; anchors.margins: 14
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 14
+                                        anchors.rightMargin: 14
+                                        anchors.topMargin: 4
+                                        anchors.bottomMargin: 4
                                         verticalAlignment: TextInput.AlignVCenter
-                                        color: root.themeText; font.pixelSize: 15; font.family: "FiraCode Nerd Font"
+                                        color: root.themeText; font.pixelSize: 15; font.family: root.fontFamily
                                         text: "My Custom Preset"
                                         selectByMouse: true
+                                        clip: true
                                     }
                                 }
 
                                 RowLayout {
                                     spacing: 16
-                                    Text { text: "Animation:"; color: root.themeTextMuted; font.pixelSize: 15; font.weight: Font.DemiBold; font.family: "FiraCode Nerd Font" }
+                                    Text { text: "Animation:"; color: root.themeTextMuted; font.pixelSize: 15; font.weight: Font.DemiBold; font.family: root.fontFamily }
                                     Repeater {
                                         model: ["static", "breath"]
                                         Rectangle {
@@ -689,14 +824,23 @@ Scope {
                                             color: customPresetEditor.customEffectType === modelData ? root.themePrimary : Qt.rgba(0, 0, 0, 0.3)
                                             border.width: 1; border.color: customPresetEditor.customEffectType === modelData ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
                                             antialiasing: true
-                                            Text { 
+                                            scale: effMouse.pressed ? 0.93 : (effMouse.containsMouse ? 1.04 : 1.0)
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.bounceEasing
+                                                    easing.overshoot: animStyle.overshoot
+                                                }
+                                            }
+                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                            Text {
                                                 anchors.centerIn: parent
                                                 text: modelData.charAt(0).toUpperCase() + modelData.slice(1)
                                                 font.weight: Font.Bold
-                                                font.family: "FiraCode Nerd Font"
-                                                color: customPresetEditor.customEffectType === modelData ? "#000000" : root.themeText 
+                                                font.family: root.fontFamily
+                                                color: customPresetEditor.customEffectType === modelData ? "#000000" : root.themeText
                                             }
-                                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: customPresetEditor.customEffectType = modelData }
+                                            MouseArea { id: effMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: customPresetEditor.customEffectType = modelData }
                                         }
                                     }
                                 }
@@ -705,21 +849,31 @@ Scope {
                                     Layout.fillWidth: true
                                     Layout.alignment: Qt.AlignHCenter
                                     spacing: 24
-                                    
+
                                     Repeater {
                                         model: customZoneModel
                                         ColumnLayout {
-                                            spacing: 12
-                                            Text { text: model.name; color: root.themeTextMuted; font.pixelSize: 14; font.weight: Font.DemiBold; font.family: "FiraCode Nerd Font"; Layout.alignment: Qt.AlignHCenter }
-                                            
+                                            spacing: 10
+                                            Text { text: model.name; color: root.themeTextMuted; font.pixelSize: 14; font.weight: Font.DemiBold; font.family: root.fontFamily; Layout.alignment: Qt.AlignHCenter }
+
                                             Rectangle {
-                                                width: 90; height: 50; radius: 6
+                                                width: 90; height: 50; radius: 8
                                                 color: "#" + model.colorHex
                                                 border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.3)
                                                 antialiasing: true
-                                                
+                                                scale: zoneMouse.pressed ? 0.93 : (zoneMouse.containsMouse ? 1.05 : 1.0)
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: root.animEnabled ? animStyle.animDuration : 0
+                                                        easing.type: animStyle.bounceEasing
+                                                        easing.overshoot: animStyle.overshoot
+                                                    }
+                                                }
+
                                                 MouseArea {
+                                                    id: zoneMouse
                                                     anchors.fill: parent
+                                                    hoverEnabled: true
                                                     cursorShape: Qt.PointingHandCursor
                                                     onClicked: {
                                                         root.activeZoneIndex = index
@@ -731,12 +885,12 @@ Scope {
                                                     }
                                                 }
                                             }
-                                            Text { text: "#" + model.colorHex.toUpperCase(); color: root.themeText; font.pixelSize: 14; font.family: "FiraCode Nerd Font"; Layout.alignment: Qt.AlignHCenter }
+                                            Text { text: "#" + model.colorHex.toUpperCase(); color: root.themeText; font.pixelSize: 14; font.family: root.fontFamily; Layout.alignment: Qt.AlignHCenter }
                                         }
                                     }
                                 }
 
-                                Item { Layout.fillHeight: true } 
+                                Item { Layout.fillHeight: true }
 
                                 RowLayout {
                                     Layout.fillWidth: true; Layout.alignment: Qt.AlignRight
@@ -745,27 +899,46 @@ Scope {
                                         width: 100; height: 42; radius: Math.max(8, root.themeRounding - 4)
                                         color: "transparent"; border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.2)
                                         antialiasing: true
-                                        Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 15; font.family: "FiraCode Nerd Font"; color: root.themeText }
-                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.isEditingCustom = false }
+                                        scale: cancelEditMouse.pressed ? 0.93 : (cancelEditMouse.containsMouse ? 1.04 : 1.0)
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                                easing.type: animStyle.bounceEasing
+                                                easing.overshoot: animStyle.overshoot
+                                            }
+                                        }
+                                        Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 15; font.family: root.fontFamily; color: root.themeText }
+                                        MouseArea { id: cancelEditMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.isEditingCustom = false }
                                     }
                                     Rectangle {
                                         width: 140; height: 42; radius: Math.max(8, root.themeRounding - 4)
                                         color: Qt.alpha(root.themePrimary, 0.2); border.width: 1; border.color: root.themePrimary
                                         antialiasing: true
-                                        Text { anchors.centerIn: parent; text: "Save Preset"; font.pixelSize: 15; font.weight: Font.Bold; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
-                                        MouseArea { 
-                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                        scale: saveEditMouse.pressed ? 0.93 : (saveEditMouse.containsMouse ? 1.04 : 1.0)
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                                easing.type: animStyle.bounceEasing
+                                                easing.overshoot: animStyle.overshoot
+                                            }
+                                        }
+                                        Text { anchors.centerIn: parent; text: "Save Preset"; font.pixelSize: 15; font.weight: Font.Bold; font.family: root.fontFamily; color: root.themePrimary }
+                                        MouseArea {
+                                            id: saveEditMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
                                             onClicked: {
                                                 let c1 = customZoneModel.get(0).colorHex
                                                 let c2 = customZoneModel.get(1).colorHex
                                                 let c3 = customZoneModel.get(2).colorHex
                                                 let c4 = customZoneModel.get(3).colorHex
                                                 let finalColors = `${c1} ${c2} ${c3} ${c4}`
-                                                
+
                                                 root.saveNewCustomPreset(customNameInput.text, customPresetEditor.customEffectType, finalColors)
-                                                
+
                                                 presetGrid.positionViewAtEnd()
-                                                
+
                                                 customNameInput.text = "My Custom Preset"
                                                 customPresetEditor.customEffectType = "static"
                                                 customZoneModel.setProperty(0, "colorHex", "ff0000")
@@ -787,67 +960,77 @@ Scope {
                         opacity: root.isPickingColor ? 1.0 : 0.0
                         visible: opacity > 0
                         z: 20
-                        Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }
-                        
-                        MouseArea { anchors.fill: parent; onClicked: root.isPickingColor = false } 
+                        Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                        MouseArea { anchors.fill: parent; onClicked: root.isPickingColor = false }
 
                         Rectangle {
-                            width: 440; height: 380
+                            width: Math.min(440, mainCard.width - 48)
+                            height: Math.min(380, mainCard.height - 48)
                             anchors.centerIn: parent
                             radius: root.themeRounding
                             color: Qt.alpha(root.themeBackground, 0.98)
                             border.width: root.themeBorderSize; border.color: Qt.alpha(root.themeBorder, 0.4)
                             antialiasing: true
-                            
-                            MouseArea { anchors.fill: parent } 
-                            
+                            scale: root.isPickingColor ? 1.0 : 0.90
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.bounceEasing
+                                    easing.overshoot: animStyle.overshoot
+                                }
+                            }
+
+                            MouseArea { anchors.fill: parent }
+
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 32
-                                spacing: 20
+                                anchors.margins: 30
+                                spacing: 18
 
                                 RowLayout {
                                     Layout.fillWidth: true
-                                    spacing: 20
+                                    spacing: 18
                                     Rectangle {
-                                        width: 60; height: 60; radius: 10
+                                        width: 58; height: 58; radius: 10
                                         color: root.pickerHex
                                         border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.3)
                                         antialiasing: true
                                     }
                                     ColumnLayout {
                                         Layout.fillWidth: true; spacing: 4
-                                        Text { text: "Select Zone Color"; color: root.themeText; font.pixelSize: 18; font.weight: Font.Bold; font.family: "FiraCode Nerd Font" }
-                                        Text { text: root.pickerHex.toUpperCase(); color: root.themeTextMuted; font.pixelSize: 14; font.family: "FiraCode Nerd Font" }
+                                        Text { text: "Select Zone Color"; color: root.themeText; font.pixelSize: 18; font.weight: Font.Bold; font.family: root.fontFamily }
+                                        Text { text: root.pickerHex.toUpperCase(); color: root.themeTextMuted; font.pixelSize: 14; font.family: root.fontFamily }
                                     }
                                 }
 
-                                Item { Layout.preferredHeight: 8 }
+                                Item { Layout.preferredHeight: 6 }
 
                                 Item {
                                     Layout.fillWidth: true; Layout.preferredHeight: 32
                                     RowLayout {
                                         anchors.fill: parent; spacing: 12
-                                        Text { text: "R"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: "FiraCode Nerd Font"; Layout.preferredWidth: 16 }
+                                        Text { text: "R"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: root.fontFamily; Layout.preferredWidth: 16 }
                                         Item {
                                             Layout.fillWidth: true; Layout.fillHeight: true
-                                            Rectangle { 
+                                            Rectangle {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 width: parent.width; height: 10; radius: 5; color: "#ff0000"
-                                                Rectangle { 
+                                                Rectangle {
                                                     anchors.fill: parent; radius: 5
-                                                    gradient: Gradient { 
+                                                    gradient: Gradient {
                                                         orientation: Gradient.Horizontal
                                                         GradientStop { position: 0.0; color: "#FF000000" }
-                                                        GradientStop { position: 1.0; color: "#00000000" } 
-                                                    } 
+                                                        GradientStop { position: 1.0; color: "#00000000" }
+                                                    }
                                                 }
                                             }
-                                            Rectangle { 
+                                            Rectangle {
                                                 width: 22; height: 22; radius: 11
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 x: Math.max(0, Math.min(parent.width - 22, (root.pickerR / 255) * (parent.width - 22)))
-                                                color: "#ffffff"; border.width: 2; border.color: "#333333" 
+                                                color: "#ffffff"; border.width: 2; border.color: "#333333"
                                                 antialiasing: true
                                             }
                                             MouseArea {
@@ -858,34 +1041,34 @@ Scope {
                                                 onPositionChanged: if (pressed) updateVal(mouseX)
                                             }
                                         }
-                                        Text { text: root.pickerR.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: "FiraCode Nerd Font"; Layout.preferredWidth: 28; horizontalAlignment: Text.AlignRight }
+                                        Text { text: root.pickerR.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: root.fontFamily; Layout.preferredWidth: 32; horizontalAlignment: Text.AlignRight }
                                     }
                                 }
-                                
+
                                 Item {
                                     Layout.fillWidth: true; Layout.preferredHeight: 32
                                     RowLayout {
                                         anchors.fill: parent; spacing: 12
-                                        Text { text: "G"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: "FiraCode Nerd Font"; Layout.preferredWidth: 16 }
+                                        Text { text: "G"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: root.fontFamily; Layout.preferredWidth: 16 }
                                         Item {
                                             Layout.fillWidth: true; Layout.fillHeight: true
-                                            Rectangle { 
+                                            Rectangle {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 width: parent.width; height: 10; radius: 5; color: "#00ff00"
-                                                Rectangle { 
+                                                Rectangle {
                                                     anchors.fill: parent; radius: 5
-                                                    gradient: Gradient { 
+                                                    gradient: Gradient {
                                                         orientation: Gradient.Horizontal
                                                         GradientStop { position: 0.0; color: "#FF000000" }
-                                                        GradientStop { position: 1.0; color: "#00000000" } 
-                                                    } 
+                                                        GradientStop { position: 1.0; color: "#00000000" }
+                                                    }
                                                 }
                                             }
-                                            Rectangle { 
+                                            Rectangle {
                                                 width: 22; height: 22; radius: 11
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 x: Math.max(0, Math.min(parent.width - 22, (root.pickerG / 255) * (parent.width - 22)))
-                                                color: "#ffffff"; border.width: 2; border.color: "#333333" 
+                                                color: "#ffffff"; border.width: 2; border.color: "#333333"
                                                 antialiasing: true
                                             }
                                             MouseArea {
@@ -896,34 +1079,34 @@ Scope {
                                                 onPositionChanged: if (pressed) updateVal(mouseX)
                                             }
                                         }
-                                        Text { text: root.pickerG.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: "FiraCode Nerd Font"; Layout.preferredWidth: 28; horizontalAlignment: Text.AlignRight }
+                                        Text { text: root.pickerG.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: root.fontFamily; Layout.preferredWidth: 32; horizontalAlignment: Text.AlignRight }
                                     }
                                 }
-                                
+
                                 Item {
                                     Layout.fillWidth: true; Layout.preferredHeight: 32
                                     RowLayout {
                                         anchors.fill: parent; spacing: 12
-                                        Text { text: "B"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: "FiraCode Nerd Font"; Layout.preferredWidth: 16 }
+                                        Text { text: "B"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: root.fontFamily; Layout.preferredWidth: 16 }
                                         Item {
                                             Layout.fillWidth: true; Layout.fillHeight: true
-                                            Rectangle { 
+                                            Rectangle {
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 width: parent.width; height: 10; radius: 5; color: "#0000ff"
-                                                Rectangle { 
+                                                Rectangle {
                                                     anchors.fill: parent; radius: 5
-                                                    gradient: Gradient { 
+                                                    gradient: Gradient {
                                                         orientation: Gradient.Horizontal
                                                         GradientStop { position: 0.0; color: "#FF000000" }
-                                                        GradientStop { position: 1.0; color: "#00000000" } 
-                                                    } 
+                                                        GradientStop { position: 1.0; color: "#00000000" }
+                                                    }
                                                 }
                                             }
-                                            Rectangle { 
+                                            Rectangle {
                                                 width: 22; height: 22; radius: 11
                                                 anchors.verticalCenter: parent.verticalCenter
                                                 x: Math.max(0, Math.min(parent.width - 22, (root.pickerB / 255) * (parent.width - 22)))
-                                                color: "#ffffff"; border.width: 2; border.color: "#333333" 
+                                                color: "#ffffff"; border.width: 2; border.color: "#333333"
                                                 antialiasing: true
                                             }
                                             MouseArea {
@@ -934,11 +1117,11 @@ Scope {
                                                 onPositionChanged: if (pressed) updateVal(mouseX)
                                             }
                                         }
-                                        Text { text: root.pickerB.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: "FiraCode Nerd Font"; Layout.preferredWidth: 28; horizontalAlignment: Text.AlignRight }
+                                        Text { text: root.pickerB.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: root.fontFamily; Layout.preferredWidth: 32; horizontalAlignment: Text.AlignRight }
                                     }
                                 }
 
-                                Item { Layout.fillHeight: true } 
+                                Item { Layout.fillHeight: true }
 
                                 RowLayout {
                                     Layout.fillWidth: true; Layout.alignment: Qt.AlignRight
@@ -947,16 +1130,35 @@ Scope {
                                         width: 100; height: 42; radius: Math.max(8, root.themeRounding - 4)
                                         color: "transparent"; border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.2)
                                         antialiasing: true
-                                        Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 15; font.family: "FiraCode Nerd Font"; color: root.themeText }
-                                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.isPickingColor = false }
+                                        scale: cancelPickMouse.pressed ? 0.93 : (cancelPickMouse.containsMouse ? 1.04 : 1.0)
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                                easing.type: animStyle.bounceEasing
+                                                easing.overshoot: animStyle.overshoot
+                                            }
+                                        }
+                                        Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 15; font.family: root.fontFamily; color: root.themeText }
+                                        MouseArea { id: cancelPickMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.isPickingColor = false }
                                     }
                                     Rectangle {
                                         width: 120; height: 42; radius: Math.max(8, root.themeRounding - 4)
                                         color: Qt.alpha(root.themePrimary, 0.2); border.width: 1; border.color: root.themePrimary
                                         antialiasing: true
-                                        Text { anchors.centerIn: parent; text: "Apply"; font.pixelSize: 15; font.weight: Font.Bold; font.family: "FiraCode Nerd Font"; color: root.themePrimary }
-                                        MouseArea { 
-                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                        scale: applyPickMouse.pressed ? 0.93 : (applyPickMouse.containsMouse ? 1.04 : 1.0)
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.animDuration : 0
+                                                easing.type: animStyle.bounceEasing
+                                                easing.overshoot: animStyle.overshoot
+                                            }
+                                        }
+                                        Text { anchors.centerIn: parent; text: "Apply"; font.pixelSize: 15; font.weight: Font.Bold; font.family: root.fontFamily; color: root.themePrimary }
+                                        MouseArea {
+                                            id: applyPickMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
                                             onClicked: {
                                                 if (root.activeZoneIndex >= 0) {
                                                     customZoneModel.setProperty(root.activeZoneIndex, "colorHex", root.rgbToHex(root.pickerR, root.pickerG, root.pickerB))

@@ -9,7 +9,8 @@ import QtQuick.Layouts
 Scope {
     id: root
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     property color themeBorder: "#ffffff"
     property color themePrimary: "#a2d398"
@@ -19,7 +20,7 @@ Scope {
 
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.55
+    property real themeBgAlpha: 0.5
 
     property color themeBackground: "#141416"
     property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.58)
@@ -710,7 +711,7 @@ except Exception:
                                     Text {
                                         anchors.centerIn: parent
                                         text: root.editMode ? "󰄬" : "󰏫"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         color: root.editMode ? root.themeOnPrimary : root.themeText
                                         font.pixelSize: 14
                                     }
@@ -751,7 +752,7 @@ except Exception:
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰐥"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         color: pwrMouse.containsMouse ? "#ff6b6b" : root.themeText
                                         font.pixelSize: 15
                                     }
@@ -875,7 +876,7 @@ except Exception:
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: root.getToggleIcon(modelData)
-                                                    font.family: root.fontFamily
+                                                    font.family: root.iconFontFamily
                                                     color: dragItem.activeState ? root.themeOnPrimary : root.themeText
                                                     font.pixelSize: 16
                                                 }
@@ -951,7 +952,7 @@ except Exception:
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: "󰅖"
-                                                font.family: root.fontFamily
+                                                font.family: root.iconFontFamily
                                                 color: "#ffffff"
                                                 font.pixelSize: 10
                                                 font.weight: Font.Bold
@@ -1015,7 +1016,7 @@ except Exception:
                                         Text {
                                             anchors.centerIn: parent
                                             text: root.volumeMuted ? "󰖁" : (root.volumeLevel > 0.5 ? "󰕾" : (root.volumeLevel > 0 ? "󰖀" : "󰕿"))
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             color: root.volumeMuted ? "#ff6b6b" : root.themePrimary
                                             font.pixelSize: 15
                                         }
@@ -1144,7 +1145,7 @@ except Exception:
                                         Text {
                                             anchors.centerIn: parent
                                             text: root.brightnessLevel > 0.66 ? "󰃠" : (root.brightnessLevel > 0.33 ? "󰃟" : "󰃞")
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             color: root.themePrimary
                                             font.pixelSize: 15
                                         }
@@ -1287,7 +1288,7 @@ except Exception:
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰝚"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         color: root.themePrimary
                                         font.pixelSize: 20
                                         visible: albumThumb.status !== Image.Ready
@@ -1348,7 +1349,7 @@ except Exception:
                                         Text {
                                             anchors.centerIn: parent
                                             text: "󰒮"
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             color: root.themeText
                                             font.pixelSize: 14
                                         }
@@ -1379,7 +1380,7 @@ except Exception:
                                         Text {
                                             anchors.centerIn: parent
                                             text: root.mediaStatus === "Playing" ? "󰏤" : "󰐊"
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             color: root.themeOnPrimary
                                             font.pixelSize: 17
                                         }
@@ -1412,7 +1413,7 @@ except Exception:
                                         Text {
                                             anchors.centerIn: parent
                                             text: "󰒭"
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             color: root.themeText
                                             font.pixelSize: 14
                                         }
@@ -1486,7 +1487,7 @@ except Exception:
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: root.getToggleIcon(modelData)
-                                                    font.family: root.fontFamily
+                                                    font.family: root.iconFontFamily
                                                     color: root.themeTextMuted
                                                     font.pixelSize: 15
                                                 }
@@ -1514,7 +1515,7 @@ except Exception:
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: "󰐕"
-                                                    font.family: root.fontFamily
+                                                    font.family: root.iconFontFamily
                                                     color: root.themePrimary
                                                     font.pixelSize: 12
                                                     font.weight: Font.Bold

@@ -11,7 +11,8 @@ import QtQuick.Window
 Scope {
     id: root
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
@@ -20,7 +21,7 @@ Scope {
 
     property int themeRounding: 18
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.62
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 220
 
@@ -440,7 +441,7 @@ with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
                                     anchors.centerIn: parent
                                     visible: notifThumb.status !== Image.Ready
                                     text: root.getNotificationIcon(model.appName, model.summary)
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     color: root.themePrimary
                                     font.pixelSize: 18
                                 }
@@ -551,7 +552,7 @@ with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰅖"
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     color: closeMouse.containsMouse ? root.themePrimary : root.themeTextMuted
                                     font.pixelSize: 12
 

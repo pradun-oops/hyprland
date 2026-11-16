@@ -19,6 +19,9 @@ Scope {
         property real overshoot: 0.15
     }
 
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
+
     function quitApp() {
         if (!isCalculated && calcInput.trim() !== "" && calcResult !== "Error") {
             calculate()
@@ -45,7 +48,7 @@ Scope {
     
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.55
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 380
     
@@ -412,7 +415,7 @@ Scope {
                                         text: "󰪚"
                                         color: root.themePrimary
                                         font.pixelSize: 18
-                                        font.family: "FiraCode Nerd Font"
+                                        font.family: root.iconFontFamily
                                     }
                                 }
                                 
@@ -421,7 +424,7 @@ Scope {
                                     color: root.themeText
                                     font.pixelSize: 18
                                     font.weight: Font.Bold
-                                    font.family: "FiraCode Nerd Font"
+                                    font.family: root.fontFamily
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.65)
                                     Layout.fillWidth: true
@@ -465,7 +468,7 @@ Scope {
                                             color: root.isExpertMode ? root.themePrimary : root.themeText
                                             font.pixelSize: 12
                                             font.weight: Font.Bold
-                                            font.family: "FiraCode Nerd Font"
+                                            font.family: root.fontFamily
                                             style: Text.Raised
                                             styleColor: Qt.rgba(0, 0, 0, 0.6)
                                         }
@@ -507,7 +510,7 @@ Scope {
                                         text: "󰋚"
                                         color: root.showHistory ? root.themePrimary : root.themeText
                                         font.pixelSize: 16
-                                        font.family: "FiraCode Nerd Font"
+                                        font.family: root.iconFontFamily
                                         style: Text.Raised
                                         styleColor: Qt.rgba(0, 0, 0, 0.6)
                                     }
@@ -547,7 +550,7 @@ Scope {
                                         opacity: 0.85
                                         font.pixelSize: 14
                                         font.weight: Font.Medium
-                                        font.family: "FiraCode Nerd Font"
+                                        font.family: root.fontFamily
                                         horizontalAlignment: Text.AlignRight
                                         elide: Text.ElideLeft
                                         style: Text.Raised
@@ -564,7 +567,7 @@ Scope {
                                         color: root.calcResult === "Error" ? "#ff6b6b" : root.themeText
                                         font.pixelSize: root.calcInput.length > 12 ? 28 : 40
                                         font.weight: Font.Bold
-                                        font.family: "FiraCode Nerd Font"
+                                        font.family: root.fontFamily
                                         horizontalAlignment: Text.AlignRight
                                         verticalAlignment: Text.AlignVCenter
                                         elide: Text.ElideLeft
@@ -654,7 +657,7 @@ Scope {
                                     color: root.themeText
                                     font.pixelSize: 17
                                     font.weight: Font.Bold
-                                    font.family: "FiraCode Nerd Font"
+                                    font.family: root.fontFamily
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.65)
                                     Layout.fillWidth: true
@@ -691,14 +694,14 @@ Scope {
                                             text: "󰆴"
                                             color: trashArea.containsMouse ? "#ff6b6b" : root.themeTextMuted
                                             font.pixelSize: 13
-                                            font.family: "FiraCode Nerd Font"
+                                            font.family: root.iconFontFamily
                                         }
                                         Text { 
                                             text: "Clear"
                                             color: trashArea.containsMouse ? "#ff6b6b" : root.themeText
                                             font.pixelSize: 11
                                             font.weight: Font.Bold
-                                            font.family: "FiraCode Nerd Font"
+                                            font.family: root.fontFamily
                                             style: Text.Raised
                                             styleColor: Qt.rgba(0, 0, 0, 0.6)
                                         }
@@ -780,7 +783,7 @@ Scope {
                                                 text: "󰪚"
                                                 color: root.themePrimary
                                                 font.pixelSize: 16
-                                                font.family: "FiraCode Nerd Font"
+                                                font.family: root.iconFontFamily
                                             }
                                         }
 
@@ -796,7 +799,7 @@ Scope {
                                                     color: Qt.alpha(root.themeTextMuted, 0.85)
                                                     font.pixelSize: 10
                                                     font.weight: Font.Medium
-                                                    font.family: "FiraCode Nerd Font"
+                                                    font.family: root.fontFamily
                                                     style: Text.Raised
                                                     styleColor: Qt.rgba(0, 0, 0, 0.6)
                                                 }
@@ -808,7 +811,7 @@ Scope {
                                                     color: root.themePrimary
                                                     opacity: 0.85
                                                     font.pixelSize: 12
-                                                    font.family: "FiraCode Nerd Font"
+                                                    font.family: root.fontFamily
                                                     horizontalAlignment: Text.AlignRight
                                                     elide: Text.ElideLeft
                                                     style: Text.Raised
@@ -823,7 +826,7 @@ Scope {
                                                 color: root.themeText
                                                 font.pixelSize: 20
                                                 font.weight: Font.Bold
-                                                font.family: "FiraCode Nerd Font"
+                                                font.family: root.fontFamily
                                                 horizontalAlignment: Text.AlignRight
                                                 elide: Text.ElideLeft
                                                 style: Text.Raised
@@ -870,7 +873,7 @@ Scope {
                                             color: root.themePrimary
                                             opacity: 0.65
                                             font.pixelSize: 24
-                                            font.family: "FiraCode Nerd Font"
+                                            font.family: root.iconFontFamily
                                         }
                                     }
                                     ColumnLayout {
@@ -882,7 +885,7 @@ Scope {
                                             color: root.themeText
                                             font.pixelSize: 14
                                             font.weight: Font.Bold
-                                            font.family: "FiraCode Nerd Font"
+                                            font.family: root.fontFamily
                                             style: Text.Raised
                                             styleColor: Qt.rgba(0, 0, 0, 0.65)
                                         }
@@ -891,7 +894,7 @@ Scope {
                                             text: "Calculations will appear here"
                                             color: root.themeTextMuted
                                             font.pixelSize: 11
-                                            font.family: "FiraCode Nerd Font"
+                                            font.family: root.fontFamily
                                             style: Text.Raised
                                             styleColor: Qt.rgba(0, 0, 0, 0.5)
                                         }
@@ -966,7 +969,7 @@ Scope {
             Text {
                 anchors.centerIn: parent
                 text: modelData.t
-                font.family: "FiraCode Nerd Font"
+                font.family: btnType === "backspace" ? root.iconFontFamily : root.fontFamily
                 font.pixelSize: (btnCategory === "expert") ? 15 : 18
                 font.weight: (btnCategory === "equal" || btnCategory === "clear" || btnCategory === "num" || btnCategory === "op") ? Font.Bold : Font.DemiBold
                 style: btnCategory === "equal" ? Text.Normal : Text.Raised

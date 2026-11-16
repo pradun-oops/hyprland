@@ -17,7 +17,8 @@ Scope {
         property var smoothEasing: Easing.OutCubic
     }
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
@@ -26,7 +27,7 @@ Scope {
 
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.55
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 220
 
@@ -48,18 +49,12 @@ Scope {
     }
 
     function quitApp() {
-        quitTimer.start()
-    }
-
-    Timer {
-        id: quitTimer
-        interval: 60
-        repeat: false
-        onTriggered: Qt.quit()
+        Qt.quit()
     }
 
     Shortcut {
         sequence: "Escape"
+        context: Qt.ApplicationShortcut
         onActivated: root.quitApp()
     }
 
@@ -284,6 +279,24 @@ Scope {
             property bool isTargetMonitor: modelData && modelData.name ? (modelData.name === root.targetMonitorName) : false
             visible: root.targetMonitorName !== "" && isTargetMonitor
 
+            onVisibleChanged: {
+                if (visible && isTargetMonitor) {
+                    searchInput.forceActiveFocus()
+                }
+            }
+
+            onIsTargetMonitorChanged: {
+                if (isTargetMonitor) {
+                    searchInput.forceActiveFocus()
+                }
+            }
+
+            Shortcut {
+                sequence: "Escape"
+                context: Qt.ApplicationShortcut
+                onActivated: root.quitApp()
+            }
+
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-clipboard"
             WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
@@ -310,6 +323,36 @@ Scope {
                 y: (win.height - height) / 2
 
                 visible: root.targetMonitorName !== "" && isTargetMonitor
+                focus: isTargetMonitor
+
+                Keys.onEscapePressed: (event) => {
+                    event.accepted = true
+                    root.quitApp()
+                }
+
+                Keys.onPressed: (event) => {
+                    if (event.key === Qt.Key_Escape) {
+                        event.accepted = true
+                        root.quitApp()
+                    } else if (event.key === Qt.Key_Down) {
+                        if (clipboardModel.count > 0) {
+                            root.selectedIndex = Math.min(clipboardModel.count - 1, root.selectedIndex + 1)
+                            clipList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
+                        }
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_Up) {
+                        if (clipboardModel.count > 0) {
+                            root.selectedIndex = Math.max(0, root.selectedIndex - 1)
+                            clipList.positionViewAtIndex(root.selectedIndex, ListView.Contain)
+                        }
+                        event.accepted = true
+                    } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
+                        if (root.selectedIndex >= 0 && root.selectedIndex < clipboardModel.count) {
+                            root.copyItem(clipboardModel.get(root.selectedIndex).raw)
+                        }
+                        event.accepted = true
+                    }
+                }
 
                 DragHandler {
                     target: dragContainer
@@ -318,7 +361,10 @@ Scope {
 
                 MouseArea {
                     anchors.fill: parent
-                    onClicked: (mouse) => mouse.accepted = true
+                    onClicked: (mouse) => {
+                        mouse.accepted = true
+                        searchInput.forceActiveFocus()
+                    }
                 }
 
                 Rectangle {
@@ -382,7 +428,7 @@ Scope {
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰅍"
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     color: root.themePrimary
                                     font.pixelSize: 18
                                 }
@@ -472,7 +518,7 @@ Scope {
 
                                     Text {
                                         text: "󰆴"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         color: clearBtnArea.containsMouse ? "#ff6b6b" : root.themeTextMuted
                                         font.pixelSize: 13
                                     }
@@ -522,7 +568,7 @@ Scope {
 
                                 Text {
                                     text: "󰍉"
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     color: searchInput.activeFocus ? root.themePrimary : root.themeTextMuted
                                     font.pixelSize: 15
                                 }
@@ -553,10 +599,15 @@ Scope {
                                         root.applyFilter()
                                     }
 
+                                    Keys.onEscapePressed: (event) => {
+                                        event.accepted = true
+                                        root.quitApp()
+                                    }
+
                                     Keys.onPressed: (event) => {
                                         if (event.key === Qt.Key_Escape) {
-                                            root.quitApp()
                                             event.accepted = true
+                                            root.quitApp()
                                         } else if (event.key === Qt.Key_Down) {
                                             if (clipboardModel.count > 0) {
                                                 root.selectedIndex = Math.min(clipboardModel.count - 1, root.selectedIndex + 1)
@@ -588,7 +639,7 @@ Scope {
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰅖"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         color: root.themeTextMuted
                                         font.pixelSize: 12
                                     }
@@ -629,7 +680,7 @@ Scope {
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰅢"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         color: root.themePrimary
                                         opacity: 0.65
                                         font.pixelSize: 24
@@ -776,7 +827,7 @@ Scope {
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: model.isImage ? "󰋩" : "󰈙"
-                                                    font.family: root.fontFamily
+                                                    font.family: root.iconFontFamily
                                                     color: model.isImage ? "#f59e0b" : root.themePrimary
                                                     font.pixelSize: 18
                                                 }
@@ -866,7 +917,7 @@ Scope {
                                                     Text {
                                                         anchors.centerIn: parent
                                                         text: "󰆏"
-                                                        font.family: root.fontFamily
+                                                        font.family: root.iconFontFamily
                                                         color: copyBtnMouse.containsMouse ? root.themePrimary : root.themeTextMuted
                                                         font.pixelSize: 14
                                                     }
@@ -909,7 +960,7 @@ Scope {
                                                     Text {
                                                         anchors.centerIn: parent
                                                         text: "󰆴"
-                                                        font.family: root.fontFamily
+                                                        font.family: root.iconFontFamily
                                                         color: delBtnMouse.containsMouse ? "#ff6b6b" : root.themeTextMuted
                                                         font.pixelSize: 14
                                                     }

@@ -9,13 +9,16 @@ import QtQuick.Layouts
 Scope {
     id: root
 
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
+
     QtObject {
         id: animStyle
         property int animDuration: root.animDuration > 0 ? root.animDuration : 380
         property int fadeDuration: 280
         property var bounceEasing: Easing.OutBack
         property var fadeEasing: Easing.OutCubic
-        property real overshoot: 0.1
+        property real overshoot: 1
     }
 
     property color themeBorder: "#ffffff"
@@ -320,7 +323,7 @@ Scope {
                             text: root.isMuted ? "󰖁" : (root.volumePct > 50 ? "󰕾" : (root.volumePct > 0 ? "󰖀" : "󰝟"))
                             color: root.isMuted ? "#FF453A" : root.themePrimary
                             font.pixelSize: 20
-                            font.family: "FiraCode Nerd Font"
+                            font.family: root.iconFontFamily
                             style: Text.Raised
                             styleColor: Qt.rgba(0, 0, 0, 0.5)
 
@@ -387,7 +390,7 @@ Scope {
                         color: root.isMuted ? "#FF453A" : root.themeText
                         font.pixelSize: 12
                         font.weight: Font.Bold
-                        font.family: "FiraCode Nerd Font"
+                        font.family: root.fontFamily
                         style: Text.Raised
                         styleColor: Qt.rgba(0, 0, 0, 0.65)
 

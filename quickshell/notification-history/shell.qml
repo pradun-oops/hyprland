@@ -26,7 +26,8 @@ Scope {
         onActivated: root.quitApp()
     }
 
-    property string iconFontFamily: "FiraCode Nerd Font, Symbols Nerd Font, JetBrainsMono Nerd Font, sans-serif"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
@@ -306,6 +307,7 @@ Scope {
                                     spacing: 8
                                     Text {
                                         text: "Notifications"
+                                        font.family: root.fontFamily
                                         color: "#FFFFFF"
                                         font.pixelSize: 18
                                         font.weight: Font.Bold
@@ -327,6 +329,7 @@ Scope {
                                             id: badgeText
                                             anchors.centerIn: parent
                                             text: historyModel.count
+                                            font.family: root.fontFamily
                                             color: root.themePrimary
                                             font.pixelSize: 11
                                             font.weight: Font.Bold
@@ -336,6 +339,7 @@ Scope {
 
                                 Text {
                                     text: historyModel.count > 0 ? "Recent system alerts & messages" : "All caught up"
+                                    font.family: root.fontFamily
                                     color: root.themeTextMuted
                                     font.pixelSize: 12
                                     font.weight: Font.Medium
@@ -373,6 +377,7 @@ Scope {
 
                                     Text {
                                         text: "Clear All"
+                                        font.family: root.fontFamily
                                         color: clearBtnArea.containsMouse ? "#FFFFFF" : root.themeTextMuted
                                         font.pixelSize: 12
                                         font.weight: Font.Bold
@@ -432,6 +437,7 @@ Scope {
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
                                         text: "No New Notifications"
+                                        font.family: root.fontFamily
                                         color: "#FFFFFF"
                                         font.pixelSize: 15
                                         font.weight: Font.Bold
@@ -442,6 +448,7 @@ Scope {
                                     Text {
                                         Layout.alignment: Qt.AlignHCenter
                                         text: "Your notification center is clear"
+                                        font.family: root.fontFamily
                                         color: root.themeTextMuted
                                         font.pixelSize: 12
                                         font.weight: Font.Medium
@@ -580,6 +587,7 @@ Scope {
 
                                                     Text {
                                                         text: (model.appName || "System").toUpperCase()
+                                                        font.family: root.fontFamily
                                                         color: root.themePrimary
                                                         font.pixelSize: 11
                                                         font.weight: Font.Bold
@@ -590,12 +598,14 @@ Scope {
 
                                                     Text {
                                                         text: "•"
+                                                        font.family: root.fontFamily
                                                         color: Qt.alpha(root.themeTextMuted, 0.6)
                                                         font.pixelSize: 11
                                                     }
 
                                                     Text {
                                                         text: root.formatTimeAgo(model.time)
+                                                        font.family: root.fontFamily
                                                         color: root.themeTextMuted
                                                         font.pixelSize: 11
                                                         font.weight: Font.DemiBold
@@ -634,6 +644,7 @@ Scope {
 
                                                 Text {
                                                     text: model.summary || ""
+                                                    font.family: root.fontFamily
                                                     color: "#FFFFFF"
                                                     font.pixelSize: 14
                                                     font.weight: Font.Bold
@@ -648,6 +659,7 @@ Scope {
                                                 Text {
                                                     visible: card.hasBody
                                                     text: model.body || ""
+                                                    font.family: root.fontFamily
                                                     color: root.themeTextMuted
                                                     font.pixelSize: 12
                                                     font.weight: Font.Medium

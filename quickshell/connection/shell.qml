@@ -16,7 +16,8 @@ Scope {
         property var smoothEasing: Easing.OutCubic
     }
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
@@ -25,7 +26,7 @@ Scope {
 
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.55
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 220
 
@@ -646,7 +647,7 @@ print(json.dumps(get_net()))
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰖩"
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     color: root.themePrimary
                                     font.pixelSize: 18
                                 }
@@ -736,7 +737,7 @@ print(json.dumps(get_net()))
 
                                     Text {
                                         text: "󰑐"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         color: root.themePrimary
                                         font.pixelSize: 13
                                         RotationAnimation on rotation {
@@ -826,7 +827,7 @@ print(json.dumps(get_net()))
                                         Text {
                                             anchors.centerIn: parent
                                             text: root.wifiEnabled ? "󰤨" : "󰤭"
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             color: root.wifiEnabled ? root.themePrimary : root.themeTextMuted
                                             font.pixelSize: 16
                                         }
@@ -942,7 +943,7 @@ print(json.dumps(get_net()))
                                         Text {
                                             anchors.centerIn: parent
                                             text: root.ethConnected ? "󰈀" : "󰈂"
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             color: root.ethConnected ? root.themePrimary : root.themeTextMuted
                                             font.pixelSize: 16
                                         }
@@ -1034,7 +1035,7 @@ print(json.dumps(get_net()))
                                     Text {
                                         anchors.centerIn: parent
                                         text: !root.wifiEnabled ? "󰤭" : "󰤫"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         color: root.themePrimary
                                         opacity: 0.75
                                         font.pixelSize: 24
@@ -1179,7 +1180,7 @@ print(json.dumps(get_net()))
                                                     Text {
                                                         anchors.centerIn: parent
                                                         text: root.getSignalIcon(model.signal)
-                                                        font.family: root.fontFamily
+                                                        font.family: root.iconFontFamily
                                                         color: card.isConnected ? root.themePrimary : root.themeText
                                                         font.pixelSize: 16
                                                     }
@@ -1204,14 +1205,27 @@ print(json.dumps(get_net()))
                                                     RowLayout {
                                                         spacing: 6
 
-                                                        Text {
-                                                            text: card.isProtected ? "󰌾 " + model.security : "󰌿 Open"
-                                                            color: root.themeTextMuted
-                                                            font.family: root.fontFamily
-                                                            font.pixelSize: 10
-                                                            font.weight: Font.Medium
-                                                            style: Text.Raised
-                                                            styleColor: Qt.rgba(0, 0, 0, 0.55)
+                                                        RowLayout {
+                                                            spacing: 4
+
+                                                            Text {
+                                                                text: card.isProtected ? "󰌾" : "󰌿"
+                                                                color: root.themeTextMuted
+                                                                font.family: root.iconFontFamily
+                                                                font.pixelSize: 10
+                                                                style: Text.Raised
+                                                                styleColor: Qt.rgba(0, 0, 0, 0.55)
+                                                            }
+
+                                                            Text {
+                                                                text: card.isProtected ? model.security : "Open"
+                                                                color: root.themeTextMuted
+                                                                font.family: root.fontFamily
+                                                                font.pixelSize: 10
+                                                                font.weight: Font.Medium
+                                                                style: Text.Raised
+                                                                styleColor: Qt.rgba(0, 0, 0, 0.55)
+                                                            }
                                                         }
 
                                                         Text {
@@ -1444,7 +1458,7 @@ print(json.dumps(get_net()))
                                                                 Text {
                                                                     anchors.centerIn: parent
                                                                     text: card.showPassword ? "󰈈" : "󰈉"
-                                                                    font.family: root.fontFamily
+                                                                    font.family: root.iconFontFamily
                                                                     color: eyeMouse.containsMouse ? root.themePrimary : root.themeTextMuted
                                                                     font.pixelSize: 14
                                                                 }
@@ -1499,15 +1513,27 @@ print(json.dumps(get_net()))
                                                     }
                                                 }
 
-                                                Text {
+                                                RowLayout {
                                                     visible: card.hasError
-                                                    text: "󰅙 " + root.connectErrorMsg
-                                                    color: "#ff6b6b"
-                                                    font.family: root.fontFamily
-                                                    font.pixelSize: 11
-                                                    font.weight: Font.Medium
                                                     Layout.fillWidth: true
-                                                    wrapMode: Text.Wrap
+                                                    spacing: 5
+
+                                                    Text {
+                                                        text: "󰅙"
+                                                        color: "#ff6b6b"
+                                                        font.family: root.iconFontFamily
+                                                        font.pixelSize: 11
+                                                    }
+
+                                                    Text {
+                                                        text: root.connectErrorMsg
+                                                        color: "#ff6b6b"
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 11
+                                                        font.weight: Font.Medium
+                                                        Layout.fillWidth: true
+                                                        wrapMode: Text.Wrap
+                                                    }
                                                 }
                                             }
                                         }

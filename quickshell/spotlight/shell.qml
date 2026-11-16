@@ -10,7 +10,8 @@ import QtQuick.Window
 Scope {
     id: root
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     Shortcut {
         sequence: "Escape"
@@ -47,7 +48,7 @@ Scope {
 
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.58
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
     property int animDuration: 220
 
@@ -550,7 +551,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                             Text {
                                 anchors.centerIn: parent
                                 text: root.searchMode === "apps" ? "󰍉" : "󰉋"
-                                font.family: root.fontFamily
+                                font.family: root.iconFontFamily
                                 font.pixelSize: 16
                                 color: root.themePrimary
 
@@ -645,7 +646,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                             Text {
                                 anchors.centerIn: parent
                                 text: "󰅖"
-                                font.family: root.fontFamily
+                                font.family: root.iconFontFamily
                                 color: root.themeTextMuted
                                 font.pixelSize: 12
                             }
@@ -707,7 +708,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                                         Text {
                                             text: "󰀻"
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             font.pixelSize: 12
                                             color: root.searchMode === "apps" ? root.themePrimary : root.themeTextMuted
                                         }
@@ -741,7 +742,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                                         Text {
                                             text: "󰉋"
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             font.pixelSize: 12
                                             color: root.searchMode === "files" ? root.themePrimary : root.themeTextMuted
                                         }
@@ -827,7 +828,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                             Text {
                                 text: root.searchMode === "apps" ? "󰀻" : "󰉋"
-                                font.family: root.fontFamily
+                                font.family: root.iconFontFamily
                                 color: root.themePrimary
                                 opacity: 0.75
                                 font.pixelSize: 16
@@ -1015,7 +1016,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                                     opacity: itemCard.isSelected ? 1.0 : 0.0
                                     visible: opacity > 0.0
                                     text: "󰌑"
-                                    font.family: root.fontFamily
+                                    font.family: root.iconFontFamily
                                     color: root.themePrimary
                                     font.pixelSize: 13
                                     Layout.alignment: Qt.AlignVCenter

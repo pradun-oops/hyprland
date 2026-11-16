@@ -10,7 +10,8 @@ import QtQuick.Window
 Scope {
     id: root
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
     property string lockedMonitor: ""
 
     function updateTargetMonitor() {
@@ -38,9 +39,9 @@ Scope {
 
     property int themeRounding: 22
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.55
+    property real themeBgAlpha: 0.5
     property bool animEnabled: true
-    property int animDuration: 220
+    property int animDuration: 240
 
     property color themeBackground: "#141416"
     property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.56)
@@ -53,8 +54,8 @@ Scope {
 
     QtObject {
         id: style
-        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 240) : 200
-        property int fadeDuration: 180
+        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
+        property int fadeDuration: 190
         property var smoothEasing: Easing.OutCubic
     }
 
@@ -366,9 +367,17 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
             required property var modelData
             screen: modelData
 
-            visible: root.lockedMonitor !== "" && modelData.name === root.lockedMonitor
+            property bool isTargetMonitor: root.lockedMonitor !== "" && modelData.name === root.lockedMonitor
+            visible: isTargetMonitor
 
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+            onVisibleChanged: {
+                if (visible && isTargetMonitor) {
+                    mainContainer.shown = true
+                    searchInput.forceActiveFocus()
+                }
+            }
+
+            WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             WlrLayershell.namespace: "qs-drawer"
             WlrLayershell.layer: WlrLayer.Overlay
             exclusiveZone: -1
@@ -385,10 +394,17 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
             Item {
                 id: rootWindowItem
                 anchors.fill: parent
+                focus: window.isTargetMonitor
 
                 Shortcut {
                     sequence: "Escape"
+                    context: Qt.ApplicationShortcut
                     onActivated: Qt.quit()
+                }
+
+                Keys.onEscapePressed: (event) => {
+                    event.accepted = true
+                    Qt.quit()
                 }
 
                 MouseArea {
@@ -411,11 +427,21 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
 
                     property bool shown: false
                     Component.onCompleted: {
-                        shown = true
-                        searchInput.forceActiveFocus()
+                        if (window.visible) {
+                            shown = true
+                            searchInput.forceActiveFocus()
+                        }
                     }
 
+                    scale: shown ? 1.0 : 0.93
                     opacity: shown ? 1.0 : 0.0
+
+                    Behavior on scale {
+                        NumberAnimation {
+                            duration: root.animEnabled ? style.animDuration : 0
+                            easing.type: style.smoothEasing
+                        }
+                    }
 
                     Behavior on opacity {
                         NumberAnimation {
@@ -426,7 +452,10 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
 
                     MouseArea {
                         anchors.fill: parent
-                        onClicked: (mouse) => { mouse.accepted = true }
+                        onClicked: (mouse) => {
+                            mouse.accepted = true
+                            searchInput.forceActiveFocus()
+                        }
                     }
 
                     ColumnLayout {
@@ -469,7 +498,7 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰍉"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         font.pixelSize: 16
                                         color: root.themePrimary
                                     }
@@ -493,6 +522,11 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
                                     onTextChanged: {
                                         root.searchQuery = text
                                         root.filterApps()
+                                    }
+
+                                    Keys.onEscapePressed: (event) => {
+                                        event.accepted = true
+                                        Qt.quit()
                                     }
 
                                     Keys.onPressed: (event) => {
@@ -536,6 +570,14 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
                                     border.color: Qt.rgba(1, 1, 1, 0.12)
                                     antialiasing: true
                                     visible: searchInput.text !== ""
+                                    scale: clearMouse.pressed ? 0.92 : (clearMouse.containsMouse ? 1.06 : 1.0)
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? style.animDuration : 0
+                                            easing.type: style.smoothEasing
+                                        }
+                                    }
 
                                     Behavior on color {
                                         ColorAnimation {
@@ -546,7 +588,7 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
 
                                     Text {
                                         text: "󰅖"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         color: root.themeTextMuted
                                         anchors.centerIn: parent
                                         font.pixelSize: 13
@@ -609,7 +651,7 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰀻"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         font.pixelSize: 26
                                         color: root.themePrimary
                                         opacity: 0.75
@@ -666,16 +708,18 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
                                     id: pinnedColumn
                                     anchors.fill: parent
                                     anchors.margins: 12
-                                    spacing: 10
+                                    spacing: 8
 
                                     RowLayout {
                                         Layout.fillWidth: true
+                                        Layout.leftMargin: 4
+                                        Layout.rightMargin: 4
                                         spacing: 8
 
                                         Text {
                                             text: "󰐃"
                                             color: root.themePrimary
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             font.pixelSize: 13
                                         }
 
@@ -726,8 +770,10 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
                                     Flickable {
                                         id: pinnedFlickable
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: 108
+                                        Layout.preferredHeight: 118
                                         contentWidth: pinnedRow.implicitWidth
+                                        leftMargin: 4
+                                        rightMargin: 4
                                         clip: true
                                         boundsBehavior: Flickable.StopAtBounds
 
@@ -739,17 +785,19 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
 
                                         Row {
                                             id: pinnedRow
-                                            spacing: 10
+                                            spacing: 6
 
                                             Repeater {
                                                 model: pinnedModel
 
                                                 delegate: Item {
-                                                    width: 102
-                                                    height: 106
+                                                    width: 108
+                                                    height: 116
 
                                                     Rectangle {
-                                                        anchors.fill: parent
+                                                        anchors.centerIn: parent
+                                                        width: 100
+                                                        height: 108
                                                         radius: 14
                                                         color: pMouseArea.containsMouse
                                                                ? root.mixColor(root.themeBackground, root.themePrimary, 0.20, 0.65)
@@ -757,6 +805,14 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
                                                         border.width: 1
                                                         border.color: pMouseArea.containsMouse ? Qt.alpha(root.themePrimary, 0.60) : "transparent"
                                                         antialiasing: true
+                                                        scale: pMouseArea.pressed ? 0.94 : (pMouseArea.containsMouse ? 1.04 : 1.0)
+
+                                                        Behavior on scale {
+                                                            NumberAnimation {
+                                                                duration: root.animEnabled ? style.animDuration : 0
+                                                                easing.type: style.smoothEasing
+                                                            }
+                                                        }
 
                                                         Behavior on color {
                                                             ColorAnimation {
@@ -885,6 +941,50 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
 
                                 leftMargin: Math.max(0, (width - (Math.floor(width / cellWidth) * cellWidth)) / 2)
 
+                                add: Transition {
+                                    ParallelAnimation {
+                                        NumberAnimation {
+                                            property: "opacity"
+                                            from: 0
+                                            to: 1
+                                            duration: root.animEnabled ? style.fadeDuration : 0
+                                            easing.type: style.smoothEasing
+                                        }
+                                        NumberAnimation {
+                                            property: "scale"
+                                            from: 0.92
+                                            to: 1.0
+                                            duration: root.animEnabled ? style.animDuration : 0
+                                            easing.type: style.smoothEasing
+                                        }
+                                    }
+                                }
+
+                                remove: Transition {
+                                    ParallelAnimation {
+                                        NumberAnimation {
+                                            property: "opacity"
+                                            to: 0
+                                            duration: root.animEnabled ? style.fadeDuration : 0
+                                            easing.type: style.smoothEasing
+                                        }
+                                        NumberAnimation {
+                                            property: "scale"
+                                            to: 0.92
+                                            duration: root.animEnabled ? style.animDuration : 0
+                                            easing.type: style.smoothEasing
+                                        }
+                                    }
+                                }
+
+                                displaced: Transition {
+                                    NumberAnimation {
+                                        properties: "x,y"
+                                        duration: root.animEnabled ? style.animDuration : 0
+                                        easing.type: style.smoothEasing
+                                    }
+                                }
+
                                 ScrollBar.vertical: ScrollBar {
                                     id: appScroll
                                     visible: appGrid.visible && appScroll.size < 1.0
@@ -917,6 +1017,14 @@ with open(os.path.expanduser("~/.config/quickshell/json/app_cache.json"), "w", e
                                                       ? Qt.alpha(root.themePrimary, 0.60)
                                                       : "transparent"
                                         antialiasing: true
+                                        scale: appMouseArea.pressed ? 0.94 : (gridDelegate.isHighlighted ? 1.04 : 1.0)
+
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? style.animDuration : 0
+                                                easing.type: style.smoothEasing
+                                            }
+                                        }
 
                                         Behavior on color {
                                             ColorAnimation {

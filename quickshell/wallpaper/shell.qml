@@ -11,7 +11,8 @@ import Qt.labs.folderlistmodel
 Scope {
     id: root
 
-    property string fontFamily: "FiraCode Nerd Font"
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
     property string targetMonitorName: ""
 
     function quitApp() {
@@ -53,7 +54,7 @@ Scope {
 
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.56
+    property real themeBgAlpha: 0.5
 
     property bool animEnabled: true
     property int animDuration: 380
@@ -87,7 +88,6 @@ Scope {
 
     property string currentFolder: "file://" + Quickshell.env("HOME") + "/Pictures/Wallpapers"
     property string activeWallpaperPath: ""
-    property string selectedMode: "dark"
     property string selectedEngine: "awww"
     property int cacheEpoch: 0
 
@@ -407,7 +407,6 @@ print(json.dumps(results))
             "ENGINE=\"$1\"\n" +
             "IMG=\"$2\"\n" +
             "ANIM=\"$3\"\n" +
-            "MODE=\"$4\"\n" +
             "export PATH=\"$PATH:$HOME/.cargo/bin:$HOME/.local/bin\"\n" +
             "if [ ! -f \"$IMG\" ]; then exit 0; fi\n" +
             "mkdir -p \"$HOME/.cache\"\n" +
@@ -415,7 +414,7 @@ print(json.dumps(results))
             "printf '%s\\n' \"$IMG\" > \"$HOME/.cache/quickshell_last_wallpaper.txt\"\n" +
             "if command -v matugen >/dev/null 2>&1; then\n" +
             "    mkdir -p \"$HOME/.config/qt5ct/colors\" \"$HOME/.config/qt6ct/colors\" \"$HOME/.config/gtk-3.0\" \"$HOME/.config/gtk-4.0\" \"$HOME/.config/hypr/configs\"\n" +
-            "    matugen image \"$IMG\" -m \"$MODE\" --source-color-index 0\n" +
+            "    matugen image \"$IMG\" -m \"dark\" --source-color-index 0\n" +
             "    cp -a \"$HOME/.config/qt5ct/colors/.\" \"$HOME/.config/qt6ct/colors/\" 2>/dev/null || true\n" +
             "fi\n" +
             "if [ \"$ENGINE\" = \"awww\" ]; then\n" +
@@ -441,8 +440,7 @@ print(json.dumps(results))
             "bash",
             root.selectedEngine,
             path,
-            "fade",
-            root.selectedMode
+            "fade"
         ]
         applyWallpaper.running = true
     }
@@ -562,7 +560,7 @@ print(json.dumps(results))
                             Text {
                                 anchors.centerIn: parent
                                 text: mainCard.activeTab === 0 ? "󰋩" : "󰏘"
-                                font.family: root.fontFamily
+                                font.family: root.iconFontFamily
                                 font.pixelSize: 20
                                 color: root.themePrimary
                             }
@@ -602,7 +600,7 @@ print(json.dumps(results))
                                         Text {
                                             id: syncIcon
                                             text: "󰑮"
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             font.pixelSize: 11
                                             color: root.themePrimary
 
@@ -641,65 +639,6 @@ print(json.dumps(results))
                         }
 
                         Item { Layout.fillWidth: true }
-
-                        Rectangle {
-                            id: modeToggleBtn
-                            Layout.preferredWidth: modeRow.implicitWidth + 20
-                            Layout.preferredHeight: 36
-                            Layout.alignment: Qt.AlignVCenter
-                            radius: 10
-                            color: modeMouse.containsMouse
-                                   ? root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.78)
-                                   : root.themeSurface
-                            border.width: 1
-                            border.color: modeMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.65) : Qt.rgba(1, 1, 1, 0.14)
-                            antialiasing: true
-
-                            scale: modeMouse.pressed ? 0.94 : (modeMouse.containsMouse ? 1.05 : 1.0)
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: root.animEnabled ? 200 : 0
-                                    easing.type: animStyle.bounceEasing
-                                    easing.overshoot: animStyle.overshoot
-                                }
-                            }
-                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
-
-                            RowLayout {
-                                id: modeRow
-                                anchors.centerIn: parent
-                                spacing: 6
-
-                                Text {
-                                    text: root.selectedMode === "dark" ? "󰖔" : "󰖙"
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 14
-                                    color: root.selectedMode === "dark" ? root.themePrimary : "#facc15"
-                                }
-
-                                Text {
-                                    text: root.selectedMode === "dark" ? "Dark" : "Light"
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 11
-                                    font.weight: Font.Bold
-                                    color: root.themeText
-                                }
-                            }
-
-                            MouseArea {
-                                id: modeMouse
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    root.selectedMode = (root.selectedMode === "dark" ? "light" : "dark")
-                                    if (root.activeWallpaperPath !== "") {
-                                        root.applySelectedWallpaper(root.activeWallpaperPath)
-                                    }
-                                }
-                            }
-                        }
 
                         Rectangle {
                             id: tabSegment
@@ -746,7 +685,7 @@ print(json.dumps(results))
 
                                         Text {
                                             text: "󰋩"
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             font.pixelSize: 13
                                             color: mainCard.activeTab === 0 ? root.themePrimary : root.themeTextMuted
                                         }
@@ -777,7 +716,7 @@ print(json.dumps(results))
 
                                         Text {
                                             text: "󰏘"
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             font.pixelSize: 13
                                             color: mainCard.activeTab === 1 ? root.themePrimary : root.themeTextMuted
                                         }
@@ -826,7 +765,7 @@ print(json.dumps(results))
                             Text {
                                 anchors.centerIn: parent
                                 text: "󰅖"
-                                font.family: root.fontFamily
+                                font.family: root.iconFontFamily
                                 font.pixelSize: 14
                                 color: closeHover.containsMouse ? "#ff6b6b" : root.themeText
                             }
@@ -866,7 +805,7 @@ print(json.dumps(results))
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰋩"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         font.pixelSize: 26
                                         color: root.themePrimary
                                         opacity: 0.75
@@ -971,7 +910,7 @@ print(json.dumps(results))
                                         Text {
                                             anchors.centerIn: parent
                                             text: "󰋩"
-                                            font.family: root.fontFamily
+                                            font.family: root.iconFontFamily
                                             font.pixelSize: 24
                                             color: Qt.rgba(1, 1, 1, 0.22)
                                             visible: imgItem.status !== Image.Ready
@@ -1053,7 +992,7 @@ print(json.dumps(results))
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: "󰄬"
-                                                font.family: root.fontFamily
+                                                font.family: root.iconFontFamily
                                                 font.pixelSize: 13
                                                 font.weight: Font.Bold
                                                 color: root.themeOnPrimary
@@ -1199,7 +1138,7 @@ print(json.dumps(results))
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: "󰄬"
-                                                    font.family: root.fontFamily
+                                                    font.family: root.iconFontFamily
                                                     font.pixelSize: 13
                                                     font.weight: Font.Bold
                                                     color: root.themeOnPrimary
@@ -1337,7 +1276,7 @@ print(json.dumps(results))
 
                             Text {
                                 text: "󰉋"
-                                font.family: root.fontFamily
+                                font.family: root.iconFontFamily
                                 font.pixelSize: 13
                                 color: root.themePrimary
                             }
@@ -1394,7 +1333,7 @@ print(json.dumps(results))
                                     Text {
                                         anchors.centerIn: parent
                                         text: "󰌑"
-                                        font.family: root.fontFamily
+                                        font.family: root.iconFontFamily
                                         font.pixelSize: 12
                                         color: root.themePrimary
                                         font.weight: Font.Bold
