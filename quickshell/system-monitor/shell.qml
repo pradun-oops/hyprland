@@ -13,9 +13,36 @@ Scope {
     property string fontFamily: "Adwaita Sans"
     property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
+    property bool animEnabled: true
+    property int animDuration: 220
+    property bool isClosing: false
+
+    QtObject {
+        id: animStyle
+        property int base: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
+        property int enterDuration: Math.round(base * 1.35)
+        property int exitDuration: Math.round(base * 0.85)
+        property int animDuration: base
+        property int morphDuration: Math.round(base * 1.25)
+        property int barDuration: Math.round(base * 1.8)
+        property int fadeDuration: Math.round(base * 0.8)
+        property int microDuration: Math.round(base * 0.65)
+        property int scaleDuration: Math.round(base * 1.1)
+        property var smoothEasing: Easing.OutQuint
+        property var expoEasing: Easing.OutExpo
+        property var exitEasing: Easing.InCubic
+    }
+
+    function quitApp() {
+        if (root.isClosing) return
+        root.isClosing = true
+        sysMonFetcher.running = false
+        Qt.quit()
+    }
+
     Shortcut {
         sequence: "Escape"
-        onActivated: Qt.quit()
+        onActivated: root.quitApp()
     }
 
     property string targetMonitorName: ""
@@ -46,27 +73,41 @@ Scope {
         }
     }
 
-    property int themeRounding: 22
+    property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
-    property bool animEnabled: true
-    property int animDuration: 380
+    property real themeBgAlpha: 0.25
 
     property color themeBackground: "#141416"
-    property color themeSurface: Qt.rgba(0, 0, 0, 0.32)
-    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)
+    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.68)
+    property color themeSurfaceHover: Qt.rgba(0.08, 0.08, 0.12, 0.78)
     property color themeBorder: "#ffb3af"
     property color themePrimary: "#ffb3af"
-    property color themeText: "#FFFFFF"
+    property color themeText: "#ffffff"
     property color themeTextMuted: "#D4D4D8"
 
-    QtObject {
-        id: animStyle
-        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
-        property int fadeDuration: 280
-        property var bounceEasing: Easing.OutBack
-        property var fadeEasing: Easing.OutCubic
-        property real overshoot: 1.4
+    function mixColor(c1, c2, ratio, alphaVal) {
+        let col1 = Qt.color(c1)
+        let col2 = Qt.color(c2)
+        let r = col1.r * (1 - ratio) + col2.r * ratio
+        let g = col1.g * (1 - ratio) + col2.g * ratio
+        let b = col1.b * (1 - ratio) + col2.b * ratio
+        return Qt.rgba(r, g, b, alphaVal)
+    }
+
+    function clipRoundedRect(ctx, x, y, w, h, r) {
+        r = Math.min(r, w / 2, h / 2)
+        ctx.beginPath()
+        ctx.moveTo(x + r, y)
+        ctx.lineTo(x + w - r, y)
+        ctx.arcTo(x + w, y, x + w, y + r, r)
+        ctx.lineTo(x + w, y + h - r)
+        ctx.arcTo(x + w, y + h, x + w - r, y + h, r)
+        ctx.lineTo(x + r, y + h)
+        ctx.arcTo(x, y + h, x, y + h - r, r)
+        ctx.lineTo(x, y + r)
+        ctx.arcTo(x, y, x + r, y, r)
+        ctx.closePath()
+        ctx.clip()
     }
 
     FileView {
@@ -99,7 +140,7 @@ Scope {
             try {
                 let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
-                if (rMatch && rMatch[1]) root.themeRounding = parseInt(rMatch[1])
+                if (rMatch && rMatch[1]) root.themeRounding = Math.max(14, parseInt(rMatch[1]))
 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
@@ -115,7 +156,7 @@ Scope {
         onLoaded: {
             try {
                 let content = text()
-                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/)
+                let enabledMatch = content.match(/animations\s*=\s*\{[\s\S]*?enabled\s*=\s*(true|false)/) || content.match(/enabled\s*=\s*(true|false)/)
                 if (enabledMatch && enabledMatch[1]) root.animEnabled = (enabledMatch[1] === "true")
 
                 let speedMatch = content.match(/speed\s*=\s*([\d.]+)/)
@@ -179,6 +220,7 @@ Scope {
         id: sysMonFetcher
         stdout: SplitParser {
             onRead: (data) => {
+                if (root.isClosing) return
                 try {
                     let d = JSON.parse(data)
 
@@ -414,28 +456,34 @@ while True:
             screen: modelData
 
             property bool isTargetMonitor: modelData.name === root.targetMonitorName
-            visible: root.targetMonitorName !== "" && isTargetMonitor
+            visible: root.targetMonitorName !== "" && isTargetMonitor && !root.isClosing
 
             WlrLayershell.namespace: "qs-sysmon"
             WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: (isTargetMonitor && !root.isClosing) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
             anchors { top: true; bottom: true; left: true; right: true }
+            mask: Region { item: mainCard }
             color: "transparent"
 
-            MouseArea { anchors.fill: parent; onClicked: Qt.quit() }
+            MouseArea {
+                anchors.fill: parent
+                enabled: !root.isClosing
+                onClicked: root.quitApp()
+            }
 
             Item {
                 id: mainFocusWrapper
                 anchors.fill: parent
+                visible: root.targetMonitorName !== "" && isTargetMonitor && !root.isClosing
                 focus: isTargetMonitor
 
                 Component.onCompleted: {
                     if (isTargetMonitor) forceActiveFocus()
                 }
 
-                Keys.onEscapePressed: Qt.quit()
+                Keys.onEscapePressed: root.quitApp()
 
                 Rectangle {
                     id: mainCard
@@ -444,28 +492,62 @@ while True:
                     anchors.centerIn: parent
 
                     property bool shown: false
-                    Component.onCompleted: shown = true
+                    property bool panelVisible: shown && !root.isClosing
 
-                    scale: shown ? 1.0 : 0.90
-                    opacity: shown ? 1.0 : 0.0
+                    Component.onCompleted: enterTriggerTimer.start()
 
-                    Behavior on scale {
-                        NumberAnimation {
-                            duration: root.animEnabled ? animStyle.animDuration : 0
-                            easing.type: animStyle.bounceEasing
-                            easing.overshoot: animStyle.overshoot
-                        }
+                    Timer {
+                        id: enterTriggerTimer
+                        interval: 16
+                        repeat: false
+                        onTriggered: mainCard.shown = true
                     }
+
+                    opacity: panelVisible ? 1.0 : 0.0
+                    enabled: !root.isClosing
+
+                    transform: [
+                        Scale {
+                            origin.x: mainCard.width / 2
+                            origin.y: mainCard.height / 2
+                            xScale: mainCard.panelVisible ? 1.0 : 0.94
+                            yScale: mainCard.panelVisible ? 1.0 : 0.94
+
+                            Behavior on xScale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.enterDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                            Behavior on yScale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.enterDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                        },
+                        Translate {
+                            y: mainCard.panelVisible ? 0 : 14
+
+                            Behavior on y {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.enterDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                        }
+                    ]
+
                     Behavior on opacity {
                         NumberAnimation {
-                            duration: animStyle.fadeDuration
-                            easing.type: animStyle.fadeEasing
+                            duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.fadeDuration : 0
+                            easing.type: animStyle.smoothEasing
                         }
                     }
 
                     radius: root.themeRounding
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themePrimary, 0.42)
+                    border.color: Qt.alpha(root.themePrimary, 0.4)
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     antialiasing: true
                     clip: true
@@ -486,20 +568,64 @@ while True:
                             RowLayout {
                                 Layout.fillWidth: true
                                 spacing: 12
-                                Text {
-                                    text: ""
-                                    font.pixelSize: 24
-                                    font.family: root.iconFontFamily
-                                    color: root.themePrimary
+
+                                Rectangle {
+                                    width: 42
+                                    height: 42
+                                    radius: headerIconHover.hovered ? 14 : 12
+                                    color: Qt.alpha(root.themePrimary, headerIconHover.hovered ? 0.24 : 0.18)
+                                    border.width: 1
+                                    border.color: Qt.alpha(root.themePrimary, headerIconHover.hovered ? 0.65 : 0.35)
+                                    Layout.alignment: Qt.AlignVCenter
+                                    antialiasing: true
+                                    scale: headerIconHover.hovered ? 1.05 : 1.0
+
+                                    HoverHandler { id: headerIconHover }
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on radius {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: ""
+                                        font.pixelSize: 20
+                                        font.family: root.iconFontFamily
+                                        color: root.themePrimary
+                                    }
                                 }
+
                                 ColumnLayout {
                                     spacing: 2
+                                    Layout.alignment: Qt.AlignVCenter
+
                                     Text {
                                         text: "System Monitor"
                                         font.family: root.fontFamily
-                                        font.pixelSize: 18
+                                        font.pixelSize: 17
                                         font.weight: Font.Bold
-                                        color: "#FFFFFF"
+                                        color: root.themeText
                                         style: Text.Raised
                                         styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
@@ -510,14 +636,16 @@ while True:
                                         font.weight: Font.Medium
                                         color: root.themeTextMuted
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
                                     }
                                 }
+
                                 Item { Layout.fillWidth: true }
 
                                 ColumnLayout {
                                     spacing: 2
-                                    Layout.alignment: Qt.AlignRight
+                                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+
                                     RowLayout {
                                         spacing: 5
                                         Layout.alignment: Qt.AlignRight
@@ -525,18 +653,32 @@ while True:
                                             text: root.sysBatStat === "Charging" ? "󰂄" : "󰁹"
                                             font.pixelSize: 15
                                             font.family: root.iconFontFamily
-                                            color: root.sysBatStat === "Charging" ? "#a3e635" : "#FFFFFF"
+                                            color: root.sysBatStat === "Charging" ? "#a3e635" : root.themeText
                                             style: Text.Raised
                                             styleColor: Qt.rgba(0, 0, 0, 0.85)
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
                                         Text {
                                             text: root.sysBatCap + "%"
                                             font.pixelSize: 15
                                             font.weight: Font.Bold
                                             font.family: root.fontFamily
-                                            color: root.sysBatStat === "Charging" ? "#a3e635" : "#FFFFFF"
+                                            color: root.sysBatStat === "Charging" ? "#a3e635" : root.themeText
                                             style: Text.Raised
                                             styleColor: Qt.rgba(0, 0, 0, 0.85)
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
                                     }
                                     Text {
@@ -547,12 +689,12 @@ while True:
                                         color: root.themeTextMuted
                                         Layout.alignment: Qt.AlignRight
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                     }
                                 }
                             }
 
-                            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(255, 255, 255, 0.12) }
+                            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1.0, 1.0, 1.0, 0.14) }
 
                             GridLayout {
                                 Layout.fillWidth: true
@@ -564,14 +706,31 @@ while True:
                                 Rectangle {
                                     id: cpuCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
-                                    radius: Math.max(4, root.themeRounding - 6)
+                                    radius: Math.max(10, root.themeRounding - 6)
                                     color: cpuCardHover.hovered ? root.themeSurfaceHover : root.themeSurface
                                     border.width: 1
-                                    border.color: cpuCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                    border.color: cpuCardHover.hovered ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                     antialiasing: true
+                                    scale: cpuCardHover.hovered ? 1.015 : 1.0
 
-                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
 
                                     HoverHandler { id: cpuCardHover }
 
@@ -583,15 +742,23 @@ while True:
                                                 font.pixelSize: 20
                                                 font.family: root.iconFontFamily
                                                 color: root.themePrimary
+                                                scale: cpuCardHover.hovered ? 1.08 : 1.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
                                             }
                                             Text {
                                                 text: "Processor"
                                                 font.family: root.fontFamily
                                                 font.pixelSize: 14
                                                 font.weight: Font.Bold
-                                                color: "#FFFFFF"
+                                                color: root.themeText
                                                 style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
                                             }
                                             Item { Layout.fillWidth: true }
                                             Text {
@@ -599,7 +766,7 @@ while True:
                                                 font.family: root.fontFamily
                                                 font.pixelSize: 15
                                                 font.weight: Font.Bold
-                                                color: "#FFFFFF"
+                                                color: root.themeText
                                                 style: Text.Raised
                                                 styleColor: Qt.rgba(0, 0, 0, 0.85)
                                             }
@@ -628,7 +795,12 @@ while True:
                                                         width: parent.width; height: Math.max(4, (model.value / 100) * parent.height)
                                                         anchors.bottom: parent.bottom; radius: 3; color: root.themePrimary; opacity: 0.8
                                                         antialiasing: true
-                                                        Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                                        Behavior on height {
+                                                            NumberAnimation {
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                                                easing.type: animStyle.expoEasing
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -639,14 +811,31 @@ while True:
                                 Rectangle {
                                     id: gpuCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
-                                    radius: Math.max(4, root.themeRounding - 6)
+                                    radius: Math.max(10, root.themeRounding - 6)
                                     color: gpuCardHover.hovered ? root.themeSurfaceHover : root.themeSurface
                                     border.width: 1
-                                    border.color: gpuCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                    border.color: gpuCardHover.hovered ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                     antialiasing: true
+                                    scale: gpuCardHover.hovered ? 1.015 : 1.0
 
-                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
 
                                     HoverHandler { id: gpuCardHover }
 
@@ -658,6 +847,14 @@ while True:
                                                 font.pixelSize: 20
                                                 font.family: root.iconFontFamily
                                                 color: root.themePrimary
+                                                scale: gpuCardHover.hovered ? 1.08 : 1.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
                                             }
                                             ColumnLayout {
                                                 spacing: 2
@@ -666,9 +863,9 @@ while True:
                                                     font.family: root.fontFamily
                                                     font.pixelSize: 14
                                                     font.weight: Font.Bold
-                                                    color: "#FFFFFF"
+                                                    color: root.themeText
                                                     style: Text.Raised
-                                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
                                                 }
                                                 Text {
                                                     text: root.sysGpuName
@@ -679,7 +876,7 @@ while True:
                                                     elide: Text.ElideRight
                                                     Layout.maximumWidth: 150
                                                     style: Text.Raised
-                                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
                                             }
                                             Item { Layout.fillWidth: true }
@@ -688,7 +885,7 @@ while True:
                                                 font.family: root.fontFamily
                                                 font.pixelSize: 15
                                                 font.weight: Font.Bold
-                                                color: "#FFFFFF"
+                                                color: root.themeText
                                                 style: Text.Raised
                                                 styleColor: Qt.rgba(0, 0, 0, 0.85)
                                             }
@@ -726,7 +923,12 @@ while True:
                                                         width: parent.width; height: Math.max(4, (model.value / 100) * parent.height)
                                                         anchors.bottom: parent.bottom; radius: 3; color: root.themePrimary; opacity: 0.8
                                                         antialiasing: true
-                                                        Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                                        Behavior on height {
+                                                            NumberAnimation {
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                                                easing.type: animStyle.expoEasing
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -737,14 +939,31 @@ while True:
                                 Rectangle {
                                     id: ramCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
-                                    radius: Math.max(4, root.themeRounding - 6)
+                                    radius: Math.max(10, root.themeRounding - 6)
                                     color: ramCardHover.hovered ? root.themeSurfaceHover : root.themeSurface
                                     border.width: 1
-                                    border.color: ramCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                    border.color: ramCardHover.hovered ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                     antialiasing: true
+                                    scale: ramCardHover.hovered ? 1.015 : 1.0
 
-                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
 
                                     HoverHandler { id: ramCardHover }
 
@@ -756,15 +975,23 @@ while True:
                                                 font.pixelSize: 20
                                                 font.family: root.iconFontFamily
                                                 color: root.themePrimary
+                                                scale: ramCardHover.hovered ? 1.08 : 1.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
                                             }
                                             Text {
                                                 text: "Memory"
                                                 font.family: root.fontFamily
                                                 font.pixelSize: 14
                                                 font.weight: Font.Bold
-                                                color: "#FFFFFF"
+                                                color: root.themeText
                                                 style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
                                             }
                                             Item { Layout.fillWidth: true }
                                             Text {
@@ -772,7 +999,7 @@ while True:
                                                 font.family: root.fontFamily
                                                 font.pixelSize: 15
                                                 font.weight: Font.Bold
-                                                color: "#FFFFFF"
+                                                color: root.themeText
                                                 style: Text.Raised
                                                 styleColor: Qt.rgba(0, 0, 0, 0.85)
                                             }
@@ -810,7 +1037,12 @@ while True:
                                                         width: parent.width; height: Math.max(4, (model.value / 100) * parent.height)
                                                         anchors.bottom: parent.bottom; radius: 3; color: root.themePrimary; opacity: 0.8
                                                         antialiasing: true
-                                                        Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                                        Behavior on height {
+                                                            NumberAnimation {
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                                                easing.type: animStyle.expoEasing
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
@@ -821,14 +1053,31 @@ while True:
                                 Rectangle {
                                     id: diskCard
                                     Layout.fillWidth: true; Layout.fillHeight: true
-                                    radius: Math.max(4, root.themeRounding - 6)
+                                    radius: Math.max(10, root.themeRounding - 6)
                                     color: diskCardHover.hovered ? root.themeSurfaceHover : root.themeSurface
                                     border.width: 1
-                                    border.color: diskCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                    border.color: diskCardHover.hovered ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                     antialiasing: true
+                                    scale: diskCardHover.hovered ? 1.015 : 1.0
 
-                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
 
                                     HoverHandler { id: diskCardHover }
 
@@ -840,15 +1089,23 @@ while True:
                                                 font.pixelSize: 20
                                                 font.family: root.iconFontFamily
                                                 color: root.themePrimary
+                                                scale: diskCardHover.hovered ? 1.08 : 1.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
                                             }
                                             Text {
                                                 text: "Storage & NVMe"
                                                 font.family: root.fontFamily
                                                 font.pixelSize: 14
                                                 font.weight: Font.Bold
-                                                color: "#FFFFFF"
+                                                color: root.themeText
                                                 style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
                                             }
                                             Item { Layout.fillWidth: true }
                                             Text {
@@ -856,7 +1113,7 @@ while True:
                                                 font.family: root.fontFamily
                                                 font.pixelSize: 15
                                                 font.weight: Font.Bold
-                                                color: "#FFFFFF"
+                                                color: root.themeText
                                                 style: Text.Raised
                                                 styleColor: Qt.rgba(0, 0, 0, 0.85)
                                             }
@@ -884,15 +1141,49 @@ while True:
                                         }
                                         Item { Layout.fillHeight: true }
                                         Rectangle {
-                                            Layout.fillWidth: true; height: 8; radius: 4; color: Qt.rgba(255, 255, 255, 0.12)
+                                            Layout.fillWidth: true
+                                            height: 8
+                                            radius: 4
+                                            color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
                                             antialiasing: true
-                                            Rectangle {
-                                                width: parent.width * (root.sysDiskPerc / 100)
-                                                height: parent.height
-                                                radius: 4
-                                                color: root.themePrimary
+
+                                            Canvas {
+                                                id: diskBarCanvas
+                                                anchors.fill: parent
                                                 antialiasing: true
-                                                Behavior on width { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+
+                                                property real animRatio: mainCard.shown ? Math.max(0, Math.min(1, root.sysDiskPerc / 100)) : 0
+                                                property color barColor: root.themePrimary
+
+                                                Behavior on animRatio {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.barDuration : 0
+                                                        easing.type: animStyle.expoEasing
+                                                    }
+                                                }
+                                                Behavior on barColor {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+
+                                                onAnimRatioChanged: requestPaint()
+                                                onBarColorChanged: requestPaint()
+                                                onWidthChanged: requestPaint()
+                                                onHeightChanged: requestPaint()
+                                                onAvailableChanged: if (available) requestPaint()
+
+                                                onPaint: {
+                                                    var ctx = getContext("2d")
+                                                    ctx.reset()
+                                                    if (animRatio <= 0 || width <= 0 || height <= 0) return
+                                                    ctx.save()
+                                                    root.clipRoundedRect(ctx, 0, 0, width, height, 4)
+                                                    ctx.fillStyle = barColor
+                                                    ctx.fillRect(0, 0, width * animRatio, height)
+                                                    ctx.restore()
+                                                }
                                             }
                                         }
                                     }
@@ -901,14 +1192,31 @@ while True:
                                 Rectangle {
                                     id: netCard
                                     Layout.fillWidth: true; Layout.columnSpan: 2; Layout.preferredHeight: 80
-                                    radius: Math.max(4, root.themeRounding - 6)
+                                    radius: Math.max(10, root.themeRounding - 6)
                                     color: netCardHover.hovered ? root.themeSurfaceHover : root.themeSurface
                                     border.width: 1
-                                    border.color: netCardHover.hovered ? root.themePrimary : Qt.rgba(255, 255, 255, 0.10)
+                                    border.color: netCardHover.hovered ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                     antialiasing: true
+                                    scale: netCardHover.hovered ? 1.008 : 1.0
 
-                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
 
                                     HoverHandler { id: netCardHover }
 
@@ -919,15 +1227,23 @@ while True:
                                             font.pixelSize: 24
                                             font.family: root.iconFontFamily
                                             color: root.themePrimary
+                                            scale: netCardHover.hovered ? 1.08 : 1.0
+
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
                                         Text {
                                             text: "Network IO"
                                             font.family: root.fontFamily
                                             font.pixelSize: 14
                                             font.weight: Font.Bold
-                                            color: "#FFFFFF"
+                                            color: root.themeText
                                             style: Text.Raised
-                                            styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                            styleColor: Qt.rgba(0, 0, 0, 0.85)
                                         }
 
                                         RowLayout {
@@ -940,20 +1256,30 @@ while True:
                                                         width: parent.width; height: Math.max(3, (model.rx / root.maxNetRate) * parent.height)
                                                         anchors.bottom: parent.bottom; radius: 2; color: "#38bdf8"; opacity: 0.6
                                                         antialiasing: true
-                                                        Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                                        Behavior on height {
+                                                            NumberAnimation {
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                                                easing.type: animStyle.expoEasing
+                                                            }
+                                                        }
                                                     }
                                                     Rectangle {
                                                         width: parent.width * 0.6; height: Math.max(3, (model.tx / root.maxNetRate) * parent.height)
                                                         anchors.bottom: parent.bottom; anchors.horizontalCenter: parent.horizontalCenter
                                                         radius: 2; color: "#fb7185"; opacity: 0.8
                                                         antialiasing: true
-                                                        Behavior on height { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                                        Behavior on height {
+                                                            NumberAnimation {
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                                                easing.type: animStyle.expoEasing
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
 
-                                        Rectangle { width: 1; height: 30; color: Qt.rgba(255, 255, 255, 0.15) }
+                                        Rectangle { width: 1; height: 30; color: Qt.rgba(1.0, 1.0, 1.0, 0.14) }
 
                                         ColumnLayout {
                                             spacing: 2; Layout.preferredWidth: 100
@@ -984,11 +1310,11 @@ while True:
                                                 font.weight: Font.Medium
                                                 color: root.themeTextMuted
                                                 style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                                             }
                                         }
 
-                                        Rectangle { width: 1; height: 30; color: Qt.rgba(255, 255, 255, 0.15) }
+                                        Rectangle { width: 1; height: 30; color: Qt.rgba(1.0, 1.0, 1.0, 0.14) }
 
                                         ColumnLayout {
                                             spacing: 2; Layout.preferredWidth: 100
@@ -1019,7 +1345,7 @@ while True:
                                                 font.weight: Font.Medium
                                                 color: root.themeTextMuted
                                                 style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                                             }
                                         }
                                     }
@@ -1027,7 +1353,7 @@ while True:
                             }
                         }
 
-                        Rectangle { Layout.fillHeight: true; width: 1; color: Qt.rgba(255, 255, 255, 0.12) }
+                        Rectangle { Layout.fillHeight: true; width: 1; color: Qt.rgba(1.0, 1.0, 1.0, 0.14) }
 
                         ColumnLayout {
                             Layout.fillHeight: true
@@ -1037,79 +1363,168 @@ while True:
                             RowLayout {
                                 Layout.fillWidth: true
                                 Rectangle {
-                                    Layout.fillWidth: true; height: 42; radius: 8; color: Qt.rgba(0, 0, 0, 0.35)
-                                    border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.08)
+                                    Layout.fillWidth: true; height: 42; radius: 10; color: Qt.rgba(0.02, 0.02, 0.03, 0.72)
+                                    border.width: 1; border.color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                     antialiasing: true
 
                                     RowLayout {
-                                        anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 12
+                                        anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 8; spacing: 8
 
-                                        Rectangle {
-                                            Layout.preferredHeight: 30; Layout.preferredWidth: 120
-                                            radius: 6
-                                            color: root.procTab === "user" ? Qt.alpha(root.themePrimary, 0.25) : (userTabMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.1) : "transparent")
-                                            border.width: 1
-                                            border.color: root.procTab === "user" ? root.themePrimary : (userTabMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : "transparent")
-                                            antialiasing: true
+                                        Item {
+                                            Layout.preferredHeight: 30
+                                            Layout.preferredWidth: 244
 
-                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                            Rectangle {
+                                                width: 120
+                                                height: 30
+                                                y: 0
+                                                x: root.procTab === "user" ? 0 : 124
+                                                radius: 8
+                                                color: root.mixColor(root.themeBackground, root.themePrimary, 0.28, 0.88)
+                                                border.width: 1
+                                                border.color: Qt.alpha(root.themePrimary, 0.72)
+                                                antialiasing: true
 
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: "User Procs"
-                                                font.family: root.fontFamily
-                                                font.pixelSize: 12
-                                                font.weight: Font.Bold
-                                                color: root.procTab === "user" ? "#FFFFFF" : root.themeTextMuted
-                                                style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                                Behavior on x {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                                        easing.type: animStyle.expoEasing
+                                                    }
+                                                }
                                             }
-                                            MouseArea { id: userTabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.procTab = "user" }
-                                        }
 
-                                        Rectangle {
-                                            Layout.preferredHeight: 30; Layout.preferredWidth: 120
-                                            radius: 6
-                                            color: root.procTab === "system" ? Qt.alpha(root.themePrimary, 0.25) : (sysTabMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.1) : "transparent")
-                                            border.width: 1
-                                            border.color: root.procTab === "system" ? root.themePrimary : (sysTabMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : "transparent")
-                                            antialiasing: true
+                                            Row {
+                                                anchors.fill: parent
+                                                spacing: 4
 
-                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                                Rectangle {
+                                                    width: 120; height: 30; radius: 8
+                                                    color: (root.procTab !== "user" && userTabMouse.containsMouse) ? Qt.rgba(1.0, 1.0, 1.0, 0.08) : "transparent"
+                                                    scale: userTabMouse.pressed ? 0.95 : 1.0
+                                                    antialiasing: true
 
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: "System Procs"
-                                                font.family: root.fontFamily
-                                                font.pixelSize: 12
-                                                font.weight: Font.Bold
-                                                color: root.procTab === "system" ? "#FFFFFF" : root.themeTextMuted
-                                                style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                                    Behavior on scale {
+                                                        NumberAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                    Behavior on color {
+                                                        ColorAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: "User Procs"
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 12
+                                                        font.weight: Font.Bold
+                                                        color: root.procTab === "user" ? root.themeText : root.themeTextMuted
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
+
+                                                        Behavior on color {
+                                                            ColorAnimation {
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                                easing.type: animStyle.smoothEasing
+                                                            }
+                                                        }
+                                                    }
+                                                    MouseArea { id: userTabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.procTab = "user" }
+                                                }
+
+                                                Rectangle {
+                                                    width: 120; height: 30; radius: 8
+                                                    color: (root.procTab !== "system" && sysTabMouse.containsMouse) ? Qt.rgba(1.0, 1.0, 1.0, 0.08) : "transparent"
+                                                    scale: sysTabMouse.pressed ? 0.95 : 1.0
+                                                    antialiasing: true
+
+                                                    Behavior on scale {
+                                                        NumberAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                    Behavior on color {
+                                                        ColorAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: "System Procs"
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 12
+                                                        font.weight: Font.Bold
+                                                        color: root.procTab === "system" ? root.themeText : root.themeTextMuted
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
+
+                                                        Behavior on color {
+                                                            ColorAnimation {
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                                easing.type: animStyle.smoothEasing
+                                                            }
+                                                        }
+                                                    }
+                                                    MouseArea { id: sysTabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.procTab = "system" }
+                                                }
                                             }
-                                            MouseArea { id: sysTabMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.procTab = "system" }
                                         }
 
                                         Item { Layout.fillWidth: true }
 
                                         Rectangle {
-                                            width: 28; height: 28; radius: 6
-                                            color: closeHover.containsMouse ? "#ff4b6e" : Qt.alpha(root.themeText, 0.08)
+                                            width: 32; height: 32; radius: closeHover.containsMouse ? 11 : 8
+                                            color: closeHover.containsMouse ? Qt.rgba(0.93, 0.26, 0.26, 0.34) : root.themeSurface
                                             border.width: 1
-                                            border.color: closeHover.containsMouse ? "#ff4b6e" : Qt.rgba(255, 255, 255, 0.12)
+                                            border.color: closeHover.containsMouse ? "#ff6b6b" : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                             antialiasing: true
+                                            scale: closeHover.pressed ? 0.92 : (closeHover.containsMouse ? 1.05 : 1.0)
 
-                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                            Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on radius {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on border.color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
 
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: "󰅖"
                                                 font.pixelSize: 14
                                                 font.family: root.iconFontFamily
-                                                color: closeHover.containsMouse ? "#ffffff" : root.themeText
+                                                color: closeHover.containsMouse ? "#ff6b6b" : root.themeText
+
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
                                             }
 
                                             MouseArea {
@@ -1117,7 +1532,7 @@ while True:
                                                 anchors.fill: parent
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
-                                                onClicked: Qt.quit()
+                                                onClicked: root.quitApp()
                                             }
                                         }
                                     }
@@ -1193,22 +1608,43 @@ while True:
                                 id: processList
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
+                                Layout.leftMargin: -4
+                                Layout.rightMargin: -4
                                 model: processModel
-                                spacing: 6
+                                spacing: 2
                                 clip: true
+                                boundsBehavior: Flickable.StopAtBounds
 
-                                delegate: Rectangle {
-                                    id: procRow
+                                add: Transition {
+                                    ParallelAnimation {
+                                        NumberAnimation {
+                                            property: "opacity"
+                                            from: 0.0
+                                            to: 1.0
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                        NumberAnimation {
+                                            property: "scale"
+                                            from: 0.96
+                                            to: 1.0
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                            easing.type: animStyle.expoEasing
+                                        }
+                                    }
+                                }
+
+                                displaced: Transition {
+                                    NumberAnimation {
+                                        properties: "x,y"
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                        easing.type: animStyle.expoEasing
+                                    }
+                                }
+
+                                delegate: Item {
                                     width: processList.width
-                                    height: 44
-                                    radius: 8
-                                    color: procRowMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.08) : Qt.rgba(0, 0, 0, 0.28)
-                                    border.width: 1
-                                    border.color: killHover.containsMouse ? "#ff4b6e" : (procRowMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.4) : Qt.rgba(255, 255, 255, 0.06))
-                                    antialiasing: true
-
-                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                    height: 48
 
                                     MouseArea {
                                         id: procRowMouse
@@ -1216,86 +1652,143 @@ while True:
                                         hoverEnabled: true
                                     }
 
-                                    RowLayout {
-                                        anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 10
+                                    Rectangle {
+                                        id: procRow
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 4
+                                        anchors.rightMargin: 4
+                                        anchors.topMargin: 2
+                                        anchors.bottomMargin: 2
+                                        radius: Math.max(8, root.themeRounding - 10)
+                                        color: procRowMouse.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                                        border.width: 1
+                                        border.color: killHover.containsMouse ? "#ff6b6b" : (procRowMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.48) : Qt.rgba(1.0, 1.0, 1.0, 0.14))
+                                        antialiasing: true
+                                        scale: procRowMouse.containsMouse ? 1.012 : 1.0
 
-                                        Text {
-                                            text: model.name
-                                            color: "#FFFFFF"
-                                            font.family: root.fontFamily
-                                            font.pixelSize: 13
-                                            font.weight: Font.Bold
-                                            elide: Text.ElideRight
-                                            Layout.fillWidth: true
-                                            Layout.alignment: Qt.AlignVCenter
-                                            style: Text.Raised
-                                            styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on border.color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
                                         }
 
-                                        Text {
-                                            Layout.preferredWidth: 62
-                                            text: model.pid
-                                            color: root.themeTextMuted
-                                            font.family: root.fontFamily
-                                            font.pixelSize: 11
-                                            font.weight: Font.DemiBold
-                                            horizontalAlignment: Text.AlignHCenter
-                                            Layout.alignment: Qt.AlignVCenter
-                                            style: Text.Raised
-                                            styleColor: Qt.rgba(0, 0, 0, 0.65)
-                                        }
-
-                                        Text {
-                                            Layout.preferredWidth: 50
-                                            text: model.cpu + "%"
-                                            color: root.themePrimary
-                                            font.family: root.fontFamily
-                                            font.pixelSize: 12
-                                            font.weight: Font.Bold
-                                            horizontalAlignment: Text.AlignRight
-                                            Layout.alignment: Qt.AlignVCenter
-                                            style: Text.Raised
-                                            styleColor: Qt.rgba(0, 0, 0, 0.75)
-                                        }
-
-                                        Text {
-                                            Layout.preferredWidth: 50
-                                            text: model.mem + "%"
-                                            color: "#38bdf8"
-                                            font.family: root.fontFamily
-                                            font.pixelSize: 12
-                                            font.weight: Font.Bold
-                                            horizontalAlignment: Text.AlignRight
-                                            Layout.alignment: Qt.AlignVCenter
-                                            style: Text.Raised
-                                            styleColor: Qt.rgba(0, 0, 0, 0.75)
-                                        }
-
-                                        Rectangle {
-                                            width: 32; height: 32; radius: 8
-                                            color: killHover.containsMouse ? "#ff4b6e" : Qt.rgba(255, 255, 255, 0.08)
-                                            border.width: 1
-                                            border.color: killHover.containsMouse ? "#ff4b6e" : Qt.rgba(255, 255, 255, 0.12)
-                                            antialiasing: true
-
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-                                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                                        RowLayout {
+                                            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 10
 
                                             Text {
-                                                anchors.centerIn: parent
-                                                text: "󰅖"
-                                                font.pixelSize: 14
-                                                font.family: root.iconFontFamily
-                                                color: killHover.containsMouse ? "#ffffff" : root.themeTextMuted
-                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                text: model.name
+                                                color: root.themeText
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 13
+                                                font.weight: Font.Bold
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                                Layout.alignment: Qt.AlignVCenter
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
                                             }
 
-                                            MouseArea {
-                                                id: killHover
-                                                anchors.fill: parent
-                                                hoverEnabled: true
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: root.killProcess(model.pid)
+                                            Text {
+                                                Layout.preferredWidth: 62
+                                                text: model.pid
+                                                color: root.themeTextMuted
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 11
+                                                font.weight: Font.DemiBold
+                                                horizontalAlignment: Text.AlignHCenter
+                                                Layout.alignment: Qt.AlignVCenter
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                            }
+
+                                            Text {
+                                                Layout.preferredWidth: 50
+                                                text: model.cpu + "%"
+                                                color: root.themePrimary
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 12
+                                                font.weight: Font.Bold
+                                                horizontalAlignment: Text.AlignRight
+                                                Layout.alignment: Qt.AlignVCenter
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                            }
+
+                                            Text {
+                                                Layout.preferredWidth: 50
+                                                text: model.mem + "%"
+                                                color: "#38bdf8"
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 12
+                                                font.weight: Font.Bold
+                                                horizontalAlignment: Text.AlignRight
+                                                Layout.alignment: Qt.AlignVCenter
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                            }
+
+                                            Rectangle {
+                                                width: 32; height: 32; radius: 8
+                                                color: killHover.containsMouse ? Qt.rgba(0.93, 0.26, 0.26, 0.34) : Qt.rgba(1.0, 1.0, 1.0, 0.08)
+                                                border.width: 1
+                                                border.color: killHover.containsMouse ? "#ff6b6b" : Qt.rgba(1.0, 1.0, 1.0, 0.14)
+                                                antialiasing: true
+                                                scale: killHover.pressed ? 0.92 : (killHover.containsMouse ? 1.05 : 1.0)
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on border.color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: "󰅖"
+                                                    font.pixelSize: 14
+                                                    font.family: root.iconFontFamily
+                                                    color: killHover.containsMouse ? "#ff6b6b" : root.themeTextMuted
+
+                                                    Behavior on color {
+                                                        ColorAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                }
+
+                                                MouseArea {
+                                                    id: killHover
+                                                    anchors.fill: parent
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onClicked: root.killProcess(model.pid)
+                                                }
                                             }
                                         }
                                     }

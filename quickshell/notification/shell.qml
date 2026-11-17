@@ -21,7 +21,7 @@ Scope {
 
     property int themeRounding: 18
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
+    property real themeBgAlpha: 0.25
     property bool animEnabled: true
     property int animDuration: 220
 
@@ -30,9 +30,17 @@ Scope {
 
     QtObject {
         id: animStyle
-        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 240) : 200
-        property int fadeDuration: 180
-        property var smoothEasing: Easing.OutCubic
+        property int base: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
+        property int enterDuration: Math.round(base * 1.35)
+        property int exitDuration: Math.round(base * 1.05)
+        property int animDuration: base
+        property int morphDuration: Math.round(base * 1.25)
+        property int fadeDuration: Math.round(base * 0.85)
+        property int microDuration: Math.round(base * 0.65)
+        property int scaleDuration: Math.round(base * 1.1)
+        property var smoothEasing: Easing.OutQuint
+        property var expoEasing: Easing.OutExpo
+        property var exitEasing: Easing.OutQuint
     }
 
     function mixColor(c1, c2, ratio, alphaVal) {
@@ -293,10 +301,17 @@ with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
                     ParallelAnimation {
                         NumberAnimation {
                             property: "opacity"
-                            from: 0
-                            to: 1
+                            from: 0.0
+                            to: 1.0
                             duration: root.animEnabled ? animStyle.fadeDuration : 0
                             easing.type: animStyle.smoothEasing
+                        }
+                        NumberAnimation {
+                            property: "scale"
+                            from: 0.94
+                            to: 1.0
+                            duration: root.animEnabled ? animStyle.morphDuration : 0
+                            easing.type: animStyle.expoEasing
                         }
                         NumberAnimation {
                             property: "y"
@@ -312,8 +327,14 @@ with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
                     ParallelAnimation {
                         NumberAnimation {
                             property: "opacity"
-                            to: 0
+                            to: 0.0
                             duration: root.animEnabled ? animStyle.fadeDuration : 0
+                            easing.type: animStyle.smoothEasing
+                        }
+                        NumberAnimation {
+                            property: "scale"
+                            to: 0.95
+                            duration: root.animEnabled ? animStyle.microDuration : 0
                             easing.type: animStyle.smoothEasing
                         }
                         NumberAnimation {
@@ -328,8 +349,8 @@ with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
                 displaced: Transition {
                     NumberAnimation {
                         properties: "x,y"
-                        duration: root.animEnabled ? animStyle.animDuration : 0
-                        easing.type: animStyle.smoothEasing
+                        duration: root.animEnabled ? animStyle.morphDuration : 0
+                        easing.type: animStyle.expoEasing
                     }
                 }
 
@@ -364,6 +385,9 @@ with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
                         antialiasing: true
                         clip: true
 
+                        layer.enabled: root.animEnabled
+                        layer.smooth: true
+
                         Behavior on color {
                             ColorAnimation {
                                 duration: animStyle.fadeDuration
@@ -395,6 +419,7 @@ with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
                             anchors.fill: parent
                             hoverEnabled: true
                             acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            cursorShape: cardMouse.containsMouse ? Qt.PointingHandCursor : Qt.ArrowCursor
                             onClicked: (mouse) => {
                                 if (mouse.button === Qt.RightButton) {
                                     root.closePopup(localPopupModel, model.notifId)
@@ -418,12 +443,38 @@ with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
                                 Layout.preferredWidth: 42
                                 Layout.preferredHeight: 42
                                 Layout.alignment: Qt.AlignTop
-                                radius: 11
-                                color: Qt.alpha(root.themePrimary, 0.16)
+                                radius: cardMouse.containsMouse ? 14 : 11
+                                color: Qt.alpha(root.themePrimary, cardMouse.containsMouse ? 0.24 : 0.16)
                                 border.width: 1
-                                border.color: Qt.alpha(root.themePrimary, 0.38)
+                                border.color: Qt.alpha(root.themePrimary, cardMouse.containsMouse ? 0.55 : 0.38)
                                 antialiasing: true
                                 clip: true
+                                scale: cardMouse.containsMouse ? 1.05 : 1.0
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on radius {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.microDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: animStyle.fadeDuration
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: animStyle.fadeDuration
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 Image {
                                     id: notifThumb
@@ -435,6 +486,14 @@ with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
                                     fillMode: Image.PreserveAspectCrop
                                     smooth: true
                                     visible: status === Image.Ready
+                                    opacity: visible ? 1.0 : 0.0
+
+                                    Behavior on opacity {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
                                 }
 
                                 Text {
@@ -525,7 +584,7 @@ with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
                                 Layout.preferredWidth: 26
                                 Layout.preferredHeight: 26
                                 Layout.alignment: Qt.AlignTop
-                                radius: 8
+                                radius: closeMouse.containsMouse ? 9 : 8
                                 color: closeMouse.containsMouse
                                        ? Qt.rgba(1.0, 1.0, 1.0, 0.16)
                                        : Qt.rgba(0.02, 0.02, 0.03, 0.42)
@@ -534,14 +593,26 @@ with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
                                               ? Qt.alpha(root.themePrimary, 0.55)
                                               : Qt.rgba(1.0, 1.0, 1.0, 0.12)
                                 antialiasing: true
+                                scale: closeMouse.pressed ? 0.90 : (closeMouse.containsMouse ? 1.06 : 1.0)
 
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on radius {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.microDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
                                 Behavior on color {
                                     ColorAnimation {
                                         duration: animStyle.fadeDuration
                                         easing.type: animStyle.smoothEasing
                                     }
                                 }
-
                                 Behavior on border.color {
                                     ColorAnimation {
                                         duration: animStyle.fadeDuration

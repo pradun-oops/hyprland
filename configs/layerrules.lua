@@ -48,4 +48,5 @@ apply_blur({
     "qs-power-menu",
     "qs-wellbeing",
     "qs-daily-planner",
-}, 0.01)
+    "qs-rgbcontrol-modal",
+}, 0.05)

@@ -15,8 +15,8 @@ Scope {
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
-    property color themeTextMuted: "#a1a1aa"
-    property color themeOnPrimary: "#141416"
+    property color themeTextMuted: "#E4E4E7"
+    property color themeOnPrimary: "#111113"
 
     property int themeRounding: 18
     property int themeBorderSize: 2
@@ -24,20 +24,29 @@ Scope {
     property bool animEnabled: true
     property int animDuration: 260
 
-    property color themeBackground: "#141416"
-    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.52)
+    property color themeBackground: "#111215"
+    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.09)
+
+    QtObject {
+        id: animStyle
+        property int base: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
+        property int enterDuration: Math.round(base * 1.45)
+        property int animDuration: base
+        property int morphDuration: Math.round(base * 1.35)
+        property int fadeDuration: Math.round(base * 0.85)
+        property int microDuration: Math.round(base * 0.65)
+        property int scaleDuration: Math.round(base * 1.1)
+        property var smoothEasing: Easing.OutQuint
+        property var expoEasing: Easing.OutExpo
+    }
 
     QtObject {
         id: style
         property int moduleSpacing: 6
-        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 280) : 240
-        property int fadeDuration: 180
-        property var smoothEasing: Easing.OutCubic
-        property var fadeEasing: Easing.OutCubic
-        property color hoverColor: Qt.rgba(1.0, 1.0, 1.0, 0.12)
-        property color pillBg: Qt.rgba(0.02, 0.02, 0.03, 0.46)
-        property color pillBorder: Qt.rgba(1.0, 1.0, 1.0, 0.09)
-        property color separatorColor: Qt.rgba(1.0, 1.0, 1.0, 0.14)
+        property color hoverColor: Qt.rgba(1.0, 1.0, 1.0, 0.20)
+        property color pillBg: Qt.rgba(1.0, 1.0, 1.0, 0.08)
+        property color pillBorder: Qt.rgba(1.0, 1.0, 1.0, 0.20)
+        property color separatorColor: Qt.rgba(1.0, 1.0, 1.0, 0.24)
     }
 
     function mixColor(c1, c2, ratio, alphaVal) {
@@ -47,6 +56,12 @@ Scope {
         let g = col1.g * (1 - ratio) + col2.g * ratio
         let b = col1.b * (1 - ratio) + col2.b * ratio
         return Qt.rgba(r, g, b, alphaVal)
+    }
+
+    function getContrastText(c) {
+        let col = Qt.color(c)
+        let lum = 0.299 * col.r + 0.587 * col.g + 0.114 * col.b
+        return lum > 0.55 ? "#111113" : "#ffffff"
     }
 
     property string currentTime: ""
@@ -524,7 +539,7 @@ print(json.dumps({
             WlrLayershell.namespace: "qs-bar"
             WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
 
-            exclusiveZone: 42
+            exclusiveZone: 44
 
             anchors {
                 top: true
@@ -532,7 +547,7 @@ print(json.dumps({
                 right: true
             }
 
-            implicitHeight: 50
+            implicitHeight: 56
             color: "transparent"
 
             Item {
@@ -541,9 +556,13 @@ print(json.dumps({
                 Rectangle {
                     id: barIsland
 
+                    property bool shown: false
+                    Component.onCompleted: shown = true
+
                     x: Math.round((parent.width - width) / 2)
-                    y: root.barY
+                    y: shown ? root.barY : -root.islandHeight
                     height: root.islandHeight
+                    opacity: shown ? 1.0 : 0.0
 
                     HoverHandler { id: islandHover }
                     property bool isPinned: false
@@ -554,22 +573,47 @@ print(json.dumps({
 
                     width: isExpanded ? expandedWidth : collapsedWidth
 
-                    Behavior on width {
+                    Behavior on y {
                         NumberAnimation {
-                            duration: root.animEnabled ? style.animDuration : 0
-                            easing.type: style.smoothEasing
+                            duration: root.animEnabled ? animStyle.enterDuration : 0
+                            easing.type: animStyle.expoEasing
                         }
                     }
 
-                    Behavior on color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
-                    Behavior on border.color { ColorAnimation { duration: style.fadeDuration; easing.type: style.fadeEasing } }
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: root.animEnabled ? animStyle.fadeDuration : 0
+                            easing.type: animStyle.smoothEasing
+                        }
+                    }
+
+                    Behavior on width {
+                        NumberAnimation {
+                            duration: root.animEnabled ? animStyle.morphDuration : 0
+                            easing.type: animStyle.expoEasing
+                        }
+                    }
+
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: animStyle.fadeDuration
+                            easing.type: animStyle.smoothEasing
+                        }
+                    }
+
+                    Behavior on border.color {
+                        ColorAnimation {
+                            duration: animStyle.fadeDuration
+                            easing.type: animStyle.smoothEasing
+                        }
+                    }
 
                     radius: Math.min(height / 2, root.themeRounding)
-                    color: Qt.alpha(root.themeBackground, barIsland.isExpanded ? Math.min(0.76, root.themeBgAlpha + 0.12) : root.themeBgAlpha)
+                    color: root.mixColor(root.themeBackground, "#090a0d", 0.35, root.themeBgAlpha)
                     border.width: root.themeBorderSize
                     border.color: barIsland.isPinned
-                                  ? Qt.alpha(root.themePrimary, 0.78)
-                                  : Qt.alpha(root.themeBorder, barIsland.isExpanded ? 0.55 : 0.42)
+                                  ? Qt.alpha(root.themePrimary, 0.90)
+                                  : Qt.alpha(root.themePrimary, barIsland.isExpanded ? 0.68 : 0.52)
                     antialiasing: true
                     clip: true
 
@@ -577,12 +621,10 @@ print(json.dumps({
                         anchors.fill: parent
                         anchors.margins: root.themeBorderSize
                         radius: Math.max(0, parent.radius - root.themeBorderSize)
+                        color: "transparent"
+                        border.width: 1
+                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.11)
                         antialiasing: true
-                        gradient: Gradient {
-                            GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.10) }
-                            GradientStop { position: 0.5; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
-                            GradientStop { position: 1.0; color: "transparent" }
-                        }
                     }
 
                     MouseArea {
@@ -596,12 +638,20 @@ print(json.dumps({
                         anchors.centerIn: parent
                         spacing: 10
                         opacity: barIsland.isExpanded ? 0.0 : 1.0
+                        scale: barIsland.isExpanded ? 0.90 : 1.0
                         visible: opacity > 0.01
 
                         Behavior on opacity {
                             NumberAnimation {
-                                duration: style.fadeDuration
-                                easing.type: style.fadeEasing
+                                duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                easing.type: animStyle.smoothEasing
+                            }
+                        }
+
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: root.animEnabled ? animStyle.morphDuration : 0
+                                easing.type: animStyle.expoEasing
                             }
                         }
 
@@ -631,12 +681,12 @@ print(json.dumps({
                         Text {
                             text: root.currentTime !== "" ? root.currentTime : "12:00 PM"
                             color: root.themeText
-                            font.pixelSize: 12
-                            font.weight: Font.Bold
+                            font.pixelSize: 13
+                            font.weight: Font.ExtraBold
                             font.family: root.fontFamily
                             anchors.verticalCenter: parent.verticalCenter
                             style: Text.Raised
-                            styleColor: Qt.rgba(0, 0, 0, 0.75)
+                            styleColor: Qt.rgba(0, 0, 0, 0.92)
                         }
                     }
 
@@ -646,12 +696,20 @@ print(json.dumps({
                         anchors.centerIn: parent
                         spacing: style.moduleSpacing
                         opacity: barIsland.isExpanded ? 1.0 : 0.0
+                        scale: barIsland.isExpanded ? 1.0 : 0.95
                         visible: opacity > 0.01
 
                         Behavior on opacity {
                             NumberAnimation {
-                                duration: style.fadeDuration
-                                easing.type: style.fadeEasing
+                                duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                easing.type: animStyle.smoothEasing
+                            }
+                        }
+
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: root.animEnabled ? animStyle.morphDuration : 0
+                                easing.type: animStyle.expoEasing
                             }
                         }
 
@@ -664,6 +722,13 @@ print(json.dumps({
                             border.color: style.pillBorder
                             anchors.verticalCenter: parent.verticalCenter
                             antialiasing: true
+
+                            Behavior on width {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.morphDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
 
                             MouseArea {
                                 anchors.fill: parent
@@ -686,6 +751,33 @@ print(json.dumps({
                                 anchors.centerIn: parent
                                 spacing: 4
 
+                                move: Transition {
+                                    NumberAnimation {
+                                        properties: "x,y"
+                                        duration: root.animEnabled ? animStyle.morphDuration : 0
+                                        easing.type: animStyle.expoEasing
+                                    }
+                                }
+
+                                add: Transition {
+                                    ParallelAnimation {
+                                        NumberAnimation {
+                                            property: "opacity"
+                                            from: 0.0
+                                            to: 1.0
+                                            duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                        NumberAnimation {
+                                            property: "scale"
+                                            from: 0.7
+                                            to: 1.0
+                                            duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                }
+
                                 Repeater {
                                     model: root.activeWorkspaces
                                     delegate: Rectangle {
@@ -697,30 +789,46 @@ print(json.dumps({
                                         color: isCurrent
                                                ? root.themePrimary
                                                : (wsMouse.containsMouse ? style.hoverColor : "transparent")
+                                        scale: wsMouse.pressed ? 0.88 : (wsMouse.containsMouse && !isCurrent ? 1.06 : 1.0)
                                         antialiasing: true
 
                                         Behavior on width {
                                             NumberAnimation {
-                                                duration: root.animEnabled ? 180 : 0
-                                                easing.type: style.smoothEasing
+                                                duration: root.animEnabled ? animStyle.morphDuration : 0
+                                                easing.type: animStyle.expoEasing
+                                            }
+                                        }
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
                                             }
                                         }
                                         Behavior on color {
                                             ColorAnimation {
-                                                duration: style.fadeDuration
-                                                easing.type: style.fadeEasing
+                                                duration: animStyle.fadeDuration
+                                                easing.type: animStyle.smoothEasing
                                             }
                                         }
 
                                         Text {
                                             text: modelData
                                             color: parent.isCurrent
-                                                   ? root.themeOnPrimary
+                                                   ? root.getContrastText(root.themePrimary)
                                                    : (wsMouse.containsMouse ? root.themeText : root.themeTextMuted)
                                             font.pixelSize: 11
                                             font.weight: parent.isCurrent ? Font.ExtraBold : Font.Bold
                                             font.family: root.fontFamily
                                             anchors.centerIn: parent
+                                            style: parent.isCurrent ? Text.Normal : Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.90)
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: animStyle.microDuration
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
 
                                         MouseArea {
@@ -739,11 +847,36 @@ print(json.dumps({
                             height: root.islandHeight - 10
                             width: netRow.implicitWidth + 18
                             radius: height / 2
-                            color: style.pillBg
+                            color: netPillHover.hovered
+                                   ? Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                                   : style.pillBg
                             border.width: 1
-                            border.color: style.pillBorder
+                            border.color: netPillHover.hovered
+                                          ? Qt.alpha(root.themePrimary, 0.65)
+                                          : style.pillBorder
                             anchors.verticalCenter: parent.verticalCenter
                             antialiasing: true
+
+                            HoverHandler { id: netPillHover }
+
+                            Behavior on width {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: animStyle.microDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: animStyle.microDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
 
                             Row {
                                 id: netRow
@@ -756,9 +889,11 @@ print(json.dumps({
                                     Text {
                                         text: "󰁅"
                                         color: "#38bdf8"
-                                        font.pixelSize: 12
+                                        font.pixelSize: 13
                                         font.family: root.iconFontFamily
                                         anchors.verticalCenter: parent.verticalCenter
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
                                     Text {
                                         text: root.rxSpeed
@@ -767,14 +902,18 @@ print(json.dumps({
                                         font.weight: Font.Bold
                                         font.family: root.fontFamily
                                         anchors.verticalCenter: parent.verticalCenter
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.90)
                                     }
                                     Text {
                                         text: root.rxUnit
                                         color: root.themeTextMuted
-                                        font.pixelSize: 9
-                                        font.weight: Font.SemiBold
+                                        font.pixelSize: 10
+                                        font.weight: Font.Bold
                                         font.family: root.fontFamily
                                         anchors.verticalCenter: parent.verticalCenter
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
                                 }
 
@@ -791,9 +930,11 @@ print(json.dumps({
                                     Text {
                                         text: "󰁝"
                                         color: root.themePrimary
-                                        font.pixelSize: 12
+                                        font.pixelSize: 13
                                         font.family: root.iconFontFamily
                                         anchors.verticalCenter: parent.verticalCenter
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
                                     Text {
                                         text: root.txSpeed
@@ -802,14 +943,18 @@ print(json.dumps({
                                         font.weight: Font.Bold
                                         font.family: root.fontFamily
                                         anchors.verticalCenter: parent.verticalCenter
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.90)
                                     }
                                     Text {
                                         text: root.txUnit
                                         color: root.themeTextMuted
-                                        font.pixelSize: 9
-                                        font.weight: Font.SemiBold
+                                        font.pixelSize: 10
+                                        font.weight: Font.Bold
                                         font.family: root.fontFamily
                                         anchors.verticalCenter: parent.verticalCenter
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
                                 }
                             }
@@ -820,17 +965,40 @@ print(json.dumps({
                             width: centerRow.implicitWidth + 20
                             radius: height / 2
                             color: centerMouse.containsMouse
-                                   ? root.mixColor(root.themeBackground, root.themePrimary, 0.20, 0.72)
+                                   ? Qt.rgba(1.0, 1.0, 1.0, 0.18)
                                    : style.pillBg
                             border.width: 1
                             border.color: centerMouse.containsMouse
-                                          ? Qt.alpha(root.themePrimary, 0.55)
+                                          ? root.themePrimary
                                           : style.pillBorder
+                            scale: centerMouse.pressed ? 0.96 : (centerMouse.containsMouse ? 1.02 : 1.0)
                             anchors.verticalCenter: parent.verticalCenter
                             antialiasing: true
 
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                            Behavior on width {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.morphDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: animStyle.microDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: animStyle.microDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
 
                             Row {
                                 id: centerRow
@@ -867,14 +1035,18 @@ print(json.dumps({
                                     font.weight: Font.ExtraBold
                                     font.family: root.fontFamily
                                     anchors.verticalCenter: parent.verticalCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.92)
                                 }
 
                                 Text {
                                     text: "•"
                                     color: root.themePrimary
-                                    font.pixelSize: 11
+                                    font.pixelSize: 12
                                     font.family: root.fontFamily
                                     anchors.verticalCenter: parent.verticalCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
                                 }
 
                                 Text {
@@ -884,15 +1056,34 @@ print(json.dumps({
                                     font.weight: Font.Bold
                                     font.family: root.fontFamily
                                     anchors.verticalCenter: parent.verticalCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
                                 }
 
                                 Text {
-                                    visible: barIsland.isPinned
+                                    visible: opacity > 0.01
+                                    opacity: barIsland.isPinned ? 1.0 : 0.0
+                                    scale: barIsland.isPinned ? 1.0 : 0.5
                                     text: "󰐃"
                                     color: root.themePrimary
                                     font.pixelSize: 11
                                     font.family: root.iconFontFamily
                                     anchors.verticalCenter: parent.verticalCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+
+                                    Behavior on opacity {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
                                 }
                             }
 
@@ -918,11 +1109,30 @@ print(json.dumps({
                             height: root.islandHeight - 10
                             width: tempRow.implicitWidth + 18
                             radius: height / 2
-                            color: style.pillBg
+                            color: tempPillHover.hovered
+                                   ? Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                                   : style.pillBg
                             border.width: 1
-                            border.color: style.pillBorder
+                            border.color: tempPillHover.hovered
+                                          ? Qt.alpha(root.themePrimary, 0.65)
+                                          : style.pillBorder
                             anchors.verticalCenter: parent.verticalCenter
                             antialiasing: true
+
+                            HoverHandler { id: tempPillHover }
+
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: animStyle.microDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: animStyle.microDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
 
                             Row {
                                 id: tempRow
@@ -935,9 +1145,18 @@ print(json.dumps({
                                     Text {
                                         text: ""
                                         color: parseInt(root.cpuTemp) >= 80 ? "#ff6b6b" : root.themePrimary
-                                        font.pixelSize: 12
+                                        font.pixelSize: 13
                                         font.family: root.iconFontFamily
                                         anchors.verticalCenter: parent.verticalCenter
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
+
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: animStyle.fadeDuration
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
                                     }
                                     Text {
                                         text: root.cpuTemp + "°C"
@@ -946,6 +1165,8 @@ print(json.dumps({
                                         font.weight: Font.Bold
                                         font.family: root.fontFamily
                                         anchors.verticalCenter: parent.verticalCenter
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.90)
                                     }
                                 }
 
@@ -962,9 +1183,18 @@ print(json.dumps({
                                     Text {
                                         text: "󰢮"
                                         color: parseInt(root.gpuTemp) >= 80 ? "#ff6b6b" : root.themePrimary
-                                        font.pixelSize: 13
+                                        font.pixelSize: 14
                                         font.family: root.iconFontFamily
                                         anchors.verticalCenter: parent.verticalCenter
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
+
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: animStyle.fadeDuration
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
                                     }
                                     Text {
                                         text: root.gpuTemp + "°C"
@@ -973,6 +1203,8 @@ print(json.dumps({
                                         font.weight: Font.Bold
                                         font.family: root.fontFamily
                                         anchors.verticalCenter: parent.verticalCenter
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.90)
                                     }
                                 }
                             }
@@ -983,16 +1215,40 @@ print(json.dumps({
                             width: volRow.implicitWidth + 16
                             radius: height / 2
                             color: volMouse.containsMouse
-                                   ? root.mixColor(root.themeBackground, root.themePrimary, 0.20, 0.72)
+                                   ? Qt.rgba(1.0, 1.0, 1.0, 0.18)
                                    : style.pillBg
                             border.width: 1
                             border.color: volMouse.containsMouse
-                                          ? Qt.alpha(root.themePrimary, 0.55)
+                                          ? root.themePrimary
                                           : style.pillBorder
+                            scale: volMouse.pressed ? 0.95 : (volMouse.containsMouse ? 1.025 : 1.0)
                             anchors.verticalCenter: parent.verticalCenter
                             antialiasing: true
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                            Behavior on width {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: animStyle.microDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: animStyle.microDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
 
                             Row {
                                 id: volRow
@@ -1001,10 +1257,25 @@ print(json.dumps({
                                 Text {
                                     text: root.getVolIcon(root.volumePct, root.isMuted)
                                     color: root.isMuted ? "#ff6b6b" : root.themePrimary
-                                    font.pixelSize: 13
+                                    font.pixelSize: 14
                                     font.family: root.iconFontFamily
                                     anchors.verticalCenter: parent.verticalCenter
-                                    Behavior on color { ColorAnimation { duration: style.fadeDuration } }
+                                    scale: root.isMuted ? 0.92 : (volMouse.containsMouse ? 1.08 : 1.0)
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: animStyle.fadeDuration
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
                                 }
                                 Text {
                                     text: root.volumePct + "%"
@@ -1013,6 +1284,15 @@ print(json.dumps({
                                     font.weight: Font.Bold
                                     font.family: root.fontFamily
                                     anchors.verticalCenter: parent.verticalCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.90)
+
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: animStyle.fadeDuration
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
                                 }
                             }
 
@@ -1049,16 +1329,40 @@ print(json.dumps({
                             width: batRow.implicitWidth + 16
                             radius: height / 2
                             color: batMouse.containsMouse
-                                   ? root.mixColor(root.themeBackground, root.themePrimary, 0.20, 0.72)
+                                   ? Qt.rgba(1.0, 1.0, 1.0, 0.18)
                                    : style.pillBg
                             border.width: 1
                             border.color: batMouse.containsMouse
-                                          ? Qt.alpha(root.themePrimary, 0.55)
+                                          ? root.themePrimary
                                           : style.pillBorder
+                            scale: batMouse.pressed ? 0.95 : (batMouse.containsMouse ? 1.025 : 1.0)
                             anchors.verticalCenter: parent.verticalCenter
                             antialiasing: true
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                            Behavior on width {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.animDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: animStyle.microDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: animStyle.microDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
 
                             Row {
                                 id: batRow
@@ -1067,10 +1371,25 @@ print(json.dumps({
                                 Text {
                                     text: root.getBatIcon(parseInt(root.batCap), root.isCharging)
                                     color: root.isCharging ? "#4ade80" : (parseInt(root.batCap) <= 20 ? "#ff6b6b" : root.themePrimary)
-                                    font.pixelSize: 13
+                                    font.pixelSize: 14
                                     font.family: root.iconFontFamily
                                     anchors.verticalCenter: parent.verticalCenter
-                                    Behavior on color { ColorAnimation { duration: style.fadeDuration } }
+                                    scale: batMouse.containsMouse ? 1.08 : 1.0
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: animStyle.fadeDuration
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
                                 }
                                 Text {
                                     text: root.batCap + "%"
@@ -1079,6 +1398,8 @@ print(json.dumps({
                                     font.weight: Font.Bold
                                     font.family: root.fontFamily
                                     anchors.verticalCenter: parent.verticalCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.90)
                                 }
                             }
 
@@ -1109,9 +1430,9 @@ print(json.dumps({
                             height: root.islandHeight - 10
                             width: root.runningAppsList.length > 0 ? (appsHover.hovered ? appsRow.implicitWidth + 36 : 28) : 0
                             radius: height / 2
-                            color: appsHover.hovered ? style.pillBg : Qt.rgba(1, 1, 1, 0.05)
+                            color: appsHover.hovered ? Qt.rgba(1.0, 1.0, 1.0, 0.18) : style.pillBg
                             border.width: root.runningAppsList.length > 0 ? 1 : 0
-                            border.color: appsHover.hovered ? Qt.alpha(root.themePrimary, 0.45) : style.pillBorder
+                            border.color: appsHover.hovered ? Qt.alpha(root.themePrimary, 0.65) : style.pillBorder
                             visible: root.runningAppsList.length > 0
                             anchors.verticalCenter: parent.verticalCenter
                             antialiasing: true
@@ -1119,12 +1440,22 @@ print(json.dumps({
 
                             Behavior on width {
                                 NumberAnimation {
-                                    duration: root.animEnabled ? style.animDuration : 0
-                                    easing.type: style.smoothEasing
+                                    duration: root.animEnabled ? animStyle.morphDuration : 0
+                                    easing.type: animStyle.expoEasing
                                 }
                             }
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: animStyle.microDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: animStyle.microDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
 
                             HoverHandler { id: appsHover }
 
@@ -1134,11 +1465,21 @@ print(json.dumps({
                                 x: 7
 
                                 Text {
-                                    text: appsHover.hovered ? "󰅁" : "󰅂"
+                                    text: "󰅂"
                                     color: root.themePrimary
                                     font.pixelSize: 13
                                     font.family: root.iconFontFamily
                                     anchors.verticalCenter: parent.verticalCenter
+                                    rotation: appsHover.hovered ? 180 : 0
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+
+                                    Behavior on rotation {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.morphDuration : 0
+                                            easing.type: animStyle.expoEasing
+                                        }
+                                    }
                                 }
 
                                 Row {
@@ -1146,12 +1487,47 @@ print(json.dumps({
                                     spacing: 4
                                     anchors.verticalCenter: parent.verticalCenter
                                     opacity: appsHover.hovered ? 1.0 : 0.0
+                                    scale: appsHover.hovered ? 1.0 : 0.90
                                     visible: opacity > 0.01
 
                                     Behavior on opacity {
                                         NumberAnimation {
-                                            duration: style.fadeDuration
-                                            easing.type: style.fadeEasing
+                                            duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.morphDuration : 0
+                                            easing.type: animStyle.expoEasing
+                                        }
+                                    }
+
+                                    add: Transition {
+                                        ParallelAnimation {
+                                            NumberAnimation {
+                                                property: "opacity"
+                                                from: 0.0
+                                                to: 1.0
+                                                duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                            NumberAnimation {
+                                                property: "scale"
+                                                from: 0.75
+                                                to: 1.0
+                                                duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                    }
+
+                                    move: Transition {
+                                        NumberAnimation {
+                                            properties: "x,y"
+                                            duration: root.animEnabled ? animStyle.morphDuration : 0
+                                            easing.type: animStyle.expoEasing
                                         }
                                     }
 
@@ -1162,9 +1538,22 @@ print(json.dumps({
                                             height: 24
                                             radius: 12
                                             color: appItemMouse.containsMouse ? style.hoverColor : "transparent"
+                                            scale: appItemMouse.pressed ? 0.88 : (appItemMouse.containsMouse ? 1.08 : 1.0)
                                             anchors.verticalCenter: parent.verticalCenter
                                             antialiasing: true
-                                            Behavior on color { ColorAnimation { duration: 150 } }
+
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: animStyle.microDuration
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
 
                                             Image {
                                                 id: trayIconImg
@@ -1185,6 +1574,8 @@ print(json.dumps({
                                                 font.family: root.iconFontFamily
                                                 font.pixelSize: 12
                                                 color: root.themePrimary
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
                                             }
 
                                             MouseArea {
@@ -1212,18 +1603,42 @@ print(json.dumps({
                             Rectangle {
                                 width: 30
                                 height: 30
-                                radius: 15
+                                radius: netMouse.containsMouse ? 11 : 15
                                 color: netMouse.containsMouse
-                                       ? root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.78)
+                                       ? Qt.rgba(1.0, 1.0, 1.0, 0.18)
                                        : style.pillBg
                                 border.width: 1
                                 border.color: netMouse.containsMouse
-                                              ? Qt.alpha(root.themePrimary, 0.60)
+                                              ? root.themePrimary
                                               : style.pillBorder
+                                scale: netMouse.pressed ? 0.90 : (netMouse.containsMouse ? 1.05 : 1.0)
                                 anchors.verticalCenter: parent.verticalCenter
                                 antialiasing: true
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on radius {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.microDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: animStyle.microDuration
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: animStyle.microDuration
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 Text {
                                     anchors.centerIn: parent
@@ -1231,6 +1646,8 @@ print(json.dumps({
                                     color: root.themePrimary
                                     font.pixelSize: 14
                                     font.family: root.iconFontFamily
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
                                 }
                                 MouseArea {
                                     id: netMouse
@@ -1244,16 +1661,40 @@ print(json.dumps({
                             Rectangle {
                                 width: 30
                                 height: 30
-                                radius: 15
+                                radius: pwrBarMouse.containsMouse ? 11 : 15
                                 color: pwrBarMouse.containsMouse
-                                       ? Qt.rgba(0.93, 0.26, 0.26, 0.34)
+                                       ? Qt.rgba(0.93, 0.26, 0.26, 0.38)
                                        : style.pillBg
                                 border.width: 1
                                 border.color: pwrBarMouse.containsMouse ? "#ff6b6b" : style.pillBorder
+                                scale: pwrBarMouse.pressed ? 0.90 : (pwrBarMouse.containsMouse ? 1.05 : 1.0)
                                 anchors.verticalCenter: parent.verticalCenter
                                 antialiasing: true
-                                Behavior on color { ColorAnimation { duration: 150 } }
-                                Behavior on border.color { ColorAnimation { duration: 150 } }
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on radius {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.microDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: animStyle.microDuration
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: animStyle.microDuration
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 Text {
                                     anchors.centerIn: parent
@@ -1261,7 +1702,15 @@ print(json.dumps({
                                     color: pwrBarMouse.containsMouse ? "#ff6b6b" : root.themePrimary
                                     font.pixelSize: 14
                                     font.family: root.iconFontFamily
-                                    Behavior on color { ColorAnimation { duration: style.fadeDuration } }
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: animStyle.microDuration
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
                                 }
                                 MouseArea {
                                     id: pwrBarMouse

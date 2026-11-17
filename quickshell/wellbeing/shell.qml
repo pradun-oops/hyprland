@@ -13,15 +13,32 @@ Scope {
     property string fontFamily: "Adwaita Sans"
     property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
-    function quitApp() {
-        quitTimer.start()
+    property bool animEnabled: true
+    property int animDuration: 220
+    property bool isClosing: false
+
+    QtObject {
+        id: animStyle
+        property int base: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
+        property int enterDuration: Math.round(base * 1.35)
+        property int exitDuration: Math.round(base * 0.85)
+        property int animDuration: base
+        property int morphDuration: Math.round(base * 1.25)
+        property int barDuration: Math.round(base * 2.0)
+        property int fadeDuration: Math.round(base * 0.8)
+        property int microDuration: Math.round(base * 0.65)
+        property int scaleDuration: Math.round(base * 1.1)
+        property var smoothEasing: Easing.OutQuint
+        property var expoEasing: Easing.OutExpo
+        property var exitEasing: Easing.InCubic
     }
 
-    Timer {
-        id: quitTimer
-        interval: 60
-        repeat: false
-        onTriggered: Qt.quit()
+    function quitApp() {
+        if (root.isClosing) return
+        root.isClosing = true
+        dataFetcher.running = false
+        resetDataProcess.running = false
+        Qt.quit()
     }
 
     Shortcut {
@@ -59,25 +76,15 @@ Scope {
 
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
-
-    property bool animEnabled: true
-    property int animDuration: 220
+    property real themeBgAlpha: 0.25
 
     property color themeBackground: "#141416"
-    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.56)
-    property color themeSurfaceHover: Qt.rgba(0.10, 0.10, 0.14, 0.74)
+    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.68)
+    property color themeSurfaceHover: Qt.rgba(0.08, 0.08, 0.12, 0.78)
     property color themeBorder: "#d6bbfb"
     property color themeText: "#ffffff"
-    property color themeTextMuted: "#a1a1aa"
+    property color themeTextMuted: "#D4D4D8"
     property color themePrimary: "#d6bbfb"
-
-    QtObject {
-        id: animStyle
-        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 240) : 200
-        property int fadeDuration: 180
-        property var smoothEasing: Easing.OutCubic
-    }
 
     function mixColor(c1, c2, ratio, alphaVal) {
         let col1 = Qt.color(c1)
@@ -168,6 +175,7 @@ Scope {
         running: true
         stdout: StdioCollector {
             onStreamFinished: {
+                if (root.isClosing) return
                 try {
                     let data = JSON.parse(this.text.trim())
                     root.fullData = data
@@ -196,6 +204,7 @@ Scope {
         command: ["sqlite3", Quickshell.env("HOME") + "/.local/share/wellbeing/wellbeing.db", "DELETE FROM usage;"]
         running: false
         onExited: {
+            if (root.isClosing) return
             root.todayTotal = 0
             root.selectedTotal = 0
             root.appSwitches = 0
@@ -525,6 +534,22 @@ Scope {
         return "image://icon/" + iconVal
     }
 
+    function clipRoundedRect(ctx, x, y, w, h, r) {
+        r = Math.min(r, w / 2, h / 2)
+        ctx.beginPath()
+        ctx.moveTo(x + r, y)
+        ctx.lineTo(x + w - r, y)
+        ctx.arcTo(x + w, y, x + w, y + r, r)
+        ctx.lineTo(x + w, y + h - r)
+        ctx.arcTo(x + w, y + h, x + w - r, y + h, r)
+        ctx.lineTo(x + r, y + h)
+        ctx.arcTo(x, y + h, x, y + h - r, r)
+        ctx.lineTo(x, y + r)
+        ctx.arcTo(x, y, x + r, y, r)
+        ctx.closePath()
+        ctx.clip()
+    }
+
     FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
@@ -600,9 +625,9 @@ Scope {
 
             property bool isTargetMonitor: modelData.name === root.targetMonitorName
 
-            visible: root.targetMonitorName !== "" && isTargetMonitor
+            visible: root.targetMonitorName !== "" && isTargetMonitor && !root.isClosing
 
-            WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: (isTargetMonitor && !root.isClosing) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             WlrLayershell.namespace: "qs-wellbeing"
             WlrLayershell.layer: WlrLayer.Overlay
             exclusiveZone: -1
@@ -619,10 +644,12 @@ Scope {
                 right: true
             }
 
+            mask: Region { item: mainCard }
             color: "transparent"
 
             MouseArea {
                 anchors.fill: parent
+                enabled: !root.isClosing
                 onClicked: root.quitApp()
             }
 
@@ -631,35 +658,71 @@ Scope {
                 width: Math.min(980, parent.width - 48)
                 height: Math.min(680, parent.height - 80)
                 anchors.centerIn: parent
+                enabled: !root.isClosing
 
                 radius: root.themeRounding
                 border.width: root.themeBorderSize
-                border.color: Qt.alpha(root.themePrimary, 0.42)
+                border.color: Qt.alpha(root.themePrimary, 0.4)
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                 antialiasing: true
                 clip: true
 
                 property bool shown: false
-                Component.onCompleted: shown = true
+                property bool panelVisible: shown && !root.isClosing
+                Component.onCompleted: enterTriggerTimer.start()
 
-                opacity: shown ? 1.0 : 0.0
+                Timer {
+                    id: enterTriggerTimer
+                    interval: 16
+                    repeat: false
+                    onTriggered: mainCard.shown = true
+                }
+
+                opacity: panelVisible ? 1.0 : 0.0
+
+                transform: [
+                    Scale {
+                        origin.x: mainCard.width / 2
+                        origin.y: mainCard.height / 2
+                        xScale: mainCard.panelVisible ? 1.0 : 0.94
+                        yScale: mainCard.panelVisible ? 1.0 : 0.94
+
+                        Behavior on xScale {
+                            NumberAnimation {
+                                duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.enterDuration : 0
+                                easing.type: animStyle.expoEasing
+                            }
+                        }
+                        Behavior on yScale {
+                            NumberAnimation {
+                                duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.enterDuration : 0
+                                easing.type: animStyle.expoEasing
+                            }
+                        }
+                    },
+                    Translate {
+                        y: mainCard.panelVisible ? 0 : 14
+
+                        Behavior on y {
+                            NumberAnimation {
+                                duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.enterDuration : 0
+                                easing.type: animStyle.expoEasing
+                            }
+                        }
+                    }
+                ]
 
                 Behavior on opacity {
                     NumberAnimation {
-                        duration: root.animEnabled ? animStyle.fadeDuration : 0
+                        duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.fadeDuration : 0
                         easing.type: animStyle.smoothEasing
                     }
                 }
 
-                Rectangle {
-                    anchors.fill: parent
-                    anchors.margins: root.themeBorderSize
-                    radius: Math.max(0, parent.radius - root.themeBorderSize)
-                    antialiasing: true
-                    gradient: Gradient {
-                        GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.09) }
-                        GradientStop { position: 0.35; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
-                        GradientStop { position: 1.0; color: "transparent" }
+                Behavior on border.color {
+                    ColorAnimation {
+                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                        easing.type: animStyle.smoothEasing
                     }
                 }
 
@@ -680,11 +743,37 @@ Scope {
                         Rectangle {
                             Layout.preferredWidth: 40
                             Layout.preferredHeight: 40
-                            radius: 11
-                            color: Qt.alpha(root.themePrimary, 0.16)
+                            radius: headerIconMouse.containsMouse ? 13 : 11
+                            color: Qt.alpha(root.themePrimary, headerIconMouse.containsMouse ? 0.24 : 0.18)
                             border.width: 1
-                            border.color: Qt.alpha(root.themePrimary, 0.38)
+                            border.color: Qt.alpha(root.themePrimary, headerIconMouse.containsMouse ? 0.65 : 0.35)
                             antialiasing: true
+                            scale: headerIconMouse.containsMouse ? 1.05 : 1.0
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on radius {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
 
                             Text {
                                 anchors.centerIn: parent
@@ -692,6 +781,12 @@ Scope {
                                 font.family: root.iconFontFamily
                                 font.pixelSize: 19
                                 color: root.themePrimary
+                            }
+
+                            MouseArea {
+                                id: headerIconMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
                             }
                         }
 
@@ -706,7 +801,7 @@ Scope {
                                 font.weight: Font.Bold
                                 color: root.themeText
                                 style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                styleColor: Qt.rgba(0, 0, 0, 0.85)
                             }
 
                             Text {
@@ -716,7 +811,7 @@ Scope {
                                 font.weight: Font.Medium
                                 color: root.themeTextMuted
                                 style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                styleColor: Qt.rgba(0, 0, 0, 0.75)
                             }
                         }
 
@@ -726,10 +821,30 @@ Scope {
                             Layout.preferredWidth: goalRow.implicitWidth + 20
                             Layout.preferredHeight: 32
                             radius: 9
-                            color: Qt.alpha(root.themePrimary, 0.14)
+                            color: Qt.alpha(root.themePrimary, goalMouse.containsMouse ? 0.24 : 0.18)
                             border.width: 1
-                            border.color: Qt.alpha(root.themePrimary, 0.35)
+                            border.color: Qt.alpha(root.themePrimary, goalMouse.containsMouse ? 0.60 : 0.35)
                             antialiasing: true
+                            scale: goalMouse.containsMouse ? 1.03 : 1.0
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
 
                             RowLayout {
                                 id: goalRow
@@ -741,6 +856,8 @@ Scope {
                                     font.family: root.iconFontFamily
                                     font.pixelSize: 13
                                     color: root.themePrimary
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
 
                                 Text {
@@ -749,7 +866,15 @@ Scope {
                                     font.pixelSize: 11
                                     font.weight: Font.Bold
                                     color: root.themePrimary
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
+                            }
+
+                            MouseArea {
+                                id: goalMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
                             }
                         }
                     }
@@ -769,11 +894,26 @@ Scope {
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 266
-                                radius: Math.max(12, root.themeRounding - 4)
-                                color: root.themeSurface
+                                radius: Math.max(10, root.themeRounding - 6)
+                                color: todayCardHover.hovered ? root.themeSurfaceHover : root.themeSurface
                                 border.width: 1
-                                border.color: Qt.rgba(1, 1, 1, 0.12)
+                                border.color: todayCardHover.hovered ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                 antialiasing: true
+
+                                HoverHandler { id: todayCardHover }
+
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 ColumnLayout {
                                     anchors.fill: parent
@@ -790,6 +930,8 @@ Scope {
                                             font.pixelSize: 10
                                             font.weight: Font.Bold
                                             font.letterSpacing: 0.9
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.7)
                                         }
 
                                         Item { Layout.fillWidth: true }
@@ -804,7 +946,27 @@ Scope {
                                             border.width: 1
                                             border.color: root.todayTotal > root.dailyLimit
                                                           ? "#ff6b6b"
-                                                          : Qt.alpha(root.themePrimary, 0.42)
+                                                          : Qt.alpha(root.themePrimary, 0.40)
+                                            antialiasing: true
+
+                                            Behavior on Layout.preferredWidth {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on border.color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
 
                                             Text {
                                                 id: statusBadgeText
@@ -814,6 +976,15 @@ Scope {
                                                 font.family: root.fontFamily
                                                 font.pixelSize: 10
                                                 font.weight: Font.Bold
+                                                style: Text.Raised
+                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -832,7 +1003,21 @@ Scope {
                                             font.weight: Font.Bold
                                             Layout.alignment: Qt.AlignHCenter
                                             style: Text.Raised
-                                            styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                            styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                            scale: mainCard.shown ? 1.0 : 0.92
+
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.enterDuration : 0
+                                                    easing.type: animStyle.expoEasing
+                                                }
+                                            }
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
 
                                         Rectangle {
@@ -840,19 +1025,46 @@ Scope {
                                             width: 210
                                             height: 7
                                             radius: 3.5
-                                            color: Qt.rgba(1, 1, 1, 0.10)
-                                            clip: true
+                                            color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                                            antialiasing: true
 
-                                            Rectangle {
-                                                width: root.todayTotal > 0 ? Math.min(parent.width, parent.width * (root.todayTotal / root.dailyLimit)) : 0
-                                                height: parent.height
-                                                radius: 3.5
-                                                color: root.todayTotal > root.dailyLimit ? "#ff6b6b" : root.themePrimary
-                                                Behavior on width {
+                                            Canvas {
+                                                id: goalBarCanvas
+                                                anchors.fill: parent
+                                                antialiasing: true
+
+                                                property real targetRatio: root.todayTotal > 0 ? Math.min(1.0, root.todayTotal / root.dailyLimit) : 0
+                                                property real animRatio: mainCard.shown ? targetRatio : 0
+                                                property color barColor: root.todayTotal > root.dailyLimit ? "#ff6b6b" : root.themePrimary
+
+                                                Behavior on animRatio {
                                                     NumberAnimation {
-                                                        duration: root.animEnabled ? 420 : 0
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.barDuration : 0
+                                                        easing.type: animStyle.expoEasing
+                                                    }
+                                                }
+                                                Behavior on barColor {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                                         easing.type: animStyle.smoothEasing
                                                     }
+                                                }
+
+                                                onAnimRatioChanged: requestPaint()
+                                                onBarColorChanged: requestPaint()
+                                                onWidthChanged: requestPaint()
+                                                onHeightChanged: requestPaint()
+                                                onAvailableChanged: if (available) requestPaint()
+
+                                                onPaint: {
+                                                    var ctx = getContext("2d")
+                                                    ctx.reset()
+                                                    if (animRatio <= 0 || width <= 0 || height <= 0) return
+                                                    ctx.save()
+                                                    root.clipRoundedRect(ctx, 0, 0, width, height, 3.5)
+                                                    ctx.fillStyle = barColor
+                                                    ctx.fillRect(0, 0, width * animRatio, height)
+                                                    ctx.restore()
                                                 }
                                             }
                                         }
@@ -864,6 +1076,8 @@ Scope {
                                             font.family: root.fontFamily
                                             font.pixelSize: 10
                                             font.weight: Font.Medium
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.7)
                                         }
                                     }
 
@@ -873,10 +1087,25 @@ Scope {
                                         Layout.fillWidth: true
                                         Layout.preferredHeight: 62
                                         radius: 12
-                                        color: Qt.rgba(0.02, 0.02, 0.03, 0.55)
+                                        color: statsHover.hovered ? Qt.rgba(0.05, 0.05, 0.08, 0.80) : Qt.rgba(0.02, 0.02, 0.03, 0.65)
                                         border.width: 1
-                                        border.color: Qt.rgba(1, 1, 1, 0.09)
+                                        border.color: statsHover.hovered ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                         antialiasing: true
+
+                                        HoverHandler { id: statsHover }
+
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on border.color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         RowLayout {
                                             anchors.fill: parent
@@ -897,6 +1126,8 @@ Scope {
                                                     font.pixelSize: 10
                                                     font.weight: Font.Medium
                                                     Layout.alignment: Qt.AlignHCenter
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
 
                                                 Text {
@@ -906,6 +1137,8 @@ Scope {
                                                     font.pixelSize: 14
                                                     font.weight: Font.Bold
                                                     Layout.alignment: Qt.AlignHCenter
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
                                                 }
                                             }
 
@@ -913,7 +1146,7 @@ Scope {
                                                 Layout.preferredWidth: 1
                                                 Layout.preferredHeight: 34
                                                 Layout.alignment: Qt.AlignVCenter
-                                                color: Qt.rgba(1, 1, 1, 0.14)
+                                                color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                             }
 
                                             ColumnLayout {
@@ -929,6 +1162,8 @@ Scope {
                                                     font.pixelSize: 10
                                                     font.weight: Font.Medium
                                                     Layout.alignment: Qt.AlignHCenter
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
 
                                                 Text {
@@ -938,6 +1173,8 @@ Scope {
                                                     font.pixelSize: 14
                                                     font.weight: Font.Bold
                                                     Layout.alignment: Qt.AlignHCenter
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
                                                 }
                                             }
                                         }
@@ -948,11 +1185,26 @@ Scope {
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.fillHeight: true
-                                radius: Math.max(12, root.themeRounding - 4)
-                                color: root.themeSurface
+                                radius: Math.max(10, root.themeRounding - 6)
+                                color: historyCardHover.hovered ? root.themeSurfaceHover : root.themeSurface
                                 border.width: 1
-                                border.color: Qt.rgba(1, 1, 1, 0.12)
+                                border.color: historyCardHover.hovered ? Qt.alpha(root.themePrimary, 0.35) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                 antialiasing: true
+
+                                HoverHandler { id: historyCardHover }
+
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 ColumnLayout {
                                     anchors.fill: parent
@@ -969,6 +1221,8 @@ Scope {
                                             font.pixelSize: 10
                                             font.weight: Font.Bold
                                             font.letterSpacing: 0.9
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.7)
                                         }
 
                                         Item { Layout.fillWidth: true }
@@ -978,7 +1232,9 @@ Scope {
                                             color: root.themeTextMuted
                                             font.family: root.fontFamily
                                             font.pixelSize: 10
-                                            opacity: 0.75
+                                            opacity: 0.85
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.7)
                                         }
                                     }
 
@@ -1002,45 +1258,82 @@ Scope {
                                                     anchors.horizontalCenter: parent.horizontalCenter
                                                     anchors.bottom: dayLabel.top
                                                     anchors.bottomMargin: 8
-                                                    width: 26
+                                                    width: barColItem.isBarHovered || barColItem.isBarSelected ? 28 : 26
                                                     height: Math.max(0, barColItem.height - 28)
-                                                    radius: 6
-                                                    color: Qt.rgba(1, 1, 1, 0.04)
-                                                }
-
-                                                Rectangle {
-                                                    id: barRect
-                                                    width: 26
-                                                    property real maxBarH: Math.max(0, barColItem.height - 28)
-                                                    property real targetHeight: model.total > 0 ? Math.max(6, (model.total / root.maxHistoryTotal) * maxBarH) : 4
-                                                    height: mainCard.shown ? targetHeight : 0
-                                                    anchors.bottom: dayLabel.top
-                                                    anchors.bottomMargin: 8
-                                                    anchors.horizontalCenter: parent.horizontalCenter
-                                                    color: barColItem.isBarSelected
-                                                           ? "#ffffff"
-                                                           : (barColItem.isBarHovered ? Qt.lighter(root.themePrimary, 1.1) : root.themePrimary)
-                                                    radius: 6
-                                                    opacity: barColItem.isBarSelected || barColItem.isBarHovered ? 1.0 : (model.total > 0 ? 0.78 : 0.25)
+                                                    radius: 7
+                                                    color: barColItem.isBarHovered ? Qt.rgba(1.0, 1.0, 1.0, 0.12) : Qt.rgba(1.0, 1.0, 1.0, 0.06)
                                                     antialiasing: true
 
-                                                    Behavior on height {
+                                                    Behavior on width {
                                                         NumberAnimation {
-                                                            duration: root.animEnabled ? 380 : 0
-                                                            easing.type: animStyle.smoothEasing
-                                                        }
-                                                    }
-                                                    Behavior on opacity {
-                                                        NumberAnimation {
-                                                            duration: animStyle.fadeDuration
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
                                                             easing.type: animStyle.smoothEasing
                                                         }
                                                     }
                                                     Behavior on color {
                                                         ColorAnimation {
-                                                            duration: animStyle.fadeDuration
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
                                                             easing.type: animStyle.smoothEasing
                                                         }
+                                                    }
+                                                }
+
+                                                Canvas {
+                                                    id: barCanvas
+                                                    width: barColItem.isBarHovered || barColItem.isBarSelected ? 28 : 26
+                                                    height: Math.max(0, barColItem.height - 28)
+                                                    anchors.bottom: dayLabel.top
+                                                    anchors.bottomMargin: 8
+                                                    anchors.horizontalCenter: parent.horizontalCenter
+                                                    antialiasing: true
+
+                                                    property real targetHeight: model.total > 0 ? Math.max(6, (model.total / root.maxHistoryTotal) * height) : 4
+                                                    property real animHeight: mainCard.shown ? targetHeight : 0
+                                                    property color barColor: barColItem.isBarSelected
+                                                                             ? "#ffffff"
+                                                                             : (barColItem.isBarHovered ? Qt.lighter(root.themePrimary, 1.12) : root.themePrimary)
+                                                    opacity: barColItem.isBarSelected || barColItem.isBarHovered ? 1.0 : (model.total > 0 ? 0.85 : 0.30)
+
+                                                    Behavior on width {
+                                                        NumberAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                    Behavior on animHeight {
+                                                        NumberAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.barDuration : 0
+                                                            easing.type: animStyle.expoEasing
+                                                        }
+                                                    }
+                                                    Behavior on opacity {
+                                                        NumberAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                    Behavior on barColor {
+                                                        ColorAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+
+                                                    onAnimHeightChanged: requestPaint()
+                                                    onBarColorChanged: requestPaint()
+                                                    onWidthChanged: requestPaint()
+                                                    onHeightChanged: requestPaint()
+                                                    onAvailableChanged: if (available) requestPaint()
+
+                                                    onPaint: {
+                                                        var ctx = getContext("2d")
+                                                        ctx.reset()
+                                                        if (animHeight <= 0 || width <= 0 || height <= 0) return
+                                                        ctx.save()
+                                                        root.clipRoundedRect(ctx, 0, 0, width, height, 7)
+                                                        ctx.fillStyle = barColor
+                                                        ctx.fillRect(0, height - animHeight, width, animHeight)
+                                                        ctx.restore()
                                                     }
                                                 }
 
@@ -1049,10 +1342,19 @@ Scope {
                                                     text: model.day
                                                     anchors.bottom: parent.bottom
                                                     anchors.horizontalCenter: parent.horizontalCenter
-                                                    color: barColItem.isBarSelected ? root.themePrimary : root.themeTextMuted
+                                                    color: barColItem.isBarSelected || barColItem.isBarHovered ? root.themePrimary : root.themeTextMuted
                                                     font.family: root.fontFamily
                                                     font.pixelSize: 10
                                                     font.weight: barColItem.isBarSelected ? Font.Bold : Font.Medium
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+
+                                                    Behavior on color {
+                                                        ColorAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
                                                 }
 
                                                 MouseArea {
@@ -1067,18 +1369,40 @@ Scope {
 
                                                 Rectangle {
                                                     id: barTooltip
-                                                    visible: barMouse.containsMouse && model.total > 0
+                                                    property bool showTip: barMouse.containsMouse && model.total > 0
+                                                    property real targetBarTop: barCanvas.height - barCanvas.animHeight
+                                                    visible: opacity > 0.01
+                                                    opacity: showTip ? 1.0 : 0.0
+                                                    scale: showTip ? 1.0 : 0.92
                                                     width: Math.max(tooltipLayout.implicitWidth + 22, 110)
                                                     height: tooltipLayout.implicitHeight + 14
-                                                    anchors.bottom: barRect.top
-                                                    anchors.bottomMargin: 8
+                                                    y: Math.max(0, barCanvas.y + targetBarTop - height - (showTip ? 8 : 2))
                                                     x: Math.max(-barColItem.x, Math.min((barColItem.width - width) / 2, barsRow.width - barColItem.x - width))
-                                                    color: Qt.rgba(0.05, 0.05, 0.07, 0.94)
+                                                    color: Qt.rgba(0.04, 0.04, 0.06, 0.96)
                                                     radius: 9
                                                     border.width: 1
                                                     border.color: Qt.alpha(root.themePrimary, 0.55)
                                                     z: 20
                                                     antialiasing: true
+
+                                                    Behavior on opacity {
+                                                        NumberAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                    Behavior on scale {
+                                                        NumberAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                    Behavior on y {
+                                                        NumberAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
 
                                                     ColumnLayout {
                                                         id: tooltipLayout
@@ -1092,6 +1416,8 @@ Scope {
                                                             font.pixelSize: 12
                                                             font.weight: Font.Bold
                                                             Layout.alignment: Qt.AlignHCenter
+                                                            style: Text.Raised
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.75)
                                                         }
 
                                                         RowLayout {
@@ -1132,6 +1458,8 @@ Scope {
                                                                 font.family: root.fontFamily
                                                                 font.pixelSize: 10
                                                                 font.weight: Font.Medium
+                                                                style: Text.Raised
+                                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
                                                             }
                                                         }
                                                     }
@@ -1147,12 +1475,19 @@ Scope {
                             Layout.fillWidth: true
                             Layout.minimumWidth: 300
                             Layout.fillHeight: true
-                            radius: Math.max(12, root.themeRounding - 4)
+                            radius: Math.max(10, root.themeRounding - 6)
                             color: root.themeSurface
                             border.width: 1
-                            border.color: Qt.rgba(1, 1, 1, 0.12)
+                            border.color: root.selectedDayIndex !== -1 ? Qt.alpha(root.themePrimary, 0.38) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                             clip: true
                             antialiasing: true
+
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -1173,19 +1508,56 @@ Scope {
                                         font.weight: Font.Bold
                                         font.letterSpacing: 0.9
                                         Layout.fillWidth: true
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
+
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
                                     }
 
                                     Rectangle {
-                                        visible: root.selectedDayIndex !== -1
+                                        property bool showBack: root.selectedDayIndex !== -1
+                                        visible: opacity > 0.01
+                                        opacity: showBack ? 1.0 : 0.0
+                                        scale: showBack ? (backBtnMouse.pressed ? 0.92 : (backBtnMouse.containsMouse ? 1.05 : 1.0)) : 0.85
                                         Layout.preferredWidth: backBtnText.implicitWidth + 16
                                         Layout.preferredHeight: 24
                                         radius: 7
                                         color: backBtnMouse.containsMouse
-                                               ? root.mixColor(root.themeBackground, root.themePrimary, 0.25, 0.8)
-                                               : Qt.rgba(1, 1, 1, 0.08)
+                                               ? root.mixColor(root.themeBackground, root.themePrimary, 0.28, 0.85)
+                                               : Qt.rgba(1.0, 1.0, 1.0, 0.10)
                                         border.width: 1
-                                        border.color: Qt.alpha(root.themePrimary, 0.45)
+                                        border.color: backBtnMouse.containsMouse ? root.themePrimary : Qt.alpha(root.themePrimary, 0.45)
                                         antialiasing: true
+
+                                        Behavior on opacity {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on border.color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         Text {
                                             id: backBtnText
@@ -1195,6 +1567,8 @@ Scope {
                                             font.family: root.fontFamily
                                             font.pixelSize: 10
                                             font.weight: Font.Bold
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.75)
                                         }
 
                                         MouseArea {
@@ -1210,7 +1584,22 @@ Scope {
                                 Item {
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
-                                    visible: appModel.count === 0
+                                    visible: opacity > 0.01
+                                    opacity: appModel.count === 0 ? 1.0 : 0.0
+                                    scale: appModel.count === 0 ? 1.0 : 0.95
+
+                                    Behavior on opacity {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
 
                                     ColumnLayout {
                                         anchors.centerIn: parent
@@ -1221,9 +1610,9 @@ Scope {
                                             width: 52
                                             height: 52
                                             radius: 15
-                                            color: Qt.rgba(0.02, 0.02, 0.03, 0.55)
+                                            color: Qt.rgba(0.02, 0.02, 0.03, 0.65)
                                             border.width: 1
-                                            border.color: Qt.alpha(root.themePrimary, 0.28)
+                                            border.color: Qt.alpha(root.themePrimary, 0.32)
 
                                             Text {
                                                 anchors.centerIn: parent
@@ -1231,7 +1620,7 @@ Scope {
                                                 font.family: root.iconFontFamily
                                                 font.pixelSize: 22
                                                 color: root.themePrimary
-                                                opacity: 0.75
+                                                opacity: 0.85
                                             }
                                         }
 
@@ -1242,6 +1631,8 @@ Scope {
                                             font.family: root.fontFamily
                                             font.pixelSize: 12
                                             font.weight: Font.Medium
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.75)
                                         }
                                     }
                                 }
@@ -1250,11 +1641,40 @@ Scope {
                                     id: appList
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
+                                    Layout.leftMargin: -4
+                                    Layout.rightMargin: -4
                                     visible: appModel.count > 0
-                                    spacing: 8
+                                    spacing: 4
                                     model: appModel
                                     clip: true
                                     boundsBehavior: Flickable.StopAtBounds
+
+                                    add: Transition {
+                                        ParallelAnimation {
+                                            NumberAnimation {
+                                                property: "opacity"
+                                                from: 0.0
+                                                to: 1.0
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                            NumberAnimation {
+                                                property: "scale"
+                                                from: 0.96
+                                                to: 1.0
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                                easing.type: animStyle.expoEasing
+                                            }
+                                        }
+                                    }
+
+                                    displaced: Transition {
+                                        NumberAnimation {
+                                            properties: "x,y"
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                            easing.type: animStyle.expoEasing
+                                        }
+                                    }
 
                                     ScrollBar.vertical: ScrollBar {
                                         id: vbar
@@ -1264,13 +1684,24 @@ Scope {
                                         contentItem: Rectangle {
                                             implicitWidth: 4
                                             radius: 2
-                                            color: vbar.pressed ? root.themePrimary : Qt.alpha(root.themeTextMuted, 0.35)
+                                            color: vbar.pressed ? root.themePrimary : Qt.alpha(root.themeTextMuted, 0.45)
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
                                     }
 
                                     delegate: Item {
+                                        id: appRowWrapper
                                         width: appList.width - (vbar.visible ? 10 : 0)
-                                        height: 56
+                                        height: 60
+
+                                        property bool rowReady: false
+                                        Component.onCompleted: rowReady = true
 
                                         MouseArea {
                                             id: appMouse
@@ -1279,43 +1710,80 @@ Scope {
                                         }
 
                                         Rectangle {
+                                            id: rowCard
                                             anchors.fill: parent
+                                            anchors.leftMargin: 4
+                                            anchors.rightMargin: 4
+                                            anchors.topMargin: 2
+                                            anchors.bottomMargin: 2
                                             radius: 11
                                             color: appMouse.containsMouse
-                                                   ? Qt.rgba(1, 1, 1, 0.07)
-                                                   : Qt.rgba(0.02, 0.02, 0.03, 0.45)
+                                                   ? Qt.rgba(0.08, 0.08, 0.12, 0.72)
+                                                   : Qt.rgba(0.02, 0.02, 0.03, 0.58)
                                             border.width: 1
                                             border.color: appMouse.containsMouse
-                                                          ? Qt.alpha(root.themePrimary, 0.45)
-                                                          : Qt.rgba(1, 1, 1, 0.08)
+                                                          ? Qt.alpha(root.themePrimary, 0.48)
+                                                          : Qt.rgba(1.0, 1.0, 1.0, 0.10)
                                             antialiasing: true
-                                            clip: true
+                                            scale: appMouse.containsMouse ? 1.012 : 1.0
 
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                             Behavior on color {
                                                 ColorAnimation {
-                                                    duration: animStyle.fadeDuration
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                                     easing.type: animStyle.smoothEasing
                                                 }
                                             }
                                             Behavior on border.color {
                                                 ColorAnimation {
-                                                    duration: animStyle.fadeDuration
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                                     easing.type: animStyle.smoothEasing
                                                 }
                                             }
 
-                                            Rectangle {
-                                                anchors.left: parent.left
-                                                anchors.top: parent.top
-                                                anchors.bottom: parent.bottom
-                                                width: root.selectedTotal > 0 ? parent.width * Math.min(1.0, model.duration / root.selectedTotal) : 0
-                                                color: Qt.alpha(root.themePrimary, 0.16)
+                                            Canvas {
+                                                id: rowFillCanvas
+                                                anchors.fill: parent
+                                                anchors.margins: 1
                                                 antialiasing: true
-                                                Behavior on width {
+
+                                                property real targetRatio: root.selectedTotal > 0 ? Math.min(1.0, model.duration / root.selectedTotal) : 0
+                                                property real animRatio: (appRowWrapper.rowReady && mainCard.shown) ? targetRatio : 0
+                                                property color fillColor: Qt.alpha(root.themePrimary, appMouse.containsMouse ? 0.24 : 0.18)
+
+                                                Behavior on animRatio {
                                                     NumberAnimation {
-                                                        duration: root.animEnabled ? 420 : 0
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.barDuration : 0
+                                                        easing.type: animStyle.expoEasing
+                                                    }
+                                                }
+                                                Behavior on fillColor {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                                         easing.type: animStyle.smoothEasing
                                                     }
+                                                }
+
+                                                onAnimRatioChanged: requestPaint()
+                                                onFillColorChanged: requestPaint()
+                                                onWidthChanged: requestPaint()
+                                                onHeightChanged: requestPaint()
+                                                onAvailableChanged: if (available) requestPaint()
+
+                                                onPaint: {
+                                                    var ctx = getContext("2d")
+                                                    ctx.reset()
+                                                    if (animRatio <= 0 || width <= 0 || height <= 0) return
+                                                    ctx.save()
+                                                    root.clipRoundedRect(ctx, 0, 0, width, height, 10)
+                                                    ctx.fillStyle = fillColor
+                                                    ctx.fillRect(0, 0, width * animRatio, height)
+                                                    ctx.restore()
                                                 }
                                             }
 
@@ -1328,12 +1796,38 @@ Scope {
                                                 Rectangle {
                                                     width: 36
                                                     height: 36
-                                                    radius: 9
-                                                    color: Qt.rgba(1, 1, 1, 0.07)
+                                                    radius: appMouse.containsMouse ? 11 : 9
+                                                    color: appMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.20) : Qt.rgba(1.0, 1.0, 1.0, 0.08)
                                                     border.width: 1
-                                                    border.color: Qt.rgba(1, 1, 1, 0.12)
+                                                    border.color: appMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.42) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                                     Layout.alignment: Qt.AlignVCenter
                                                     antialiasing: true
+                                                    scale: appMouse.containsMouse ? 1.06 : 1.0
+
+                                                    Behavior on scale {
+                                                        NumberAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                    Behavior on radius {
+                                                        NumberAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                    Behavior on color {
+                                                        ColorAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                    Behavior on border.color {
+                                                        ColorAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
 
                                                     Image {
                                                         id: appIcon
@@ -1373,7 +1867,7 @@ Scope {
                                                         Layout.fillWidth: true
                                                         elide: Text.ElideRight
                                                         style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                                     }
 
                                                     Text {
@@ -1381,9 +1875,18 @@ Scope {
                                                         font.family: root.fontFamily
                                                         font.pixelSize: 10
                                                         font.weight: Font.Medium
-                                                        color: root.themeTextMuted
+                                                        color: appMouse.containsMouse ? root.themeText : root.themeTextMuted
                                                         Layout.fillWidth: true
                                                         elide: Text.ElideRight
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
+
+                                                        Behavior on color {
+                                                            ColorAnimation {
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                                easing.type: animStyle.smoothEasing
+                                                            }
+                                                        }
                                                     }
                                                 }
 
@@ -1395,7 +1898,7 @@ Scope {
                                                     color: root.themePrimary
                                                     Layout.alignment: Qt.AlignVCenter
                                                     style: Text.Raised
-                                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
                                                 }
                                             }
                                         }
@@ -1408,10 +1911,10 @@ Scope {
                     Rectangle {
                         Layout.fillWidth: true
                         height: 36
-                        color: Qt.rgba(0.02, 0.02, 0.03, 0.55)
+                        color: root.themeSurface
                         border.width: 1
-                        border.color: Qt.rgba(1, 1, 1, 0.10)
-                        radius: 10
+                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
+                        radius: Math.max(10, root.themeRounding - 10)
                         antialiasing: true
 
                         RowLayout {
@@ -1435,6 +1938,8 @@ Scope {
                                 color: root.themeTextMuted
                                 elide: Text.ElideRight
                                 Layout.fillWidth: true
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                             }
 
                             RowLayout {
@@ -1450,10 +1955,17 @@ Scope {
                                     border.width: 1
                                     border.color: "#ff6b6b"
                                     antialiasing: true
+                                    scale: clearMouse.pressed ? 0.92 : (clearMouse.containsMouse ? 1.04 : 1.0)
 
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
                                     Behavior on color {
                                         ColorAnimation {
-                                            duration: animStyle.fadeDuration
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                             easing.type: animStyle.smoothEasing
                                         }
                                     }
@@ -1466,6 +1978,8 @@ Scope {
                                         font.pixelSize: 10
                                         color: "#ff6b6b"
                                         font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                     }
 
                                     MouseArea {
@@ -1473,7 +1987,7 @@ Scope {
                                         anchors.fill: parent
                                         hoverEnabled: true
                                         cursorShape: Qt.PointingHandCursor
-                                        onClicked: resetDataProcess.running = true
+                                        onClicked: if (!root.isClosing) resetDataProcess.running = true
                                     }
                                 }
 
@@ -1481,10 +1995,30 @@ Scope {
                                     width: 34
                                     height: 24
                                     radius: 7
-                                    color: Qt.alpha(root.themePrimary, 0.16)
+                                    color: escMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.alpha(root.themePrimary, 0.18)
                                     border.width: 1
-                                    border.color: Qt.alpha(root.themePrimary, 0.40)
+                                    border.color: escMouse.containsMouse ? root.themePrimary : Qt.alpha(root.themePrimary, 0.40)
                                     antialiasing: true
+                                    scale: escMouse.pressed ? 0.92 : (escMouse.containsMouse ? 1.05 : 1.0)
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
 
                                     Text {
                                         anchors.centerIn: parent
@@ -1493,6 +2027,16 @@ Scope {
                                         font.pixelSize: 10
                                         color: root.themePrimary
                                         font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                    }
+
+                                    MouseArea {
+                                        id: escMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.quitApp()
                                     }
                                 }
 
@@ -1502,6 +2046,8 @@ Scope {
                                     font.pixelSize: 11
                                     font.weight: Font.Bold
                                     color: root.themeTextMuted
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                 }
                             }
                         }

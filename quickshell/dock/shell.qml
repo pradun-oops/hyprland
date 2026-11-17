@@ -15,7 +15,7 @@ Scope {
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
-    property color themeTextMuted: "#a1a1aa"
+    property color themeTextMuted: "#D4D4D8"
 
     property int themeRounding: 22
     property int themeBorderSize: 2
@@ -24,7 +24,7 @@ Scope {
     property int animDuration: 220
 
     property color themeBackground: "#141416"
-    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.58)
+    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08)
 
     QtObject {
         id: style
@@ -836,7 +836,7 @@ except Exception:
                     height: 28
                     width: tooltipLabel.implicitWidth + 22
                     radius: 9
-                    color: Qt.alpha(root.themeBackground, 0.88)
+                    color: Qt.alpha(root.themeBackground, 0.42)
                     border.width: 1
                     border.color: Qt.alpha(root.themePrimary, 0.45)
                     antialiasing: true
@@ -883,9 +883,9 @@ except Exception:
                     width: masterDockLayout.implicitWidth + 26 + (dockWindow.activeZoomIntensity * 8)
                     height: dockWindow.baseDockHeight + (dockWindow.maxDockZoomHeight - dockWindow.baseDockHeight) * dockWindow.activeZoomIntensity
                     radius: root.themeRounding + (dockWindow.activeZoomIntensity * 3)
-                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha + (dockWindow.activeZoomIntensity * 0.08))
+                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
-                    border.color: dockWindow.dockPinnedOpen ? root.themePrimary : (dockWindow.activeZoomIntensity > 0.01 ? Qt.alpha(root.themePrimary, 0.62) : Qt.alpha(root.themePrimary, 0.42))
+                    border.color: dockWindow.dockPinnedOpen ? root.themePrimary : (dockWindow.activeZoomIntensity > 0.01 ? Qt.alpha(root.themePrimary, 0.62) : Qt.alpha(root.themePrimary, 0.40))
                     antialiasing: true
 
                     Behavior on color {
@@ -898,18 +898,6 @@ except Exception:
                         ColorAnimation {
                             duration: style.fadeDuration
                             easing.type: style.fadeEasing
-                        }
-                    }
-
-                    Rectangle {
-                        anchors.fill: parent
-                        anchors.margins: root.themeBorderSize
-                        radius: Math.max(0, parent.radius - root.themeBorderSize)
-                        antialiasing: true
-                        gradient: Gradient {
-                            GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.14) }
-                            GradientStop { position: 0.45; color: Qt.rgba(1.0, 1.0, 1.0, 0.03) }
-                            GradientStop { position: 1.0; color: "transparent" }
                         }
                     }
 
@@ -978,12 +966,12 @@ except Exception:
                                     anchors.fill: parent
                                     radius: 14
                                     color: launcherMouse.containsMouse
-                                           ? root.mixColor(root.themeBackground, root.themePrimary, 0.25, 0.88)
-                                           : Qt.rgba(0.06, 0.06, 0.08, 0.78)
+                                           ? Qt.rgba(1.0, 1.0, 1.0, 0.16)
+                                           : root.themeSurface
                                     border.width: 1
                                     border.color: launcherMouse.containsMouse
-                                                  ? Qt.alpha(root.themePrimary, 0.70)
-                                                  : Qt.rgba(1.0, 1.0, 1.0, 0.16)
+                                                  ? root.themePrimary
+                                                  : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                     antialiasing: true
 
                                     Behavior on color {

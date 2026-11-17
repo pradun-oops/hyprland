@@ -16,28 +16,44 @@ Scope {
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
-    property color themeTextMuted: "#D4D4D8"
+    property color themeTextMuted: "#E4E4E7"
 
     property int themeRounding: 24
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
+    property real themeBgAlpha: 0.84
     property bool animEnabled: true
-    property int animDuration: 380
+    property int animDuration: 220
 
-    property color themeBackground: "#141416"
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.06)
+    property color themeBackground: "#111215"
+    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.09)
+
+    function mixColor(c1, c2, ratio, alphaVal) {
+        let col1 = Qt.color(c1)
+        let col2 = Qt.color(c2)
+        let r = col1.r * (1 - ratio) + col2.r * ratio
+        let g = col1.g * (1 - ratio) + col2.g * ratio
+        let b = col1.b * (1 - ratio) + col2.b * ratio
+        return Qt.rgba(r, g, b, alphaVal)
+    }
 
     QtObject {
         id: animStyle
-        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
-        property int fadeDuration: 240
-        property var bounceEasing: Easing.OutBack
-        property var fadeEasing: Easing.OutCubic
-        property real overshoot: 1.4
+        property int base: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
+        property int enterDuration: Math.round(base * 1.35)
+        property int exitDuration: Math.round(base * 1.05)
+        property int animDuration: base
+        property int morphDuration: Math.round(base * 1.25)
+        property int fadeDuration: Math.round(base * 0.85)
+        property int microDuration: Math.round(base * 0.65)
+        property int scaleDuration: Math.round(base * 1.1)
+        property var smoothEasing: Easing.OutQuint
+        property var expoEasing: Easing.OutExpo
+        property var exitEasing: Easing.OutQuint
     }
 
     property bool isOpened: false
     property bool isClosing: false
+    property bool panelVisible: isOpened && !isClosing
     property string pendingCommand: ""
     property string targetMonitorName: ""
     property int selectedIndex: 3
@@ -165,16 +181,10 @@ Scope {
         openAnimTimer.start()
     }
 
-    Timer {
-        id: closeTimer
-        interval: animStyle.fadeDuration
-        onTriggered: Qt.quit()
-    }
-
     function executeCommand(cmd) {
         if (root.isClosing) return
-        root.pendingCommand = cmd
         root.isClosing = true
+        root.pendingCommand = cmd
         if (cmd !== "") {
             let envPrefix = "export HYPRLAND_INSTANCE_SIGNATURE='" + (Quickshell.env("HYPRLAND_INSTANCE_SIGNATURE") || "") + "'; " +
                              "export WAYLAND_DISPLAY='" + (Quickshell.env("WAYLAND_DISPLAY") || "") + "'; " +
@@ -182,8 +192,7 @@ Scope {
 
             Quickshell.execDetached(["bash", "-c", envPrefix + "nohup " + cmd + " >/dev/null 2>&1 &"])
         }
-        closeTimer.interval = animStyle.fadeDuration
-        closeTimer.start()
+        Qt.quit()
     }
 
     function executeByIndex(idx) {
@@ -206,8 +215,7 @@ Scope {
     function dismissMenu() {
         if (root.isClosing) return
         root.isClosing = true
-        closeTimer.interval = animStyle.fadeDuration
-        closeTimer.start()
+        Qt.quit()
     }
 
     component PowerBtn : Item {
@@ -225,12 +233,11 @@ Scope {
         height: 146
         z: isHighlighted ? 10 : 1
 
-        scale: btnMouse.pressed ? 0.94 : (isHighlighted ? 1.08 : 1.0)
+        scale: btnMouse.pressed ? 0.96 : (isHighlighted ? 1.035 : 1.0)
         Behavior on scale {
             NumberAnimation {
-                duration: root.animEnabled ? animStyle.animDuration : 0
-                easing.type: animStyle.bounceEasing
-                easing.overshoot: animStyle.overshoot
+                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                easing.type: animStyle.smoothEasing
             }
         }
 
@@ -238,19 +245,19 @@ Scope {
             anchors.fill: parent
             radius: Math.max(12, root.themeRounding - 6)
             color: btnRoot.isHighlighted
-                   ? Qt.alpha(btnRoot.hoverColor, 0.22)
-                   : Qt.rgba(0.0, 0.0, 0.0, 0.28)
+                   ? Qt.alpha(btnRoot.hoverColor, 0.26)
+                   : Qt.rgba(0.0, 0.0, 0.0, 0.42)
             border.width: btnRoot.isHighlighted ? 1.5 : 1
             border.color: btnRoot.isHighlighted
-                          ? Qt.alpha(btnRoot.hoverColor, 0.75)
-                          : Qt.rgba(1.0, 1.0, 1.0, 0.10)
+                          ? Qt.alpha(btnRoot.hoverColor, 0.88)
+                          : Qt.rgba(1.0, 1.0, 1.0, 0.18)
             antialiasing: true
 
             Behavior on color {
-                ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing }
             }
             Behavior on border.color {
-                ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing }
             }
 
             Rectangle {
@@ -260,11 +267,11 @@ Scope {
                 opacity: btnRoot.isHighlighted ? 1.0 : 0.0
                 antialiasing: true
                 gradient: Gradient {
-                    GradientStop { position: 0.0; color: Qt.alpha(btnRoot.hoverColor, 0.16) }
+                    GradientStop { position: 0.0; color: Qt.alpha(btnRoot.hoverColor, 0.20) }
                     GradientStop { position: 0.5; color: "transparent" }
                 }
                 Behavior on opacity {
-                    NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                    NumberAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing }
                 }
             }
 
@@ -280,29 +287,34 @@ Scope {
                     Layout.alignment: Qt.AlignHCenter
                     width: 48
                     height: 48
-                    radius: 15
+                    radius: btnRoot.isHighlighted ? 17 : 15
                     color: btnRoot.isHighlighted
-                           ? Qt.alpha(btnRoot.hoverColor, 0.24)
-                           : Qt.rgba(1.0, 1.0, 1.0, 0.06)
+                           ? Qt.alpha(btnRoot.hoverColor, 0.28)
+                           : Qt.rgba(1.0, 1.0, 1.0, 0.09)
                     border.width: 1
                     border.color: btnRoot.isHighlighted
-                                  ? Qt.alpha(btnRoot.hoverColor, 0.55)
-                                  : Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                                  ? Qt.alpha(btnRoot.hoverColor, 0.72)
+                                  : Qt.rgba(1.0, 1.0, 1.0, 0.20)
                     antialiasing: true
 
                     scale: btnRoot.isHighlighted ? 1.06 : 1.0
                     Behavior on scale {
                         NumberAnimation {
-                            duration: root.animEnabled ? animStyle.animDuration : 0
-                            easing.type: animStyle.bounceEasing
-                            easing.overshoot: animStyle.overshoot
+                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                            easing.type: animStyle.smoothEasing
+                        }
+                    }
+                    Behavior on radius {
+                        NumberAnimation {
+                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                            easing.type: animStyle.smoothEasing
                         }
                     }
                     Behavior on color {
-                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                        ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing }
                     }
                     Behavior on border.color {
-                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                        ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing }
                     }
 
                     Text {
@@ -311,8 +323,10 @@ Scope {
                         font.family: root.iconFontFamily
                         color: btnRoot.isHighlighted ? btnRoot.hoverColor : root.themeText
                         font.pixelSize: 24
+                        style: Text.Raised
+                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                         Behavior on color {
-                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                            ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing }
                         }
                     }
                 }
@@ -323,11 +337,11 @@ Scope {
                     font.family: root.fontFamily
                     color: btnRoot.isHighlighted ? btnRoot.hoverColor : root.themeText
                     font.pixelSize: 13
-                    font.weight: Font.Bold
+                    font.weight: btnRoot.isHighlighted ? Font.ExtraBold : Font.Bold
                     style: Text.Raised
-                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                    styleColor: Qt.rgba(0, 0, 0, 0.90)
                     Behavior on color {
-                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                        ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing }
                     }
                 }
 
@@ -337,19 +351,19 @@ Scope {
                     height: 20
                     radius: 6
                     color: btnRoot.isHighlighted
-                           ? Qt.alpha(btnRoot.hoverColor, 0.28)
-                           : Qt.rgba(0.0, 0.0, 0.0, 0.45)
+                           ? Qt.alpha(btnRoot.hoverColor, 0.34)
+                           : Qt.rgba(0.0, 0.0, 0.0, 0.55)
                     border.width: 1
                     border.color: btnRoot.isHighlighted
-                                  ? Qt.alpha(btnRoot.hoverColor, 0.65)
-                                  : Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                                  ? Qt.alpha(btnRoot.hoverColor, 0.80)
+                                  : Qt.rgba(1.0, 1.0, 1.0, 0.26)
                     antialiasing: true
 
                     Behavior on color {
-                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                        ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing }
                     }
                     Behavior on border.color {
-                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                        ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing }
                     }
 
                     Text {
@@ -358,9 +372,11 @@ Scope {
                         font.family: root.fontFamily
                         color: btnRoot.isHighlighted ? "#FFFFFF" : root.themeTextMuted
                         font.pixelSize: 10
-                        font.weight: Font.Bold
+                        font.weight: Font.ExtraBold
+                        style: Text.Raised
+                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                         Behavior on color {
-                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                            ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing }
                         }
                     }
                 }
@@ -390,10 +406,10 @@ Scope {
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-power-menu"
 
-            WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: (isTargetMonitor && !root.isClosing) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            visible: root.targetMonitorName !== "" && isTargetMonitor
+            visible: root.targetMonitorName !== "" && isTargetMonitor && !root.isClosing
 
             anchors {
                 top: true
@@ -407,17 +423,18 @@ Scope {
             Rectangle {
                 anchors.fill: parent
                 color: "#000000"
-                opacity: root.isClosing ? 0.0 : (root.isOpened ? 0.58 : 0.0)
+                opacity: root.panelVisible ? 0.64 : 0.0
 
                 Behavior on opacity {
                     NumberAnimation {
-                        duration: animStyle.fadeDuration
-                        easing.type: animStyle.fadeEasing
+                        duration: (root.animEnabled && !root.isClosing && root.panelVisible) ? animStyle.fadeDuration : 0
+                        easing.type: animStyle.smoothEasing
                     }
                 }
 
                 MouseArea {
                     anchors.fill: parent
+                    enabled: !root.isClosing
                     onClicked: root.dismissMenu()
                 }
             }
@@ -436,6 +453,7 @@ Scope {
                 }
 
                 Keys.onPressed: (event) => {
+                    if (root.isClosing) return
                     if (event.key === Qt.Key_Escape) {
                         root.dismissMenu()
                         event.accepted = true
@@ -469,41 +487,87 @@ Scope {
 
                 Item {
                     anchors.centerIn: parent
-                    implicitWidth: mainColumn.implicitWidth + 48
-                    implicitHeight: mainColumn.implicitHeight + 44
+                    implicitWidth: mainColumn.implicitWidth + 52
+                    implicitHeight: mainColumn.implicitHeight + 48
 
-                    visible: root.targetMonitorName !== "" && isTargetMonitor
+                    visible: root.targetMonitorName !== "" && isTargetMonitor && !root.isClosing
 
                     Rectangle {
                         id: cardRect
                         anchors.fill: parent
 
                         radius: root.themeRounding
-                        color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                        color: root.mixColor(root.themeBackground, "#090a0d", 0.38, root.themeBgAlpha)
                         border.width: root.themeBorderSize
-                        border.color: Qt.alpha(root.activeAccentColor, 0.50)
+                        border.color: Qt.alpha(root.activeAccentColor, 0.68)
                         antialiasing: true
+                        clip: true
+                        enabled: !root.isClosing
 
-                        opacity: root.isClosing ? 0.0 : (root.isOpened ? 1.0 : 0.0)
-                        scale: root.isClosing ? 0.88 : (root.isOpened ? 1.0 : 0.88)
+                        property bool settled: false
+                        property bool activeVisibility: root.panelVisible
+
+                        layer.enabled: root.animEnabled && !settled && !root.isClosing
+                        layer.smooth: true
+
+                        onActiveVisibilityChanged: {
+                            if (activeVisibility) {
+                                settled = false
+                                settleTimer.restart()
+                            }
+                        }
+
+                        Timer {
+                            id: settleTimer
+                            interval: animStyle.enterDuration + 40
+                            repeat: false
+                            onTriggered: cardRect.settled = true
+                        }
+
+                        opacity: root.panelVisible ? 1.0 : 0.0
+
+                        transform: [
+                            Scale {
+                                origin.x: cardRect.width / 2
+                                origin.y: cardRect.height / 2
+                                xScale: root.panelVisible ? 1.0 : 0.94
+                                yScale: root.panelVisible ? 1.0 : 0.94
+
+                                Behavior on xScale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing && root.panelVisible) ? animStyle.enterDuration : 0
+                                        easing.type: animStyle.expoEasing
+                                    }
+                                }
+                                Behavior on yScale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing && root.panelVisible) ? animStyle.enterDuration : 0
+                                        easing.type: animStyle.expoEasing
+                                    }
+                                }
+                            },
+                            Translate {
+                                y: root.panelVisible ? 0 : 12
+
+                                Behavior on y {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing && root.panelVisible) ? animStyle.enterDuration : 0
+                                        easing.type: animStyle.expoEasing
+                                    }
+                                }
+                            }
+                        ]
 
                         Behavior on opacity {
                             NumberAnimation {
-                                duration: animStyle.fadeDuration
-                                easing.type: animStyle.fadeEasing
-                            }
-                        }
-                        Behavior on scale {
-                            NumberAnimation {
-                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                easing.type: animStyle.bounceEasing
-                                easing.overshoot: animStyle.overshoot
+                                duration: (root.animEnabled && !root.isClosing && root.panelVisible) ? animStyle.fadeDuration : 0
+                                easing.type: animStyle.smoothEasing
                             }
                         }
                         Behavior on border.color {
                             ColorAnimation {
-                                duration: animStyle.fadeDuration
-                                easing.type: animStyle.fadeEasing
+                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                easing.type: animStyle.smoothEasing
                             }
                         }
 
@@ -511,10 +575,12 @@ Scope {
                             anchors.fill: parent
                             anchors.margins: root.themeBorderSize
                             radius: Math.max(0, parent.radius - root.themeBorderSize)
+                            border.width: 1
+                            border.color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
                             antialiasing: true
                             gradient: Gradient {
-                                GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.10) }
-                                GradientStop { position: 0.4; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
+                                GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.12) }
+                                GradientStop { position: 0.4; color: Qt.rgba(1.0, 1.0, 1.0, 0.03) }
                                 GradientStop { position: 1.0; color: "transparent" }
                             }
                         }
@@ -536,17 +602,32 @@ Scope {
                                 Rectangle {
                                     width: 34
                                     height: 34
-                                    radius: 10
-                                    color: Qt.alpha(root.activeAccentColor, 0.18)
+                                    radius: headerIconHover.hovered ? 12 : 10
+                                    color: Qt.alpha(root.activeAccentColor, headerIconHover.hovered ? 0.28 : 0.22)
                                     border.width: 1
-                                    border.color: Qt.alpha(root.activeAccentColor, 0.45)
+                                    border.color: Qt.alpha(root.activeAccentColor, headerIconHover.hovered ? 0.78 : 0.58)
                                     antialiasing: true
+                                    scale: headerIconHover.hovered ? 1.05 : 1.0
 
+                                    HoverHandler { id: headerIconHover }
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on radius {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
                                     Behavior on color {
-                                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                        ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing }
                                     }
                                     Behavior on border.color {
-                                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                        ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing }
                                     }
 
                                     Text {
@@ -555,8 +636,10 @@ Scope {
                                         font.family: root.iconFontFamily
                                         color: root.activeAccentColor
                                         font.pixelSize: 16
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                         Behavior on color {
-                                            ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                            ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing }
                                         }
                                     }
                                 }
@@ -570,9 +653,9 @@ Scope {
                                         font.family: root.fontFamily
                                         color: "#FFFFFF"
                                         font.pixelSize: 15
-                                        font.weight: Font.Bold
+                                        font.weight: Font.ExtraBold
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.90)
                                     }
 
                                     Text {
@@ -580,9 +663,9 @@ Scope {
                                         font.family: root.fontFamily
                                         color: root.themeTextMuted
                                         font.pixelSize: 11
-                                        font.weight: Font.Medium
+                                        font.weight: Font.SemiBold
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
                                 }
 
@@ -592,21 +675,23 @@ Scope {
                                     Layout.preferredWidth: escRow.implicitWidth + 16
                                     Layout.preferredHeight: 28
                                     radius: 8
-                                    color: escMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.35)
+                                    color: escMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.18) : Qt.rgba(0, 0, 0, 0.45)
                                     border.width: 1
-                                    border.color: escMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.5) : Qt.rgba(1, 1, 1, 0.14)
+                                    border.color: escMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.72) : Qt.rgba(1, 1, 1, 0.22)
                                     antialiasing: true
 
-                                    scale: escMouse.pressed ? 0.92 : (escMouse.containsMouse ? 1.06 : 1.0)
+                                    scale: escMouse.pressed ? 0.92 : (escMouse.containsMouse ? 1.05 : 1.0)
                                     Behavior on scale {
                                         NumberAnimation {
-                                            duration: root.animEnabled ? animStyle.animDuration : 0
-                                            easing.type: animStyle.bounceEasing
-                                            easing.overshoot: animStyle.overshoot
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
                                         }
                                     }
                                     Behavior on color {
-                                        ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing }
+                                        ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0; easing.type: animStyle.smoothEasing }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0; easing.type: animStyle.smoothEasing }
                                     }
 
                                     RowLayout {
@@ -619,7 +704,9 @@ Scope {
                                             font.family: root.fontFamily
                                             color: root.themePrimary
                                             font.pixelSize: 10
-                                            font.weight: Font.Bold
+                                            font.weight: Font.ExtraBold
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.85)
                                         }
 
                                         Text {
@@ -627,7 +714,9 @@ Scope {
                                             font.family: root.fontFamily
                                             color: root.themeTextMuted
                                             font.pixelSize: 11
-                                            font.weight: Font.Medium
+                                            font.weight: Font.SemiBold
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.85)
                                         }
                                     }
 
@@ -644,7 +733,7 @@ Scope {
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 1
-                                color: Qt.rgba(1, 1, 1, 0.10)
+                                color: Qt.rgba(1, 1, 1, 0.18)
                             }
 
                             RowLayout {
@@ -672,7 +761,7 @@ Scope {
                                     Layout.preferredWidth: 1
                                     Layout.preferredHeight: 88
                                     Layout.alignment: Qt.AlignVCenter
-                                    color: Qt.rgba(1, 1, 1, 0.14)
+                                    color: Qt.rgba(1, 1, 1, 0.22)
                                     Layout.leftMargin: 4
                                     Layout.rightMargin: 4
                                 }

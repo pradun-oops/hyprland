@@ -13,15 +13,31 @@ Scope {
     property string fontFamily: "Adwaita Sans"
     property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
-    function quitApp() {
-        quitTimer.start()
+    property bool animEnabled: true
+    property int animDuration: 220
+    property bool isClosing: false
+
+    QtObject {
+        id: animStyle
+        property int base: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
+        property int enterDuration: Math.round(base * 1.35)
+        property int exitDuration: Math.round(base * 0.85)
+        property int animDuration: base
+        property int morphDuration: Math.round(base * 1.25)
+        property int barDuration: Math.round(base * 2.0)
+        property int fadeDuration: Math.round(base * 0.8)
+        property int microDuration: Math.round(base * 0.65)
+        property int scaleDuration: Math.round(base * 1.1)
+        property var smoothEasing: Easing.OutQuint
+        property var expoEasing: Easing.OutExpo
+        property var exitEasing: Easing.InCubic
     }
 
-    Timer {
-        id: quitTimer
-        interval: 60
-        repeat: false
-        onTriggered: Qt.quit()
+    function quitApp() {
+        if (root.isClosing) return
+        root.isClosing = true
+        weatherFetcher.running = false
+        Qt.quit()
     }
 
     Shortcut {
@@ -59,24 +75,15 @@ Scope {
 
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
-    property bool animEnabled: true
-    property int animDuration: 220
+    property real themeBgAlpha: 0.25
 
     property color themeBackground: "#141416"
-    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.56)
-    property color themeSurfaceHover: Qt.rgba(0.10, 0.10, 0.14, 0.74)
+    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.68)
+    property color themeSurfaceHover: Qt.rgba(0.08, 0.08, 0.12, 0.78)
     property color themeBorder: "#ffb3af"
     property color themePrimary: "#ffb3af"
     property color themeText: "#ffffff"
-    property color themeTextMuted: "#a1a1aa"
-
-    QtObject {
-        id: animStyle
-        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 240) : 200
-        property int fadeDuration: 180
-        property var smoothEasing: Easing.OutCubic
-    }
+    property color themeTextMuted: "#D4D4D8"
 
     function mixColor(c1, c2, ratio, alphaVal) {
         let col1 = Qt.color(c1)
@@ -85,6 +92,22 @@ Scope {
         let g = col1.g * (1 - ratio) + col2.g * ratio
         let b = col1.b * (1 - ratio) + col2.b * ratio
         return Qt.rgba(r, g, b, alphaVal)
+    }
+
+    function clipRoundedRect(ctx, x, y, w, h, r) {
+        r = Math.min(r, w / 2, h / 2)
+        ctx.beginPath()
+        ctx.moveTo(x + r, y)
+        ctx.lineTo(x + w - r, y)
+        ctx.arcTo(x + w, y, x + w, y + r, r)
+        ctx.lineTo(x + w, y + h - r)
+        ctx.arcTo(x + w, y + h, x + w - r, y + h, r)
+        ctx.lineTo(x + r, y + h)
+        ctx.arcTo(x, y + h, x, y + h - r, r)
+        ctx.lineTo(x, y + r)
+        ctx.arcTo(x, y, x + r, y, r)
+        ctx.closePath()
+        ctx.clip()
     }
 
     FileView {
@@ -171,6 +194,7 @@ Scope {
     ListModel { id: forecastModel }
 
     function applyWeatherData(d) {
+        if (root.isClosing) return
         if (d.error) {
             root.fetchError = d.error
             root.isFetching = false
@@ -234,6 +258,7 @@ Scope {
         id: weatherFetcher
         stdout: SplitParser {
             onRead: (data) => {
+                if (root.isClosing) return
                 try {
                     let d = JSON.parse(data.trim())
 
@@ -252,6 +277,7 @@ Scope {
     }
 
     function fetchWeather(city, forceRefresh) {
+        if (root.isClosing) return
         weatherFetcher.running = false
         root.isFetching = true
         root.fetchError = ""
@@ -470,21 +496,23 @@ except Exception as e:
             screen: modelData
 
             property bool isTargetMonitor: modelData.name === root.targetMonitorName
-            visible: root.targetMonitorName !== "" && isTargetMonitor
+            visible: root.targetMonitorName !== "" && isTargetMonitor && !root.isClosing
 
             WlrLayershell.namespace: "qs-weather"
             WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: (isTargetMonitor && !root.isClosing) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
             anchors { top: true; bottom: true; left: true; right: true }
+            mask: Region { item: mainCard }
             color: "transparent"
 
-            MouseArea { anchors.fill: parent; onClicked: root.quitApp() }
+            MouseArea { anchors.fill: parent; enabled: !root.isClosing; onClicked: root.quitApp() }
 
             Item {
                 id: mainFocusWrapper
                 anchors.fill: parent
+                visible: root.targetMonitorName !== "" && isTargetMonitor && !root.isClosing
                 focus: isTargetMonitor
 
                 Component.onCompleted: {
@@ -498,37 +526,66 @@ except Exception as e:
                     width: Math.min(1220, parent.width - 40)
                     height: Math.min(820, parent.height - 48)
                     anchors.centerIn: parent
+                    enabled: !root.isClosing
 
                     property bool shown: false
-                    Component.onCompleted: shown = true
+                    property bool panelVisible: shown && !root.isClosing
+                    Component.onCompleted: enterTriggerTimer.start()
 
-                    opacity: shown ? 1.0 : 0.0
+                    Timer {
+                        id: enterTriggerTimer
+                        interval: 16
+                        repeat: false
+                        onTriggered: mainCard.shown = true
+                    }
+
+                    opacity: panelVisible ? 1.0 : 0.0
+
+                    transform: [
+                        Scale {
+                            origin.x: mainCard.width / 2
+                            origin.y: mainCard.height / 2
+                            xScale: mainCard.panelVisible ? 1.0 : 0.94
+                            yScale: mainCard.panelVisible ? 1.0 : 0.94
+
+                            Behavior on xScale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.enterDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                            Behavior on yScale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.enterDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                        },
+                        Translate {
+                            y: mainCard.panelVisible ? 0 : 14
+
+                            Behavior on y {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.enterDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                        }
+                    ]
 
                     Behavior on opacity {
                         NumberAnimation {
-                            duration: root.animEnabled ? animStyle.fadeDuration : 0
+                            duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.fadeDuration : 0
                             easing.type: animStyle.smoothEasing
                         }
                     }
 
                     radius: root.themeRounding
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themePrimary, 0.42)
+                    border.color: Qt.alpha(root.themePrimary, 0.4)
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     antialiasing: true
                     clip: true
-
-                    Rectangle {
-                        anchors.fill: parent
-                        anchors.margins: root.themeBorderSize
-                        radius: Math.max(0, parent.radius - root.themeBorderSize)
-                        antialiasing: true
-                        gradient: Gradient {
-                            GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.09) }
-                            GradientStop { position: 0.35; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
-                            GradientStop { position: 1.0; color: "transparent" }
-                        }
-                    }
 
                     MouseArea { anchors.fill: parent; onClicked: (mouse) => mouse.accepted = true }
 
@@ -544,12 +601,38 @@ except Exception as e:
                             Rectangle {
                                 width: 42
                                 height: 42
-                                radius: 12
-                                color: Qt.alpha(root.themePrimary, 0.16)
+                                radius: headerIconMouse.containsMouse ? 14 : 12
+                                color: Qt.alpha(root.themePrimary, headerIconMouse.containsMouse ? 0.24 : 0.18)
                                 border.width: 1
-                                border.color: Qt.alpha(root.themePrimary, 0.38)
+                                border.color: Qt.alpha(root.themePrimary, headerIconMouse.containsMouse ? 0.65 : 0.35)
                                 Layout.alignment: Qt.AlignVCenter
                                 antialiasing: true
+                                scale: headerIconMouse.containsMouse ? 1.05 : 1.0
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on radius {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 Text {
                                     anchors.centerIn: parent
@@ -557,6 +640,12 @@ except Exception as e:
                                     font.family: root.iconFontFamily
                                     font.pixelSize: 20
                                     color: root.themePrimary
+                                }
+
+                                MouseArea {
+                                    id: headerIconMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
                                 }
                             }
 
@@ -571,7 +660,7 @@ except Exception as e:
                                     font.weight: Font.Bold
                                     color: root.themeText
                                     style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
                                 }
 
                                 RowLayout {
@@ -591,7 +680,7 @@ except Exception as e:
                                         font.weight: Font.Medium
                                         color: root.themeTextMuted
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
                                     }
 
                                     Rectangle {
@@ -599,9 +688,22 @@ except Exception as e:
                                         height: 8
                                         radius: 4
                                         color: root.isFetchingApi ? "#facc15" : "#4ade80"
+                                        scale: root.isFetchingApi ? 1.2 : 1.0
                                         Layout.alignment: Qt.AlignVCenter
                                         antialiasing: true
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -612,12 +714,28 @@ except Exception as e:
                                 Layout.preferredWidth: 270
                                 Layout.preferredHeight: 38
                                 radius: 10
-                                color: Qt.rgba(0.02, 0.02, 0.03, 0.60)
+                                color: searchInput.activeFocus ? Qt.rgba(0.05, 0.05, 0.08, 0.82) : Qt.rgba(0.02, 0.02, 0.03, 0.72)
                                 border.width: searchInput.activeFocus ? 1.5 : 1
-                                border.color: searchInput.activeFocus ? Qt.alpha(root.themePrimary, 0.75) : Qt.rgba(1, 1, 1, 0.14)
+                                border.color: searchInput.activeFocus
+                                              ? Qt.alpha(root.themePrimary, 0.78)
+                                              : (searchBoxHover.hovered ? Qt.alpha(root.themePrimary, 0.42) : Qt.rgba(1.0, 1.0, 1.0, 0.14))
                                 Layout.alignment: Qt.AlignVCenter
                                 antialiasing: true
-                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+
+                                HoverHandler { id: searchBoxHover }
+
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 RowLayout {
                                     anchors.fill: parent
@@ -630,6 +748,13 @@ except Exception as e:
                                         font.family: root.iconFontFamily
                                         font.pixelSize: 14
                                         color: searchInput.activeFocus ? root.themePrimary : root.themeTextMuted
+
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
                                     }
 
                                     TextField {
@@ -641,7 +766,7 @@ except Exception as e:
                                         font.weight: Font.DemiBold
                                         color: root.themeText
                                         placeholderText: "Search city or region..."
-                                        placeholderTextColor: Qt.rgba(1.0, 1.0, 1.0, 0.40)
+                                        placeholderTextColor: Qt.rgba(1.0, 1.0, 1.0, 0.45)
                                         selectionColor: Qt.alpha(root.themePrimary, 0.35)
                                         selectedTextColor: root.themeText
                                         verticalAlignment: TextInput.AlignVCenter
@@ -655,11 +780,34 @@ except Exception as e:
                                     }
 
                                     Rectangle {
-                                        visible: searchInput.text !== ""
+                                        property bool hasText: searchInput.text !== ""
+                                        visible: opacity > 0.01
+                                        opacity: hasText ? 1.0 : 0.0
+                                        scale: hasText ? (clearSearchHover.pressed ? 0.88 : (clearSearchHover.containsMouse ? 1.08 : 1.0)) : 0.75
                                         width: 22
                                         height: 22
                                         radius: 6
-                                        color: clearSearchHover.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : "transparent"
+                                        color: clearSearchHover.containsMouse ? Qt.rgba(1.0, 1.0, 1.0, 0.16) : "transparent"
+                                        antialiasing: true
+
+                                        Behavior on opacity {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         Text {
                                             anchors.centerIn: parent
@@ -686,17 +834,40 @@ except Exception as e:
                             Rectangle {
                                 width: 38
                                 height: 38
-                                radius: 10
+                                radius: autoGpsHover.containsMouse ? 13 : 10
                                 color: autoGpsHover.containsMouse
-                                       ? root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.76)
+                                       ? root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.80)
                                        : root.themeSurface
                                 border.width: 1
-                                border.color: autoGpsHover.containsMouse ? Qt.alpha(root.themePrimary, 0.65) : Qt.rgba(1, 1, 1, 0.14)
+                                border.color: autoGpsHover.containsMouse ? Qt.alpha(root.themePrimary, 0.65) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                 Layout.alignment: Qt.AlignVCenter
                                 antialiasing: true
+                                scale: autoGpsHover.pressed ? 0.92 : (autoGpsHover.containsMouse ? 1.05 : 1.0)
 
-                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on radius {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 Text {
                                     id: gpsIconText
@@ -712,7 +883,7 @@ except Exception as e:
                                         to: 360
                                         duration: 950
                                         loops: Animation.Infinite
-                                        running: root.isFetchingApi
+                                        running: root.isFetchingApi && !root.isClosing
                                     }
                                 }
 
@@ -728,17 +899,40 @@ except Exception as e:
                             Rectangle {
                                 width: 38
                                 height: 38
-                                radius: 10
+                                radius: closeHover.containsMouse ? 13 : 10
                                 color: closeHover.containsMouse
                                        ? Qt.rgba(0.93, 0.26, 0.26, 0.34)
                                        : root.themeSurface
                                 border.width: 1
-                                border.color: closeHover.containsMouse ? "#ff6b6b" : Qt.rgba(1, 1, 1, 0.14)
+                                border.color: closeHover.containsMouse ? "#ff6b6b" : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                 Layout.alignment: Qt.AlignVCenter
                                 antialiasing: true
+                                scale: closeHover.pressed ? 0.92 : (closeHover.containsMouse ? 1.05 : 1.0)
 
-                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on radius {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 Text {
                                     anchors.centerIn: parent
@@ -746,6 +940,13 @@ except Exception as e:
                                     font.family: root.iconFontFamily
                                     font.pixelSize: 14
                                     color: closeHover.containsMouse ? "#ff6b6b" : root.themeText
+
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
                                 }
 
                                 MouseArea {
@@ -761,12 +962,20 @@ except Exception as e:
                         Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: opacity > 0
-                            opacity: (root.isFetchingApi && !root.hasData) ? 1.0 : 0.0
+                            property bool isLoadingState: root.isFetchingApi && !root.hasData
+                            visible: opacity > 0.01
+                            opacity: isLoadingState ? 1.0 : 0.0
+                            scale: isLoadingState ? 1.0 : 0.95
 
                             Behavior on opacity {
                                 NumberAnimation {
-                                    duration: animStyle.fadeDuration
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
                                     easing.type: animStyle.smoothEasing
                                 }
                             }
@@ -793,7 +1002,7 @@ except Exception as e:
                                             ctx.beginPath()
                                             ctx.arc(cx, cy, r, 0, 2 * Math.PI, false)
                                             ctx.lineWidth = 4
-                                            ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.10)
+                                            ctx.strokeStyle = Qt.rgba(1.0, 1.0, 1.0, 0.12)
                                             ctx.stroke()
 
                                             ctx.beginPath()
@@ -810,7 +1019,7 @@ except Exception as e:
                                             to: 360
                                             duration: 950
                                             loops: Animation.Infinite
-                                            running: root.isFetchingApi
+                                            running: root.isFetchingApi && !root.isClosing
                                         }
                                     }
 
@@ -839,12 +1048,20 @@ except Exception as e:
                         Item {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
-                            visible: opacity > 0
-                            opacity: (!root.isFetching && root.fetchError !== "") ? 1.0 : 0.0
+                            property bool isErrorState: !root.isFetching && root.fetchError !== ""
+                            visible: opacity > 0.01
+                            opacity: isErrorState ? 1.0 : 0.0
+                            scale: isErrorState ? 1.0 : 0.95
 
                             Behavior on opacity {
                                 NumberAnimation {
-                                    duration: animStyle.fadeDuration
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
                                     easing.type: animStyle.smoothEasing
                                 }
                             }
@@ -861,6 +1078,7 @@ except Exception as e:
                                     color: Qt.rgba(0.93, 0.26, 0.26, 0.18)
                                     border.width: 1
                                     border.color: "#ff6b6b"
+                                    antialiasing: true
 
                                     Text {
                                         anchors.centerIn: parent
@@ -888,13 +1106,21 @@ except Exception as e:
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             spacing: 18
-                            visible: opacity > 0
-                            opacity: (root.hasData && root.fetchError === "") ? 1.0 : 0.0
+                            property bool isContentReady: root.hasData && root.fetchError === ""
+                            visible: opacity > 0.01
+                            opacity: isContentReady ? 1.0 : 0.0
+                            scale: isContentReady ? 1.0 : 0.98
 
                             Behavior on opacity {
                                 NumberAnimation {
-                                    duration: animStyle.fadeDuration
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                     easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                    easing.type: animStyle.expoEasing
                                 }
                             }
 
@@ -908,17 +1134,32 @@ except Exception as e:
                                     id: heroCard
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 152
-                                    radius: Math.max(12, root.themeRounding - 4)
-                                    color: root.mixColor(root.themeBackground, root.themePrimary, 0.14, 0.68)
+                                    radius: Math.max(10, root.themeRounding - 6)
+                                    color: heroHover.containsMouse
+                                           ? root.mixColor(root.themeBackground, root.themePrimary, 0.18, 0.78)
+                                           : root.mixColor(root.themeBackground, root.themePrimary, 0.12, 0.72)
                                     border.width: 1
                                     border.color: heroHover.containsMouse
                                                   ? Qt.alpha(root.themePrimary, 0.68)
-                                                  : Qt.alpha(root.themePrimary, 0.32)
+                                                  : Qt.alpha(root.themePrimary, 0.35)
                                     antialiasing: true
+                                    scale: heroHover.containsMouse ? 1.008 : 1.0
 
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
                                     Behavior on border.color {
                                         ColorAnimation {
-                                            duration: animStyle.fadeDuration
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                             easing.type: animStyle.smoothEasing
                                         }
                                     }
@@ -940,12 +1181,38 @@ except Exception as e:
                                         Rectangle {
                                             width: 78
                                             height: 78
-                                            radius: 20
-                                            color: Qt.alpha(root.themePrimary, 0.16)
+                                            radius: heroHover.containsMouse ? 22 : 20
+                                            color: Qt.alpha(root.themePrimary, heroHover.containsMouse ? 0.24 : 0.18)
                                             border.width: 1
-                                            border.color: Qt.alpha(root.themePrimary, 0.38)
+                                            border.color: Qt.alpha(root.themePrimary, heroHover.containsMouse ? 0.58 : 0.35)
                                             Layout.alignment: Qt.AlignVCenter
                                             antialiasing: true
+                                            scale: heroHover.containsMouse ? 1.05 : 1.0
+
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on radius {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on border.color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
 
                                             Text {
                                                 anchors.centerIn: parent
@@ -986,9 +1253,9 @@ except Exception as e:
 
                                                 Rectangle {
                                                     radius: 7
-                                                    color: Qt.rgba(0.98, 0.44, 0.52, 0.20)
+                                                    color: Qt.rgba(0.98, 0.44, 0.52, 0.18)
                                                     border.width: 1
-                                                    border.color: Qt.rgba(0.98, 0.44, 0.52, 0.45)
+                                                    border.color: Qt.rgba(0.98, 0.44, 0.52, 0.40)
                                                     antialiasing: true
                                                     implicitWidth: highRow.implicitWidth + 16
                                                     implicitHeight: 24
@@ -1011,15 +1278,17 @@ except Exception as e:
                                                             font.pixelSize: 11
                                                             font.weight: Font.Bold
                                                             color: "#fb7185"
+                                                            style: Text.Raised
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                         }
                                                     }
                                                 }
 
                                                 Rectangle {
                                                     radius: 7
-                                                    color: Qt.rgba(0.22, 0.74, 0.97, 0.20)
+                                                    color: Qt.rgba(0.22, 0.74, 0.97, 0.18)
                                                     border.width: 1
-                                                    border.color: Qt.rgba(0.22, 0.74, 0.97, 0.45)
+                                                    border.color: Qt.rgba(0.22, 0.74, 0.97, 0.40)
                                                     antialiasing: true
                                                     implicitWidth: lowRow.implicitWidth + 16
                                                     implicitHeight: 24
@@ -1042,6 +1311,8 @@ except Exception as e:
                                                             font.pixelSize: 11
                                                             font.weight: Font.Bold
                                                             color: "#38bdf8"
+                                                            style: Text.Raised
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                         }
                                                     }
                                                 }
@@ -1060,6 +1331,14 @@ except Exception as e:
                                             style: Text.Raised
                                             styleColor: Qt.rgba(0, 0, 0, 0.85)
                                             Layout.alignment: Qt.AlignVCenter
+                                            scale: heroHover.containsMouse ? 1.03 : 1.0
+
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1086,6 +1365,8 @@ except Exception as e:
                                             font.weight: Font.Bold
                                             font.letterSpacing: 0.9
                                             color: root.themeTextMuted
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.7)
                                         }
 
                                         Item { Layout.fillWidth: true }
@@ -1095,38 +1376,55 @@ except Exception as e:
                                             font.family: root.fontFamily
                                             font.pixelSize: 10
                                             color: root.themeTextMuted
-                                            opacity: 0.75
+                                            opacity: 0.85
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.7)
                                         }
                                     }
 
                                     Item {
                                         Layout.fillWidth: true
-                                        Layout.preferredHeight: 114
+                                        Layout.preferredHeight: 120
 
                                         ListView {
                                             id: hourlyList
                                             anchors.fill: parent
                                             orientation: ListView.Horizontal
                                             model: hourlyModel
-                                            spacing: 8
+                                            spacing: 4
                                             clip: true
                                             boundsBehavior: Flickable.StopAtBounds
 
-                                            delegate: Rectangle {
-                                                width: 78
-                                                height: 114
-                                                radius: 12
-                                                color: model.time === "Now"
-                                                       ? root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.76)
-                                                       : (hourlyHover.containsMouse ? root.themeSurfaceHover : root.themeSurface)
-                                                border.width: 1
-                                                border.color: model.time === "Now"
-                                                              ? Qt.alpha(root.themePrimary, 0.72)
-                                                              : (hourlyHover.containsMouse ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.10))
-                                                antialiasing: true
+                                            add: Transition {
+                                                ParallelAnimation {
+                                                    NumberAnimation {
+                                                        property: "opacity"
+                                                        from: 0.0
+                                                        to: 1.0
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                    NumberAnimation {
+                                                        property: "scale"
+                                                        from: 0.94
+                                                        to: 1.0
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                                        easing.type: animStyle.expoEasing
+                                                    }
+                                                }
+                                            }
 
-                                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                            displaced: Transition {
+                                                NumberAnimation {
+                                                    properties: "x,y"
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                                    easing.type: animStyle.expoEasing
+                                                }
+                                            }
+
+                                            delegate: Item {
+                                                width: 82
+                                                height: hourlyList.height
 
                                                 MouseArea {
                                                     id: hourlyHover
@@ -1134,57 +1432,108 @@ except Exception as e:
                                                     hoverEnabled: true
                                                 }
 
-                                                ColumnLayout {
+                                                Rectangle {
                                                     anchors.fill: parent
-                                                    anchors.margins: 8
-                                                    spacing: 4
+                                                    anchors.leftMargin: 2
+                                                    anchors.rightMargin: 2
+                                                    anchors.topMargin: 3
+                                                    anchors.bottomMargin: 3
+                                                    radius: Math.max(10, root.themeRounding - 8)
+                                                    color: model.time === "Now"
+                                                           ? (hourlyHover.containsMouse
+                                                              ? root.mixColor(root.themeBackground, root.themePrimary, 0.28, 0.85)
+                                                              : root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.78))
+                                                           : (hourlyHover.containsMouse ? root.themeSurfaceHover : root.themeSurface)
+                                                    border.width: 1
+                                                    border.color: model.time === "Now"
+                                                                  ? Qt.alpha(root.themePrimary, hourlyHover.containsMouse ? 0.88 : 0.72)
+                                                                  : (hourlyHover.containsMouse ? Qt.alpha(root.themePrimary, 0.48) : Qt.rgba(1.0, 1.0, 1.0, 0.14))
+                                                    antialiasing: true
+                                                    scale: hourlyHover.containsMouse ? 1.025 : 1.0
 
-                                                    Text {
-                                                        text: model.time
-                                                        font.family: root.fontFamily
-                                                        font.pixelSize: 10
-                                                        font.weight: Font.Bold
-                                                        color: model.time === "Now" ? root.themePrimary : root.themeTextMuted
-                                                        Layout.alignment: Qt.AlignHCenter
-                                                    }
-
-                                                    Text {
-                                                        text: model.icon
-                                                        font.family: root.iconFontFamily
-                                                        font.pixelSize: 21
-                                                        color: root.themePrimary
-                                                        Layout.alignment: Qt.AlignHCenter
-                                                    }
-
-                                                    Text {
-                                                        text: model.temp
-                                                        font.family: root.fontFamily
-                                                        font.pixelSize: 13
-                                                        font.weight: Font.Bold
-                                                        color: root.themeText
-                                                        Layout.alignment: Qt.AlignHCenter
-                                                        style: Text.Raised
-                                                        styleColor: Qt.rgba(0, 0, 0, 0.8)
-                                                    }
-
-                                                    RowLayout {
-                                                        Layout.alignment: Qt.AlignHCenter
-                                                        spacing: 3
-                                                        opacity: model.pop === "0%" ? 0.38 : 1.0
-
-                                                        Text {
-                                                            text: "󰖗"
-                                                            font.family: root.iconFontFamily
-                                                            font.pixelSize: 9
-                                                            color: "#38bdf8"
+                                                    Behavior on scale {
+                                                        NumberAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                            easing.type: animStyle.smoothEasing
                                                         }
+                                                    }
+                                                    Behavior on color {
+                                                        ColorAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                    Behavior on border.color {
+                                                        ColorAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+
+                                                    ColumnLayout {
+                                                        anchors.fill: parent
+                                                        anchors.margins: 8
+                                                        spacing: 4
 
                                                         Text {
-                                                            text: model.pop
+                                                            text: model.time
                                                             font.family: root.fontFamily
                                                             font.pixelSize: 10
                                                             font.weight: Font.Bold
-                                                            color: "#38bdf8"
+                                                            color: model.time === "Now" ? root.themePrimary : root.themeTextMuted
+                                                            Layout.alignment: Qt.AlignHCenter
+                                                            style: Text.Raised
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                                        }
+
+                                                        Text {
+                                                            text: model.icon
+                                                            font.family: root.iconFontFamily
+                                                            font.pixelSize: 21
+                                                            color: root.themePrimary
+                                                            Layout.alignment: Qt.AlignHCenter
+                                                            scale: hourlyHover.containsMouse ? 1.12 : 1.0
+
+                                                            Behavior on scale {
+                                                                NumberAnimation {
+                                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                                    easing.type: animStyle.smoothEasing
+                                                                }
+                                                            }
+                                                        }
+
+                                                        Text {
+                                                            text: model.temp
+                                                            font.family: root.fontFamily
+                                                            font.pixelSize: 13
+                                                            font.weight: Font.Bold
+                                                            color: root.themeText
+                                                            Layout.alignment: Qt.AlignHCenter
+                                                            style: Text.Raised
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                                        }
+
+                                                        RowLayout {
+                                                            Layout.alignment: Qt.AlignHCenter
+                                                            spacing: 3
+                                                            opacity: model.pop === "0%" ? 0.45 : 1.0
+
+                                                            Text {
+                                                                text: "󰖗"
+                                                                font.family: root.iconFontFamily
+                                                                font.pixelSize: 9
+                                                                color: "#38bdf8"
+                                                            }
+
+                                                            Text {
+                                                                text: model.pop
+                                                                font.family: root.fontFamily
+                                                                font.pixelSize: 10
+                                                                font.weight: Font.Bold
+                                                                color: "#38bdf8"
+                                                                style: Text.Raised
+                                                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                                            }
                                                         }
                                                     }
                                                 }
@@ -1214,14 +1563,31 @@ except Exception as e:
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
                                         Layout.minimumHeight: 96
-                                        radius: 13
+                                        radius: Math.max(10, root.themeRounding - 6)
                                         color: windHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                         border.width: 1
-                                        border.color: windHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1, 1, 1, 0.10)
+                                        border.color: windHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                         antialiasing: true
+                                        scale: windHover.containsMouse ? 1.015 : 1.0
 
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on border.color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         MouseArea { id: windHover; anchors.fill: parent; hoverEnabled: true }
 
@@ -1234,12 +1600,38 @@ except Exception as e:
                                             Rectangle {
                                                 width: 44
                                                 height: 44
-                                                radius: 12
-                                                color: Qt.alpha("#38bdf8", 0.16)
+                                                radius: windHover.containsMouse ? 14 : 12
+                                                color: Qt.alpha("#38bdf8", windHover.containsMouse ? 0.24 : 0.18)
                                                 border.width: 1
-                                                border.color: Qt.alpha("#38bdf8", 0.35)
+                                                border.color: Qt.alpha("#38bdf8", windHover.containsMouse ? 0.55 : 0.35)
                                                 Layout.alignment: Qt.AlignVCenter
                                                 antialiasing: true
+                                                scale: windHover.containsMouse ? 1.06 : 1.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on radius {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on border.color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
 
                                                 Text {
                                                     anchors.centerIn: parent
@@ -1264,6 +1656,8 @@ except Exception as e:
                                                     font.letterSpacing: 1.0
                                                     color: root.themeTextMuted
                                                     Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
 
                                                 Text {
@@ -1284,6 +1678,8 @@ except Exception as e:
                                                     font.weight: Font.Medium
                                                     color: root.themeTextMuted
                                                     Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
                                             }
                                         }
@@ -1293,14 +1689,31 @@ except Exception as e:
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
                                         Layout.minimumHeight: 96
-                                        radius: 13
+                                        radius: Math.max(10, root.themeRounding - 6)
                                         color: uvHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                         border.width: 1
-                                        border.color: uvHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1, 1, 1, 0.10)
+                                        border.color: uvHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                         antialiasing: true
+                                        scale: uvHover.containsMouse ? 1.015 : 1.0
 
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on border.color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         MouseArea { id: uvHover; anchors.fill: parent; hoverEnabled: true }
 
@@ -1313,12 +1726,38 @@ except Exception as e:
                                             Rectangle {
                                                 width: 44
                                                 height: 44
-                                                radius: 12
-                                                color: Qt.alpha("#facc15", 0.16)
+                                                radius: uvHover.containsMouse ? 14 : 12
+                                                color: Qt.alpha("#facc15", uvHover.containsMouse ? 0.24 : 0.18)
                                                 border.width: 1
-                                                border.color: Qt.alpha("#facc15", 0.35)
+                                                border.color: Qt.alpha("#facc15", uvHover.containsMouse ? 0.55 : 0.35)
                                                 Layout.alignment: Qt.AlignVCenter
                                                 antialiasing: true
+                                                scale: uvHover.containsMouse ? 1.06 : 1.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on radius {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on border.color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
 
                                                 Text {
                                                     anchors.centerIn: parent
@@ -1343,6 +1782,8 @@ except Exception as e:
                                                     font.letterSpacing: 1.0
                                                     color: root.themeTextMuted
                                                     Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
 
                                                 Text {
@@ -1363,6 +1804,8 @@ except Exception as e:
                                                     font.weight: Font.Bold
                                                     color: "#facc15"
                                                     Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
                                             }
                                         }
@@ -1372,14 +1815,31 @@ except Exception as e:
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
                                         Layout.minimumHeight: 96
-                                        radius: 13
+                                        radius: Math.max(10, root.themeRounding - 6)
                                         color: humHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                         border.width: 1
-                                        border.color: humHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1, 1, 1, 0.10)
+                                        border.color: humHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                         antialiasing: true
+                                        scale: humHover.containsMouse ? 1.015 : 1.0
 
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on border.color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         MouseArea { id: humHover; anchors.fill: parent; hoverEnabled: true }
 
@@ -1392,12 +1852,38 @@ except Exception as e:
                                             Rectangle {
                                                 width: 44
                                                 height: 44
-                                                radius: 12
-                                                color: Qt.alpha("#a78bfa", 0.16)
+                                                radius: humHover.containsMouse ? 14 : 12
+                                                color: Qt.alpha("#a78bfa", humHover.containsMouse ? 0.24 : 0.18)
                                                 border.width: 1
-                                                border.color: Qt.alpha("#a78bfa", 0.35)
+                                                border.color: Qt.alpha("#a78bfa", humHover.containsMouse ? 0.55 : 0.35)
                                                 Layout.alignment: Qt.AlignVCenter
                                                 antialiasing: true
+                                                scale: humHover.containsMouse ? 1.06 : 1.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on radius {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on border.color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
 
                                                 Text {
                                                     anchors.centerIn: parent
@@ -1422,6 +1908,8 @@ except Exception as e:
                                                     font.letterSpacing: 1.0
                                                     color: root.themeTextMuted
                                                     Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
 
                                                 Text {
@@ -1442,6 +1930,8 @@ except Exception as e:
                                                     font.weight: Font.Medium
                                                     color: root.themeTextMuted
                                                     Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
                                             }
                                         }
@@ -1451,14 +1941,31 @@ except Exception as e:
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
                                         Layout.minimumHeight: 96
-                                        radius: 13
+                                        radius: Math.max(10, root.themeRounding - 6)
                                         color: pressHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                         border.width: 1
-                                        border.color: pressHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1, 1, 1, 0.10)
+                                        border.color: pressHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                         antialiasing: true
+                                        scale: pressHover.containsMouse ? 1.015 : 1.0
 
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on border.color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         MouseArea { id: pressHover; anchors.fill: parent; hoverEnabled: true }
 
@@ -1471,12 +1978,38 @@ except Exception as e:
                                             Rectangle {
                                                 width: 44
                                                 height: 44
-                                                radius: 12
-                                                color: Qt.alpha("#fb923c", 0.16)
+                                                radius: pressHover.containsMouse ? 14 : 12
+                                                color: Qt.alpha("#fb923c", pressHover.containsMouse ? 0.24 : 0.18)
                                                 border.width: 1
-                                                border.color: Qt.alpha("#fb923c", 0.35)
+                                                border.color: Qt.alpha("#fb923c", pressHover.containsMouse ? 0.55 : 0.35)
                                                 Layout.alignment: Qt.AlignVCenter
                                                 antialiasing: true
+                                                scale: pressHover.containsMouse ? 1.06 : 1.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on radius {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on border.color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
 
                                                 Text {
                                                     anchors.centerIn: parent
@@ -1501,6 +2034,8 @@ except Exception as e:
                                                     font.letterSpacing: 1.0
                                                     color: root.themeTextMuted
                                                     Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
 
                                                 Text {
@@ -1521,6 +2056,8 @@ except Exception as e:
                                                     font.weight: Font.Medium
                                                     color: root.themeTextMuted
                                                     Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
                                             }
                                         }
@@ -1530,14 +2067,31 @@ except Exception as e:
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
                                         Layout.minimumHeight: 96
-                                        radius: 13
+                                        radius: Math.max(10, root.themeRounding - 6)
                                         color: cloudsHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                         border.width: 1
-                                        border.color: cloudsHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1, 1, 1, 0.10)
+                                        border.color: cloudsHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                         antialiasing: true
+                                        scale: cloudsHover.containsMouse ? 1.015 : 1.0
 
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on border.color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         MouseArea { id: cloudsHover; anchors.fill: parent; hoverEnabled: true }
 
@@ -1550,12 +2104,38 @@ except Exception as e:
                                             Rectangle {
                                                 width: 44
                                                 height: 44
-                                                radius: 12
-                                                color: Qt.alpha("#38bdf8", 0.16)
+                                                radius: cloudsHover.containsMouse ? 14 : 12
+                                                color: Qt.alpha("#38bdf8", cloudsHover.containsMouse ? 0.24 : 0.18)
                                                 border.width: 1
-                                                border.color: Qt.alpha("#38bdf8", 0.35)
+                                                border.color: Qt.alpha("#38bdf8", cloudsHover.containsMouse ? 0.55 : 0.35)
                                                 Layout.alignment: Qt.AlignVCenter
                                                 antialiasing: true
+                                                scale: cloudsHover.containsMouse ? 1.06 : 1.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on radius {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on border.color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
 
                                                 Text {
                                                     anchors.centerIn: parent
@@ -1580,6 +2160,8 @@ except Exception as e:
                                                     font.letterSpacing: 1.0
                                                     color: root.themeTextMuted
                                                     Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
 
                                                 Text {
@@ -1600,6 +2182,8 @@ except Exception as e:
                                                     font.weight: Font.Medium
                                                     color: root.themeTextMuted
                                                     Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
                                             }
                                         }
@@ -1609,14 +2193,31 @@ except Exception as e:
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
                                         Layout.minimumHeight: 96
-                                        radius: 13
+                                        radius: Math.max(10, root.themeRounding - 6)
                                         color: sunHover.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                         border.width: 1
-                                        border.color: sunHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1, 1, 1, 0.10)
+                                        border.color: sunHover.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1.0, 1.0, 1.0, 0.14)
                                         antialiasing: true
+                                        scale: sunHover.containsMouse ? 1.015 : 1.0
 
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on border.color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         MouseArea { id: sunHover; anchors.fill: parent; hoverEnabled: true }
 
@@ -1629,12 +2230,38 @@ except Exception as e:
                                             Rectangle {
                                                 width: 44
                                                 height: 44
-                                                radius: 12
-                                                color: Qt.alpha("#f59e0b", 0.16)
+                                                radius: sunHover.containsMouse ? 14 : 12
+                                                color: Qt.alpha("#f59e0b", sunHover.containsMouse ? 0.24 : 0.18)
                                                 border.width: 1
-                                                border.color: Qt.alpha("#f59e0b", 0.35)
+                                                border.color: Qt.alpha("#f59e0b", sunHover.containsMouse ? 0.55 : 0.35)
                                                 Layout.alignment: Qt.AlignVCenter
                                                 antialiasing: true
+                                                scale: sunHover.containsMouse ? 1.06 : 1.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on radius {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on border.color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
 
                                                 Text {
                                                     anchors.centerIn: parent
@@ -1659,6 +2286,8 @@ except Exception as e:
                                                     font.letterSpacing: 1.0
                                                     color: root.themeTextMuted
                                                     Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
 
                                                 RowLayout {
@@ -1680,7 +2309,7 @@ except Exception as e:
                                                             font.weight: Font.Bold
                                                             color: root.themeText
                                                             style: Text.Raised
-                                                            styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.8)
                                                         }
                                                     }
 
@@ -1706,7 +2335,7 @@ except Exception as e:
                                                             font.weight: Font.Bold
                                                             color: root.themeText
                                                             style: Text.Raised
-                                                            styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.8)
                                                         }
                                                     }
                                                 }
@@ -1718,6 +2347,8 @@ except Exception as e:
                                                     font.weight: Font.Medium
                                                     color: root.themeTextMuted
                                                     Layout.alignment: Qt.AlignRight
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
                                             }
                                         }
@@ -1728,7 +2359,7 @@ except Exception as e:
                             Rectangle {
                                 Layout.fillHeight: true
                                 width: 1
-                                color: Qt.rgba(1, 1, 1, 0.10)
+                                color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
                             }
 
                             ColumnLayout {
@@ -1755,6 +2386,8 @@ except Exception as e:
                                         font.weight: Font.Bold
                                         font.letterSpacing: 0.9
                                         color: root.themeTextMuted
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                     }
 
                                     Item { Layout.fillWidth: true }
@@ -1764,7 +2397,9 @@ except Exception as e:
                                         font.family: root.fontFamily
                                         font.pixelSize: 10
                                         color: root.themeTextMuted
-                                        opacity: 0.75
+                                        opacity: 0.85
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                     }
                                 }
 
@@ -1772,10 +2407,39 @@ except Exception as e:
                                     id: forecastListView
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
+                                    Layout.leftMargin: -4
+                                    Layout.rightMargin: -4
                                     model: forecastModel
-                                    spacing: 8
+                                    spacing: 4
                                     clip: true
                                     boundsBehavior: Flickable.StopAtBounds
+
+                                    add: Transition {
+                                        ParallelAnimation {
+                                            NumberAnimation {
+                                                property: "opacity"
+                                                from: 0.0
+                                                to: 1.0
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                            NumberAnimation {
+                                                property: "scale"
+                                                from: 0.96
+                                                to: 1.0
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                                easing.type: animStyle.expoEasing
+                                            }
+                                        }
+                                    }
+
+                                    displaced: Transition {
+                                        NumberAnimation {
+                                            properties: "x,y"
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                            easing.type: animStyle.expoEasing
+                                        }
+                                    }
 
                                     ScrollBar.vertical: ScrollBar {
                                         id: vbar
@@ -1785,25 +2449,24 @@ except Exception as e:
                                         contentItem: Rectangle {
                                             implicitWidth: 4
                                             radius: 2
-                                            color: vbar.pressed ? root.themePrimary : Qt.alpha(root.themeTextMuted, 0.35)
+                                            color: vbar.pressed ? root.themePrimary : Qt.alpha(root.themeTextMuted, 0.45)
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
                                     }
 
-                                    delegate: Rectangle {
+                                    delegate: Item {
+                                        id: forecastRowWrapper
                                         width: forecastListView.width - (vbar.visible ? 10 : 0)
-                                        height: 64
-                                        radius: 12
-                                        color: model.day === "Today"
-                                               ? root.mixColor(root.themeBackground, root.themePrimary, 0.18, 0.74)
-                                               : (forecastItemHover.containsMouse ? root.themeSurfaceHover : root.themeSurface)
-                                        border.width: 1
-                                        border.color: model.day === "Today"
-                                                      ? Qt.alpha(root.themePrimary, 0.65)
-                                                      : (forecastItemHover.containsMouse ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.10))
-                                        antialiasing: true
+                                        height: 68
 
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        property bool rowReady: false
+                                        Component.onCompleted: rowReady = true
 
                                         MouseArea {
                                             id: forecastItemHover
@@ -1811,140 +2474,228 @@ except Exception as e:
                                             hoverEnabled: true
                                         }
 
-                                        RowLayout {
+                                        Rectangle {
                                             anchors.fill: parent
-                                            anchors.leftMargin: 14
-                                            anchors.rightMargin: 14
-                                            spacing: 10
+                                            anchors.leftMargin: 4
+                                            anchors.rightMargin: 4
+                                            anchors.topMargin: 2
+                                            anchors.bottomMargin: 2
+                                            radius: Math.max(10, root.themeRounding - 8)
+                                            color: model.day === "Today"
+                                                   ? (forecastItemHover.containsMouse
+                                                      ? root.mixColor(root.themeBackground, root.themePrimary, 0.24, 0.84)
+                                                      : root.mixColor(root.themeBackground, root.themePrimary, 0.16, 0.78))
+                                                   : (forecastItemHover.containsMouse ? root.themeSurfaceHover : root.themeSurface)
+                                            border.width: 1
+                                            border.color: model.day === "Today"
+                                                          ? Qt.alpha(root.themePrimary, forecastItemHover.containsMouse ? 0.82 : 0.65)
+                                                          : (forecastItemHover.containsMouse ? Qt.alpha(root.themePrimary, 0.48) : Qt.rgba(1.0, 1.0, 1.0, 0.14))
+                                            antialiasing: true
+                                            scale: forecastItemHover.containsMouse ? 1.012 : 1.0
 
-                                            ColumnLayout {
-                                                Layout.preferredWidth: 56
-                                                spacing: 2
-                                                Layout.alignment: Qt.AlignVCenter
-
-                                                Text {
-                                                    text: model.day
-                                                    font.family: root.fontFamily
-                                                    font.pixelSize: 12
-                                                    font.weight: Font.Bold
-                                                    color: model.day === "Today" ? root.themePrimary : root.themeText
-                                                    style: Text.Raised
-                                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                    easing.type: animStyle.smoothEasing
                                                 }
-
-                                                Text {
-                                                    text: model.date
-                                                    font.family: root.fontFamily
-                                                    font.pixelSize: 10
-                                                    font.weight: Font.Medium
-                                                    color: root.themeTextMuted
+                                            }
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on border.color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
                                                 }
                                             }
 
                                             RowLayout {
-                                                Layout.fillWidth: true
-                                                Layout.preferredWidth: 126
-                                                spacing: 8
-                                                Layout.alignment: Qt.AlignVCenter
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 14
+                                                anchors.rightMargin: 14
+                                                spacing: 10
 
-                                                Text {
-                                                    text: model.icon
-                                                    font.family: root.iconFontFamily
-                                                    font.pixelSize: 19
-                                                    color: root.themePrimary
+                                                ColumnLayout {
+                                                    Layout.preferredWidth: 56
+                                                    spacing: 2
                                                     Layout.alignment: Qt.AlignVCenter
-                                                }
 
-                                                Text {
-                                                    text: model.desc
-                                                    font.family: root.fontFamily
-                                                    font.pixelSize: 11
-                                                    font.weight: Font.Medium
-                                                    color: root.themeText
-                                                    elide: Text.ElideRight
-                                                    Layout.fillWidth: true
-                                                    Layout.alignment: Qt.AlignVCenter
-                                                }
-                                            }
-
-                                            ColumnLayout {
-                                                Layout.preferredWidth: 58
-                                                spacing: 2
-                                                Layout.alignment: Qt.AlignVCenter
-
-                                                RowLayout {
-                                                    spacing: 3
                                                     Text {
-                                                        text: "󰖗"
-                                                        font.family: root.iconFontFamily
-                                                        font.pixelSize: 10
-                                                        color: "#38bdf8"
-                                                        opacity: model.pop === "0%" ? 0.38 : 1.0
+                                                        text: model.day
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 12
+                                                        font.weight: Font.Bold
+                                                        color: model.day === "Today" ? root.themePrimary : root.themeText
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                                     }
+
                                                     Text {
-                                                        text: model.pop
+                                                        text: model.date
                                                         font.family: root.fontFamily
                                                         font.pixelSize: 10
-                                                        font.weight: Font.Bold
-                                                        color: model.pop === "0%" ? root.themeTextMuted : "#38bdf8"
+                                                        font.weight: Font.Medium
+                                                        color: root.themeTextMuted
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                                    }
+                                                }
+
+                                                RowLayout {
+                                                    Layout.fillWidth: true
+                                                    Layout.preferredWidth: 126
+                                                    spacing: 8
+                                                    Layout.alignment: Qt.AlignVCenter
+
+                                                    Text {
+                                                        text: model.icon
+                                                        font.family: root.iconFontFamily
+                                                        font.pixelSize: 19
+                                                        color: root.themePrimary
+                                                        Layout.alignment: Qt.AlignVCenter
+                                                        scale: forecastItemHover.containsMouse ? 1.12 : 1.0
+
+                                                        Behavior on scale {
+                                                            NumberAnimation {
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                                easing.type: animStyle.smoothEasing
+                                                            }
+                                                        }
+                                                    }
+
+                                                    Text {
+                                                        text: model.desc
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 11
+                                                        font.weight: Font.Medium
+                                                        color: root.themeText
+                                                        elide: Text.ElideRight
+                                                        Layout.fillWidth: true
+                                                        Layout.alignment: Qt.AlignVCenter
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                                    }
+                                                }
+
+                                                ColumnLayout {
+                                                    Layout.preferredWidth: 58
+                                                    spacing: 2
+                                                    Layout.alignment: Qt.AlignVCenter
+
+                                                    RowLayout {
+                                                        spacing: 3
+                                                        Text {
+                                                            text: "󰖗"
+                                                            font.family: root.iconFontFamily
+                                                            font.pixelSize: 10
+                                                            color: "#38bdf8"
+                                                            opacity: model.pop === "0%" ? 0.45 : 1.0
+                                                        }
+                                                        Text {
+                                                            text: model.pop
+                                                            font.family: root.fontFamily
+                                                            font.pixelSize: 10
+                                                            font.weight: Font.Bold
+                                                            color: model.pop === "0%" ? root.themeTextMuted : "#38bdf8"
+                                                            style: Text.Raised
+                                                            styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                                        }
+                                                    }
+
+                                                    Text {
+                                                        text: model.precip
+                                                        font.family: root.fontFamily
+                                                        font.pixelSize: 9
+                                                        font.weight: Font.Medium
+                                                        color: root.themeTextMuted
+                                                        style: Text.Raised
+                                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                     }
                                                 }
 
                                                 Text {
-                                                    text: model.precip
+                                                    text: model.min
                                                     font.family: root.fontFamily
-                                                    font.pixelSize: 9
+                                                    font.pixelSize: 12
                                                     font.weight: Font.Medium
                                                     color: root.themeTextMuted
+                                                    Layout.preferredWidth: 28
+                                                    horizontalAlignment: Text.AlignRight
+                                                    Layout.alignment: Qt.AlignVCenter
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                                 }
-                                            }
-
-                                            Text {
-                                                text: model.min
-                                                font.family: root.fontFamily
-                                                font.pixelSize: 12
-                                                font.weight: Font.Medium
-                                                color: root.themeTextMuted
-                                                Layout.preferredWidth: 28
-                                                horizontalAlignment: Text.AlignRight
-                                                Layout.alignment: Qt.AlignVCenter
-                                            }
-
-                                            Rectangle {
-                                                Layout.preferredWidth: 68
-                                                Layout.preferredHeight: 6
-                                                radius: 3
-                                                color: Qt.rgba(1, 1, 1, 0.12)
-                                                Layout.alignment: Qt.AlignVCenter
-                                                antialiasing: true
-                                                clip: true
 
                                                 Rectangle {
-                                                    x: parent.width * model.left_ratio
-                                                    width: parent.width * model.width_ratio
-                                                    height: parent.height
+                                                    Layout.preferredWidth: 68
+                                                    Layout.preferredHeight: 6
                                                     radius: 3
+                                                    color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                                                    Layout.alignment: Qt.AlignVCenter
                                                     antialiasing: true
-                                                    gradient: Gradient {
-                                                        orientation: Gradient.Horizontal
-                                                        GradientStop { position: 0.0; color: "#38bdf8" }
-                                                        GradientStop { position: 0.5; color: root.themePrimary }
-                                                        GradientStop { position: 1.0; color: "#fb7185" }
+
+                                                    Canvas {
+                                                        id: tempRangeCanvas
+                                                        anchors.fill: parent
+                                                        antialiasing: true
+
+                                                        property real animLeft: (forecastRowWrapper.rowReady && mainCard.shown) ? model.left_ratio : (model.left_ratio + model.width_ratio / 2)
+                                                        property real animWidth: (forecastRowWrapper.rowReady && mainCard.shown) ? model.width_ratio : 0
+
+                                                        Behavior on animLeft {
+                                                            NumberAnimation {
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.barDuration : 0
+                                                                easing.type: animStyle.expoEasing
+                                                            }
+                                                        }
+                                                        Behavior on animWidth {
+                                                            NumberAnimation {
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.barDuration : 0
+                                                                easing.type: animStyle.expoEasing
+                                                            }
+                                                        }
+
+                                                        onAnimLeftChanged: requestPaint()
+                                                        onAnimWidthChanged: requestPaint()
+                                                        onWidthChanged: requestPaint()
+                                                        onHeightChanged: requestPaint()
+                                                        onAvailableChanged: if (available) requestPaint()
+
+                                                        onPaint: {
+                                                            var ctx = getContext("2d")
+                                                            ctx.reset()
+                                                            if (animWidth <= 0 || width <= 0 || height <= 0) return
+                                                            ctx.save()
+                                                            root.clipRoundedRect(ctx, 0, 0, width, height, 3)
+                                                            var bx = width * animLeft
+                                                            var bw = width * animWidth
+                                                            root.clipRoundedRect(ctx, bx, 0, bw, height, 3)
+                                                            var grad = ctx.createLinearGradient(0, 0, width, 0)
+                                                            grad.addColorStop(0.0, "#38bdf8")
+                                                            grad.addColorStop(0.5, root.themePrimary)
+                                                            grad.addColorStop(1.0, "#fb7185")
+                                                            ctx.fillStyle = grad
+                                                            ctx.fillRect(bx, 0, bw, height)
+                                                            ctx.restore()
+                                                        }
                                                     }
                                                 }
-                                            }
 
-                                            Text {
-                                                text: model.max
-                                                font.family: root.fontFamily
-                                                font.pixelSize: 12
-                                                font.weight: Font.Bold
-                                                color: root.themeText
-                                                Layout.preferredWidth: 28
-                                                horizontalAlignment: Text.AlignLeft
-                                                Layout.alignment: Qt.AlignVCenter
-                                                style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                                Text {
+                                                    text: model.max
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 12
+                                                    font.weight: Font.Bold
+                                                    color: root.themeText
+                                                    Layout.preferredWidth: 28
+                                                    horizontalAlignment: Text.AlignLeft
+                                                    Layout.alignment: Qt.AlignVCenter
+                                                    style: Text.Raised
+                                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                                }
                                             }
                                         }
                                     }

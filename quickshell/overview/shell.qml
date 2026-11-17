@@ -18,19 +18,27 @@ Scope {
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
     property color themeTextMuted: "#D4D4D8"
-    property color themeBackground: "#141416"
+    property color themeBackground: "#0d0e11"
 
     property int themeRounding: 22
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
+    property real themeBgAlpha: 0.25
     property bool animEnabled: true
     property int animDuration: 220
 
     QtObject {
-        id: style
-        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 240) : 200
-        property int fadeDuration: 180
-        property var smoothEasing: Easing.OutCubic
+        id: animStyle
+        property int base: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
+        property int enterDuration: Math.round(base * 1.35)
+        property int exitDuration: Math.round(base * 1.05)
+        property int animDuration: base
+        property int morphDuration: Math.round(base * 1.25)
+        property int fadeDuration: Math.round(base * 0.85)
+        property int microDuration: Math.round(base * 0.65)
+        property int scaleDuration: Math.round(base * 1.1)
+        property var smoothEasing: Easing.OutQuint
+        property var expoEasing: Easing.OutExpo
+        property var exitEasing: Easing.OutQuint
     }
 
     function mixColor(c1, c2, ratio, alphaVal) {
@@ -44,6 +52,7 @@ Scope {
 
     property bool isOpened: false
     property bool isClosing: false
+    property bool panelVisible: isOpened && !isClosing
     property string activeCursorMonitor: ""
 
     property int selectedIndex: 0
@@ -96,10 +105,6 @@ Scope {
                     root.themeBorder = "#" + borderMatch[1]
                     root.themePrimary = "#" + borderMatch[1]
                 }
-                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
-                if (bgMatch && bgMatch[1]) {
-                    root.themeBackground = "#" + bgMatch[1]
-                }
             } catch (e) {}
         }
     }
@@ -149,6 +154,13 @@ Scope {
         }
     }
 
+    Timer {
+        id: openAnimTimer
+        interval: 16
+        repeat: false
+        onTriggered: root.isOpened = true
+    }
+
     Component.onCompleted: {
         let defaultList = []
         for (let i = 1; i <= 10; i++) {
@@ -173,7 +185,7 @@ Scope {
         colorFile.reload()
         generalFile.reload()
         animConfigFile.reload()
-        root.isOpened = true
+        openAnimTimer.start()
 
         let pyScript = `
 import json, subprocess
@@ -203,16 +215,9 @@ except Exception:
         cursorMonitorProcess.running = true
     }
 
-    Timer {
-        id: closeTimer
-        interval: 50
-        onTriggered: Qt.quit()
-    }
-
     function switchToWorkspace(item) {
         if (!item || root.isClosing) return
         root.isClosing = true
-        root.isOpened = false
 
         let targetId = item.id
         let isSpecial = item.isSpecial || false
@@ -244,17 +249,13 @@ except Exception:
         }
 
         Quickshell.execDetached(["bash", "-c", envPrefix + "nohup " + bashCmd + " >/dev/null 2>&1 &"])
-
-        closeTimer.interval = 50
-        closeTimer.start()
+        Qt.quit()
     }
 
     function dismissMenu() {
         if (root.isClosing) return
         root.isClosing = true
-        root.isOpened = false
-        closeTimer.interval = 20
-        closeTimer.start()
+        Qt.quit()
     }
 
     Process {
@@ -301,7 +302,7 @@ except Exception:
 
     Timer {
         interval: 350
-        running: true
+        running: !root.isClosing
         repeat: true
         triggeredOnStart: true
         onTriggered: {
@@ -637,10 +638,10 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-overview"
 
-            WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: (isTargetMonitor && !root.isClosing) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
-            visible: root.isOpened && !root.isClosing && isTargetMonitor
+            visible: isTargetMonitor && !root.isClosing
 
             anchors {
                 top: true
@@ -653,10 +654,11 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
             Item {
                 anchors.fill: parent
-                visible: isTargetMonitor
+                visible: isTargetMonitor && !root.isClosing
 
                 MouseArea {
                     anchors.fill: parent
+                    enabled: !root.isClosing
                     onClicked: root.dismissMenu()
                 }
 
@@ -673,6 +675,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                     }
 
                     Keys.onPressed: (event) => {
+                        if (root.isClosing) return
                         if (event.key === Qt.Key_Escape) {
                             root.dismissMenu()
                             event.accepted = true
@@ -735,28 +738,69 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                         radius: root.themeRounding
                         color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                         border.width: root.themeBorderSize
-                        border.color: Qt.alpha(root.themePrimary, 0.42)
+                        border.color: Qt.alpha(root.themePrimary, 0.35)
                         antialiasing: true
                         clip: true
+                        enabled: !root.isClosing
 
-                        opacity: root.isClosing ? 0.0 : (root.isOpened ? 1.0 : 0.0)
+                        property bool settled: false
+                        property bool activeVisibility: root.panelVisible
 
-                        Behavior on opacity {
-                            NumberAnimation {
-                                duration: root.animEnabled ? style.fadeDuration : 0
-                                easing.type: style.smoothEasing
+                        layer.enabled: root.animEnabled && !settled && !root.isClosing
+                        layer.smooth: true
+
+                        onActiveVisibilityChanged: {
+                            if (activeVisibility) {
+                                settled = false
+                                settleTimer.restart()
                             }
                         }
 
-                        Rectangle {
-                            anchors.fill: parent
-                            anchors.margins: root.themeBorderSize
-                            radius: Math.max(0, parent.radius - root.themeBorderSize)
-                            antialiasing: true
-                            gradient: Gradient {
-                                GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.10) }
-                                GradientStop { position: 0.35; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
-                                GradientStop { position: 1.0; color: "transparent" }
+                        Timer {
+                            id: settleTimer
+                            interval: animStyle.enterDuration + 40
+                            repeat: false
+                            onTriggered: cardRect.settled = true
+                        }
+
+                        opacity: root.panelVisible ? 1.0 : 0.0
+
+                        transform: [
+                            Scale {
+                                origin.x: cardRect.width / 2
+                                origin.y: cardRect.height / 2
+                                xScale: root.panelVisible ? 1.0 : 0.94
+                                yScale: root.panelVisible ? 1.0 : 0.94
+
+                                Behavior on xScale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing && root.panelVisible) ? animStyle.enterDuration : 0
+                                        easing.type: animStyle.expoEasing
+                                    }
+                                }
+                                Behavior on yScale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing && root.panelVisible) ? animStyle.enterDuration : 0
+                                        easing.type: animStyle.expoEasing
+                                    }
+                                }
+                            },
+                            Translate {
+                                y: root.panelVisible ? 0 : 12
+
+                                Behavior on y {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing && root.panelVisible) ? animStyle.enterDuration : 0
+                                        easing.type: animStyle.expoEasing
+                                    }
+                                }
+                            }
+                        ]
+
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: (root.animEnabled && !root.isClosing && root.panelVisible) ? animStyle.fadeDuration : 0
+                                easing.type: animStyle.smoothEasing
                             }
                         }
 
@@ -777,11 +821,39 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                 Rectangle {
                                     width: 40
                                     height: 40
-                                    radius: 12
-                                    color: Qt.alpha(root.themePrimary, 0.18)
+                                    radius: headerIconHover.hovered ? 14 : 12
+                                    color: Qt.alpha(root.themePrimary, headerIconHover.hovered ? 0.24 : 0.16)
                                     border.width: 1
-                                    border.color: Qt.alpha(root.themePrimary, 0.40)
+                                    border.color: Qt.alpha(root.themePrimary, headerIconHover.hovered ? 0.65 : 0.35)
                                     antialiasing: true
+                                    scale: headerIconHover.hovered ? 1.05 : 1.0
+
+                                    HoverHandler { id: headerIconHover }
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on radius {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
 
                                     Text {
                                         anchors.centerIn: parent
@@ -810,7 +882,10 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                         }
 
                                         Rectangle {
-                                            visible: root.totalWindowsCount > 0
+                                            property bool hasWins: root.totalWindowsCount > 0
+                                            visible: opacity > 0.01
+                                            opacity: hasWins ? 1.0 : 0.0
+                                            scale: hasWins ? 1.0 : 0.85
                                             Layout.preferredWidth: winCountBadge.implicitWidth + 14
                                             Layout.preferredHeight: 20
                                             radius: 10
@@ -818,6 +893,25 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                             border.width: 1
                                             border.color: Qt.alpha(root.themePrimary, 0.45)
                                             antialiasing: true
+
+                                            Behavior on opacity {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on Layout.preferredWidth {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
 
                                             Text {
                                                 id: winCountBadge
@@ -848,16 +942,29 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                     Layout.preferredWidth: escRow.implicitWidth + 20
                                     Layout.preferredHeight: 32
                                     radius: 10
-                                    color: closeBtnArea.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.38)
+                                    color: closeBtnArea.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.45)
                                     border.width: 1
-                                    border.color: closeBtnArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.16)
+                                    border.color: closeBtnArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.14)
                                     antialiasing: true
+                                    scale: closeBtnArea.pressed ? 0.92 : (closeBtnArea.containsMouse ? 1.05 : 1.0)
 
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
                                     Behavior on color {
-                                        ColorAnimation { duration: style.fadeDuration; easing.type: style.smoothEasing }
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
                                     }
                                     Behavior on border.color {
-                                        ColorAnimation { duration: style.fadeDuration; easing.type: style.smoothEasing }
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
                                     }
 
                                     RowLayout {
@@ -907,7 +1014,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                             Rectangle {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 1
-                                color: Qt.rgba(255, 255, 255, 0.12)
+                                color: Qt.rgba(255, 255, 255, 0.1)
                             }
 
                             Grid {
@@ -931,11 +1038,13 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                         property int winCount: modelData.windows ? modelData.windows.length : 0
                                         property int cardRadius: Math.max(12, root.themeRounding - 6)
 
-                                        scale: cardMouse.containsMouse || cardItem.isSelected ? 1.05 : 1.0
+                                        z: (cardMouse.containsMouse || cardItem.isSelected) ? 10 : (cardItem.isActiveWs ? 5 : 1)
+                                        scale: cardMouse.pressed ? 0.97 : ((cardMouse.containsMouse || cardItem.isSelected) ? 1.03 : 1.0)
+
                                         Behavior on scale {
                                             NumberAnimation {
-                                                duration: root.animEnabled ? 180 : 0
-                                                easing.type: Easing.OutCubic
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
                                             }
                                         }
 
@@ -960,8 +1069,16 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                 fillMode: Image.PreserveAspectCrop
                                                 asynchronous: true
                                                 cache: true
-                                                visible: status === Image.Ready && source !== ""
+                                                visible: opacity > 0.01
+                                                opacity: (status === Image.Ready && source !== "") ? 1.0 : 0.0
                                                 antialiasing: true
+
+                                                Behavior on opacity {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
                                             }
 
                                             Rectangle {
@@ -971,8 +1088,8 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                                                 Behavior on opacity {
                                                     NumberAnimation {
-                                                        duration: style.fadeDuration
-                                                        easing.type: style.smoothEasing
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
                                                     }
                                                 }
                                             }
@@ -995,8 +1112,8 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                                                 Behavior on color {
                                                     ColorAnimation {
-                                                        duration: style.fadeDuration
-                                                        easing.type: style.smoothEasing
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
                                                     }
                                                 }
                                             }
@@ -1034,12 +1151,27 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                 }
 
                                                 Rectangle {
-                                                    visible: cardItem.isActiveWs
+                                                    visible: opacity > 0.01
+                                                    opacity: cardItem.isActiveWs ? 1.0 : 0.0
+                                                    scale: cardItem.isActiveWs ? 1.0 : 0.75
                                                     Layout.preferredWidth: activeLabel.implicitWidth + 12
                                                     Layout.preferredHeight: 18
                                                     radius: 9
                                                     color: root.themePrimary
                                                     antialiasing: true
+
+                                                    Behavior on opacity {
+                                                        NumberAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                    Behavior on scale {
+                                                        NumberAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
 
                                                     Text {
                                                         id: activeLabel
@@ -1077,17 +1209,24 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                                                       ? root.themePrimary
                                                                       : Qt.rgba(255, 255, 255, 0.22)
                                                         antialiasing: true
+                                                        scale: iconMouse.containsMouse ? 1.08 : 1.0
 
+                                                        Behavior on scale {
+                                                            NumberAnimation {
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                                easing.type: animStyle.smoothEasing
+                                                            }
+                                                        }
                                                         Behavior on color {
                                                             ColorAnimation {
-                                                                duration: style.fadeDuration
-                                                                easing.type: style.smoothEasing
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                                easing.type: animStyle.smoothEasing
                                                             }
                                                         }
                                                         Behavior on border.color {
                                                             ColorAnimation {
-                                                                duration: style.fadeDuration
-                                                                easing.type: style.smoothEasing
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                                easing.type: animStyle.smoothEasing
                                                             }
                                                         }
 
@@ -1165,8 +1304,8 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
 
                                             Behavior on border.color {
                                                 ColorAnimation {
-                                                    duration: root.animEnabled ? style.fadeDuration : 0
-                                                    easing.type: style.smoothEasing
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
                                                 }
                                             }
                                         }
@@ -1196,7 +1335,7 @@ print(json.dumps({"wallpaper": wallpaper, "thumb": thumb, "workspaces": result})
                                 Layout.preferredWidth: footerRow.implicitWidth + 28
                                 Layout.preferredHeight: 32
                                 radius: 10
-                                color: Qt.rgba(0, 0, 0, 0.38)
+                                color: Qt.rgba(0, 0, 0, 0.45)
                                 border.width: 1
                                 border.color: Qt.rgba(255, 255, 255, 0.12)
                                 antialiasing: true

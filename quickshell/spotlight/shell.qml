@@ -13,9 +13,55 @@ Scope {
     property string fontFamily: "Adwaita Sans"
     property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
+    property bool animEnabled: true
+    property int animDuration: 220
+    property bool isClosing: false
+    property bool surfaceHidden: false
+
+    QtObject {
+        id: animStyle
+        property int base: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
+        property int enterDuration: Math.round(base * 1.35)
+        property int exitDuration: Math.round(base * 0.85)
+        property int animDuration: base
+        property int morphDuration: Math.round(base * 1.25)
+        property int fadeDuration: Math.round(base * 0.8)
+        property int microDuration: Math.round(base * 0.65)
+        property int scaleDuration: Math.round(base * 1.1)
+        property var smoothEasing: Easing.OutQuint
+        property var expoEasing: Easing.OutExpo
+        property var exitEasing: Easing.InCubic
+    }
+
+    function quitApp() {
+        if (root.isClosing) return
+        root.isClosing = true
+        if (!root.animEnabled) {
+            root.surfaceHidden = true
+            Qt.quit()
+            return
+        }
+        hideSurfaceTimer.start()
+        quitTimer.start()
+    }
+
+    Timer {
+        id: hideSurfaceTimer
+        interval: animStyle.exitDuration
+        repeat: false
+        onTriggered: root.surfaceHidden = true
+    }
+
+    Timer {
+        id: quitTimer
+        interval: animStyle.exitDuration + 50
+        repeat: false
+        onTriggered: Qt.quit()
+    }
+
     Shortcut {
         sequence: "Escape"
-        onActivated: Qt.quit()
+        onActivated: root.quitApp()
     }
 
     property string lockedMonitor: ""
@@ -48,23 +94,15 @@ Scope {
 
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
-    property bool animEnabled: true
-    property int animDuration: 220
+    property real themeBgAlpha: 0.36
 
     property color themeBackground: "#141416"
-    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.58)
+    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.68)
+    property color themeSurfaceHover: Qt.rgba(0.08, 0.08, 0.12, 0.78)
     property color themeBorder: "#ffb3af"
     property color themeText: "#ffffff"
-    property color themeTextMuted: "#a1a1aa"
+    property color themeTextMuted: "#D4D4D8"
     property color themePrimary: "#ffb3af"
-
-    QtObject {
-        id: animStyle
-        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 240) : 200
-        property int fadeDuration: 180
-        property var smoothEasing: Easing.OutCubic
-    }
 
     function mixColor(c1, c2, ratio, alphaVal) {
         let col1 = Qt.color(c1)
@@ -115,7 +153,7 @@ Scope {
             try {
                 let content = text()
                 let rMatch = content.match(/rounding\s*=\s*(\d+)/)
-                if (rMatch && rMatch[1]) root.themeRounding = Math.max(14, parseInt(rMatch[1]))
+                if (rMatch && rMatch[1]) root.themeRounding = Math.max(16, parseInt(rMatch[1]))
 
                 let bMatch = content.match(/border_size\s*=\s*(\d+)/)
                 if (bMatch && bMatch[1]) root.themeBorderSize = Math.max(2, parseInt(bMatch[1]))
@@ -273,12 +311,6 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
         }
     }
 
-    Timer {
-        id: closeTimer
-        interval: 60
-        onTriggered: Qt.quit()
-    }
-
     ListModel {
         id: searchResultsModel
     }
@@ -290,7 +322,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
     }
 
     function executeResult(itemType, filePath, fileName) {
-        if (!filePath) return
+        if (!filePath || root.isClosing) return
         let cmd = ""
         if (itemType === "app" || filePath.endsWith(".desktop")) {
             let desktopBase = filePath.split("/").pop()
@@ -301,7 +333,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
         launchProcess.running = false
         launchProcess.command = ["bash", "-c", cmd]
         launchProcess.running = true
-        closeTimer.start()
+        root.quitApp()
     }
 
     property string activeSearchQuery: ""
@@ -437,16 +469,17 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
             required property var modelData
             screen: modelData
 
-            visible: root.lockedMonitor !== "" && modelData.name === root.lockedMonitor
+            property bool isTargetMonitor: root.lockedMonitor !== "" && modelData.name === root.lockedMonitor
+            visible: isTargetMonitor && !root.surfaceHidden
 
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.Exclusive
+            WlrLayershell.keyboardFocus: (isTargetMonitor && !root.isClosing) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             WlrLayershell.namespace: "qs-spotlight"
             WlrLayershell.layer: WlrLayer.Overlay
             exclusiveZone: -1
 
             Shortcut {
                 sequence: "Escape"
-                onActivated: Qt.quit()
+                onActivated: root.quitApp()
             }
 
             anchors {
@@ -456,11 +489,13 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                 right: true
             }
 
+            mask: Region { item: searchContainer }
             color: "transparent"
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: Qt.quit()
+                enabled: !root.isClosing
+                onClicked: root.quitApp()
             }
 
             Rectangle {
@@ -476,34 +511,83 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                 radius: root.themeRounding
                 border.width: root.themeBorderSize
-                border.color: Qt.alpha(root.themePrimary, 0.42)
+                border.color: Qt.alpha(root.themePrimary, 0.48)
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                 antialiasing: true
                 clip: true
+                enabled: !root.isClosing
 
-                opacity: root.isLoaded ? 1.0 : 0.0
-
-                transform: Translate {
-                    y: root.isLoaded ? 0 : 12
-                    Behavior on y {
-                        NumberAnimation {
-                            duration: root.animEnabled ? animStyle.animDuration : 0
-                            easing.type: animStyle.smoothEasing
-                        }
+                Rectangle {
+                    anchors.fill: parent
+                    radius: parent.radius
+                    gradient: Gradient {
+                        GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.12) }
+                        GradientStop { position: 0.25; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
+                        GradientStop { position: 1.0; color: Qt.rgba(0.0, 0.0, 0.0, 0.12) }
                     }
                 }
 
+                Rectangle {
+                    anchors.fill: parent
+                    anchors.margins: root.themeBorderSize
+                    radius: Math.max(0, parent.radius - root.themeBorderSize)
+                    color: "transparent"
+                    border.width: 1
+                    border.color: Qt.rgba(1.0, 1.0, 1.0, 0.16)
+                    antialiasing: true
+                }
+
+                property bool shown: false
+                property bool panelVisible: shown && !root.isClosing
+
+                Component.onCompleted: {
+                    shown = true
+                }
+
+                opacity: panelVisible ? 1.0 : 0.0
+
+                transform: [
+                    Scale {
+                        origin.x: searchContainer.width / 2
+                        origin.y: 35
+                        xScale: searchContainer.panelVisible ? 1.0 : 0.94
+                        yScale: searchContainer.panelVisible ? 1.0 : 0.94
+
+                        Behavior on xScale {
+                            NumberAnimation {
+                                duration: root.animEnabled ? (searchContainer.panelVisible ? animStyle.enterDuration : animStyle.exitDuration) : 0
+                                easing.type: searchContainer.panelVisible ? animStyle.expoEasing : animStyle.exitEasing
+                            }
+                        }
+                        Behavior on yScale {
+                            NumberAnimation {
+                                duration: root.animEnabled ? (searchContainer.panelVisible ? animStyle.enterDuration : animStyle.exitDuration) : 0
+                                easing.type: searchContainer.panelVisible ? animStyle.expoEasing : animStyle.exitEasing
+                            }
+                        }
+                    },
+                    Translate {
+                        y: searchContainer.panelVisible ? 0 : -14
+                        Behavior on y {
+                            NumberAnimation {
+                                duration: root.animEnabled ? (searchContainer.panelVisible ? animStyle.enterDuration : animStyle.exitDuration) : 0
+                                easing.type: searchContainer.panelVisible ? animStyle.expoEasing : animStyle.exitEasing
+                            }
+                        }
+                    }
+                ]
+
                 Behavior on height {
                     NumberAnimation {
-                        duration: root.animEnabled ? animStyle.animDuration : 0
-                        easing.type: animStyle.smoothEasing
+                        duration: root.animEnabled ? animStyle.morphDuration : 0
+                        easing.type: animStyle.expoEasing
                     }
                 }
 
                 Behavior on opacity {
                     NumberAnimation {
-                        duration: root.animEnabled ? animStyle.fadeDuration : 0
-                        easing.type: animStyle.smoothEasing
+                        duration: root.animEnabled ? (searchContainer.panelVisible ? animStyle.fadeDuration : animStyle.exitDuration) : 0
+                        easing.type: searchContainer.panelVisible ? animStyle.smoothEasing : animStyle.exitEasing
                     }
                 }
 
@@ -542,11 +626,19 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                         Rectangle {
                             width: 34
                             height: 34
-                            radius: 9
-                            color: Qt.alpha(root.themePrimary, 0.16)
+                            radius: root.searchMode === "apps" ? 10 : 12
+                            color: Qt.alpha(root.themePrimary, 0.22)
                             border.width: 1
-                            border.color: Qt.alpha(root.themePrimary, 0.35)
+                            border.color: Qt.alpha(root.themePrimary, 0.42)
                             Layout.alignment: Qt.AlignVCenter
+                            antialiasing: true
+
+                            Behavior on radius {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.microDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
 
                             Text {
                                 anchors.centerIn: parent
@@ -577,7 +669,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                             selectedTextColor: root.themeText
 
                             placeholderText: root.searchMode === "apps" ? "Search applications..." : "Search files..."
-                            placeholderTextColor: Qt.rgba(1.0, 1.0, 1.0, 0.42)
+                            placeholderTextColor: Qt.rgba(1.0, 1.0, 1.0, 0.52)
                             verticalAlignment: TextInput.AlignVCenter
 
                             background: Item {}
@@ -608,7 +700,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                             }
 
                             Keys.onEscapePressed: (event) => {
-                                Qt.quit()
+                                root.quitApp()
                                 event.accepted = true
                             }
 
@@ -626,19 +718,40 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                         }
 
                         Rectangle {
-                            width: 26
-                            height: 26
-                            radius: 7
-                            color: clearBtnMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.06)
+                            property bool hasText: searchInput.text !== ""
+                            width: 28
+                            height: 28
+                            radius: 8
+                            color: clearBtnMouse.containsMouse ? root.themeSurfaceHover : root.themeSurface
                             border.width: 1
-                            border.color: Qt.rgba(1, 1, 1, 0.12)
+                            border.color: clearBtnMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1.0, 1.0, 1.0, 0.18)
                             antialiasing: true
-                            visible: searchInput.text !== ""
+                            visible: opacity > 0.01
+                            opacity: hasText ? 1.0 : 0.0
+                            scale: hasText ? (clearBtnMouse.pressed ? 0.92 : (clearBtnMouse.containsMouse ? 1.05 : 1.0)) : 0.75
                             Layout.alignment: Qt.AlignVCenter
 
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.microDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
                             Behavior on color {
                                 ColorAnimation {
-                                    duration: animStyle.fadeDuration
+                                    duration: animStyle.microDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: animStyle.microDuration
                                     easing.type: animStyle.smoothEasing
                                 }
                             }
@@ -647,7 +760,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                                 anchors.centerIn: parent
                                 text: "󰅖"
                                 font.family: root.iconFontFamily
-                                color: root.themeTextMuted
+                                color: clearBtnMouse.containsMouse ? root.themeText : root.themeTextMuted
                                 font.pixelSize: 12
                             }
 
@@ -669,9 +782,9 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                             Layout.preferredHeight: 34
                             Layout.alignment: Qt.AlignVCenter
                             radius: 10
-                            color: Qt.rgba(0.02, 0.02, 0.03, 0.65)
+                            color: Qt.rgba(0.02, 0.02, 0.03, 0.72)
                             border.width: 1
-                            border.color: Qt.rgba(1, 1, 1, 0.14)
+                            border.color: Qt.rgba(1.0, 1.0, 1.0, 0.16)
                             antialiasing: true
 
                             Rectangle {
@@ -688,8 +801,8 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                                 Behavior on x {
                                     NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.smoothEasing
+                                        duration: root.animEnabled ? animStyle.morphDuration : 0
+                                        easing.type: animStyle.expoEasing
                                     }
                                 }
                             }
@@ -711,6 +824,13 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                                             font.family: root.iconFontFamily
                                             font.pixelSize: 12
                                             color: root.searchMode === "apps" ? root.themePrimary : root.themeTextMuted
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: animStyle.fadeDuration
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
 
                                         Text {
@@ -719,6 +839,13 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                                             font.pixelSize: 11
                                             font.weight: Font.Bold
                                             color: root.searchMode === "apps" ? root.themeText : root.themeTextMuted
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: animStyle.fadeDuration
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
                                     }
 
@@ -745,6 +872,13 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                                             font.family: root.iconFontFamily
                                             font.pixelSize: 12
                                             color: root.searchMode === "files" ? root.themePrimary : root.themeTextMuted
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: animStyle.fadeDuration
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
 
                                         Text {
@@ -753,6 +887,13 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                                             font.pixelSize: 11
                                             font.weight: Font.Bold
                                             color: root.searchMode === "files" ? root.themeText : root.themeTextMuted
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: animStyle.fadeDuration
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
                                     }
 
@@ -773,20 +914,27 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                             Layout.preferredHeight: 34
                             Layout.alignment: Qt.AlignVCenter
                             radius: 9
-                            color: escBadgeMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.16) : Qt.rgba(0.02, 0.02, 0.03, 0.55)
+                            color: escBadgeMouse.containsMouse ? root.themeSurfaceHover : root.themeSurface
                             border.width: 1
-                            border.color: escBadgeMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(255, 255, 255, 0.14)
+                            border.color: escBadgeMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.55) : Qt.rgba(1.0, 1.0, 1.0, 0.18)
                             antialiasing: true
+                            scale: escBadgeMouse.pressed ? 0.92 : (escBadgeMouse.containsMouse ? 1.05 : 1.0)
 
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
                             Behavior on color {
                                 ColorAnimation {
-                                    duration: animStyle.fadeDuration
+                                    duration: animStyle.microDuration
                                     easing.type: animStyle.smoothEasing
                                 }
                             }
                             Behavior on border.color {
                                 ColorAnimation {
-                                    duration: animStyle.fadeDuration
+                                    duration: animStyle.microDuration
                                     easing.type: animStyle.smoothEasing
                                 }
                             }
@@ -798,6 +946,13 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                                 color: escBadgeMouse.containsMouse ? root.themePrimary : root.themeTextMuted
                                 font.pixelSize: 10
                                 font.weight: Font.Bold
+
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: animStyle.microDuration
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
                             }
 
                             MouseArea {
@@ -805,7 +960,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: Qt.quit()
+                                onClicked: root.quitApp()
                             }
                         }
                     }
@@ -813,14 +968,30 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                     Rectangle {
                         Layout.fillWidth: true
                         height: 1
-                        color: Qt.rgba(255, 255, 255, 0.10)
+                        color: Qt.rgba(1.0, 1.0, 1.0, 0.16)
                         visible: searchResultsModel.count > 0 || searchInput.text.trim() !== ""
                     }
 
                     Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 52
-                        visible: searchResultsModel.count === 0 && searchInput.text.trim() !== ""
+                        property bool showEmpty: searchResultsModel.count === 0 && searchInput.text.trim() !== ""
+                        visible: showEmpty
+                        opacity: showEmpty ? 1.0 : 0.0
+                        scale: showEmpty ? 1.0 : 0.96
+
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                easing.type: animStyle.smoothEasing
+                            }
+                        }
+                        Behavior on scale {
+                            NumberAnimation {
+                                duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                easing.type: animStyle.smoothEasing
+                            }
+                        }
 
                         RowLayout {
                             anchors.centerIn: parent
@@ -830,7 +1001,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                                 text: root.searchMode === "apps" ? "󰀻" : "󰉋"
                                 font.family: root.iconFontFamily
                                 color: root.themePrimary
-                                opacity: 0.75
+                                opacity: 0.85
                                 font.pixelSize: 16
                             }
 
@@ -841,7 +1012,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                                 font.pixelSize: 12
                                 font.weight: Font.Medium
                                 style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                styleColor: Qt.rgba(0, 0, 0, 0.85)
                             }
                         }
                     }
@@ -849,11 +1020,13 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                     ListView {
                         id: resultsList
                         Layout.fillWidth: true
+                        Layout.leftMargin: -4
+                        Layout.rightMargin: -4
                         Layout.preferredHeight: Math.min(searchResultsModel.count * 48, 384)
                         visible: searchResultsModel.count > 0
                         model: searchResultsModel
                         clip: true
-                        spacing: 4
+                        spacing: 2
                         boundsBehavior: Flickable.StopAtBounds
 
                         opacity: searchResultsModel.count > 0 ? 1.0 : 0.0
@@ -866,29 +1039,38 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                         }
 
                         add: Transition {
-                            NumberAnimation {
-                                property: "opacity"
-                                from: 0
-                                to: 1
-                                duration: root.animEnabled ? animStyle.fadeDuration : 0
-                                easing.type: animStyle.smoothEasing
+                            ParallelAnimation {
+                                NumberAnimation {
+                                    property: "opacity"
+                                    from: 0.0
+                                    to: 1.0
+                                    duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                                NumberAnimation {
+                                    property: "scale"
+                                    from: 0.96
+                                    to: 1.0
+                                    duration: root.animEnabled ? animStyle.morphDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
                             }
                         }
 
                         remove: Transition {
                             NumberAnimation {
                                 property: "opacity"
-                                to: 0
-                                duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                to: 0.0
+                                duration: root.animEnabled ? animStyle.microDuration : 0
                                 easing.type: animStyle.smoothEasing
                             }
                         }
 
                         displaced: Transition {
                             NumberAnimation {
-                                properties: "y"
-                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                easing.type: animStyle.smoothEasing
+                                properties: "x,y"
+                                duration: root.animEnabled ? animStyle.morphDuration : 0
+                                easing.type: animStyle.expoEasing
                             }
                         }
 
@@ -905,130 +1087,22 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                                 implicitWidth: 4
                                 radius: 2
                                 color: vbar.pressed ? root.themePrimary : Qt.alpha(root.themeTextMuted, 0.35)
+
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: animStyle.microDuration
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
                             }
                         }
 
-                        delegate: Rectangle {
-                            id: itemCard
+                        delegate: Item {
+                            id: itemCardWrapper
                             width: resultsList.width - (vbar.visible ? 10 : 0)
-                            height: 44
+                            height: 46
 
-                            radius: 10
                             property bool isSelected: ListView.isCurrentItem
-
-                            color: isSelected
-                                   ? root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.78)
-                                   : (itemCardMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.08) : Qt.rgba(0.02, 0.02, 0.03, 0.38))
-                            border.width: 1
-                            border.color: isSelected
-                                          ? Qt.alpha(root.themePrimary, 0.65)
-                                          : (itemCardMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.16) : Qt.rgba(255, 255, 255, 0.06))
-                            antialiasing: true
-
-                            Behavior on color {
-                                ColorAnimation {
-                                    duration: animStyle.fadeDuration
-                                    easing.type: animStyle.smoothEasing
-                                }
-                            }
-                            Behavior on border.color {
-                                ColorAnimation {
-                                    duration: animStyle.fadeDuration
-                                    easing.type: animStyle.smoothEasing
-                                }
-                            }
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 12
-                                anchors.rightMargin: 12
-                                spacing: 10
-
-                                ToolButton {
-                                    Layout.preferredWidth: 24
-                                    Layout.preferredHeight: 24
-                                    Layout.alignment: Qt.AlignVCenter
-
-                                    icon.name: model.iconName.indexOf("/") === 0 ? "" : model.iconName
-                                    icon.source: model.iconName.indexOf("/") === 0 ? "file://" + model.iconName : ""
-
-                                    icon.width: 24
-                                    icon.height: 24
-                                    icon.color: "transparent"
-
-                                    background: Item {}
-                                    hoverEnabled: false
-                                    down: false
-                                    padding: 0
-                                }
-
-                                Text {
-                                    text: model.displayName
-                                    color: root.themeText
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 13
-                                    font.weight: itemCard.isSelected ? Font.Bold : Font.DemiBold
-                                    elide: Text.ElideRight
-                                    Layout.fillWidth: model.subtitle === ""
-                                    Layout.maximumWidth: model.subtitle !== "" ? 320 : 1000
-                                    Layout.alignment: Qt.AlignVCenter
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.8)
-                                }
-
-                                Text {
-                                    visible: model.subtitle !== ""
-                                    text: model.subtitle
-                                    color: root.themeTextMuted
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 11
-                                    font.weight: Font.Medium
-                                    elide: Text.ElideMiddle
-                                    Layout.fillWidth: true
-                                    Layout.alignment: Qt.AlignVCenter
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
-                                }
-
-                                Rectangle {
-                                    Layout.preferredHeight: 20
-                                    Layout.preferredWidth: typeText.implicitWidth + 12
-                                    radius: 5
-                                    color: model.itemType === "app" ? Qt.alpha(root.themePrimary, 0.18) : Qt.rgba(255, 255, 255, 0.08)
-                                    border.width: 1
-                                    border.color: model.itemType === "app" ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(255, 255, 255, 0.14)
-                                    antialiasing: true
-                                    Layout.alignment: Qt.AlignVCenter
-
-                                    Text {
-                                        id: typeText
-                                        anchors.centerIn: parent
-                                        text: model.itemType === "app" ? "APP" : "FILE"
-                                        font.family: root.fontFamily
-                                        font.pixelSize: 9
-                                        font.weight: Font.Bold
-                                        font.letterSpacing: 0.6
-                                        color: model.itemType === "app" ? root.themePrimary : root.themeTextMuted
-                                    }
-                                }
-
-                                Text {
-                                    opacity: itemCard.isSelected ? 1.0 : 0.0
-                                    visible: opacity > 0.0
-                                    text: "󰌑"
-                                    font.family: root.iconFontFamily
-                                    color: root.themePrimary
-                                    font.pixelSize: 13
-                                    Layout.alignment: Qt.AlignVCenter
-
-                                    Behavior on opacity {
-                                        NumberAnimation {
-                                            duration: animStyle.fadeDuration
-                                            easing.type: animStyle.smoothEasing
-                                        }
-                                    }
-                                }
-                            }
 
                             MouseArea {
                                 id: itemCardMouse
@@ -1039,6 +1113,130 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                                 onClicked: {
                                     resultsList.currentIndex = index
                                     executeResult(model.itemType, model.filePath, model.fileName)
+                                }
+                            }
+
+                            Rectangle {
+                                id: itemCard
+                                anchors.fill: parent
+                                anchors.leftMargin: 4
+                                anchors.rightMargin: 4
+                                anchors.topMargin: 1
+                                anchors.bottomMargin: 1
+
+                                radius: Math.max(8, root.themeRounding - 10)
+                                color: itemCardWrapper.isSelected
+                                       ? root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.78)
+                                       : (itemCardMouse.containsMouse ? root.themeSurfaceHover : root.themeSurface)
+                                border.width: 1
+                                border.color: itemCardWrapper.isSelected
+                                              ? Qt.alpha(root.themePrimary, 0.65)
+                                              : (itemCardMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.48) : Qt.rgba(1.0, 1.0, 1.0, 0.16))
+                                antialiasing: true
+                                scale: itemCardMouse.pressed
+                                       ? 0.985
+                                       : ((itemCardWrapper.isSelected || itemCardMouse.containsMouse) ? 1.008 : 1.0)
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: animStyle.fadeDuration
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: animStyle.fadeDuration
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 12
+                                    anchors.rightMargin: 12
+                                    spacing: 10
+
+                                    ToolButton {
+                                        Layout.preferredWidth: 24
+                                        Layout.preferredHeight: 24
+                                        Layout.alignment: Qt.AlignVCenter
+
+                                        icon.name: model.iconName.indexOf("/") === 0 ? "" : model.iconName
+                                        icon.source: model.iconName.indexOf("/") === 0 ? "file://" + model.iconName : ""
+
+                                        icon.width: 24
+                                        icon.height: 24
+                                        icon.color: "transparent"
+
+                                        background: Item {}
+                                        hoverEnabled: false
+                                        down: false
+                                        padding: 0
+                                        scale: (itemCardWrapper.isSelected || itemCardMouse.containsMouse) ? 1.06 : 1.0
+
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                    }
+
+                                    Text {
+                                        text: model.displayName
+                                        color: root.themeText
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 13
+                                        font.weight: itemCardWrapper.isSelected ? Font.Bold : Font.DemiBold
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: model.subtitle === ""
+                                        Layout.maximumWidth: model.subtitle !== "" ? 320 : 1000
+                                        Layout.alignment: Qt.AlignVCenter
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                    }
+
+                                    Text {
+                                        visible: model.subtitle !== ""
+                                        text: model.subtitle
+                                        color: root.themeTextMuted
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 11
+                                        font.weight: Font.Medium
+                                        elide: Text.ElideMiddle
+                                        Layout.fillWidth: true
+                                        Layout.alignment: Qt.AlignVCenter
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                    }
+
+                                    Rectangle {
+                                        Layout.preferredHeight: 20
+                                        Layout.preferredWidth: typeText.implicitWidth + 12
+                                        radius: 5
+                                        color: model.itemType === "app" ? Qt.alpha(root.themePrimary, 0.22) : Qt.rgba(1.0, 1.0, 1.0, 0.10)
+                                        border.width: 1
+                                        border.color: model.itemType === "app" ? Qt.alpha(root.themePrimary, 0.48) : Qt.rgba(1.0, 1.0, 1.0, 0.16)
+                                        antialiasing: true
+                                        Layout.alignment: Qt.AlignVCenter
+
+                                        Text {
+                                            id: typeText
+                                            anchors.centerIn: parent
+                                            text: model.itemType === "app" ? "APP" : "FILE"
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 9
+                                            font.weight: Font.Bold
+                                            font.letterSpacing: 0.6
+                                            color: model.itemType === "app" ? root.themePrimary : root.themeTextMuted
+                                        }
+                                    }
                                 }
                             }
                         }

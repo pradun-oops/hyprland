@@ -2,22 +2,24 @@ if hl.plugin.hyprglass then
     local hg = hl.plugin.hyprglass
 
     hg.preset("liquid", {
-        glass_opacity        = 1.0, 
-        blur_strength        = 1.0, 
-        blur_iterations      = 0.0,   
-        refraction_strength  = 1.0, 
-        chromatic_aberration = 0.0, 
-        fresnel_strength     = 0.0, 
-        specular_strength    = 0.0, 
+        glass_opacity        = 1.0,
+        blur_strength        = 1.0,
+        blur_iterations      = 1.0,
+
+        refraction_strength  = 1.0,
+        chromatic_aberration = 1.0,
+        fresnel_strength     = 2.0,
+        specular_strength    = 1.0,
         edge_thickness       = 0.01,
-        tint_color           = 0x11112222, 
-        lens_distortion      = 0.0,
+
+        tint_color           = 0x11112222,
+        lens_distortion      = 0.01,
 
         dark = {
-            brightness        = 1.0,
-            contrast          = 1,
-            saturation        = 1,
-            vibrancy          = 1,
+            brightness        = 1.3,
+            contrast          = 1.0,
+            saturation        = 1.0,
+            vibrancy          = 1.0,
             vibrancy_darkness = 0.0,
             adaptive_dim      = 0.0,
             adaptive_boost    = 0.0,
@@ -25,9 +27,9 @@ if hl.plugin.hyprglass then
 
         light = {
             brightness        = 1.0,
-            contrast          = 1,
-            saturation        = 1,
-            vibrancy          = 1,
+            contrast          = 1.0,
+            saturation        = 1.0,
+            vibrancy          = 0.1,
             vibrancy_darkness = 0.0,
             adaptive_dim      = 0.0,
             adaptive_boost    = 0.0,
@@ -70,7 +72,8 @@ if hl.plugin.hyprglass then
         "qs-analog-clock",
         "qs-rgbcontrol",
         "qs-wellbeing",
-        "qs-daily-planner",       
+        "qs-daily-planner",
+        "qs-rgbcontrol-modal",
     }
 
     for _, layer in ipairs(liquid_layers) do

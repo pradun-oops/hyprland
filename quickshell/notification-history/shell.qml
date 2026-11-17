@@ -10,24 +10,38 @@ import QtQuick.Window
 Scope {
     id: root
 
-    function quitApp() {
-        quitTimer.start()
+    property string fontFamily: "Adwaita Sans"
+    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
+
+    property bool animEnabled: true
+    property int animDuration: 220
+    property bool isClosing: false
+
+    QtObject {
+        id: animStyle
+        property int base: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
+        property int enterDuration: Math.round(base * 1.35)
+        property int exitDuration: Math.round(base * 1.05)
+        property int animDuration: base
+        property int morphDuration: Math.round(base * 1.25)
+        property int fadeDuration: Math.round(base * 0.85)
+        property int microDuration: Math.round(base * 0.65)
+        property int scaleDuration: Math.round(base * 1.1)
+        property var smoothEasing: Easing.OutQuint
+        property var expoEasing: Easing.OutExpo
+        property var exitEasing: Easing.OutQuint
     }
 
-    Timer {
-        id: quitTimer
-        interval: 60
-        repeat: false
-        onTriggered: Qt.quit()
+    function quitApp() {
+        if (root.isClosing) return
+        root.isClosing = true
+        Qt.quit()
     }
 
     Shortcut {
         sequence: "Escape"
         onActivated: root.quitApp()
     }
-
-    property string fontFamily: "Adwaita Sans"
-    property string iconFontFamily: "Symbols Nerd Font, FiraCode Nerd Font, JetBrainsMono Nerd Font, sans-serif"
 
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
@@ -36,20 +50,11 @@ Scope {
 
     property int themeRounding: 22
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
-    property bool animEnabled: true
-    property int animDuration: 240
+    property real themeBgAlpha: 0.25
 
-    property color themeBackground: "#141416"
-    property color themeSurface: Qt.rgba(0, 0, 0, 0.35)
-    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.14)
-
-    QtObject {
-        id: animStyle
-        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
-        property int fadeDuration: 200
-        property var fadeEasing: Easing.OutCubic
-    }
+    property color themeBackground: "#0d0e11"
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.45)
+    property color themeSurfaceHover: Qt.rgba(255, 255, 255, 0.12)
 
     property string targetMonitorName: ""
 
@@ -91,10 +96,6 @@ Scope {
                 if (match && match[1]) {
                     root.themeBorder = "#" + match[1]
                     root.themePrimary = "#" + match[1]
-                }
-                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
-                if (bgMatch && bgMatch[1]) {
-                    root.themeBackground = "#" + bgMatch[1]
                 }
             } catch (e) {}
         }
@@ -212,11 +213,11 @@ Scope {
 
             property bool isTargetMonitor: modelData.name === root.targetMonitorName
 
-            visible: root.targetMonitorName !== "" && isTargetMonitor
+            visible: root.targetMonitorName !== "" && isTargetMonitor && !root.isClosing
 
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-notification-center"
-            WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: (isTargetMonitor && !root.isClosing) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
             anchors {
@@ -229,6 +230,7 @@ Scope {
 
             MouseArea {
                 anchors.fill: parent
+                enabled: !root.isClosing
                 onClicked: root.quitApp()
             }
 
@@ -237,7 +239,7 @@ Scope {
                 implicitWidth: 440
                 implicitHeight: 680
 
-                visible: root.targetMonitorName !== "" && isTargetMonitor
+                visible: root.targetMonitorName !== "" && isTargetMonitor && !root.isClosing
                 focus: isTargetMonitor
 
                 Component.onCompleted: {
@@ -256,19 +258,75 @@ Scope {
                     radius: root.themeRounding
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themePrimary, 0.45)
+                    border.color: Qt.alpha(root.themePrimary, 0.35)
                     antialiasing: true
                     clip: true
+                    enabled: !root.isClosing
 
                     property bool shown: false
-                    Component.onCompleted: shown = true
+                    property bool settled: false
+                    property bool panelVisible: shown && !root.isClosing
 
-                    opacity: shown ? 1.0 : 0.0
+                    layer.enabled: root.animEnabled && !settled && !root.isClosing
+                    layer.smooth: true
+
+                    Component.onCompleted: {
+                        enterTriggerTimer.start()
+                        settleTimer.start()
+                    }
+
+                    Timer {
+                        id: enterTriggerTimer
+                        interval: 16
+                        repeat: false
+                        onTriggered: container.shown = true
+                    }
+
+                    Timer {
+                        id: settleTimer
+                        interval: animStyle.enterDuration + 60
+                        repeat: false
+                        onTriggered: container.settled = true
+                    }
+
+                    opacity: panelVisible ? 1.0 : 0.0
+
+                    transform: [
+                        Scale {
+                            origin.x: container.width / 2
+                            origin.y: container.height / 2
+                            xScale: container.panelVisible ? 1.0 : 0.94
+                            yScale: container.panelVisible ? 1.0 : 0.94
+
+                            Behavior on xScale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing && container.panelVisible) ? animStyle.enterDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                            Behavior on yScale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing && container.panelVisible) ? animStyle.enterDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                        },
+                        Translate {
+                            y: container.panelVisible ? 0 : 12
+
+                            Behavior on y {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing && container.panelVisible) ? animStyle.enterDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                        }
+                    ]
 
                     Behavior on opacity {
                         NumberAnimation {
-                            duration: root.animEnabled ? animStyle.fadeDuration : 0
-                            easing.type: animStyle.fadeEasing
+                            duration: (root.animEnabled && !root.isClosing && container.panelVisible) ? animStyle.fadeDuration : 0
+                            easing.type: animStyle.smoothEasing
                         }
                     }
 
@@ -284,11 +342,39 @@ Scope {
                             Rectangle {
                                 width: 40
                                 height: 40
-                                radius: 12
-                                color: Qt.alpha(root.themePrimary, 0.18)
+                                radius: headerIconHover.hovered ? 14 : 12
+                                color: Qt.alpha(root.themePrimary, headerIconHover.hovered ? 0.24 : 0.16)
                                 border.width: 1
-                                border.color: Qt.alpha(root.themePrimary, 0.4)
+                                border.color: Qt.alpha(root.themePrimary, headerIconHover.hovered ? 0.65 : 0.35)
                                 antialiasing: true
+                                scale: headerIconHover.hovered ? 1.05 : 1.0
+
+                                HoverHandler { id: headerIconHover }
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on radius {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 Text {
                                     anchors.centerIn: parent
@@ -316,7 +402,10 @@ Scope {
                                     }
 
                                     Rectangle {
-                                        visible: historyModel.count > 0
+                                        property bool hasNotifs: historyModel.count > 0
+                                        visible: opacity > 0.01
+                                        opacity: hasNotifs ? 1.0 : 0.0
+                                        scale: hasNotifs ? 1.0 : 0.75
                                         Layout.preferredWidth: badgeText.implicitWidth + 12
                                         Layout.preferredHeight: 18
                                         radius: 9
@@ -324,6 +413,25 @@ Scope {
                                         border.width: 1
                                         border.color: Qt.alpha(root.themePrimary, 0.5)
                                         antialiasing: true
+
+                                        Behavior on opacity {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on Layout.preferredWidth {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         Text {
                                             id: badgeText
@@ -351,17 +459,32 @@ Scope {
                             Item { Layout.fillWidth: true }
 
                             Rectangle {
-                                visible: historyModel.count > 0
+                                property bool hasNotifs: historyModel.count > 0
+                                visible: opacity > 0.01
+                                opacity: hasNotifs ? 1.0 : 0.0
+                                scale: hasNotifs ? (clearBtnArea.pressed ? 0.92 : (clearBtnArea.containsMouse ? 1.04 : 1.0)) : 0.85
                                 Layout.preferredWidth: clearRow.implicitWidth + 20
                                 Layout.preferredHeight: 32
                                 radius: 10
-                                color: clearBtnArea.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.rgba(0, 0, 0, 0.35)
+                                color: clearBtnArea.containsMouse ? Qt.alpha(root.themePrimary, 0.28) : Qt.rgba(0, 0, 0, 0.45)
                                 border.width: 1
-                                border.color: clearBtnArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.18)
+                                border.color: clearBtnArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.14)
                                 antialiasing: true
 
-                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                Behavior on opacity {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color { ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0; easing.type: animStyle.smoothEasing } }
+                                Behavior on border.color { ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0; easing.type: animStyle.smoothEasing } }
 
                                 RowLayout {
                                     id: clearRow
@@ -373,6 +496,8 @@ Scope {
                                         font.family: root.iconFontFamily
                                         color: clearBtnArea.containsMouse ? root.themePrimary : root.themeTextMuted
                                         font.pixelSize: 13
+
+                                        Behavior on color { ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0; easing.type: animStyle.smoothEasing } }
                                     }
 
                                     Text {
@@ -383,6 +508,8 @@ Scope {
                                         font.weight: Font.Bold
                                         style: Text.Raised
                                         styleColor: Qt.rgba(0, 0, 0, 0.7)
+
+                                        Behavior on color { ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0; easing.type: animStyle.smoothEasing } }
                                     }
                                 }
 
@@ -390,6 +517,7 @@ Scope {
                                     id: clearBtnArea
                                     anchors.fill: parent
                                     hoverEnabled: true
+                                    enabled: hasNotifs
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: root.clearAllHistory()
                                 }
@@ -399,7 +527,7 @@ Scope {
                         Rectangle {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 1
-                            color: Qt.rgba(255, 255, 255, 0.12)
+                            color: Qt.rgba(255, 255, 255, 0.1)
                         }
 
                         Item {
@@ -408,17 +536,33 @@ Scope {
 
                             ColumnLayout {
                                 anchors.centerIn: parent
-                                visible: historyModel.count === 0
+                                property bool isEmpty: historyModel.count === 0
+                                visible: opacity > 0.01
+                                opacity: isEmpty ? 1.0 : 0.0
+                                scale: isEmpty ? 1.0 : 0.94
                                 spacing: 12
+
+                                Behavior on opacity {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 Rectangle {
                                     Layout.alignment: Qt.AlignHCenter
                                     width: 64
                                     height: 64
                                     radius: 32
-                                    color: Qt.rgba(0, 0, 0, 0.35)
+                                    color: Qt.rgba(0, 0, 0, 0.45)
                                     border.width: 1
-                                    border.color: Qt.rgba(255, 255, 255, 0.15)
+                                    border.color: Qt.rgba(255, 255, 255, 0.12)
                                     antialiasing: true
 
                                     Text {
@@ -461,9 +605,11 @@ Scope {
                             ListView {
                                 id: historyList
                                 anchors.fill: parent
+                                anchors.leftMargin: -4
+                                anchors.rightMargin: -4
                                 visible: historyModel.count > 0
                                 model: historyModel
-                                spacing: 10
+                                spacing: 6
                                 clip: true
                                 boundsBehavior: Flickable.StopAtBounds
 
@@ -476,45 +622,84 @@ Scope {
                                         implicitWidth: 4
                                         radius: 2
                                         color: vbar.pressed ? root.themePrimary : Qt.alpha(root.themeTextMuted, 0.35)
+
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
                                     }
                                 }
 
                                 add: Transition {
-                                    NumberAnimation {
-                                        property: "opacity"
-                                        from: 0
-                                        to: 1
-                                        duration: root.animEnabled ? animStyle.fadeDuration : 0
-                                        easing.type: animStyle.fadeEasing
+                                    ParallelAnimation {
+                                        NumberAnimation {
+                                            property: "opacity"
+                                            from: 0.0
+                                            to: 1.0
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                        NumberAnimation {
+                                            property: "scale"
+                                            from: 0.96
+                                            to: 1.0
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                            easing.type: animStyle.expoEasing
+                                        }
                                     }
                                 }
 
                                 remove: Transition {
-                                    NumberAnimation {
-                                        property: "opacity"
-                                        to: 0
-                                        duration: root.animEnabled ? animStyle.fadeDuration : 0
-                                        easing.type: animStyle.fadeEasing
+                                    ParallelAnimation {
+                                        NumberAnimation {
+                                            property: "opacity"
+                                            to: 0.0
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                        NumberAnimation {
+                                            property: "scale"
+                                            to: 0.95
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
                                     }
                                 }
 
                                 displaced: Transition {
                                     NumberAnimation {
                                         properties: "y,x"
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.fadeEasing
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                        easing.type: animStyle.expoEasing
                                     }
                                 }
 
                                 delegate: Item {
                                     id: delegateRoot
-                                    width: historyList.width
-                                    height: card.height
+                                    width: historyList.width - (vbar.visible ? 8 : 0)
+                                    height: card.height + 4
+
+                                    MouseArea {
+                                        id: cardArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: card.hasBody ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                        onClicked: {
+                                            if (card.hasBody) {
+                                                card.isExpanded = !card.isExpanded
+                                            }
+                                        }
+                                    }
 
                                     Rectangle {
                                         id: card
-                                        width: parent.width - 12
-                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.leftMargin: 4
+                                        anchors.rightMargin: 4
+                                        anchors.verticalCenter: parent.verticalCenter
 
                                         property bool isExpanded: false
                                         property bool hasBody: model.body !== undefined && model.body.trim() !== ""
@@ -525,29 +710,26 @@ Scope {
                                         radius: Math.max(4, root.themeRounding - 6)
                                         color: cardArea.containsMouse ? root.themeSurfaceHover : root.themeSurface
                                         border.width: 1
-                                        border.color: cardArea.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
+                                        border.color: cardArea.containsMouse ? Qt.alpha(root.themePrimary, 0.65) : Qt.rgba(255, 255, 255, 0.1)
                                         antialiasing: true
+                                        scale: cardArea.pressed && card.hasBody
+                                               ? 0.985
+                                               : (cardArea.containsMouse ? 1.01 : 1.0)
 
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
                                         Behavior on height {
                                             NumberAnimation {
-                                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                                easing.type: animStyle.fadeEasing
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                                easing.type: animStyle.expoEasing
                                             }
                                         }
-                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-
-                                        MouseArea {
-                                            id: cardArea
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: card.hasBody ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                            onClicked: {
-                                                if (card.hasBody) {
-                                                    card.isExpanded = !card.isExpanded
-                                                }
-                                            }
-                                        }
+                                        Behavior on border.color { ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing } }
+                                        Behavior on color { ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing } }
 
                                         RowLayout {
                                             id: notifCardLayout
@@ -562,11 +744,27 @@ Scope {
                                                 Layout.topMargin: 2
                                                 width: 38
                                                 height: 38
-                                                radius: 12
-                                                color: Qt.alpha(root.themePrimary, 0.18)
+                                                radius: cardArea.containsMouse ? 14 : 12
+                                                color: Qt.alpha(root.themePrimary, cardArea.containsMouse ? 0.24 : 0.16)
                                                 border.width: 1
-                                                border.color: Qt.alpha(root.themePrimary, 0.35)
+                                                border.color: Qt.alpha(root.themePrimary, cardArea.containsMouse ? 0.55 : 0.35)
                                                 antialiasing: true
+                                                scale: cardArea.containsMouse ? 1.05 : 1.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on radius {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on color { ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing } }
+                                                Behavior on border.color { ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0; easing.type: animStyle.smoothEasing } }
 
                                                 Text {
                                                     anchors.centerIn: parent
@@ -619,17 +817,31 @@ Scope {
                                                         width: 24
                                                         height: 24
                                                         radius: 8
-                                                        color: expandHover.containsMouse ? Qt.rgba(255, 255, 255, 0.18) : "transparent"
+                                                        color: expandHover.containsMouse ? Qt.rgba(255, 255, 255, 0.16) : "transparent"
                                                         antialiasing: true
 
-                                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                                        Behavior on color { ColorAnimation { duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0; easing.type: animStyle.smoothEasing } }
 
                                                         Text {
                                                             anchors.centerIn: parent
-                                                            text: card.isExpanded ? "󰅃" : "󰅀"
+                                                            text: "󰅀"
                                                             font.family: root.iconFontFamily
                                                             color: card.isExpanded ? root.themePrimary : root.themeTextMuted
                                                             font.pixelSize: 14
+                                                            rotation: card.isExpanded ? 180 : 0
+
+                                                            Behavior on rotation {
+                                                                NumberAnimation {
+                                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                                                    easing.type: animStyle.expoEasing
+                                                                }
+                                                            }
+                                                            Behavior on color {
+                                                                ColorAnimation {
+                                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                                    easing.type: animStyle.smoothEasing
+                                                                }
+                                                            }
                                                         }
 
                                                         MouseArea {

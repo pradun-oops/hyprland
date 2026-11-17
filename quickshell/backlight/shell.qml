@@ -10,9 +10,35 @@ import QtQuick.Window
 Scope {
     id: root
 
+    property bool isPrimaryInstance: false
+
+    Process {
+        id: singleInstanceLock
+        stdinEnabled: true
+        command: ["bash", "-c", "exec flock -n \"${XDG_RUNTIME_DIR:-/tmp}/qs-rgbcontrol-v2.lock\" bash -c 'echo OK; read -r'"]
+        running: true
+        stdout: SplitParser {
+            onRead: data => {
+                if (data.trim() === "OK") {
+                    root.isPrimaryInstance = true
+                }
+            }
+        }
+        onExited: (exitCode, exitStatus) => {
+            if (!root.isPrimaryInstance) {
+                Qt.quit()
+            }
+        }
+    }
+
     Shortcut {
         sequence: "Escape"
-        onActivated: Qt.quit()
+        onActivated: {
+            if (!root.isPrimaryInstance || root.isClosing) return
+            if (root.isPickingColor) root.isPickingColor = false
+            else if (root.isEditingCustom) root.isEditingCustom = false
+            else root.quitApp()
+        }
     }
 
     property string fontFamily: "Adwaita Sans"
@@ -45,14 +71,15 @@ Scope {
         }
     }
 
-    property int themeRounding: 16
+    property int themeRounding: 22
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
+    property real themeBgAlpha: 0.25
     property bool animEnabled: true
-    property int animDuration: 380
+    property int animDuration: 220
+    property bool isClosing: false
 
-    property color themeBackground: "#0d0d12"
-    property color themeSurface: Qt.rgba(0, 0, 0, 0.32)
+    property color themeBackground: "#0d0e11"
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.42)
     property color themeBorder: "#ff4b6e"
     property color themePrimary: "#ff4b6e"
     property string rawThemeHex: "ff4b6e"
@@ -61,11 +88,25 @@ Scope {
 
     QtObject {
         id: animStyle
-        property int animDuration: root.animDuration > 0 ? root.animDuration : 380
-        property int fadeDuration: 240
-        property var bounceEasing: Easing.OutBack
-        property var fadeEasing: Easing.OutCubic
-        property real overshoot: 0.25
+        property int base: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
+        property int enterDuration: Math.round(base * 1.35)
+        property int exitDuration: Math.round(base * 1.05)
+        property int animDuration: base
+        property int morphDuration: Math.round(base * 1.25)
+        property int fadeDuration: Math.round(base * 0.85)
+        property int microDuration: Math.round(base * 0.65)
+        property int scaleDuration: Math.round(base * 1.1)
+        property var smoothEasing: Easing.OutQuint
+        property var expoEasing: Easing.OutExpo
+        property var exitEasing: Easing.OutQuint
+    }
+
+    function quitApp() {
+        if (root.isClosing) return
+        root.isClosing = true
+        singleInstanceLock.write("exit\n")
+        singleInstanceLock.running = false
+        Qt.quit()
     }
 
     FileView {
@@ -82,8 +123,6 @@ Scope {
                     root.themeBorder = "#" + match[1]
                     root.themePrimary = "#" + match[1]
                 }
-                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
-                if (bgMatch && bgMatch[1]) root.themeBackground = "#" + bgMatch[1]
             } catch (e) {}
         }
     }
@@ -134,7 +173,7 @@ Scope {
     Process {
         id: initProcess
         command: ["bash", "-c", `mkdir -p "${Quickshell.env("HOME")}/.config/quickshell/json" && if [ ! -f "${Quickshell.env("HOME")}/.config/quickshell/json/rgb_custom.json" ]; then echo "[]" > "${Quickshell.env("HOME")}/.config/quickshell/json/rgb_custom.json"; fi`]
-        running: true
+        running: root.isPrimaryInstance
         onExited: {
             customPresetsReader.path = root.customPresetsFile
             customPresetsReader.reload()
@@ -233,6 +272,14 @@ Scope {
 
     ListModel { id: presetModel }
 
+    ListModel {
+        id: customZoneModel
+        ListElement { name: "Zone 1"; colorHex: "ff0000" }
+        ListElement { name: "Zone 2"; colorHex: "00ff00" }
+        ListElement { name: "Zone 3"; colorHex: "0000ff" }
+        ListElement { name: "Zone 4"; colorHex: "ffff00" }
+    }
+
     function rebuildPresetModel(jsonText) {
         presetModel.clear()
         defaultPresets.forEach(p => presetModel.append(p))
@@ -315,27 +362,50 @@ Scope {
             screen: modelData
 
             property bool isTargetMonitor: modelData.name === root.targetMonitorName
-            visible: root.targetMonitorName !== "" && isTargetMonitor
+            visible: root.isPrimaryInstance && root.targetMonitorName !== "" && isTargetMonitor && !root.isClosing
 
             WlrLayershell.namespace: "qs-rgbcontrol"
             WlrLayershell.layer: WlrLayer.Overlay
-            WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: (root.isPrimaryInstance && isTargetMonitor && !root.isClosing && !root.isEditingCustom && !root.isPickingColor) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             exclusiveZone: -1
 
             anchors { top: true; bottom: true; left: true; right: true }
             color: "transparent"
 
-            MouseArea { anchors.fill: parent; onClicked: Qt.quit() }
+            MouseArea {
+                anchors.fill: parent
+                enabled: !root.isClosing
+                onClicked: root.quitApp()
+            }
 
             Item {
                 id: mainFocusWrapper
                 anchors.fill: parent
-                focus: isTargetMonitor
-                Component.onCompleted: if (isTargetMonitor) forceActiveFocus()
+                focus: root.isPrimaryInstance && isTargetMonitor && !root.isEditingCustom && !root.isPickingColor
+                Component.onCompleted: if (focus) forceActiveFocus()
+                Connections {
+                    target: root
+                    function onIsPrimaryInstanceChanged() {
+                        if (root.isPrimaryInstance && win.isTargetMonitor && !root.isEditingCustom && !root.isPickingColor) {
+                            mainFocusWrapper.forceActiveFocus()
+                        }
+                    }
+                    function onIsEditingCustomChanged() {
+                        if (!root.isEditingCustom && !root.isPickingColor && root.isPrimaryInstance && win.isTargetMonitor) {
+                            mainFocusWrapper.forceActiveFocus()
+                        }
+                    }
+                    function onIsPickingColorChanged() {
+                        if (!root.isEditingCustom && !root.isPickingColor && root.isPrimaryInstance && win.isTargetMonitor) {
+                            mainFocusWrapper.forceActiveFocus()
+                        }
+                    }
+                }
                 Keys.onEscapePressed: {
+                    if (root.isClosing) return
                     if (root.isPickingColor) root.isPickingColor = false
                     else if (root.isEditingCustom) root.isEditingCustom = false
-                    else Qt.quit()
+                    else root.quitApp()
                 }
 
                 Rectangle {
@@ -345,28 +415,76 @@ Scope {
                     anchors.centerIn: parent
 
                     property bool shown: false
-                    Component.onCompleted: shown = true
+                    property bool settled: false
+                    property bool panelVisible: root.isPrimaryInstance && shown && !root.isClosing
 
-                    scale: shown ? 1.0 : 0.90
-                    opacity: shown ? 1.0 : 0.0
+                    layer.enabled: root.animEnabled && !settled && !root.isClosing
+                    layer.smooth: true
 
-                    Behavior on scale {
-                        NumberAnimation {
-                            duration: root.animEnabled ? animStyle.animDuration : 0
-                            easing.type: animStyle.bounceEasing
-                            easing.overshoot: animStyle.overshoot
+                    Component.onCompleted: {
+                        shown = true
+                        if (root.isPrimaryInstance) settleTimer.start()
+                    }
+
+                    Connections {
+                        target: root
+                        function onIsPrimaryInstanceChanged() {
+                            if (root.isPrimaryInstance) settleTimer.start()
                         }
                     }
+
+                    Timer {
+                        id: settleTimer
+                        interval: animStyle.enterDuration + 40
+                        repeat: false
+                        onTriggered: mainCard.settled = true
+                    }
+
+                    opacity: panelVisible ? 1.0 : 0.0
+                    enabled: !root.isClosing
+
+                    transform: [
+                        Scale {
+                            origin.x: mainCard.width / 2
+                            origin.y: mainCard.height / 2
+                            xScale: mainCard.panelVisible ? 1.0 : 0.94
+                            yScale: mainCard.panelVisible ? 1.0 : 0.94
+
+                            Behavior on xScale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.enterDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                            Behavior on yScale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.enterDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                        },
+                        Translate {
+                            y: mainCard.panelVisible ? 0 : 12
+
+                            Behavior on y {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.enterDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                        }
+                    ]
+
                     Behavior on opacity {
                         NumberAnimation {
-                            duration: animStyle.fadeDuration
-                            easing.type: animStyle.fadeEasing
+                            duration: (root.animEnabled && !root.isClosing && mainCard.panelVisible) ? animStyle.fadeDuration : 0
+                            easing.type: animStyle.smoothEasing
                         }
                     }
 
-                    radius: root.themeRounding > 0 ? root.themeRounding : 16
+                    radius: root.themeRounding > 0 ? root.themeRounding : 22
                     border.width: root.themeBorderSize
-                    border.color: Qt.alpha(root.themePrimary, 0.40)
+                    border.color: Qt.alpha(root.themePrimary, 0.35)
                     antialiasing: true
                     clip: true
 
@@ -385,8 +503,8 @@ Scope {
 
                             Rectangle {
                                 width: 44; height: 44; radius: Math.max(8, root.themeRounding - 4)
-                                color: Qt.alpha(root.themePrimary, 0.15)
-                                border.width: 1; border.color: Qt.alpha(root.themePrimary, 0.4)
+                                color: Qt.alpha(root.themePrimary, 0.16)
+                                border.width: 1; border.color: Qt.alpha(root.themePrimary, 0.35)
                                 antialiasing: true
                                 Text { anchors.centerIn: parent; text: "󰌌"; font.pixelSize: 22; color: root.themePrimary; font.family: root.iconFontFamily }
                             }
@@ -401,7 +519,7 @@ Scope {
                                     color: root.themeText
                                     font.family: root.fontFamily
                                     style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
                                 }
                                 Text {
                                     text: "Legionaura Service Integration"
@@ -410,51 +528,114 @@ Scope {
                                     color: root.themeTextMuted
                                     font.family: root.fontFamily
                                     style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.5)
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
                             }
 
                             Item { Layout.fillWidth: true }
 
                             Rectangle {
-                                width: 38; height: 38; radius: 19
-                                color: addHover.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.3)
-                                border.width: 1; border.color: addHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
+                                width: 38; height: 38; radius: addHover.containsMouse ? 13 : 19
+                                color: addHover.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.45)
+                                border.width: 1; border.color: addHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.14)
                                 antialiasing: true
-                                scale: addHover.pressed ? 0.92 : (addHover.containsMouse ? 1.06 : 1.0)
+                                scale: addHover.pressed ? 0.92 : (addHover.containsMouse ? 1.05 : 1.0)
                                 Behavior on scale {
                                     NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
                                     }
                                 }
-                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                Text { anchors.centerIn: parent; text: "󰐕"; font.pixelSize: 18; color: addHover.containsMouse ? root.themePrimary : root.themeText; font.family: root.iconFontFamily }
+                                Behavior on radius {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰐕"
+                                    font.pixelSize: 18
+                                    color: addHover.containsMouse ? root.themePrimary : root.themeText
+                                    font.family: root.iconFontFamily
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                }
                                 MouseArea {
-                                    id: addHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    id: addHover
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
                                     onClicked: root.isEditingCustom = true
                                 }
                             }
 
                             Rectangle {
-                                width: 38; height: 38; radius: 19
-                                color: closeHover.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.3)
-                                border.width: 1; border.color: closeHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
+                                width: 38; height: 38; radius: closeHover.containsMouse ? 13 : 19
+                                color: closeHover.containsMouse ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.45)
+                                border.width: 1; border.color: closeHover.containsMouse ? root.themePrimary : Qt.rgba(255, 255, 255, 0.14)
                                 antialiasing: true
-                                scale: closeHover.pressed ? 0.92 : (closeHover.containsMouse ? 1.06 : 1.0)
+                                scale: closeHover.pressed ? 0.92 : (closeHover.containsMouse ? 1.05 : 1.0)
                                 Behavior on scale {
                                     NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                        easing.type: animStyle.bounceEasing
-                                        easing.overshoot: animStyle.overshoot
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
                                     }
                                 }
-                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 18; color: closeHover.containsMouse ? root.themePrimary : root.themeText; font.family: root.iconFontFamily }
-                                MouseArea { id: closeHover; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: Qt.quit() }
+                                Behavior on radius {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰅖"
+                                    font.pixelSize: 18
+                                    color: closeHover.containsMouse ? root.themePrimary : root.themeText
+                                    font.family: root.iconFontFamily
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                }
+                                MouseArea {
+                                    id: closeHover
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.quitApp()
+                                }
                             }
                         }
 
@@ -462,7 +643,7 @@ Scope {
                             Layout.fillWidth: true
                             Layout.preferredHeight: 64
                             radius: root.themeRounding > 0 ? root.themeRounding : 12
-                            color: Qt.rgba(0, 0, 0, 0.25)
+                            color: Qt.rgba(0, 0, 0, 0.42)
                             border.width: 1
                             border.color: Qt.rgba(255, 255, 255, 0.10)
                             antialiasing: true
@@ -493,20 +674,29 @@ Scope {
                                             model: [1, 2]
                                             Rectangle {
                                                 width: 40; height: 34; radius: Math.max(6, root.themeRounding - 6)
-                                                color: root.rgbBrightness === modelData ? root.themePrimary : Qt.rgba(0, 0, 0, 0.3)
+                                                color: root.rgbBrightness === modelData ? root.themePrimary : Qt.rgba(0, 0, 0, 0.42)
                                                 border.width: 1
                                                 border.color: root.rgbBrightness === modelData ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
                                                 antialiasing: true
                                                 scale: briMouse.pressed ? 0.92 : (briMouse.containsMouse ? 1.05 : 1.0)
                                                 Behavior on scale {
                                                     NumberAnimation {
-                                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                                        easing.type: animStyle.bounceEasing
-                                                        easing.overshoot: animStyle.overshoot
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
                                                     }
                                                 }
-                                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on border.color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: modelData
@@ -514,6 +704,12 @@ Scope {
                                                     font.pixelSize: 14
                                                     font.family: root.fontFamily
                                                     color: root.rgbBrightness === modelData ? "#000000" : "#FFFFFF"
+                                                    Behavior on color {
+                                                        ColorAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
                                                 }
                                                 MouseArea {
                                                     id: briMouse
@@ -527,7 +723,7 @@ Scope {
                                     }
                                 }
 
-                                Rectangle { width: 1; height: 24; color: Qt.rgba(255, 255, 255, 0.15); Layout.alignment: Qt.AlignVCenter }
+                                Rectangle { width: 1; height: 24; color: Qt.rgba(255, 255, 255, 0.12); Layout.alignment: Qt.AlignVCenter }
 
                                 RowLayout {
                                     spacing: 12
@@ -547,20 +743,29 @@ Scope {
                                             model: [1, 2, 3, 4]
                                             Rectangle {
                                                 width: 40; height: 34; radius: Math.max(6, root.themeRounding - 6)
-                                                color: root.rgbSpeed === modelData ? root.themePrimary : Qt.rgba(0, 0, 0, 0.3)
+                                                color: root.rgbSpeed === modelData ? root.themePrimary : Qt.rgba(0, 0, 0, 0.42)
                                                 border.width: 1
                                                 border.color: root.rgbSpeed === modelData ? root.themePrimary : Qt.rgba(255, 255, 255, 0.12)
                                                 antialiasing: true
                                                 scale: spdMouse.pressed ? 0.92 : (spdMouse.containsMouse ? 1.05 : 1.0)
                                                 Behavior on scale {
                                                     NumberAnimation {
-                                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                                        easing.type: animStyle.bounceEasing
-                                                        easing.overshoot: animStyle.overshoot
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
                                                     }
                                                 }
-                                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                                Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on border.color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
                                                 Text {
                                                     anchors.centerIn: parent
                                                     text: modelData
@@ -568,6 +773,12 @@ Scope {
                                                     font.pixelSize: 14
                                                     font.family: root.fontFamily
                                                     color: root.rgbSpeed === modelData ? "#000000" : "#FFFFFF"
+                                                    Behavior on color {
+                                                        ColorAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
                                                 }
                                                 MouseArea {
                                                     id: spdMouse
@@ -586,26 +797,43 @@ Scope {
                                 Rectangle {
                                     Layout.alignment: Qt.AlignVCenter
                                     width: 56; height: 36; radius: Math.max(8, root.themeRounding)
-                                    color: root.rgbPowerState ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.35)
+                                    color: root.rgbPowerState ? Qt.alpha(root.themePrimary, 0.25) : Qt.rgba(0, 0, 0, 0.45)
                                     border.width: 2
-                                    border.color: root.rgbPowerState ? root.themePrimary : Qt.rgba(255, 255, 255, 0.2)
+                                    border.color: root.rgbPowerState ? root.themePrimary : Qt.rgba(255, 255, 255, 0.16)
                                     antialiasing: true
-                                    scale: pwrMouse.pressed ? 0.92 : (pwrMouse.containsMouse ? 1.06 : 1.0)
+                                    scale: pwrMouse.pressed ? 0.92 : (pwrMouse.containsMouse ? 1.05 : 1.0)
 
                                     Behavior on scale {
                                         NumberAnimation {
-                                            duration: root.animEnabled ? animStyle.animDuration : 0
-                                            easing.type: animStyle.bounceEasing
-                                            easing.overshoot: animStyle.overshoot
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
                                         }
                                     }
-                                    Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                    Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
 
                                     Text {
-                                        anchors.centerIn: parent; text: "󰐥"; font.pixelSize: 18; font.family: root.iconFontFamily
+                                        anchors.centerIn: parent
+                                        text: "󰐥"
+                                        font.pixelSize: 18
+                                        font.family: root.iconFontFamily
                                         color: root.rgbPowerState ? root.themePrimary : "#A1A1AA"
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
                                     }
                                     MouseArea { id: pwrMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.togglePower() }
                                 }
@@ -626,11 +854,39 @@ Scope {
                                 interactive: true
                                 boundsBehavior: Flickable.StopAtBounds
 
+                                add: Transition {
+                                    ParallelAnimation {
+                                        NumberAnimation {
+                                            property: "opacity"
+                                            from: 0.0
+                                            to: 1.0
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                        NumberAnimation {
+                                            property: "scale"
+                                            from: 0.95
+                                            to: 1.0
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                            easing.type: animStyle.expoEasing
+                                        }
+                                    }
+                                }
+
+                                displaced: Transition {
+                                    NumberAnimation {
+                                        properties: "x,y"
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                        easing.type: animStyle.expoEasing
+                                    }
+                                }
+
                                 delegate: Item {
                                     id: presetDelegate
                                     property int itemIndex: index
                                     width: GridView.view.cellWidth
                                     height: GridView.view.cellHeight
+                                    z: presetMouse.containsMouse ? 10 : 1
 
                                     Rectangle {
                                         id: cardRect
@@ -641,21 +897,30 @@ Scope {
 
                                         property bool isActive: root.savedName === model.name && root.rgbPowerState
 
-                                        color: isActive ? Qt.alpha(root.themePrimary, 0.30) : (presetMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.14) : root.themeSurface)
+                                        color: isActive ? Qt.alpha(root.themePrimary, 0.28) : (presetMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.14) : root.themeSurface)
                                         border.width: isActive ? 2 : 1
                                         border.color: isActive ? root.themePrimary : (presetMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(255, 255, 255, 0.08))
 
-                                        scale: presetMouse.pressed ? 0.95 : (presetMouse.containsMouse ? 1.03 : 1.0)
+                                        scale: presetMouse.pressed ? 0.96 : (presetMouse.containsMouse ? 1.03 : 1.0)
 
                                         Behavior on scale {
                                             NumberAnimation {
-                                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                                easing.type: animStyle.bounceEasing
-                                                easing.overshoot: animStyle.overshoot
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
                                             }
                                         }
-                                        Behavior on color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
-                                        Behavior on border.color { ColorAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on border.color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         MouseArea {
                                             id: presetMouse
@@ -677,7 +942,12 @@ Scope {
                                                 font.family: root.iconFontFamily
                                                 color: cardRect.isActive || presetMouse.containsMouse ? root.themePrimary : Qt.alpha(root.themePrimary, 0.95)
                                                 visible: !model.isCustom
-                                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
                                             }
 
                                             Text {
@@ -692,7 +962,12 @@ Scope {
                                                 font.family: root.fontFamily
                                                 style: Text.Raised
                                                 styleColor: Qt.rgba(0, 0, 0, 0.65)
-                                                Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
                                             }
                                         }
 
@@ -702,20 +977,29 @@ Scope {
                                             color: delHover.containsMouse ? "#ff4b6e" : Qt.rgba(0, 0, 0, 0.5)
                                             border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.15)
                                             antialiasing: true
-                                            scale: delHover.pressed ? 0.90 : (delHover.containsMouse ? 1.08 : 1.0)
+                                            scale: delHover.pressed ? 0.90 : (delHover.containsMouse ? 1.06 : 1.0)
 
                                             opacity: model.isCustom && (presetMouse.containsMouse || delHover.containsMouse) ? 1.0 : 0.0
                                             visible: opacity > 0
 
                                             Behavior on scale {
                                                 NumberAnimation {
-                                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                                    easing.type: animStyle.bounceEasing
-                                                    easing.overshoot: animStyle.overshoot
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                    easing.type: animStyle.smoothEasing
                                                 }
                                             }
-                                            Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration } }
-                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
+                                            Behavior on opacity {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
 
                                             Text { anchors.centerIn: parent; text: "󰅖"; font.pixelSize: 12; color: "#FFFFFF"; font.family: root.iconFontFamily }
 
@@ -737,435 +1021,614 @@ Scope {
                             }
                         }
                     }
+                }
+            }
+        }
+    }
 
-                    Rectangle {
+    Variants {
+        model: Quickshell.screens
+
+        delegate: PanelWindow {
+            id: customWin
+            required property var modelData
+            screen: modelData
+
+            property bool isTargetMonitor: modelData.name === root.targetMonitorName
+            visible: root.isPrimaryInstance && root.targetMonitorName !== "" && isTargetMonitor && root.isEditingCustom && !root.isClosing
+
+            WlrLayershell.namespace: "qs-rgbcontrol-modal"
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.keyboardFocus: (visible && !root.isPickingColor) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            exclusiveZone: -1
+
+            anchors { top: true; bottom: true; left: true; right: true }
+            color: "transparent"
+
+            MouseArea {
+                anchors.fill: parent
+                enabled: customWin.visible && !root.isPickingColor
+                onClicked: root.isEditingCustom = false
+            }
+
+            Item {
+                id: customFocusWrapper
+                anchors.fill: parent
+                focus: customWin.visible && !root.isPickingColor
+                onFocusChanged: if (focus) forceActiveFocus()
+                Keys.onEscapePressed: {
+                    if (root.isClosing) return
+                    if (root.isPickingColor) root.isPickingColor = false
+                    else root.isEditingCustom = false
+                }
+
+                Rectangle {
+                    id: customPresetEditor
+                    width: Math.min(600, customWin.width - 96)
+                    height: Math.min(460, customWin.height - 96)
+                    anchors.centerIn: parent
+                    radius: root.themeRounding
+                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                    border.width: root.themeBorderSize
+                    border.color: Qt.alpha(root.themePrimary, 0.35)
+                    antialiasing: true
+                    clip: true
+
+                    property bool modalVisible: root.isEditingCustom && !root.isClosing
+
+                    transform: [
+                        Scale {
+                            origin.x: customPresetEditor.width / 2
+                            origin.y: customPresetEditor.height / 2
+                            xScale: customPresetEditor.modalVisible ? 1.0 : 0.94
+                            yScale: customPresetEditor.modalVisible ? 1.0 : 0.94
+
+                            Behavior on xScale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? (customPresetEditor.modalVisible ? animStyle.enterDuration : animStyle.exitDuration) : 0
+                                    easing.type: customPresetEditor.modalVisible ? animStyle.expoEasing : animStyle.exitEasing
+                                }
+                            }
+                            Behavior on yScale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? (customPresetEditor.modalVisible ? animStyle.enterDuration : animStyle.exitDuration) : 0
+                                    easing.type: customPresetEditor.modalVisible ? animStyle.expoEasing : animStyle.exitEasing
+                                }
+                            }
+                        },
+                        Translate {
+                            y: customPresetEditor.modalVisible ? 0 : 12
+
+                            Behavior on y {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? (customPresetEditor.modalVisible ? animStyle.enterDuration : animStyle.exitDuration) : 0
+                                    easing.type: customPresetEditor.modalVisible ? animStyle.expoEasing : animStyle.exitEasing
+                                }
+                            }
+                        }
+                    ]
+
+                    MouseArea { anchors.fill: parent }
+
+                    property string customEffectType: "static"
+
+                    ColumnLayout {
                         anchors.fill: parent
-                        color: Qt.rgba(0, 0, 0, 0.65)
-                        radius: parent.radius
-                        opacity: root.isEditingCustom ? 1.0 : 0.0
-                        visible: opacity > 0
-                        z: 10
-                        Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+                        anchors.margins: 32
+                        spacing: 22
 
-                        MouseArea { anchors.fill: parent; onClicked: root.isEditingCustom = false }
-
-                        ListModel {
-                            id: customZoneModel
-                            ListElement { name: "Zone 1"; colorHex: "ff0000" }
-                            ListElement { name: "Zone 2"; colorHex: "00ff00" }
-                            ListElement { name: "Zone 3"; colorHex: "0000ff" }
-                            ListElement { name: "Zone 4"; colorHex: "ffff00" }
+                        Text {
+                            text: "Create Custom 4-Zone Preset"
+                            font.pixelSize: 20
+                            font.weight: Font.Bold
+                            color: root.themeText
+                            font.family: root.fontFamily
+                            style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.75)
                         }
 
                         Rectangle {
-                            id: customPresetEditor
-                            width: Math.min(600, mainCard.width - 48)
-                            height: Math.min(460, mainCard.height - 48)
-                            anchors.centerIn: parent
-                            radius: root.themeRounding
-                            color: Qt.alpha(root.themeBackground, 0.95)
-                            border.width: root.themeBorderSize; border.color: Qt.alpha(root.themeBorder, 0.4)
+                            Layout.fillWidth: true; Layout.preferredHeight: 46
+                            color: Qt.rgba(0, 0, 0, 0.45); radius: Math.max(8, root.themeRounding - 4)
+                            border.width: 1; border.color: customNameInput.activeFocus ? root.themePrimary : Qt.rgba(255, 255, 255, 0.14)
                             antialiasing: true
-                            scale: root.isEditingCustom ? 1.0 : 0.90
-
-                            Behavior on scale {
-                                NumberAnimation {
-                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                    easing.type: animStyle.bounceEasing
-                                    easing.overshoot: animStyle.overshoot
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
                                 }
                             }
-
-                            MouseArea { anchors.fill: parent }
-
-                            property string customEffectType: "static"
-
-                            ColumnLayout {
+                            TextInput {
+                                id: customNameInput
                                 anchors.fill: parent
-                                anchors.margins: 32
-                                spacing: 22
+                                anchors.leftMargin: 14
+                                anchors.rightMargin: 14
+                                anchors.topMargin: 4
+                                anchors.bottomMargin: 4
+                                verticalAlignment: TextInput.AlignVCenter
+                                color: root.themeText; font.pixelSize: 15; font.family: root.fontFamily
+                                text: "My Custom Preset"
+                                selectByMouse: true
+                                clip: true
+                            }
+                        }
 
-                                Text {
-                                    text: "Create Custom 4-Zone Preset"
-                                    font.pixelSize: 20
-                                    font.weight: Font.Bold
-                                    color: root.themeText
-                                    font.family: root.fontFamily
-                                    style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.6)
-                                }
-
+                        RowLayout {
+                            spacing: 16
+                            Text { text: "Animation:"; color: root.themeTextMuted; font.pixelSize: 15; font.weight: Font.DemiBold; font.family: root.fontFamily }
+                            Repeater {
+                                model: ["static", "breath"]
                                 Rectangle {
-                                    Layout.fillWidth: true; Layout.preferredHeight: 46
-                                    color: Qt.rgba(0, 0, 0, 0.4); radius: Math.max(8, root.themeRounding - 4)
-                                    border.width: 1; border.color: customNameInput.activeFocus ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
+                                    width: 100; height: 38; radius: Math.max(8, root.themeRounding - 4)
+                                    color: customPresetEditor.customEffectType === modelData ? root.themePrimary : Qt.rgba(0, 0, 0, 0.42)
+                                    border.width: 1; border.color: customPresetEditor.customEffectType === modelData ? root.themePrimary : Qt.rgba(255, 255, 255, 0.14)
                                     antialiasing: true
-                                    TextInput {
-                                        id: customNameInput
-                                        anchors.fill: parent
-                                        anchors.leftMargin: 14
-                                        anchors.rightMargin: 14
-                                        anchors.topMargin: 4
-                                        anchors.bottomMargin: 4
-                                        verticalAlignment: TextInput.AlignVCenter
-                                        color: root.themeText; font.pixelSize: 15; font.family: root.fontFamily
-                                        text: "My Custom Preset"
-                                        selectByMouse: true
-                                        clip: true
-                                    }
-                                }
-
-                                RowLayout {
-                                    spacing: 16
-                                    Text { text: "Animation:"; color: root.themeTextMuted; font.pixelSize: 15; font.weight: Font.DemiBold; font.family: root.fontFamily }
-                                    Repeater {
-                                        model: ["static", "breath"]
-                                        Rectangle {
-                                            width: 100; height: 38; radius: Math.max(8, root.themeRounding - 4)
-                                            color: customPresetEditor.customEffectType === modelData ? root.themePrimary : Qt.rgba(0, 0, 0, 0.3)
-                                            border.width: 1; border.color: customPresetEditor.customEffectType === modelData ? root.themePrimary : Qt.rgba(255, 255, 255, 0.15)
-                                            antialiasing: true
-                                            scale: effMouse.pressed ? 0.93 : (effMouse.containsMouse ? 1.04 : 1.0)
-                                            Behavior on scale {
-                                                NumberAnimation {
-                                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                                    easing.type: animStyle.bounceEasing
-                                                    easing.overshoot: animStyle.overshoot
-                                                }
-                                            }
-                                            Behavior on color { ColorAnimation { duration: animStyle.fadeDuration } }
-                                            Text {
-                                                anchors.centerIn: parent
-                                                text: modelData.charAt(0).toUpperCase() + modelData.slice(1)
-                                                font.weight: Font.Bold
-                                                font.family: root.fontFamily
-                                                color: customPresetEditor.customEffectType === modelData ? "#000000" : root.themeText
-                                            }
-                                            MouseArea { id: effMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: customPresetEditor.customEffectType = modelData }
+                                    scale: effMouse.pressed ? 0.93 : (effMouse.containsMouse ? 1.04 : 1.0)
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
                                         }
                                     }
-                                }
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    Layout.alignment: Qt.AlignHCenter
-                                    spacing: 24
-
-                                    Repeater {
-                                        model: customZoneModel
-                                        ColumnLayout {
-                                            spacing: 10
-                                            Text { text: model.name; color: root.themeTextMuted; font.pixelSize: 14; font.weight: Font.DemiBold; font.family: root.fontFamily; Layout.alignment: Qt.AlignHCenter }
-
-                                            Rectangle {
-                                                width: 90; height: 50; radius: 8
-                                                color: "#" + model.colorHex
-                                                border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.3)
-                                                antialiasing: true
-                                                scale: zoneMouse.pressed ? 0.93 : (zoneMouse.containsMouse ? 1.05 : 1.0)
-                                                Behavior on scale {
-                                                    NumberAnimation {
-                                                        duration: root.animEnabled ? animStyle.animDuration : 0
-                                                        easing.type: animStyle.bounceEasing
-                                                        easing.overshoot: animStyle.overshoot
-                                                    }
-                                                }
-
-                                                MouseArea {
-                                                    id: zoneMouse
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    cursorShape: Qt.PointingHandCursor
-                                                    onClicked: {
-                                                        root.activeZoneIndex = index
-                                                        let rgb = root.hexToRgb(model.colorHex)
-                                                        root.pickerR = rgb.r
-                                                        root.pickerG = rgb.g
-                                                        root.pickerB = rgb.b
-                                                        root.isPickingColor = true
-                                                    }
-                                                }
-                                            }
-                                            Text { text: "#" + model.colorHex.toUpperCase(); color: root.themeText; font.pixelSize: 14; font.family: root.fontFamily; Layout.alignment: Qt.AlignHCenter }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
                                         }
                                     }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData.charAt(0).toUpperCase() + modelData.slice(1)
+                                        font.weight: Font.Bold
+                                        font.family: root.fontFamily
+                                        color: customPresetEditor.customEffectType === modelData ? "#000000" : root.themeText
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                    }
+                                    MouseArea { id: effMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: customPresetEditor.customEffectType = modelData }
                                 }
+                            }
+                        }
 
-                                Item { Layout.fillHeight: true }
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignHCenter
+                            spacing: 24
 
-                                RowLayout {
-                                    Layout.fillWidth: true; Layout.alignment: Qt.AlignRight
-                                    spacing: 12
+                            Repeater {
+                                model: customZoneModel
+                                ColumnLayout {
+                                    spacing: 10
+                                    Text { text: model.name; color: root.themeTextMuted; font.pixelSize: 14; font.weight: Font.DemiBold; font.family: root.fontFamily; Layout.alignment: Qt.AlignHCenter }
+
                                     Rectangle {
-                                        width: 100; height: 42; radius: Math.max(8, root.themeRounding - 4)
-                                        color: "transparent"; border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.2)
+                                        width: 90; height: 50; radius: 8
+                                        color: "#" + model.colorHex
+                                        border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.3)
                                         antialiasing: true
-                                        scale: cancelEditMouse.pressed ? 0.93 : (cancelEditMouse.containsMouse ? 1.04 : 1.0)
+                                        scale: zoneMouse.pressed ? 0.93 : (zoneMouse.containsMouse ? 1.05 : 1.0)
                                         Behavior on scale {
                                             NumberAnimation {
-                                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                                easing.type: animStyle.bounceEasing
-                                                easing.overshoot: animStyle.overshoot
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
                                             }
                                         }
-                                        Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 15; font.family: root.fontFamily; color: root.themeText }
-                                        MouseArea { id: cancelEditMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.isEditingCustom = false }
-                                    }
-                                    Rectangle {
-                                        width: 140; height: 42; radius: Math.max(8, root.themeRounding - 4)
-                                        color: Qt.alpha(root.themePrimary, 0.2); border.width: 1; border.color: root.themePrimary
-                                        antialiasing: true
-                                        scale: saveEditMouse.pressed ? 0.93 : (saveEditMouse.containsMouse ? 1.04 : 1.0)
-                                        Behavior on scale {
-                                            NumberAnimation {
-                                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                                easing.type: animStyle.bounceEasing
-                                                easing.overshoot: animStyle.overshoot
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
                                             }
                                         }
-                                        Text { anchors.centerIn: parent; text: "Save Preset"; font.pixelSize: 15; font.weight: Font.Bold; font.family: root.fontFamily; color: root.themePrimary }
+
                                         MouseArea {
-                                            id: saveEditMouse
+                                            id: zoneMouse
                                             anchors.fill: parent
                                             hoverEnabled: true
                                             cursorShape: Qt.PointingHandCursor
                                             onClicked: {
-                                                let c1 = customZoneModel.get(0).colorHex
-                                                let c2 = customZoneModel.get(1).colorHex
-                                                let c3 = customZoneModel.get(2).colorHex
-                                                let c4 = customZoneModel.get(3).colorHex
-                                                let finalColors = `${c1} ${c2} ${c3} ${c4}`
-
-                                                root.saveNewCustomPreset(customNameInput.text, customPresetEditor.customEffectType, finalColors)
-
-                                                presetGrid.positionViewAtEnd()
-
-                                                customNameInput.text = "My Custom Preset"
-                                                customPresetEditor.customEffectType = "static"
-                                                customZoneModel.setProperty(0, "colorHex", "ff0000")
-                                                customZoneModel.setProperty(1, "colorHex", "00ff00")
-                                                customZoneModel.setProperty(2, "colorHex", "0000ff")
-                                                customZoneModel.setProperty(3, "colorHex", "ffff00")
+                                                root.activeZoneIndex = index
+                                                let rgb = root.hexToRgb(model.colorHex)
+                                                root.pickerR = rgb.r
+                                                root.pickerG = rgb.g
+                                                root.pickerB = rgb.b
+                                                root.isPickingColor = true
                                             }
                                         }
+                                    }
+                                    Text { text: "#" + model.colorHex.toUpperCase(); color: root.themeText; font.pixelSize: 14; font.family: root.fontFamily; Layout.alignment: Qt.AlignHCenter }
+                                }
+                            }
+                        }
+
+                        Item { Layout.fillHeight: true }
+
+                        RowLayout {
+                            Layout.fillWidth: true; Layout.alignment: Qt.AlignRight
+                            spacing: 12
+                            Rectangle {
+                                width: 100; height: 42; radius: Math.max(8, root.themeRounding - 4)
+                                color: cancelEditMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.10) : Qt.rgba(0, 0, 0, 0.42)
+                                border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.16)
+                                antialiasing: true
+                                scale: cancelEditMouse.pressed ? 0.93 : (cancelEditMouse.containsMouse ? 1.04 : 1.0)
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 15; font.family: root.fontFamily; color: root.themeText }
+                                MouseArea { id: cancelEditMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.isEditingCustom = false }
+                            }
+                            Rectangle {
+                                width: 140; height: 42; radius: Math.max(8, root.themeRounding - 4)
+                                color: saveEditMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.30) : Qt.alpha(root.themePrimary, 0.20)
+                                border.width: 1; border.color: root.themePrimary
+                                antialiasing: true
+                                scale: saveEditMouse.pressed ? 0.93 : (saveEditMouse.containsMouse ? 1.04 : 1.0)
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Text { anchors.centerIn: parent; text: "Save Preset"; font.pixelSize: 15; font.weight: Font.Bold; font.family: root.fontFamily; color: root.themePrimary }
+                                MouseArea {
+                                    id: saveEditMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        let c1 = customZoneModel.get(0).colorHex
+                                        let c2 = customZoneModel.get(1).colorHex
+                                        let c3 = customZoneModel.get(2).colorHex
+                                        let c4 = customZoneModel.get(3).colorHex
+                                        let finalColors = `${c1} ${c2} ${c3} ${c4}`
+
+                                        root.saveNewCustomPreset(customNameInput.text, customPresetEditor.customEffectType, finalColors)
+
+                                        customNameInput.text = "My Custom Preset"
+                                        customPresetEditor.customEffectType = "static"
+                                        customZoneModel.setProperty(0, "colorHex", "ff0000")
+                                        customZoneModel.setProperty(1, "colorHex", "00ff00")
+                                        customZoneModel.setProperty(2, "colorHex", "0000ff")
+                                        customZoneModel.setProperty(3, "colorHex", "ffff00")
                                     }
                                 }
                             }
                         }
                     }
+                }
+            }
+        }
+    }
 
-                    Rectangle {
-                        anchors.fill: parent
-                        color: Qt.rgba(0, 0, 0, 0.75)
-                        radius: parent.radius
-                        opacity: root.isPickingColor ? 1.0 : 0.0
-                        visible: opacity > 0
-                        z: 20
-                        Behavior on opacity { NumberAnimation { duration: animStyle.fadeDuration; easing.type: animStyle.fadeEasing } }
+    Variants {
+        model: Quickshell.screens
 
-                        MouseArea { anchors.fill: parent; onClicked: root.isPickingColor = false }
+        delegate: PanelWindow {
+            id: pickerWin
+            required property var modelData
+            screen: modelData
 
-                        Rectangle {
-                            width: Math.min(440, mainCard.width - 48)
-                            height: Math.min(380, mainCard.height - 48)
-                            anchors.centerIn: parent
-                            radius: root.themeRounding
-                            color: Qt.alpha(root.themeBackground, 0.98)
-                            border.width: root.themeBorderSize; border.color: Qt.alpha(root.themeBorder, 0.4)
-                            antialiasing: true
-                            scale: root.isPickingColor ? 1.0 : 0.90
+            property bool isTargetMonitor: modelData.name === root.targetMonitorName
+            visible: root.isPrimaryInstance && root.targetMonitorName !== "" && isTargetMonitor && root.isPickingColor && !root.isClosing
 
-                            Behavior on scale {
+            WlrLayershell.namespace: "qs-rgbcontrol-modal"
+            WlrLayershell.layer: WlrLayer.Overlay
+            WlrLayershell.keyboardFocus: visible ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+            exclusiveZone: -1
+
+            anchors { top: true; bottom: true; left: true; right: true }
+            color: "transparent"
+
+            MouseArea {
+                anchors.fill: parent
+                enabled: pickerWin.visible
+                onClicked: root.isPickingColor = false
+            }
+
+            Item {
+                id: pickerFocusWrapper
+                anchors.fill: parent
+                focus: pickerWin.visible
+                onFocusChanged: if (focus) forceActiveFocus()
+                Keys.onEscapePressed: {
+                    if (root.isClosing) return
+                    root.isPickingColor = false
+                }
+
+                Rectangle {
+                    id: colorPickerCard
+                    width: Math.min(440, pickerWin.width - 96)
+                    height: Math.min(380, pickerWin.height - 96)
+                    anchors.centerIn: parent
+                    radius: root.themeRounding
+                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                    border.width: root.themeBorderSize
+                    border.color: Qt.alpha(root.themePrimary, 0.35)
+                    antialiasing: true
+                    clip: true
+
+                    property bool modalVisible: root.isPickingColor && !root.isClosing
+
+                    transform: [
+                        Scale {
+                            origin.x: colorPickerCard.width / 2
+                            origin.y: colorPickerCard.height / 2
+                            xScale: colorPickerCard.modalVisible ? 1.0 : 0.94
+                            yScale: colorPickerCard.modalVisible ? 1.0 : 0.94
+
+                            Behavior on xScale {
                                 NumberAnimation {
-                                    duration: root.animEnabled ? animStyle.animDuration : 0
-                                    easing.type: animStyle.bounceEasing
-                                    easing.overshoot: animStyle.overshoot
+                                    duration: (root.animEnabled && !root.isClosing) ? (colorPickerCard.modalVisible ? animStyle.enterDuration : animStyle.exitDuration) : 0
+                                    easing.type: colorPickerCard.modalVisible ? animStyle.expoEasing : animStyle.exitEasing
                                 }
                             }
+                            Behavior on yScale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? (colorPickerCard.modalVisible ? animStyle.enterDuration : animStyle.exitDuration) : 0
+                                    easing.type: colorPickerCard.modalVisible ? animStyle.expoEasing : animStyle.exitEasing
+                                }
+                            }
+                        },
+                        Translate {
+                            y: colorPickerCard.modalVisible ? 0 : 12
 
-                            MouseArea { anchors.fill: parent }
+                            Behavior on y {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? (colorPickerCard.modalVisible ? animStyle.enterDuration : animStyle.exitDuration) : 0
+                                    easing.type: colorPickerCard.modalVisible ? animStyle.expoEasing : animStyle.exitEasing
+                                }
+                            }
+                        }
+                    ]
 
+                    MouseArea { anchors.fill: parent }
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 30
+                        spacing: 18
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 18
+                            Rectangle {
+                                width: 58; height: 58; radius: 10
+                                color: root.pickerHex
+                                border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.3)
+                                antialiasing: true
+                            }
                             ColumnLayout {
-                                anchors.fill: parent
-                                anchors.margins: 30
-                                spacing: 18
+                                Layout.fillWidth: true; spacing: 4
+                                Text { text: "Select Zone Color"; color: root.themeText; font.pixelSize: 18; font.weight: Font.Bold; font.family: root.fontFamily; style: Text.Raised; styleColor: Qt.rgba(0, 0, 0, 0.75) }
+                                Text { text: root.pickerHex.toUpperCase(); color: root.themeTextMuted; font.pixelSize: 14; font.family: root.fontFamily }
+                            }
+                        }
 
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 18
+                        Item { Layout.preferredHeight: 6 }
+
+                        Item {
+                            Layout.fillWidth: true; Layout.preferredHeight: 32
+                            RowLayout {
+                                anchors.fill: parent; spacing: 12
+                                Text { text: "R"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: root.fontFamily; Layout.preferredWidth: 16 }
+                                Item {
+                                    Layout.fillWidth: true; Layout.fillHeight: true
                                     Rectangle {
-                                        width: 58; height: 58; radius: 10
-                                        color: root.pickerHex
-                                        border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.3)
-                                        antialiasing: true
-                                    }
-                                    ColumnLayout {
-                                        Layout.fillWidth: true; spacing: 4
-                                        Text { text: "Select Zone Color"; color: root.themeText; font.pixelSize: 18; font.weight: Font.Bold; font.family: root.fontFamily }
-                                        Text { text: root.pickerHex.toUpperCase(); color: root.themeTextMuted; font.pixelSize: 14; font.family: root.fontFamily }
-                                    }
-                                }
-
-                                Item { Layout.preferredHeight: 6 }
-
-                                Item {
-                                    Layout.fillWidth: true; Layout.preferredHeight: 32
-                                    RowLayout {
-                                        anchors.fill: parent; spacing: 12
-                                        Text { text: "R"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: root.fontFamily; Layout.preferredWidth: 16 }
-                                        Item {
-                                            Layout.fillWidth: true; Layout.fillHeight: true
-                                            Rectangle {
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                width: parent.width; height: 10; radius: 5; color: "#ff0000"
-                                                Rectangle {
-                                                    anchors.fill: parent; radius: 5
-                                                    gradient: Gradient {
-                                                        orientation: Gradient.Horizontal
-                                                        GradientStop { position: 0.0; color: "#FF000000" }
-                                                        GradientStop { position: 1.0; color: "#00000000" }
-                                                    }
-                                                }
-                                            }
-                                            Rectangle {
-                                                width: 22; height: 22; radius: 11
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                x: Math.max(0, Math.min(parent.width - 22, (root.pickerR / 255) * (parent.width - 22)))
-                                                color: "#ffffff"; border.width: 2; border.color: "#333333"
-                                                antialiasing: true
-                                            }
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                preventStealing: true
-                                                function updateVal(mx) { root.pickerR = Math.round((Math.max(0, Math.min(mx - 11, width - 22)) / Math.max(1, width - 22)) * 255) }
-                                                onPressed: updateVal(mouseX)
-                                                onPositionChanged: if (pressed) updateVal(mouseX)
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width; height: 10; radius: 5; color: "#ff0000"
+                                        Rectangle {
+                                            anchors.fill: parent; radius: 5
+                                            gradient: Gradient {
+                                                orientation: Gradient.Horizontal
+                                                GradientStop { position: 0.0; color: "#FF000000" }
+                                                GradientStop { position: 1.0; color: "#00000000" }
                                             }
                                         }
-                                        Text { text: root.pickerR.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: root.fontFamily; Layout.preferredWidth: 32; horizontalAlignment: Text.AlignRight }
                                     }
-                                }
-
-                                Item {
-                                    Layout.fillWidth: true; Layout.preferredHeight: 32
-                                    RowLayout {
-                                        anchors.fill: parent; spacing: 12
-                                        Text { text: "G"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: root.fontFamily; Layout.preferredWidth: 16 }
-                                        Item {
-                                            Layout.fillWidth: true; Layout.fillHeight: true
-                                            Rectangle {
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                width: parent.width; height: 10; radius: 5; color: "#00ff00"
-                                                Rectangle {
-                                                    anchors.fill: parent; radius: 5
-                                                    gradient: Gradient {
-                                                        orientation: Gradient.Horizontal
-                                                        GradientStop { position: 0.0; color: "#FF000000" }
-                                                        GradientStop { position: 1.0; color: "#00000000" }
-                                                    }
-                                                }
-                                            }
-                                            Rectangle {
-                                                width: 22; height: 22; radius: 11
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                x: Math.max(0, Math.min(parent.width - 22, (root.pickerG / 255) * (parent.width - 22)))
-                                                color: "#ffffff"; border.width: 2; border.color: "#333333"
-                                                antialiasing: true
-                                            }
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                preventStealing: true
-                                                function updateVal(mx) { root.pickerG = Math.round((Math.max(0, Math.min(mx - 11, width - 22)) / Math.max(1, width - 22)) * 255) }
-                                                onPressed: updateVal(mouseX)
-                                                onPositionChanged: if (pressed) updateVal(mouseX)
-                                            }
-                                        }
-                                        Text { text: root.pickerG.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: root.fontFamily; Layout.preferredWidth: 32; horizontalAlignment: Text.AlignRight }
-                                    }
-                                }
-
-                                Item {
-                                    Layout.fillWidth: true; Layout.preferredHeight: 32
-                                    RowLayout {
-                                        anchors.fill: parent; spacing: 12
-                                        Text { text: "B"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: root.fontFamily; Layout.preferredWidth: 16 }
-                                        Item {
-                                            Layout.fillWidth: true; Layout.fillHeight: true
-                                            Rectangle {
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                width: parent.width; height: 10; radius: 5; color: "#0000ff"
-                                                Rectangle {
-                                                    anchors.fill: parent; radius: 5
-                                                    gradient: Gradient {
-                                                        orientation: Gradient.Horizontal
-                                                        GradientStop { position: 0.0; color: "#FF000000" }
-                                                        GradientStop { position: 1.0; color: "#00000000" }
-                                                    }
-                                                }
-                                            }
-                                            Rectangle {
-                                                width: 22; height: 22; radius: 11
-                                                anchors.verticalCenter: parent.verticalCenter
-                                                x: Math.max(0, Math.min(parent.width - 22, (root.pickerB / 255) * (parent.width - 22)))
-                                                color: "#ffffff"; border.width: 2; border.color: "#333333"
-                                                antialiasing: true
-                                            }
-                                            MouseArea {
-                                                anchors.fill: parent
-                                                preventStealing: true
-                                                function updateVal(mx) { root.pickerB = Math.round((Math.max(0, Math.min(mx - 11, width - 22)) / Math.max(1, width - 22)) * 255) }
-                                                onPressed: updateVal(mouseX)
-                                                onPositionChanged: if (pressed) updateVal(mouseX)
-                                            }
-                                        }
-                                        Text { text: root.pickerB.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: root.fontFamily; Layout.preferredWidth: 32; horizontalAlignment: Text.AlignRight }
-                                    }
-                                }
-
-                                Item { Layout.fillHeight: true }
-
-                                RowLayout {
-                                    Layout.fillWidth: true; Layout.alignment: Qt.AlignRight
-                                    spacing: 12
                                     Rectangle {
-                                        width: 100; height: 42; radius: Math.max(8, root.themeRounding - 4)
-                                        color: "transparent"; border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.2)
+                                        width: 22; height: 22; radius: 11
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        x: Math.max(0, Math.min(parent.width - 22, (root.pickerR / 255) * (parent.width - 22)))
+                                        color: "#ffffff"; border.width: 2; border.color: "#333333"
                                         antialiasing: true
-                                        scale: cancelPickMouse.pressed ? 0.93 : (cancelPickMouse.containsMouse ? 1.04 : 1.0)
+                                        scale: rSliderMouse.pressed ? 1.15 : (rSliderMouse.containsMouse ? 1.08 : 1.0)
                                         Behavior on scale {
                                             NumberAnimation {
-                                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                                easing.type: animStyle.bounceEasing
-                                                easing.overshoot: animStyle.overshoot
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                easing.type: animStyle.smoothEasing
                                             }
                                         }
-                                        Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 15; font.family: root.fontFamily; color: root.themeText }
-                                        MouseArea { id: cancelPickMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.isPickingColor = false }
+                                    }
+                                    MouseArea {
+                                        id: rSliderMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        preventStealing: true
+                                        function updateVal(mx) { root.pickerR = Math.round((Math.max(0, Math.min(mx - 11, width - 22)) / Math.max(1, width - 22)) * 255) }
+                                        onPressed: updateVal(mouseX)
+                                        onPositionChanged: if (pressed) updateVal(mouseX)
+                                    }
+                                }
+                                Text { text: root.pickerR.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: root.fontFamily; Layout.preferredWidth: 32; horizontalAlignment: Text.AlignRight }
+                            }
+                        }
+
+                        Item {
+                            Layout.fillWidth: true; Layout.preferredHeight: 32
+                            RowLayout {
+                                anchors.fill: parent; spacing: 12
+                                Text { text: "G"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: root.fontFamily; Layout.preferredWidth: 16 }
+                                Item {
+                                    Layout.fillWidth: true; Layout.fillHeight: true
+                                    Rectangle {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width; height: 10; radius: 5; color: "#00ff00"
+                                        Rectangle {
+                                            anchors.fill: parent; radius: 5
+                                            gradient: Gradient {
+                                                orientation: Gradient.Horizontal
+                                                GradientStop { position: 0.0; color: "#FF000000" }
+                                                GradientStop { position: 1.0; color: "#00000000" }
+                                            }
+                                        }
                                     }
                                     Rectangle {
-                                        width: 120; height: 42; radius: Math.max(8, root.themeRounding - 4)
-                                        color: Qt.alpha(root.themePrimary, 0.2); border.width: 1; border.color: root.themePrimary
+                                        width: 22; height: 22; radius: 11
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        x: Math.max(0, Math.min(parent.width - 22, (root.pickerG / 255) * (parent.width - 22)))
+                                        color: "#ffffff"; border.width: 2; border.color: "#333333"
                                         antialiasing: true
-                                        scale: applyPickMouse.pressed ? 0.93 : (applyPickMouse.containsMouse ? 1.04 : 1.0)
+                                        scale: gSliderMouse.pressed ? 1.15 : (gSliderMouse.containsMouse ? 1.08 : 1.0)
                                         Behavior on scale {
                                             NumberAnimation {
-                                                duration: root.animEnabled ? animStyle.animDuration : 0
-                                                easing.type: animStyle.bounceEasing
-                                                easing.overshoot: animStyle.overshoot
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                easing.type: animStyle.smoothEasing
                                             }
                                         }
-                                        Text { anchors.centerIn: parent; text: "Apply"; font.pixelSize: 15; font.weight: Font.Bold; font.family: root.fontFamily; color: root.themePrimary }
-                                        MouseArea {
-                                            id: applyPickMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: {
-                                                if (root.activeZoneIndex >= 0) {
-                                                    customZoneModel.setProperty(root.activeZoneIndex, "colorHex", root.rgbToHex(root.pickerR, root.pickerG, root.pickerB))
-                                                }
-                                                root.isPickingColor = false
+                                    }
+                                    MouseArea {
+                                        id: gSliderMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        preventStealing: true
+                                        function updateVal(mx) { root.pickerG = Math.round((Math.max(0, Math.min(mx - 11, width - 22)) / Math.max(1, width - 22)) * 255) }
+                                        onPressed: updateVal(mouseX)
+                                        onPositionChanged: if (pressed) updateVal(mouseX)
+                                    }
+                                }
+                                Text { text: root.pickerG.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: root.fontFamily; Layout.preferredWidth: 32; horizontalAlignment: Text.AlignRight }
+                            }
+                        }
+
+                        Item {
+                            Layout.fillWidth: true; Layout.preferredHeight: 32
+                            RowLayout {
+                                anchors.fill: parent; spacing: 12
+                                Text { text: "B"; color: root.themeTextMuted; font.weight: Font.Bold; font.pixelSize: 15; font.family: root.fontFamily; Layout.preferredWidth: 16 }
+                                Item {
+                                    Layout.fillWidth: true; Layout.fillHeight: true
+                                    Rectangle {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        width: parent.width; height: 10; radius: 5; color: "#0000ff"
+                                        Rectangle {
+                                            anchors.fill: parent; radius: 5
+                                            gradient: Gradient {
+                                                orientation: Gradient.Horizontal
+                                                GradientStop { position: 0.0; color: "#FF000000" }
+                                                GradientStop { position: 1.0; color: "#00000000" }
                                             }
                                         }
+                                    }
+                                    Rectangle {
+                                        width: 22; height: 22; radius: 11
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        x: Math.max(0, Math.min(parent.width - 22, (root.pickerB / 255) * (parent.width - 22)))
+                                        color: "#ffffff"; border.width: 2; border.color: "#333333"
+                                        antialiasing: true
+                                        scale: bSliderMouse.pressed ? 1.15 : (bSliderMouse.containsMouse ? 1.08 : 1.0)
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                    }
+                                    MouseArea {
+                                        id: bSliderMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        preventStealing: true
+                                        function updateVal(mx) { root.pickerB = Math.round((Math.max(0, Math.min(mx - 11, width - 22)) / Math.max(1, width - 22)) * 255) }
+                                        onPressed: updateVal(mouseX)
+                                        onPositionChanged: if (pressed) updateVal(mouseX)
+                                    }
+                                }
+                                Text { text: root.pickerB.toString().padStart(3, '0'); color: root.themeText; font.pixelSize: 14; font.family: root.fontFamily; Layout.preferredWidth: 32; horizontalAlignment: Text.AlignRight }
+                            }
+                        }
+
+                        Item { Layout.fillHeight: true }
+
+                        RowLayout {
+                            Layout.fillWidth: true; Layout.alignment: Qt.AlignRight
+                            spacing: 12
+                            Rectangle {
+                                width: 100; height: 42; radius: Math.max(8, root.themeRounding - 4)
+                                color: cancelPickMouse.containsMouse ? Qt.rgba(255, 255, 255, 0.10) : Qt.rgba(0, 0, 0, 0.42)
+                                border.width: 1; border.color: Qt.rgba(255, 255, 255, 0.16)
+                                antialiasing: true
+                                scale: cancelPickMouse.pressed ? 0.93 : (cancelPickMouse.containsMouse ? 1.04 : 1.0)
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Text { anchors.centerIn: parent; text: "Cancel"; font.pixelSize: 15; font.family: root.fontFamily; color: root.themeText }
+                                MouseArea { id: cancelPickMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.isPickingColor = false }
+                            }
+                            Rectangle {
+                                width: 120; height: 42; radius: Math.max(8, root.themeRounding - 4)
+                                color: applyPickMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.30) : Qt.alpha(root.themePrimary, 0.20)
+                                border.width: 1; border.color: root.themePrimary
+                                antialiasing: true
+                                scale: applyPickMouse.pressed ? 0.93 : (applyPickMouse.containsMouse ? 1.04 : 1.0)
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Text { anchors.centerIn: parent; text: "Apply"; font.pixelSize: 15; font.weight: Font.Bold; font.family: root.fontFamily; color: root.themePrimary }
+                                MouseArea {
+                                    id: applyPickMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (root.activeZoneIndex >= 0) {
+                                            customZoneModel.setProperty(root.activeZoneIndex, "colorHex", root.rgbToHex(root.pickerR, root.pickerG, root.pickerB))
+                                        }
+                                        root.isPickingColor = false
                                     }
                                 }
                             }

@@ -62,16 +62,16 @@ Scope {
     property color themeBorder: "#ffb3af"
     property color themePrimary: "#ffb3af"
     property color themeText: "#FFFFFF"
-    property color themeTextMuted: "#a1a1aa"
+    property color themeTextMuted: "#D4D4D8"
 
     property int themeRounding: 22
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
+    property real themeBgAlpha: 0.25
     property bool animEnabled: true
     property int animDuration: 320
 
     property color themeBackground: "#141416"
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.055)
+    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08)
 
     function mixColor(c1, c2, ratio, alphaVal) {
         let col1 = Qt.color(c1)
@@ -579,9 +579,9 @@ Scope {
         }
 
         radius: Math.max(10, root.themeRounding - 6)
-        color: Qt.rgba(0.03, 0.03, 0.04, 0.52)
+        color: root.themeSurface
         border.width: 1
-        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.09)
+        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
         antialiasing: true
         implicitHeight: 92
 
@@ -598,9 +598,9 @@ Scope {
                     width: 24
                     height: 24
                     radius: 7
-                    color: Qt.alpha(root.themePrimary, 0.15)
+                    color: Qt.alpha(root.themePrimary, 0.18)
                     border.width: 1
-                    border.color: Qt.alpha(root.themePrimary, 0.30)
+                    border.color: Qt.alpha(root.themePrimary, 0.35)
                     antialiasing: true
 
                     Text {
@@ -620,6 +620,8 @@ Scope {
                     font.weight: Font.Bold
                     font.letterSpacing: 0.6
                     Layout.fillWidth: true
+                    style: Text.Raised
+                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                 }
 
                 Rectangle {
@@ -627,9 +629,9 @@ Scope {
                     Layout.preferredHeight: 20
                     Layout.preferredWidth: tempText.implicitWidth + 12
                     radius: 6
-                    color: Qt.alpha(cardRoot.getTempColor(cardRoot.tempValue), 0.14)
+                    color: Qt.alpha(cardRoot.getTempColor(cardRoot.tempValue), 0.18)
                     border.width: 1
-                    border.color: Qt.alpha(cardRoot.getTempColor(cardRoot.tempValue), 0.35)
+                    border.color: Qt.alpha(cardRoot.getTempColor(cardRoot.tempValue), 0.40)
                     antialiasing: true
 
                     Text {
@@ -640,6 +642,8 @@ Scope {
                         font.family: root.fontFamily
                         font.pixelSize: 10
                         font.weight: Font.Bold
+                        style: Text.Raised
+                        styleColor: Qt.rgba(0, 0, 0, 0.7)
                     }
                 }
             }
@@ -655,7 +659,7 @@ Scope {
                     font.pixelSize: 20
                     font.weight: Font.Bold
                     style: Text.Raised
-                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                    styleColor: Qt.rgba(0, 0, 0, 0.85)
                 }
 
                 Item { Layout.fillWidth: true }
@@ -669,6 +673,8 @@ Scope {
                     font.weight: Font.Medium
                     Layout.alignment: Qt.AlignBottom
                     Layout.bottomMargin: 2
+                    style: Text.Raised
+                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                 }
             }
 
@@ -676,7 +682,7 @@ Scope {
                 Layout.fillWidth: true
                 height: 6
                 radius: 3
-                color: Qt.rgba(1.0, 1.0, 1.0, 0.10)
+                color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
                 antialiasing: true
                 clip: true
 
@@ -748,23 +754,10 @@ Scope {
                     id: bgCardShape
                     anchors.fill: parent
                     radius: root.themeRounding
-                    color: Qt.alpha(root.themeBackground, Math.min(0.84, root.themeBgAlpha + 0.14))
+                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
-                    border.color: dragArea.drag.active ? root.themePrimary : Qt.alpha(root.themePrimary, 0.42)
+                    border.color: dragArea.drag.active ? root.themePrimary : Qt.alpha(root.themePrimary, 0.4)
                     antialiasing: true
-                    clip: true
-
-                    Rectangle {
-                        anchors.fill: parent
-                        anchors.margins: root.themeBorderSize
-                        radius: Math.max(0, parent.radius - root.themeBorderSize)
-                        antialiasing: true
-                        gradient: Gradient {
-                            GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.10) }
-                            GradientStop { position: 0.35; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
-                            GradientStop { position: 1.0; color: "transparent" }
-                        }
-                    }
                 }
 
                 MouseArea {
@@ -805,7 +798,7 @@ Scope {
                             Rectangle {
                                 anchors.fill: parent
                                 radius: 24
-                                color: Qt.rgba(0.03, 0.03, 0.04, 0.65)
+                                color: root.themeSurface
                                 border.color: root.themePrimary
                                 border.width: 2
                                 antialiasing: true
@@ -894,6 +887,8 @@ Scope {
                                 font.pixelSize: 9
                                 font.weight: Font.Bold
                                 font.letterSpacing: 1.2
+                                style: Text.Raised
+                                styleColor: Qt.rgba(0, 0, 0, 0.7)
                             }
 
                             Text {
@@ -916,12 +911,12 @@ Scope {
                             Layout.preferredWidth: audioBtnLayout.implicitWidth + 20
                             radius: 11
                             color: audioBtnMouse.containsMouse
-                                   ? root.mixColor(root.themeBackground, root.themePrimary, 0.22, 0.78)
-                                   : Qt.rgba(0.03, 0.03, 0.04, 0.55)
+                                   ? Qt.rgba(1.0, 1.0, 1.0, 0.16)
+                                   : root.themeSurface
                             border.width: 1
                             border.color: audioBtnMouse.containsMouse
-                                          ? Qt.alpha(root.themePrimary, 0.65)
-                                          : Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                                          ? root.themePrimary
+                                          : Qt.alpha(root.themeBorder, 0.28)
                             scale: audioBtnMouse.pressed ? 0.94 : (audioBtnMouse.containsMouse ? 1.03 : 1.0)
                             antialiasing: true
 
@@ -943,7 +938,7 @@ Scope {
                                     width: 22
                                     height: 22
                                     radius: 6
-                                    color: Qt.alpha(root.themePrimary, 0.16)
+                                    color: Qt.alpha(root.themePrimary, 0.18)
                                     Layout.alignment: Qt.AlignVCenter
 
                                     Text {
@@ -964,6 +959,8 @@ Scope {
                                     Layout.maximumWidth: 96
                                     elide: Text.ElideRight
                                     Layout.alignment: Qt.AlignVCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
 
                                 Text {
@@ -972,6 +969,8 @@ Scope {
                                     font.family: root.iconFontFamily
                                     font.pixelSize: 12
                                     Layout.alignment: Qt.AlignVCenter
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.6)
                                 }
                             }
 
@@ -994,9 +993,9 @@ Scope {
                             Layout.preferredWidth: 1.25
                             implicitHeight: clockCol.implicitHeight + 24
                             radius: Math.max(10, root.themeRounding - 6)
-                            color: Qt.rgba(0.03, 0.03, 0.04, 0.52)
+                            color: root.themeSurface
                             border.width: 1
-                            border.color: Qt.rgba(1.0, 1.0, 1.0, 0.09)
+                            border.color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
                             antialiasing: true
 
                             ColumnLayout {
@@ -1022,7 +1021,7 @@ Scope {
                                         Layout.preferredWidth: periodText.implicitWidth + 10
                                         Layout.preferredHeight: 20
                                         radius: 6
-                                        color: Qt.alpha(root.themePrimary, 0.16)
+                                        color: Qt.alpha(root.themePrimary, 0.18)
                                         border.width: 1
                                         border.color: Qt.alpha(root.themePrimary, 0.35)
                                         Layout.alignment: Qt.AlignBottom
@@ -1047,6 +1046,8 @@ Scope {
                                     font.family: root.fontFamily
                                     font.pixelSize: 12
                                     font.weight: Font.Bold
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.7)
                                 }
 
                                 Text {
@@ -1056,6 +1057,8 @@ Scope {
                                     font.pixelSize: 11
                                     font.weight: Font.Medium
                                     font.letterSpacing: 0.5
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
                             }
                         }
@@ -1065,9 +1068,9 @@ Scope {
                             Layout.preferredWidth: 1.0
                             Layout.fillHeight: true
                             radius: Math.max(10, root.themeRounding - 6)
-                            color: Qt.rgba(0.03, 0.03, 0.04, 0.52)
+                            color: root.themeSurface
                             border.width: 1
-                            border.color: Qt.rgba(1.0, 1.0, 1.0, 0.09)
+                            border.color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
                             antialiasing: true
 
                             ColumnLayout {
@@ -1083,9 +1086,9 @@ Scope {
                                         width: 36
                                         height: 36
                                         radius: 10
-                                        color: Qt.alpha(root.themePrimary, 0.15)
+                                        color: Qt.alpha(root.themePrimary, 0.18)
                                         border.width: 1
-                                        border.color: Qt.alpha(root.themePrimary, 0.30)
+                                        border.color: Qt.alpha(root.themePrimary, 0.35)
                                         antialiasing: true
 
                                         Text {
@@ -1121,6 +1124,8 @@ Scope {
                                     Layout.alignment: Qt.AlignRight
                                     elide: Text.ElideRight
                                     Layout.maximumWidth: 140
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
 
                                 Text {
@@ -1130,6 +1135,8 @@ Scope {
                                     font.pixelSize: 11
                                     font.weight: Font.Medium
                                     Layout.alignment: Qt.AlignRight
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.65)
                                 }
                             }
                         }
@@ -1139,9 +1146,9 @@ Scope {
                         Layout.fillWidth: true
                         implicitHeight: envRow.implicitHeight + 18
                         radius: Math.max(10, root.themeRounding - 6)
-                        color: Qt.rgba(0.03, 0.03, 0.04, 0.52)
+                        color: root.themeSurface
                         border.width: 1
-                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.09)
+                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
                         antialiasing: true
 
                         RowLayout {
@@ -1173,6 +1180,8 @@ Scope {
                                         font.pixelSize: 9
                                         font.weight: Font.Bold
                                         font.letterSpacing: 0.5
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                     }
                                     Text {
                                         text: root.currentWeatherHumidity
@@ -1180,6 +1189,8 @@ Scope {
                                         font.family: root.fontFamily
                                         font.pixelSize: 12
                                         font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
                                     }
                                 }
 
@@ -1191,7 +1202,7 @@ Scope {
                                 Layout.fillHeight: true
                                 Layout.topMargin: 4
                                 Layout.bottomMargin: 4
-                                color: Qt.rgba(1.0, 1.0, 1.0, 0.10)
+                                color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
                             }
 
                             RowLayout {
@@ -1217,6 +1228,8 @@ Scope {
                                         font.pixelSize: 9
                                         font.weight: Font.Bold
                                         font.letterSpacing: 0.5
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                     }
                                     Text {
                                         text: root.currentWeatherWind
@@ -1224,6 +1237,8 @@ Scope {
                                         font.family: root.fontFamily
                                         font.pixelSize: 12
                                         font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
                                     }
                                 }
 
@@ -1235,7 +1250,7 @@ Scope {
                                 Layout.fillHeight: true
                                 Layout.topMargin: 4
                                 Layout.bottomMargin: 4
-                                color: Qt.rgba(1.0, 1.0, 1.0, 0.10)
+                                color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
                             }
 
                             RowLayout {
@@ -1261,6 +1276,8 @@ Scope {
                                         font.pixelSize: 9
                                         font.weight: Font.Bold
                                         font.letterSpacing: 0.5
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
                                     }
                                     Text {
                                         text: root.currentWeatherPressure
@@ -1268,6 +1285,8 @@ Scope {
                                         font.family: root.fontFamily
                                         font.pixelSize: 12
                                         font.weight: Font.Bold
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
                                     }
                                 }
 

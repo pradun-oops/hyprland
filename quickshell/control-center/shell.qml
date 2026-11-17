@@ -20,7 +20,7 @@ Scope {
 
     property int themeRounding: 20
     property int themeBorderSize: 2
-    property real themeBgAlpha: 0.5
+    property real themeBgAlpha: 0.25
 
     property color themeBackground: "#141416"
     property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.58)
@@ -28,12 +28,21 @@ Scope {
 
     property bool animEnabled: true
     property int animDuration: 220
+    property bool isClosing: false
 
     QtObject {
         id: animStyle
-        property int animDuration: root.animDuration > 0 ? Math.min(root.animDuration, 240) : 200
-        property int fadeDuration: 180
-        property var smoothEasing: Easing.OutCubic
+        property int base: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
+        property int enterDuration: Math.round(base * 1.35)
+        property int exitDuration: Math.round(base * 0.85)
+        property int animDuration: base
+        property int morphDuration: Math.round(base * 1.25)
+        property int fadeDuration: Math.round(base * 0.8)
+        property int microDuration: Math.round(base * 0.65)
+        property int scaleDuration: Math.round(base * 1.1)
+        property var smoothEasing: Easing.OutQuint
+        property var expoEasing: Easing.OutExpo
+        property var exitEasing: Easing.InCubic
     }
 
     property bool wifiEnabled: true
@@ -72,14 +81,9 @@ Scope {
     }
 
     function quitApp() {
-        quitTimer.start()
-    }
-
-    Timer {
-        id: quitTimer
-        interval: 140
-        repeat: false
-        onTriggered: Qt.quit()
+        if (root.isClosing) return
+        root.isClosing = true
+        Qt.quit()
     }
 
     function readJsonSync(path, fallback) {
@@ -359,7 +363,7 @@ except Exception:
 
     Timer {
         interval: 220
-        running: true
+        running: !root.isClosing
         repeat: true
         triggeredOnStart: true
         onTriggered: {
@@ -396,7 +400,7 @@ except Exception:
 
     Timer {
         interval: 1200
-        running: true
+        running: !root.isClosing
         repeat: true
         triggeredOnStart: true
         onTriggered: {
@@ -515,11 +519,11 @@ except Exception:
             screen: modelData
 
             property bool isTargetMonitor: root.targetMonitorName !== "" && modelData.name === root.targetMonitorName
-            visible: isTargetMonitor
+            visible: isTargetMonitor && !root.isClosing
 
             WlrLayershell.layer: WlrLayer.Overlay
             WlrLayershell.namespace: "qs-control-center"
-            WlrLayershell.keyboardFocus: isTargetMonitor ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+            WlrLayershell.keyboardFocus: (isTargetMonitor && !root.isClosing) ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
             exclusiveZone: -1
 
             anchors {
@@ -533,12 +537,13 @@ except Exception:
 
             Shortcut {
                 sequence: "Escape"
-                onActivated: Qt.quit()
+                onActivated: root.quitApp()
             }
 
             MouseArea {
                 anchors.fill: parent
-                onClicked: Qt.quit()
+                enabled: !root.isClosing
+                onClicked: root.quitApp()
             }
 
             Rectangle {
@@ -555,24 +560,80 @@ except Exception:
                 radius: root.themeRounding
                 color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                 border.width: root.themeBorderSize
-                border.color: Qt.alpha(root.themePrimary, 0.40)
+                border.color: root.editMode ? Qt.alpha(root.themePrimary, 0.72) : Qt.alpha(root.themePrimary, 0.40)
                 antialiasing: true
                 clip: true
 
                 property bool shown: false
-                Component.onCompleted: shown = true
-                opacity: shown ? 1.0 : 0.0
+                property bool layoutReady: false
+                property bool panelVisible: shown && !root.isClosing
+
+                Component.onCompleted: {
+                    shown = true
+                    readyTimer.start()
+                }
+
+                Timer {
+                    id: readyTimer
+                    interval: animStyle.enterDuration
+                    repeat: false
+                    onTriggered: ccContainer.layoutReady = true
+                }
+
+                opacity: panelVisible ? 1.0 : 0.0
+                enabled: !root.isClosing
+
+                transform: [
+                    Scale {
+                        origin.x: ccContainer.width / 2
+                        origin.y: 0
+                        xScale: ccContainer.panelVisible ? 1.0 : 0.94
+                        yScale: ccContainer.panelVisible ? 1.0 : 0.94
+
+                        Behavior on xScale {
+                            NumberAnimation {
+                                duration: (root.animEnabled && !root.isClosing && ccContainer.panelVisible) ? animStyle.enterDuration : 0
+                                easing.type: animStyle.expoEasing
+                            }
+                        }
+                        Behavior on yScale {
+                            NumberAnimation {
+                                duration: (root.animEnabled && !root.isClosing && ccContainer.panelVisible) ? animStyle.enterDuration : 0
+                                easing.type: animStyle.expoEasing
+                            }
+                        }
+                    },
+                    Translate {
+                        x: 0
+                        y: ccContainer.panelVisible ? 0 : -12
+
+                        Behavior on y {
+                            NumberAnimation {
+                                duration: (root.animEnabled && !root.isClosing && ccContainer.panelVisible) ? animStyle.enterDuration : 0
+                                easing.type: animStyle.expoEasing
+                            }
+                        }
+                    }
+                ]
 
                 Behavior on opacity {
                     NumberAnimation {
-                        duration: root.animEnabled ? animStyle.fadeDuration : 0
+                        duration: (root.animEnabled && !root.isClosing && ccContainer.panelVisible) ? animStyle.fadeDuration : 0
                         easing.type: animStyle.smoothEasing
                     }
                 }
 
                 Behavior on height {
+                    enabled: ccContainer.layoutReady && root.animEnabled && !root.isClosing
                     NumberAnimation {
-                        duration: root.animEnabled ? animStyle.animDuration : 0
+                        duration: animStyle.morphDuration
+                        easing.type: animStyle.expoEasing
+                    }
+                }
+
+                Behavior on border.color {
+                    ColorAnimation {
+                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                         easing.type: animStyle.smoothEasing
                     }
                 }
@@ -585,31 +646,69 @@ except Exception:
                 Flickable {
                     id: ccFlick
                     anchors.fill: parent
-                    anchors.margins: 20
+                    anchors.margins: root.themeBorderSize + 2
                     contentWidth: width
-                    contentHeight: mainColumn.implicitHeight
+                    contentHeight: mainColumn.implicitHeight + 32
                     interactive: contentHeight > height && !root.isDraggingVolume && !root.isDraggingBrightness && !root.editMode
                     boundsBehavior: Flickable.StopAtBounds
                     clip: true
 
+                    Behavior on contentY {
+                        NumberAnimation {
+                            duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                            easing.type: animStyle.smoothEasing
+                        }
+                    }
+
                     Column {
                         id: mainColumn
-                        width: parent.width
+                        x: 16
+                        y: 16
+                        width: parent.width - 32
                         spacing: 14
+
+                        move: Transition {
+                            NumberAnimation {
+                                properties: "x,y"
+                                duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                easing.type: animStyle.expoEasing
+                            }
+                        }
 
                         RowLayout {
                             width: parent.width
                             spacing: 12
 
                             Rectangle {
+                                id: avatarRing
                                 width: 44
                                 height: 44
                                 radius: 22
-                                color: Qt.alpha(root.themePrimary, 0.16)
+                                color: Qt.alpha(root.themePrimary, avatarMouse.containsMouse ? 0.24 : 0.16)
                                 border.width: 1.5
-                                border.color: Qt.alpha(root.themePrimary, 0.45)
+                                border.color: Qt.alpha(root.themePrimary, avatarMouse.containsMouse ? 0.80 : 0.45)
                                 antialiasing: true
                                 clip: true
+                                scale: avatarMouse.containsMouse ? 1.04 : 1.0
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
 
                                 Image {
                                     id: profilePic
@@ -663,6 +762,12 @@ except Exception:
                                     font.weight: Font.Bold
                                     visible: false
                                 }
+
+                                MouseArea {
+                                    id: avatarMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                }
                             }
 
                             Text {
@@ -685,7 +790,7 @@ except Exception:
                                 Rectangle {
                                     width: 34
                                     height: 34
-                                    radius: 10
+                                    radius: root.editMode ? 17 : 10
                                     color: root.editMode
                                            ? root.themePrimary
                                            : (editMouse.containsMouse ? root.themeSurfaceHover : root.themeSurface)
@@ -694,16 +799,29 @@ except Exception:
                                                   ? root.themePrimary
                                                   : (editMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(1, 1, 1, 0.14))
                                     antialiasing: true
+                                    scale: editMouse.pressed ? 0.92 : (editMouse.containsMouse ? 1.05 : 1.0)
 
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on radius {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
                                     Behavior on color {
                                         ColorAnimation {
-                                            duration: animStyle.fadeDuration
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                             easing.type: animStyle.smoothEasing
                                         }
                                     }
                                     Behavior on border.color {
                                         ColorAnimation {
-                                            duration: animStyle.fadeDuration
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                             easing.type: animStyle.smoothEasing
                                         }
                                     }
@@ -714,6 +832,20 @@ except Exception:
                                         font.family: root.iconFontFamily
                                         color: root.editMode ? root.themeOnPrimary : root.themeText
                                         font.pixelSize: 14
+                                        rotation: root.editMode ? 360 : 0
+
+                                        Behavior on rotation {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                                easing.type: animStyle.expoEasing
+                                            }
+                                        }
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
                                     }
 
                                     MouseArea {
@@ -728,23 +860,36 @@ except Exception:
                                 Rectangle {
                                     width: 34
                                     height: 34
-                                    radius: 10
+                                    radius: pwrMouse.containsMouse ? 14 : 10
                                     color: pwrMouse.containsMouse
                                            ? Qt.rgba(0.93, 0.26, 0.26, 0.32)
                                            : root.themeSurface
                                     border.width: 1
                                     border.color: pwrMouse.containsMouse ? "#ff6b6b" : Qt.rgba(1, 1, 1, 0.14)
                                     antialiasing: true
+                                    scale: pwrMouse.pressed ? 0.92 : (pwrMouse.containsMouse ? 1.05 : 1.0)
 
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on radius {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
                                     Behavior on color {
                                         ColorAnimation {
-                                            duration: animStyle.fadeDuration
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                             easing.type: animStyle.smoothEasing
                                         }
                                     }
                                     Behavior on border.color {
                                         ColorAnimation {
-                                            duration: animStyle.fadeDuration
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                             easing.type: animStyle.smoothEasing
                                         }
                                     }
@@ -755,6 +900,13 @@ except Exception:
                                         font.family: root.iconFontFamily
                                         color: pwrMouse.containsMouse ? "#ff6b6b" : root.themeText
                                         font.pixelSize: 15
+
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
                                     }
 
                                     MouseArea {
@@ -778,8 +930,27 @@ except Exception:
                         }
 
                         Flow {
+                            id: activeTogglesFlow
                             width: parent.width
                             spacing: 10
+
+                            move: Transition {
+                                NumberAnimation {
+                                    properties: "x,y"
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+
+                            add: Transition {
+                                NumberAnimation {
+                                    properties: "opacity,scale"
+                                    from: 0.6
+                                    to: 1.0
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
 
                             Repeater {
                                 model: root.toggleMods
@@ -805,11 +976,26 @@ except Exception:
                                         property bool activeState: root.isToggleActive(modelData) && !root.editMode
                                         antialiasing: true
 
+                                        scale: dragItem.Drag.active
+                                               ? 1.03
+                                               : (tMouse.pressed && !root.editMode
+                                                  ? 0.97
+                                                  : (tMouse.containsMouse && !root.editMode
+                                                     ? 1.015
+                                                     : (toggleDropArea.containsDrag ? 0.96 : 1.0)))
+
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+
                                         color: {
                                             if (root.editMode) return Qt.rgba(0.02, 0.02, 0.03, 0.65)
                                             if (activeState) {
                                                 return tMouse.containsMouse
-                                                       ? root.mixColor(root.themeBackground, root.themePrimary, 0.28, 0.80)
+                                                       ? root.mixColor(root.themeBackground, root.themePrimary, 0.28, 0.82)
                                                        : root.mixColor(root.themeBackground, root.themePrimary, 0.20, 0.74)
                                             }
                                             return (tMouse.containsMouse && !dragItem.Drag.active) ? root.themeSurfaceHover : root.themeSurface
@@ -817,20 +1003,21 @@ except Exception:
 
                                         border.width: 1
                                         border.color: {
-                                            if (activeState) return Qt.alpha(root.themePrimary, 0.65)
+                                            if (toggleDropArea.containsDrag) return root.themePrimary
+                                            if (activeState) return Qt.alpha(root.themePrimary, tMouse.containsMouse ? 0.82 : 0.65)
                                             if (tMouse.containsMouse) return Qt.rgba(1, 1, 1, 0.24)
                                             return Qt.rgba(1, 1, 1, 0.12)
                                         }
 
                                         Behavior on color {
                                             ColorAnimation {
-                                                duration: animStyle.fadeDuration
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                                 easing.type: animStyle.smoothEasing
                                             }
                                         }
                                         Behavior on border.color {
                                             ColorAnimation {
-                                                duration: animStyle.fadeDuration
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                                 easing.type: animStyle.smoothEasing
                                             }
                                         }
@@ -844,7 +1031,7 @@ except Exception:
                                         states: State {
                                             when: dragItem.Drag.active
                                             ParentChange { target: dragItem; parent: ccContainer }
-                                            PropertyChanges { target: dragItem; opacity: 0.92; z: 100 }
+                                            PropertyChanges { target: dragItem; opacity: 0.94; z: 100 }
                                         }
 
                                         RowLayout {
@@ -856,7 +1043,7 @@ except Exception:
                                             Rectangle {
                                                 Layout.preferredWidth: 36
                                                 Layout.preferredHeight: 36
-                                                radius: 10
+                                                radius: dragItem.activeState ? 12 : 10
                                                 color: dragItem.activeState
                                                        ? root.themePrimary
                                                        : Qt.rgba(1, 1, 1, 0.08)
@@ -865,10 +1052,29 @@ except Exception:
                                                               ? Qt.rgba(1, 1, 1, 0.35)
                                                               : Qt.rgba(1, 1, 1, 0.12)
                                                 antialiasing: true
+                                                scale: (tMouse.containsMouse && !root.editMode) ? 1.06 : 1.0
 
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on radius {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
                                                 Behavior on color {
                                                     ColorAnimation {
-                                                        duration: animStyle.fadeDuration
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on border.color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                                         easing.type: animStyle.smoothEasing
                                                     }
                                                 }
@@ -879,6 +1085,13 @@ except Exception:
                                                     font.family: root.iconFontFamily
                                                     color: dragItem.activeState ? root.themeOnPrimary : root.themeText
                                                     font.pixelSize: 16
+
+                                                    Behavior on color {
+                                                        ColorAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
                                                 }
                                             }
 
@@ -909,6 +1122,13 @@ except Exception:
                                                     Layout.fillWidth: true
                                                     style: Text.Raised
                                                     styleColor: Qt.rgba(0, 0, 0, 0.6)
+
+                                                    Behavior on color {
+                                                        ColorAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -940,14 +1160,35 @@ except Exception:
                                         Rectangle {
                                             anchors.right: parent.right
                                             anchors.top: parent.top
-                                            anchors.margins: 4
+                                            anchors.margins: 6
                                             width: 20
                                             height: 20
                                             radius: 6
                                             color: removeMouse.containsMouse ? "#ff6b6b" : Qt.rgba(0.93, 0.26, 0.26, 0.85)
-                                            visible: root.editMode
+                                            opacity: root.editMode ? 1.0 : 0.0
+                                            scale: root.editMode ? (removeMouse.pressed ? 0.90 : (removeMouse.containsMouse ? 1.08 : 1.0)) : 0.0
+                                            visible: opacity > 0.01
                                             z: 10
                                             antialiasing: true
+
+                                            Behavior on opacity {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
 
                                             Text {
                                                 anchors.centerIn: parent
@@ -980,16 +1221,22 @@ except Exception:
                                 width: parent.width
                                 height: 46
                                 radius: Math.max(10, root.themeRounding - 6)
-                                color: root.themeSurface
+                                color: (volMouse.containsMouse || root.isDraggingVolume) ? root.themeSurfaceHover : root.themeSurface
                                 border.width: 1
                                 border.color: (volMouse.containsMouse || root.isDraggingVolume)
-                                              ? Qt.alpha(root.themePrimary, 0.45)
+                                              ? Qt.alpha(root.themePrimary, 0.55)
                                               : Qt.rgba(1, 1, 1, 0.12)
                                 antialiasing: true
 
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
                                 Behavior on border.color {
                                     ColorAnimation {
-                                        duration: animStyle.fadeDuration
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                         easing.type: animStyle.smoothEasing
                                     }
                                 }
@@ -1012,6 +1259,26 @@ except Exception:
                                                       ? Qt.rgba(1.0, 0.42, 0.42, 0.45)
                                                       : Qt.rgba(1, 1, 1, 0.12)
                                         antialiasing: true
+                                        scale: volIconMouse.pressed ? 0.92 : (volIconMouse.containsMouse ? 1.06 : 1.0)
+
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on border.color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         Text {
                                             anchors.centerIn: parent
@@ -1019,6 +1286,13 @@ except Exception:
                                             font.family: root.iconFontFamily
                                             color: root.volumeMuted ? "#ff6b6b" : root.themePrimary
                                             font.pixelSize: 15
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
 
                                         MouseArea {
@@ -1040,25 +1314,67 @@ except Exception:
                                             anchors.left: parent.left
                                             anchors.right: parent.right
                                             anchors.verticalCenter: parent.verticalCenter
-                                            height: 8
-                                            radius: 4
+                                            height: (volMouse.containsMouse || root.isDraggingVolume) ? 10 : 8
+                                            radius: height / 2
                                             color: Qt.rgba(0.02, 0.02, 0.03, 0.65)
                                             border.width: 1
                                             border.color: Qt.rgba(1, 1, 1, 0.08)
                                             antialiasing: true
 
+                                            Behavior on height {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+
                                             Rectangle {
                                                 id: volActiveBar
                                                 height: parent.height
                                                 width: Math.max(0, Math.min(parent.width, parent.width * (root.volumeMuted ? 0 : root.volumeLevel)))
-                                                radius: 4
+                                                radius: parent.radius
                                                 color: root.volumeMuted ? root.themeTextMuted : root.themePrimary
                                                 antialiasing: true
 
                                                 Behavior on width {
-                                                    enabled: !root.isDraggingVolume && root.animEnabled
+                                                    enabled: !root.isDraggingVolume && root.animEnabled && !root.isClosing
                                                     NumberAnimation {
-                                                        duration: 110
+                                                        duration: 130
+                                                        easing.type: animStyle.expoEasing
+                                                    }
+                                                }
+                                                Behavior on color {
+                                                    ColorAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                            }
+
+                                            Rectangle {
+                                                width: 14
+                                                height: 14
+                                                radius: 7
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                x: Math.max(0, Math.min(parent.width - width, volActiveBar.width - width / 2))
+                                                color: "#ffffff"
+                                                border.width: 2
+                                                border.color: root.themePrimary
+                                                antialiasing: true
+                                                scale: root.volumeMuted
+                                                       ? 0.0
+                                                       : (root.isDraggingVolume ? 1.12 : (volMouse.containsMouse ? 1.0 : 0.0))
+                                                opacity: (volMouse.containsMouse || root.isDraggingVolume) && !root.volumeMuted ? 1.0 : 0.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on opacity {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
                                                         easing.type: animStyle.smoothEasing
                                                     }
                                                 }
@@ -1104,6 +1420,13 @@ except Exception:
                                         font.weight: Font.Bold
                                         style: Text.Raised
                                         styleColor: Qt.rgba(0, 0, 0, 0.7)
+
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -1113,16 +1436,22 @@ except Exception:
                                 width: parent.width
                                 height: 46
                                 radius: Math.max(10, root.themeRounding - 6)
-                                color: root.themeSurface
+                                color: (brightMouse.containsMouse || root.isDraggingBrightness) ? root.themeSurfaceHover : root.themeSurface
                                 border.width: 1
                                 border.color: (brightMouse.containsMouse || root.isDraggingBrightness)
-                                              ? Qt.alpha(root.themePrimary, 0.45)
+                                              ? Qt.alpha(root.themePrimary, 0.55)
                                               : Qt.rgba(1, 1, 1, 0.12)
                                 antialiasing: true
 
+                                Behavior on color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
                                 Behavior on border.color {
                                     ColorAnimation {
-                                        duration: animStyle.fadeDuration
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                         easing.type: animStyle.smoothEasing
                                     }
                                 }
@@ -1141,6 +1470,20 @@ except Exception:
                                         border.width: 1
                                         border.color: Qt.rgba(1, 1, 1, 0.12)
                                         antialiasing: true
+                                        scale: brightIconMouse.pressed ? 0.92 : (brightIconMouse.containsMouse ? 1.06 : 1.0)
+
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
 
                                         Text {
                                             anchors.centerIn: parent
@@ -1148,6 +1491,14 @@ except Exception:
                                             font.family: root.iconFontFamily
                                             color: root.themePrimary
                                             font.pixelSize: 15
+                                            rotation: Math.round(root.brightnessLevel * 90)
+
+                                            Behavior on rotation {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
 
                                         MouseArea {
@@ -1169,25 +1520,59 @@ except Exception:
                                             anchors.left: parent.left
                                             anchors.right: parent.right
                                             anchors.verticalCenter: parent.verticalCenter
-                                            height: 8
-                                            radius: 4
+                                            height: (brightMouse.containsMouse || root.isDraggingBrightness) ? 10 : 8
+                                            radius: height / 2
                                             color: Qt.rgba(0.02, 0.02, 0.03, 0.65)
                                             border.width: 1
                                             border.color: Qt.rgba(1, 1, 1, 0.08)
                                             antialiasing: true
 
+                                            Behavior on height {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+
                                             Rectangle {
                                                 id: brightActiveBar
                                                 height: parent.height
                                                 width: Math.max(0, Math.min(parent.width, parent.width * root.brightnessLevel))
-                                                radius: 4
+                                                radius: parent.radius
                                                 color: root.themePrimary
                                                 antialiasing: true
 
                                                 Behavior on width {
-                                                    enabled: !root.isDraggingBrightness && root.animEnabled
+                                                    enabled: !root.isDraggingBrightness && root.animEnabled && !root.isClosing
                                                     NumberAnimation {
-                                                        duration: 110
+                                                        duration: 130
+                                                        easing.type: animStyle.expoEasing
+                                                    }
+                                                }
+                                            }
+
+                                            Rectangle {
+                                                width: 14
+                                                height: 14
+                                                radius: 7
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                x: Math.max(0, Math.min(parent.width - width, brightActiveBar.width - width / 2))
+                                                color: "#ffffff"
+                                                border.width: 2
+                                                border.color: root.themePrimary
+                                                antialiasing: true
+                                                scale: root.isDraggingBrightness ? 1.12 : (brightMouse.containsMouse ? 1.0 : 0.0)
+                                                opacity: (brightMouse.containsMouse || root.isDraggingBrightness) ? 1.0 : 0.0
+
+                                                Behavior on scale {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                        easing.type: animStyle.smoothEasing
+                                                    }
+                                                }
+                                                Behavior on opacity {
+                                                    NumberAnimation {
+                                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
                                                         easing.type: animStyle.smoothEasing
                                                     }
                                                 }
@@ -1240,89 +1625,269 @@ except Exception:
 
                         Rectangle {
                             id: modernMediaCard
+                            property bool mediaActive: root.mediaStatus === "Playing" || root.mediaStatus === "Paused"
                             width: parent.width
-                            height: 76
+                            height: mediaActive ? 80 : 0
+                            opacity: mediaActive ? 1.0 : 0.0
+                            scale: mediaActive ? 1.0 : 0.96
+                            visible: height > 0.5
                             radius: Math.max(12, root.themeRounding - 4)
-                            color: root.themeSurface
-                            border.width: 1
-                            border.color: Qt.alpha(root.themePrimary, 0.30)
+                            color: mediaCardHover.containsMouse
+                                   ? root.mixColor(root.themeBackground, root.themePrimary, 0.14, 0.72)
+                                   : root.themeSurface
                             antialiasing: true
-                            clip: true
-                            visible: root.mediaStatus === "Playing" || root.mediaStatus === "Paused"
+
+                            function paintRoundedArt(canvas, img, cornerRadius) {
+                                var ctx = canvas.getContext("2d")
+                                ctx.reset()
+                                if (!img || img.status !== Image.Ready || canvas.width <= 0 || canvas.height <= 0) return
+
+                                ctx.save()
+                                ctx.imageSmoothingEnabled = true
+                                var w = canvas.width
+                                var h = canvas.height
+                                var r = Math.min(cornerRadius, w / 2, h / 2)
+
+                                ctx.beginPath()
+                                ctx.moveTo(r, 0)
+                                ctx.lineTo(w - r, 0)
+                                ctx.arcTo(w, 0, w, r, r)
+                                ctx.lineTo(w, h - r)
+                                ctx.arcTo(w, h, w - r, h, r)
+                                ctx.lineTo(r, h)
+                                ctx.arcTo(0, h, 0, h - r, r)
+                                ctx.lineTo(0, r)
+                                ctx.arcTo(0, 0, r, 0, r)
+                                ctx.closePath()
+                                ctx.clip()
+
+                                var iw = img.implicitWidth
+                                var ih = img.implicitHeight
+                                if (iw > 0 && ih > 0) {
+                                    var sc = Math.max(w / iw, h / ih)
+                                    var sw = w / sc
+                                    var sh = h / sc
+                                    var sx = (iw - sw) / 2
+                                    var sy = (ih - sh) / 2
+                                    ctx.drawImage(img.source, sx, sy, sw, sh, 0, 0, w, h)
+                                } else {
+                                    ctx.drawImage(img.source, 0, 0, w, h)
+                                }
+                                ctx.restore()
+                            }
+
+                            Behavior on height {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+
+                            MouseArea {
+                                id: mediaCardHover
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                acceptedButtons: Qt.NoButton
+                            }
 
                             Image {
-                                id: bgAlbumArt
-                                anchors.fill: parent
+                                id: albumArtLoader
                                 source: root.mediaArt
-                                fillMode: Image.PreserveAspectCrop
-                                opacity: 0.14
-                                visible: status === Image.Ready
+                                visible: false
+                                onStatusChanged: {
+                                    bgArtCanvas.requestPaint()
+                                    thumbArtCanvas.requestPaint()
+                                }
+                                onSourceChanged: {
+                                    bgArtCanvas.requestPaint()
+                                    thumbArtCanvas.requestPaint()
+                                }
+                            }
+
+                            Canvas {
+                                id: bgArtCanvas
+                                anchors.fill: parent
+                                antialiasing: true
+                                opacity: albumArtLoader.status === Image.Ready ? (root.mediaStatus === "Playing" ? 0.24 : 0.14) : 0.0
+                                visible: opacity > 0.01
+
+                                onWidthChanged: requestPaint()
+                                onHeightChanged: requestPaint()
+                                onPaint: modernMediaCard.paintRoundedArt(bgArtCanvas, albumArtLoader, modernMediaCard.radius)
+
+                                Behavior on opacity {
+                                    NumberAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: parent.radius
+                                visible: albumArtLoader.status === Image.Ready
+                                antialiasing: true
+                                gradient: Gradient {
+                                    orientation: Gradient.Horizontal
+                                    GradientStop { position: 0.0; color: Qt.alpha(root.themeBackground, 0.42) }
+                                    GradientStop { position: 0.58; color: Qt.alpha(root.themeBackground, 0.22) }
+                                    GradientStop { position: 1.0; color: Qt.alpha(root.themeBackground, 0.54) }
+                                }
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: parent.radius
+                                color: "transparent"
+                                border.width: 1
+                                border.color: root.mediaStatus === "Playing"
+                                              ? Qt.alpha(root.themePrimary, mediaCardHover.containsMouse ? 0.72 : 0.52)
+                                              : Qt.alpha(root.themePrimary, mediaCardHover.containsMouse ? 0.42 : 0.26)
+                                antialiasing: true
+                                z: 5
+
+                                Behavior on border.color {
+                                    ColorAnimation {
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
                             }
 
                             RowLayout {
                                 anchors.fill: parent
                                 anchors.leftMargin: 12
                                 anchors.rightMargin: 12
-                                anchors.topMargin: 10
-                                anchors.bottomMargin: 10
+                                anchors.topMargin: 11
+                                anchors.bottomMargin: 11
                                 spacing: 12
+                                z: 2
 
-                                Rectangle {
-                                    Layout.preferredWidth: 52
-                                    Layout.preferredHeight: 52
-                                    radius: 11
-                                    color: Qt.alpha(root.themePrimary, 0.16)
-                                    border.width: 1
-                                    border.color: Qt.alpha(root.themePrimary, 0.35)
-                                    clip: true
-                                    antialiasing: true
+                                Item {
+                                    Layout.preferredWidth: 56
+                                    Layout.preferredHeight: 56
+                                    scale: root.mediaStatus === "Playing" ? 1.0 : 0.95
 
-                                    Image {
-                                        id: albumThumb
-                                        anchors.fill: parent
-                                        source: root.mediaArt
-                                        fillMode: Image.PreserveAspectCrop
-                                        visible: status === Image.Ready
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
                                     }
 
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: "󰝚"
-                                        font.family: root.iconFontFamily
-                                        color: root.themePrimary
-                                        font.pixelSize: 20
-                                        visible: albumThumb.status !== Image.Ready
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: 13
+                                        color: Qt.alpha(root.themePrimary, 0.16)
+                                        antialiasing: true
+                                        visible: albumArtLoader.status !== Image.Ready
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "󰝚"
+                                            font.family: root.iconFontFamily
+                                            color: root.themePrimary
+                                            font.pixelSize: 22
+                                        }
+                                    }
+
+                                    Canvas {
+                                        id: thumbArtCanvas
+                                        anchors.fill: parent
+                                        antialiasing: true
+                                        visible: albumArtLoader.status === Image.Ready
+
+                                        onWidthChanged: requestPaint()
+                                        onHeightChanged: requestPaint()
+                                        onPaint: modernMediaCard.paintRoundedArt(thumbArtCanvas, albumArtLoader, 13)
+                                    }
+
+                                    Rectangle {
+                                        anchors.fill: parent
+                                        radius: 13
+                                        color: "transparent"
+                                        border.width: 1
+                                        border.color: root.mediaStatus === "Playing"
+                                                      ? Qt.alpha(root.themePrimary, 0.55)
+                                                      : Qt.rgba(1, 1, 1, 0.18)
+                                        antialiasing: true
                                     }
                                 }
 
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     Layout.alignment: Qt.AlignVCenter
-                                    spacing: 3
+                                    spacing: 4
 
                                     Text {
                                         text: root.mediaTitle !== "" ? root.mediaTitle : "Unknown Track"
                                         color: root.themeText
                                         font.family: root.fontFamily
-                                        font.pixelSize: 12
+                                        font.pixelSize: 13
                                         font.weight: Font.Bold
                                         elide: Text.ElideRight
                                         Layout.fillWidth: true
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.8)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
 
-                                    Text {
-                                        text: root.mediaArtist !== "" ? root.mediaArtist : (root.mediaStatus === "Playing" ? "Playing" : "Paused")
-                                        color: root.themePrimary
-                                        opacity: 0.85
-                                        font.family: root.fontFamily
-                                        font.pixelSize: 10
-                                        font.weight: Font.Medium
-                                        elide: Text.ElideRight
+                                    RowLayout {
                                         Layout.fillWidth: true
-                                        style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.6)
+                                        spacing: 6
+
+                                        Rectangle {
+                                            width: 6
+                                            height: 6
+                                            radius: 3
+                                            color: root.mediaStatus === "Playing" ? root.themePrimary : root.themeTextMuted
+                                            antialiasing: true
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                        }
+
+                                        Text {
+                                            text: root.mediaArtist !== "" ? root.mediaArtist : (root.mediaStatus === "Playing" ? "Playing" : "Paused")
+                                            color: root.mediaStatus === "Playing" ? root.themePrimary : root.themeTextMuted
+                                            opacity: 0.92
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 11
+                                            font.weight: Font.Medium
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.65)
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                        }
                                     }
                                 }
 
@@ -1331,17 +1896,35 @@ except Exception:
                                     Layout.alignment: Qt.AlignVCenter
 
                                     Rectangle {
-                                        width: 32
-                                        height: 32
-                                        radius: 9
-                                        color: prevBtnMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.06)
+                                        width: 30
+                                        height: 30
+                                        radius: 15
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        color: prevBtnMouse.containsMouse
+                                               ? Qt.alpha(root.themePrimary, 0.22)
+                                               : Qt.rgba(1, 1, 1, 0.08)
                                         border.width: 1
-                                        border.color: Qt.rgba(1, 1, 1, 0.12)
+                                        border.color: prevBtnMouse.containsMouse
+                                                      ? Qt.alpha(root.themePrimary, 0.55)
+                                                      : Qt.rgba(1, 1, 1, 0.14)
                                         antialiasing: true
+                                        scale: prevBtnMouse.pressed ? 0.90 : (prevBtnMouse.containsMouse ? 1.06 : 1.0)
 
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
                                         Behavior on color {
                                             ColorAnimation {
-                                                duration: animStyle.fadeDuration
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on border.color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                                 easing.type: animStyle.smoothEasing
                                             }
                                         }
@@ -1350,8 +1933,15 @@ except Exception:
                                             anchors.centerIn: parent
                                             text: "󰒮"
                                             font.family: root.iconFontFamily
-                                            color: root.themeText
-                                            font.pixelSize: 14
+                                            color: prevBtnMouse.containsMouse ? root.themePrimary : root.themeText
+                                            font.pixelSize: 13
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
 
                                         MouseArea {
@@ -1364,15 +1954,31 @@ except Exception:
                                     }
 
                                     Rectangle {
-                                        width: 36
-                                        height: 36
-                                        radius: 10
+                                        width: 38
+                                        height: 38
+                                        radius: root.mediaStatus === "Playing" ? 13 : 19
+                                        anchors.verticalCenter: parent.verticalCenter
                                         color: playBtnMouse.containsMouse ? Qt.lighter(root.themePrimary, 1.08) : root.themePrimary
+                                        border.width: 1
+                                        border.color: Qt.rgba(1, 1, 1, 0.35)
                                         antialiasing: true
+                                        scale: playBtnMouse.pressed ? 0.90 : (playBtnMouse.containsMouse ? 1.06 : 1.0)
 
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on radius {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.animDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
                                         Behavior on color {
                                             ColorAnimation {
-                                                duration: animStyle.fadeDuration
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                                 easing.type: animStyle.smoothEasing
                                             }
                                         }
@@ -1395,17 +2001,35 @@ except Exception:
                                     }
 
                                     Rectangle {
-                                        width: 32
-                                        height: 32
-                                        radius: 9
-                                        color: nextBtnMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.06)
+                                        width: 30
+                                        height: 30
+                                        radius: 15
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        color: nextBtnMouse.containsMouse
+                                               ? Qt.alpha(root.themePrimary, 0.22)
+                                               : Qt.rgba(1, 1, 1, 0.08)
                                         border.width: 1
-                                        border.color: Qt.rgba(1, 1, 1, 0.12)
+                                        border.color: nextBtnMouse.containsMouse
+                                                      ? Qt.alpha(root.themePrimary, 0.55)
+                                                      : Qt.rgba(1, 1, 1, 0.14)
                                         antialiasing: true
+                                        scale: nextBtnMouse.pressed ? 0.90 : (nextBtnMouse.containsMouse ? 1.06 : 1.0)
 
+                                        Behavior on scale {
+                                            NumberAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
                                         Behavior on color {
                                             ColorAnimation {
-                                                duration: animStyle.fadeDuration
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                        Behavior on border.color {
+                                            ColorAnimation {
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                                 easing.type: animStyle.smoothEasing
                                             }
                                         }
@@ -1414,8 +2038,15 @@ except Exception:
                                             anchors.centerIn: parent
                                             text: "󰒭"
                                             font.family: root.iconFontFamily
-                                            color: root.themeText
-                                            font.pixelSize: 14
+                                            color: nextBtnMouse.containsMouse ? root.themePrimary : root.themeText
+                                            font.pixelSize: 13
+
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
                                         }
 
                                         MouseArea {
@@ -1430,105 +2061,180 @@ except Exception:
                             }
                         }
 
-                        Column {
+                        Item {
+                            id: availControlsWrapper
+                            property bool showAvail: root.editMode && root.inactiveMods.length > 0
                             width: parent.width
-                            spacing: 8
-                            visible: root.editMode && root.inactiveMods.length > 0
+                            implicitHeight: showAvail ? availInnerCol.implicitHeight : 0
+                            height: implicitHeight
+                            opacity: showAvail ? 1.0 : 0.0
+                            visible: height > 0.5
 
-                            Rectangle {
-                                width: parent.width
-                                height: 1
-                                color: Qt.rgba(1, 1, 1, 0.10)
+                            Behavior on implicitHeight {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                    easing.type: animStyle.expoEasing
+                                }
+                            }
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
                             }
 
-                            Text {
-                                text: "Available Controls"
-                                color: root.themePrimary
-                                font.family: root.fontFamily
-                                font.pixelSize: 11
-                                font.weight: Font.Bold
-                            }
-
-                            Flow {
+                            Column {
+                                id: availInnerCol
                                 width: parent.width
-                                spacing: 10
+                                spacing: 8
 
-                                Repeater {
-                                    model: root.inactiveMods
-                                    Rectangle {
-                                        width: (parent.width - 10) / 2
-                                        height: 58
-                                        radius: Math.max(10, root.themeRounding - 6)
-                                        color: addMouse.containsMouse ? root.themeSurfaceHover : root.themeSurface
-                                        border.width: 1
-                                        border.color: addMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.5) : Qt.rgba(1, 1, 1, 0.12)
-                                        antialiasing: true
+                                Rectangle {
+                                    width: parent.width
+                                    height: 1
+                                    color: Qt.rgba(1, 1, 1, 0.10)
+                                }
 
-                                        Behavior on color {
-                                            ColorAnimation {
-                                                duration: animStyle.fadeDuration
-                                                easing.type: animStyle.smoothEasing
-                                            }
+                                Text {
+                                    text: "Available Controls"
+                                    color: root.themePrimary
+                                    font.family: root.fontFamily
+                                    font.pixelSize: 11
+                                    font.weight: Font.Bold
+                                }
+
+                                Flow {
+                                    width: parent.width
+                                    spacing: 10
+
+                                    move: Transition {
+                                        NumberAnimation {
+                                            properties: "x,y"
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
+                                            easing.type: animStyle.expoEasing
                                         }
+                                    }
 
-                                        RowLayout {
-                                            anchors.fill: parent
-                                            anchors.leftMargin: 11
-                                            anchors.rightMargin: 11
-                                            spacing: 10
+                                    add: Transition {
+                                        NumberAnimation {
+                                            properties: "opacity,scale"
+                                            from: 0.6
+                                            to: 1.0
+                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
 
-                                            Rectangle {
-                                                Layout.preferredWidth: 34
-                                                Layout.preferredHeight: 34
-                                                radius: 9
-                                                color: Qt.rgba(1, 1, 1, 0.08)
-                                                antialiasing: true
+                                    Repeater {
+                                        model: root.inactiveMods
+                                        Rectangle {
+                                            width: (parent.width - 10) / 2
+                                            height: 58
+                                            radius: Math.max(10, root.themeRounding - 6)
+                                            color: addMouse.containsMouse ? root.themeSurfaceHover : root.themeSurface
+                                            border.width: 1
+                                            border.color: addMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.5) : Qt.rgba(1, 1, 1, 0.12)
+                                            antialiasing: true
+                                            scale: addMouse.pressed ? 0.97 : (addMouse.containsMouse ? 1.015 : 1.0)
 
-                                                Text {
-                                                    anchors.centerIn: parent
-                                                    text: root.getToggleIcon(modelData)
-                                                    font.family: root.iconFontFamily
-                                                    color: root.themeTextMuted
-                                                    font.pixelSize: 15
+                                            Behavior on scale {
+                                                NumberAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
+                                                }
+                                            }
+                                            Behavior on border.color {
+                                                ColorAnimation {
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
+                                                    easing.type: animStyle.smoothEasing
                                                 }
                                             }
 
-                                            Text {
-                                                Layout.fillWidth: true
-                                                text: root.getToggleName(modelData)
-                                                color: root.themeText
-                                                font.family: root.fontFamily
-                                                font.pixelSize: 11
-                                                font.weight: Font.Bold
-                                                elide: Text.ElideRight
-                                            }
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 11
+                                                anchors.rightMargin: 11
+                                                spacing: 10
 
-                                            Rectangle {
-                                                width: 22
-                                                height: 22
-                                                radius: 7
-                                                color: Qt.alpha(root.themePrimary, 0.22)
-                                                border.width: 1
-                                                border.color: root.themePrimary
-                                                antialiasing: true
+                                                Rectangle {
+                                                    Layout.preferredWidth: 34
+                                                    Layout.preferredHeight: 34
+                                                    radius: 9
+                                                    color: Qt.rgba(1, 1, 1, 0.08)
+                                                    antialiasing: true
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: root.getToggleIcon(modelData)
+                                                        font.family: root.iconFontFamily
+                                                        color: root.themeTextMuted
+                                                        font.pixelSize: 15
+                                                    }
+                                                }
 
                                                 Text {
-                                                    anchors.centerIn: parent
-                                                    text: "󰐕"
-                                                    font.family: root.iconFontFamily
-                                                    color: root.themePrimary
-                                                    font.pixelSize: 12
+                                                    Layout.fillWidth: true
+                                                    text: root.getToggleName(modelData)
+                                                    color: root.themeText
+                                                    font.family: root.fontFamily
+                                                    font.pixelSize: 11
                                                     font.weight: Font.Bold
+                                                    elide: Text.ElideRight
+                                                }
+
+                                                Rectangle {
+                                                    width: 22
+                                                    height: 22
+                                                    radius: 7
+                                                    color: addMouse.containsMouse ? root.themePrimary : Qt.alpha(root.themePrimary, 0.22)
+                                                    border.width: 1
+                                                    border.color: root.themePrimary
+                                                    antialiasing: true
+                                                    scale: addMouse.containsMouse ? 1.08 : 1.0
+
+                                                    Behavior on scale {
+                                                        NumberAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+                                                    Behavior on color {
+                                                        ColorAnimation {
+                                                            duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                            easing.type: animStyle.smoothEasing
+                                                        }
+                                                    }
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: "󰐕"
+                                                        font.family: root.iconFontFamily
+                                                        color: addMouse.containsMouse ? root.themeOnPrimary : root.themePrimary
+                                                        font.pixelSize: 12
+                                                        font.weight: Font.Bold
+
+                                                        Behavior on color {
+                                                            ColorAnimation {
+                                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
+                                                                easing.type: animStyle.smoothEasing
+                                                            }
+                                                        }
+                                                    }
                                                 }
                                             }
-                                        }
 
-                                        MouseArea {
-                                            id: addMouse
-                                            anchors.fill: parent
-                                            hoverEnabled: true
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.addToggle(modelData)
+                                            MouseArea {
+                                                id: addMouse
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onClicked: root.addToggle(modelData)
+                                            }
                                         }
                                     }
                                 }
