@@ -68,10 +68,25 @@ Scope {
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.25
     property bool animEnabled: true
-    property int animDuration: 320
+    property int animDuration: 220
 
-    property color themeBackground: "#141416"
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.08)
+    property color themeBackground: "#0d0e11"
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.42)
+
+    QtObject {
+        id: animStyle
+        property int base: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
+        property int enterDuration: Math.round(base * 1.35)
+        property int exitDuration: Math.round(base * 1.05)
+        property int animDuration: base
+        property int morphDuration: Math.round(base * 1.25)
+        property int fadeDuration: Math.round(base * 0.85)
+        property int microDuration: Math.round(base * 0.65)
+        property int scaleDuration: Math.round(base * 1.1)
+        property var smoothEasing: Easing.OutQuint
+        property var expoEasing: Easing.OutExpo
+        property var exitEasing: Easing.OutQuint
+    }
 
     function mixColor(c1, c2, ratio, alphaVal) {
         let col1 = Qt.color(c1)
@@ -289,10 +304,6 @@ Scope {
                     let hex = "#" + match[1]
                     root.themeBorder = hex
                     root.themePrimary = hex
-                }
-                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
-                if (bgMatch && bgMatch[1]) {
-                    root.themeBackground = "#" + bgMatch[1]
                 }
             } catch (e) {}
         }
@@ -561,8 +572,8 @@ Scope {
 
         Behavior on animatedUsage {
             NumberAnimation {
-                duration: root.animEnabled ? Math.max(260, root.animDuration) : 0
-                easing.type: Easing.OutQuint
+                duration: root.animEnabled ? animStyle.morphDuration : 0
+                easing.type: animStyle.expoEasing
             }
         }
 
@@ -578,12 +589,21 @@ Scope {
             return "#f87171"
         }
 
+        HoverHandler { id: cardHover }
+
         radius: Math.max(10, root.themeRounding - 6)
         color: root.themeSurface
         border.width: 1
-        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
+        border.color: cardHover.hovered ? Qt.alpha(root.themePrimary, 0.38) : Qt.rgba(255, 255, 255, 0.10)
         antialiasing: true
         implicitHeight: 92
+
+        Behavior on border.color {
+            ColorAnimation {
+                duration: root.animEnabled ? animStyle.fadeDuration : 0
+                easing.type: animStyle.smoothEasing
+            }
+        }
 
         ColumnLayout {
             anchors.fill: parent
@@ -598,7 +618,7 @@ Scope {
                     width: 24
                     height: 24
                     radius: 7
-                    color: Qt.alpha(root.themePrimary, 0.18)
+                    color: Qt.alpha(root.themePrimary, 0.16)
                     border.width: 1
                     border.color: Qt.alpha(root.themePrimary, 0.35)
                     antialiasing: true
@@ -629,9 +649,9 @@ Scope {
                     Layout.preferredHeight: 20
                     Layout.preferredWidth: tempText.implicitWidth + 12
                     radius: 6
-                    color: Qt.alpha(cardRoot.getTempColor(cardRoot.tempValue), 0.18)
+                    color: Qt.alpha(cardRoot.getTempColor(cardRoot.tempValue), 0.16)
                     border.width: 1
-                    border.color: Qt.alpha(cardRoot.getTempColor(cardRoot.tempValue), 0.40)
+                    border.color: Qt.alpha(cardRoot.getTempColor(cardRoot.tempValue), 0.38)
                     antialiasing: true
 
                     Text {
@@ -682,7 +702,7 @@ Scope {
                 Layout.fillWidth: true
                 height: 6
                 radius: 3
-                color: Qt.rgba(1.0, 1.0, 1.0, 0.12)
+                color: Qt.rgba(255, 255, 255, 0.12)
                 antialiasing: true
                 clip: true
 
@@ -724,8 +744,14 @@ Scope {
 
             Item {
                 id: bgCard
-                width: 444
+                width: 437
                 height: cardLayout.implicitHeight + 40
+
+                property bool shown: false
+                property bool settled: false
+
+                layer.enabled: root.animEnabled && !settled
+                layer.smooth: true
 
                 Binding {
                     target: bgCard
@@ -741,12 +767,42 @@ Scope {
                     when: !dragArea.drag.active
                 }
 
-                opacity: 0
-                Component.onCompleted: opacity = 1
+                Component.onCompleted: {
+                    shown = true
+                    settleTimer.start()
+                }
+
+                Timer {
+                    id: settleTimer
+                    interval: animStyle.enterDuration + 40
+                    repeat: false
+                    onTriggered: bgCard.settled = true
+                }
+
+                opacity: shown ? 1.0 : 0.0
+                scale: shown ? 1.0 : 0.94
+
+                transform: Translate {
+                    y: bgCard.shown ? 0 : 10
+                    Behavior on y {
+                        NumberAnimation {
+                            duration: root.animEnabled ? animStyle.enterDuration : 0
+                            easing.type: animStyle.expoEasing
+                        }
+                    }
+                }
+
+                Behavior on scale {
+                    NumberAnimation {
+                        duration: root.animEnabled ? animStyle.enterDuration : 0
+                        easing.type: animStyle.expoEasing
+                    }
+                }
+
                 Behavior on opacity {
                     NumberAnimation {
-                        duration: root.animEnabled ? root.animDuration : 0
-                        easing.type: Easing.OutCubic
+                        duration: root.animEnabled ? animStyle.fadeDuration : 0
+                        easing.type: animStyle.smoothEasing
                     }
                 }
 
@@ -756,8 +812,16 @@ Scope {
                     radius: root.themeRounding
                     color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
-                    border.color: dragArea.drag.active ? root.themePrimary : Qt.alpha(root.themePrimary, 0.4)
+                    border.color: dragArea.drag.active ? root.themePrimary : Qt.alpha(root.themePrimary, 0.35)
                     antialiasing: true
+                    clip: true
+
+                    Behavior on border.color {
+                        ColorAnimation {
+                            duration: root.animEnabled ? animStyle.microDuration : 0
+                            easing.type: animStyle.smoothEasing
+                        }
+                    }
                 }
 
                 MouseArea {
@@ -791,16 +855,26 @@ Scope {
                         spacing: 12
 
                         Item {
-                            width: 48
-                            height: 48
+                            width: 46
+                            height: 46
                             Layout.alignment: Qt.AlignVCenter
+                            scale: avatarHover.hovered ? 1.05 : 1.0
+
+                            HoverHandler { id: avatarHover }
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
 
                             Rectangle {
                                 anchors.fill: parent
-                                radius: 24
+                                radius: 23
                                 color: root.themeSurface
-                                border.color: root.themePrimary
-                                border.width: 2
+                                border.color: Qt.alpha(root.themePrimary, avatarHover.hovered ? 0.85 : 0.55)
+                                border.width: 1.5
                                 antialiasing: true
 
                                 Image {
@@ -868,7 +942,7 @@ Scope {
                                 radius: 6
                                 color: "#4ade80"
                                 border.width: 2
-                                border.color: root.themeBackground
+                                border.color: "#0d0e11"
                                 anchors.right: parent.right
                                 anchors.bottom: parent.bottom
                                 antialiasing: true
@@ -878,17 +952,17 @@ Scope {
                         ColumnLayout {
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignVCenter
-                            spacing: 1
+                            spacing: 2
 
                             Text {
                                 text: "CONTROL CENTER"
                                 color: root.themePrimary
                                 font.family: root.fontFamily
-                                font.pixelSize: 9
+                                font.pixelSize: 10
                                 font.weight: Font.Bold
-                                font.letterSpacing: 1.2
+                                font.letterSpacing: 1.1
                                 style: Text.Raised
-                                styleColor: Qt.rgba(0, 0, 0, 0.7)
+                                styleColor: Qt.rgba(0, 0, 0, 0.75)
                             }
 
                             Text {
@@ -908,26 +982,42 @@ Scope {
                             id: audioSwitchBtn
                             Layout.alignment: Qt.AlignVCenter
                             Layout.preferredHeight: 34
-                            Layout.preferredWidth: audioBtnLayout.implicitWidth + 20
-                            radius: 11
+                            Layout.preferredWidth: audioBtnLayout.implicitWidth + 18
+                            radius: audioBtnMouse.containsMouse ? 12 : 10
                             color: audioBtnMouse.containsMouse
-                                   ? Qt.rgba(1.0, 1.0, 1.0, 0.16)
-                                   : root.themeSurface
+                                   ? Qt.alpha(root.themePrimary, 0.25)
+                                   : Qt.rgba(0, 0, 0, 0.45)
                             border.width: 1
                             border.color: audioBtnMouse.containsMouse
                                           ? root.themePrimary
-                                          : Qt.alpha(root.themeBorder, 0.28)
-                            scale: audioBtnMouse.pressed ? 0.94 : (audioBtnMouse.containsMouse ? 1.03 : 1.0)
+                                          : Qt.rgba(255, 255, 255, 0.14)
+                            scale: audioBtnMouse.pressed ? 0.93 : (audioBtnMouse.containsMouse ? 1.04 : 1.0)
                             antialiasing: true
 
                             Behavior on scale {
                                 NumberAnimation {
-                                    duration: root.animEnabled ? 170 : 0
-                                    easing.type: Easing.OutCubic
+                                    duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                    easing.type: animStyle.smoothEasing
                                 }
                             }
-                            Behavior on color { ColorAnimation { duration: 150 } }
-                            Behavior on border.color { ColorAnimation { duration: 150 } }
+                            Behavior on radius {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.microDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
 
                             RowLayout {
                                 id: audioBtnLayout
@@ -940,6 +1030,7 @@ Scope {
                                     radius: 6
                                     color: Qt.alpha(root.themePrimary, 0.18)
                                     Layout.alignment: Qt.AlignVCenter
+                                    antialiasing: true
 
                                     Text {
                                         anchors.centerIn: parent
@@ -964,10 +1055,10 @@ Scope {
                                 }
 
                                 Text {
-                                    text: "⇄"
-                                    color: root.themeTextMuted
+                                    text: "󰓦"
+                                    color: audioBtnMouse.containsMouse ? root.themePrimary : root.themeTextMuted
                                     font.family: root.iconFontFamily
-                                    font.pixelSize: 12
+                                    font.pixelSize: 13
                                     Layout.alignment: Qt.AlignVCenter
                                     style: Text.Raised
                                     styleColor: Qt.rgba(0, 0, 0, 0.6)
@@ -995,7 +1086,7 @@ Scope {
                             radius: Math.max(10, root.themeRounding - 6)
                             color: root.themeSurface
                             border.width: 1
-                            border.color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
+                            border.color: Qt.rgba(255, 255, 255, 0.10)
                             antialiasing: true
 
                             ColumnLayout {
@@ -1070,8 +1161,30 @@ Scope {
                             radius: Math.max(10, root.themeRounding - 6)
                             color: root.themeSurface
                             border.width: 1
-                            border.color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
+                            border.color: weatherMouse.containsMouse ? Qt.alpha(root.themePrimary, 0.45) : Qt.rgba(255, 255, 255, 0.10)
                             antialiasing: true
+                            scale: weatherMouse.pressed ? 0.97 : 1.0
+
+                            Behavior on scale {
+                                NumberAnimation {
+                                    duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                    easing.type: animStyle.smoothEasing
+                                }
+                            }
+
+                            MouseArea {
+                                id: weatherMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: root.fetchLocation()
+                            }
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -1086,7 +1199,7 @@ Scope {
                                         width: 36
                                         height: 36
                                         radius: 10
-                                        color: Qt.alpha(root.themePrimary, 0.18)
+                                        color: Qt.alpha(root.themePrimary, 0.16)
                                         border.width: 1
                                         border.color: Qt.alpha(root.themePrimary, 0.35)
                                         antialiasing: true
@@ -1148,7 +1261,7 @@ Scope {
                         radius: Math.max(10, root.themeRounding - 6)
                         color: root.themeSurface
                         border.width: 1
-                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
+                        border.color: Qt.rgba(255, 255, 255, 0.10)
                         antialiasing: true
 
                         RowLayout {
@@ -1202,7 +1315,7 @@ Scope {
                                 Layout.fillHeight: true
                                 Layout.topMargin: 4
                                 Layout.bottomMargin: 4
-                                color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
+                                color: Qt.rgba(255, 255, 255, 0.10)
                             }
 
                             RowLayout {
@@ -1250,7 +1363,7 @@ Scope {
                                 Layout.fillHeight: true
                                 Layout.topMargin: 4
                                 Layout.bottomMargin: 4
-                                color: Qt.rgba(1.0, 1.0, 1.0, 0.14)
+                                color: Qt.rgba(255, 255, 255, 0.10)
                             }
 
                             RowLayout {

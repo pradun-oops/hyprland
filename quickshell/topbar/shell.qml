@@ -15,24 +15,24 @@ Scope {
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
-    property color themeTextMuted: "#E4E4E7"
-    property color themeOnPrimary: "#111113"
+    property color themeTextMuted: "#D4D4D8"
+    property color themeOnPrimary: "#0d0e11"
 
-    property int themeRounding: 18
+    property int themeRounding: 22
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.25
     property bool animEnabled: true
-    property int animDuration: 260
+    property int animDuration: 220
 
-    property color themeBackground: "#111215"
-    property color themeSurface: Qt.rgba(1.0, 1.0, 1.0, 0.09)
+    property color themeBackground: "#0d0e11"
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.42)
 
     QtObject {
         id: animStyle
         property int base: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
-        property int enterDuration: Math.round(base * 1.45)
+        property int enterDuration: Math.round(base * 1.35)
         property int animDuration: base
-        property int morphDuration: Math.round(base * 1.35)
+        property int morphDuration: Math.round(base * 1.25)
         property int fadeDuration: Math.round(base * 0.85)
         property int microDuration: Math.round(base * 0.65)
         property int scaleDuration: Math.round(base * 1.1)
@@ -43,10 +43,10 @@ Scope {
     QtObject {
         id: style
         property int moduleSpacing: 6
-        property color hoverColor: Qt.rgba(1.0, 1.0, 1.0, 0.20)
-        property color pillBg: Qt.rgba(1.0, 1.0, 1.0, 0.08)
-        property color pillBorder: Qt.rgba(1.0, 1.0, 1.0, 0.20)
-        property color separatorColor: Qt.rgba(1.0, 1.0, 1.0, 0.24)
+        property color hoverColor: Qt.alpha(root.themePrimary, 0.22)
+        property color pillBg: Qt.rgba(0, 0, 0, 0.42)
+        property color pillBorder: Qt.rgba(255, 255, 255, 0.10)
+        property color separatorColor: Qt.rgba(255, 255, 255, 0.12)
     }
 
     function mixColor(c1, c2, ratio, alphaVal) {
@@ -61,7 +61,7 @@ Scope {
     function getContrastText(c) {
         let col = Qt.color(c)
         let lum = 0.299 * col.r + 0.587 * col.g + 0.114 * col.b
-        return lum > 0.55 ? "#111113" : "#ffffff"
+        return lum > 0.55 ? "#0d0e11" : "#ffffff"
     }
 
     property string currentTime: ""
@@ -134,10 +134,6 @@ Scope {
                 if (match && match[1]) {
                     root.themeBorder = "#" + match[1]
                     root.themePrimary = "#" + match[1]
-                }
-                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
-                if (bgMatch && bgMatch[1]) {
-                    root.themeBackground = "#" + bgMatch[1]
                 }
             } catch (e) {}
         }
@@ -548,6 +544,7 @@ print(json.dumps({
             }
 
             implicitHeight: 56
+            mask: Region { item: barIsland }
             color: "transparent"
 
             Item {
@@ -609,23 +606,13 @@ print(json.dumps({
                     }
 
                     radius: Math.min(height / 2, root.themeRounding)
-                    color: root.mixColor(root.themeBackground, "#090a0d", 0.35, root.themeBgAlpha)
+                    color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                     border.width: root.themeBorderSize
                     border.color: barIsland.isPinned
-                                  ? Qt.alpha(root.themePrimary, 0.90)
-                                  : Qt.alpha(root.themePrimary, barIsland.isExpanded ? 0.68 : 0.52)
+                                  ? Qt.alpha(root.themePrimary, 0.85)
+                                  : Qt.alpha(root.themePrimary, barIsland.isExpanded ? 0.55 : 0.35)
                     antialiasing: true
                     clip: true
-
-                    Rectangle {
-                        anchors.fill: parent
-                        anchors.margins: root.themeBorderSize
-                        radius: Math.max(0, parent.radius - root.themeBorderSize)
-                        color: "transparent"
-                        border.width: 1
-                        border.color: Qt.rgba(1.0, 1.0, 1.0, 0.11)
-                        antialiasing: true
-                    }
 
                     MouseArea {
                         anchors.fill: parent
@@ -682,11 +669,11 @@ print(json.dumps({
                             text: root.currentTime !== "" ? root.currentTime : "12:00 PM"
                             color: root.themeText
                             font.pixelSize: 13
-                            font.weight: Font.ExtraBold
+                            font.weight: Font.Bold
                             font.family: root.fontFamily
                             anchors.verticalCenter: parent.verticalCenter
                             style: Text.Raised
-                            styleColor: Qt.rgba(0, 0, 0, 0.92)
+                            styleColor: Qt.rgba(0, 0, 0, 0.85)
                         }
                     }
 
@@ -817,11 +804,11 @@ print(json.dumps({
                                                    ? root.getContrastText(root.themePrimary)
                                                    : (wsMouse.containsMouse ? root.themeText : root.themeTextMuted)
                                             font.pixelSize: 11
-                                            font.weight: parent.isCurrent ? Font.ExtraBold : Font.Bold
+                                            font.weight: parent.isCurrent ? Font.Bold : Font.DemiBold
                                             font.family: root.fontFamily
                                             anchors.centerIn: parent
                                             style: parent.isCurrent ? Text.Normal : Text.Raised
-                                            styleColor: Qt.rgba(0, 0, 0, 0.90)
+                                            styleColor: Qt.rgba(0, 0, 0, 0.80)
 
                                             Behavior on color {
                                                 ColorAnimation {
@@ -848,11 +835,11 @@ print(json.dumps({
                             width: netRow.implicitWidth + 18
                             radius: height / 2
                             color: netPillHover.hovered
-                                   ? Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                                   ? style.hoverColor
                                    : style.pillBg
                             border.width: 1
                             border.color: netPillHover.hovered
-                                          ? Qt.alpha(root.themePrimary, 0.65)
+                                          ? Qt.alpha(root.themePrimary, 0.55)
                                           : style.pillBorder
                             anchors.verticalCenter: parent.verticalCenter
                             antialiasing: true
@@ -893,7 +880,7 @@ print(json.dumps({
                                         font.family: root.iconFontFamily
                                         anchors.verticalCenter: parent.verticalCenter
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
                                     }
                                     Text {
                                         text: root.rxSpeed
@@ -903,7 +890,7 @@ print(json.dumps({
                                         font.family: root.fontFamily
                                         anchors.verticalCenter: parent.verticalCenter
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.90)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
                                     Text {
                                         text: root.rxUnit
@@ -913,7 +900,7 @@ print(json.dumps({
                                         font.family: root.fontFamily
                                         anchors.verticalCenter: parent.verticalCenter
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
                                     }
                                 }
 
@@ -934,7 +921,7 @@ print(json.dumps({
                                         font.family: root.iconFontFamily
                                         anchors.verticalCenter: parent.verticalCenter
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
                                     }
                                     Text {
                                         text: root.txSpeed
@@ -944,7 +931,7 @@ print(json.dumps({
                                         font.family: root.fontFamily
                                         anchors.verticalCenter: parent.verticalCenter
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.90)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
                                     Text {
                                         text: root.txUnit
@@ -954,7 +941,7 @@ print(json.dumps({
                                         font.family: root.fontFamily
                                         anchors.verticalCenter: parent.verticalCenter
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
                                     }
                                 }
                             }
@@ -965,7 +952,7 @@ print(json.dumps({
                             width: centerRow.implicitWidth + 20
                             radius: height / 2
                             color: centerMouse.containsMouse
-                                   ? Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                                   ? style.hoverColor
                                    : style.pillBg
                             border.width: 1
                             border.color: centerMouse.containsMouse
@@ -1032,11 +1019,11 @@ print(json.dumps({
                                     text: root.currentTime !== "" ? root.currentTime : "12:00 PM"
                                     color: root.themeText
                                     font.pixelSize: 12
-                                    font.weight: Font.ExtraBold
+                                    font.weight: Font.Bold
                                     font.family: root.fontFamily
                                     anchors.verticalCenter: parent.verticalCenter
                                     style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.92)
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
                                 }
 
                                 Text {
@@ -1046,7 +1033,7 @@ print(json.dumps({
                                     font.family: root.fontFamily
                                     anchors.verticalCenter: parent.verticalCenter
                                     style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
 
                                 Text {
@@ -1057,7 +1044,7 @@ print(json.dumps({
                                     font.family: root.fontFamily
                                     anchors.verticalCenter: parent.verticalCenter
                                     style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
 
                                 Text {
@@ -1070,7 +1057,7 @@ print(json.dumps({
                                     font.family: root.iconFontFamily
                                     anchors.verticalCenter: parent.verticalCenter
                                     style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
 
                                     Behavior on opacity {
                                         NumberAnimation {
@@ -1110,11 +1097,11 @@ print(json.dumps({
                             width: tempRow.implicitWidth + 18
                             radius: height / 2
                             color: tempPillHover.hovered
-                                   ? Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                                   ? style.hoverColor
                                    : style.pillBg
                             border.width: 1
                             border.color: tempPillHover.hovered
-                                          ? Qt.alpha(root.themePrimary, 0.65)
+                                          ? Qt.alpha(root.themePrimary, 0.55)
                                           : style.pillBorder
                             anchors.verticalCenter: parent.verticalCenter
                             antialiasing: true
@@ -1144,12 +1131,12 @@ print(json.dumps({
                                     spacing: 4
                                     Text {
                                         text: ""
-                                        color: parseInt(root.cpuTemp) >= 80 ? "#ff6b6b" : root.themePrimary
+                                        color: parseInt(root.cpuTemp) >= 80 ? "#f87171" : root.themePrimary
                                         font.pixelSize: 13
                                         font.family: root.iconFontFamily
                                         anchors.verticalCenter: parent.verticalCenter
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
 
                                         Behavior on color {
                                             ColorAnimation {
@@ -1166,7 +1153,7 @@ print(json.dumps({
                                         font.family: root.fontFamily
                                         anchors.verticalCenter: parent.verticalCenter
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.90)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
                                 }
 
@@ -1182,12 +1169,12 @@ print(json.dumps({
                                     spacing: 4
                                     Text {
                                         text: "󰢮"
-                                        color: parseInt(root.gpuTemp) >= 80 ? "#ff6b6b" : root.themePrimary
+                                        color: parseInt(root.gpuTemp) >= 80 ? "#f87171" : root.themePrimary
                                         font.pixelSize: 14
                                         font.family: root.iconFontFamily
                                         anchors.verticalCenter: parent.verticalCenter
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
 
                                         Behavior on color {
                                             ColorAnimation {
@@ -1204,7 +1191,7 @@ print(json.dumps({
                                         font.family: root.fontFamily
                                         anchors.verticalCenter: parent.verticalCenter
                                         style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.90)
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
                                     }
                                 }
                             }
@@ -1215,7 +1202,7 @@ print(json.dumps({
                             width: volRow.implicitWidth + 16
                             radius: height / 2
                             color: volMouse.containsMouse
-                                   ? Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                                   ? style.hoverColor
                                    : style.pillBg
                             border.width: 1
                             border.color: volMouse.containsMouse
@@ -1256,13 +1243,13 @@ print(json.dumps({
                                 spacing: 5
                                 Text {
                                     text: root.getVolIcon(root.volumePct, root.isMuted)
-                                    color: root.isMuted ? "#ff6b6b" : root.themePrimary
+                                    color: root.isMuted ? "#f87171" : root.themePrimary
                                     font.pixelSize: 14
                                     font.family: root.iconFontFamily
                                     anchors.verticalCenter: parent.verticalCenter
                                     scale: root.isMuted ? 0.92 : (volMouse.containsMouse ? 1.08 : 1.0)
                                     style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
 
                                     Behavior on color {
                                         ColorAnimation {
@@ -1285,7 +1272,7 @@ print(json.dumps({
                                     font.family: root.fontFamily
                                     anchors.verticalCenter: parent.verticalCenter
                                     style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.90)
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
 
                                     Behavior on color {
                                         ColorAnimation {
@@ -1329,7 +1316,7 @@ print(json.dumps({
                             width: batRow.implicitWidth + 16
                             radius: height / 2
                             color: batMouse.containsMouse
-                                   ? Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                                   ? style.hoverColor
                                    : style.pillBg
                             border.width: 1
                             border.color: batMouse.containsMouse
@@ -1370,13 +1357,13 @@ print(json.dumps({
                                 spacing: 5
                                 Text {
                                     text: root.getBatIcon(parseInt(root.batCap), root.isCharging)
-                                    color: root.isCharging ? "#4ade80" : (parseInt(root.batCap) <= 20 ? "#ff6b6b" : root.themePrimary)
+                                    color: root.isCharging ? "#4ade80" : (parseInt(root.batCap) <= 20 ? "#f87171" : root.themePrimary)
                                     font.pixelSize: 14
                                     font.family: root.iconFontFamily
                                     anchors.verticalCenter: parent.verticalCenter
                                     scale: batMouse.containsMouse ? 1.08 : 1.0
                                     style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
 
                                     Behavior on color {
                                         ColorAnimation {
@@ -1399,7 +1386,7 @@ print(json.dumps({
                                     font.family: root.fontFamily
                                     anchors.verticalCenter: parent.verticalCenter
                                     style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.90)
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
                                 }
                             }
 
@@ -1430,9 +1417,9 @@ print(json.dumps({
                             height: root.islandHeight - 10
                             width: root.runningAppsList.length > 0 ? (appsHover.hovered ? appsRow.implicitWidth + 36 : 28) : 0
                             radius: height / 2
-                            color: appsHover.hovered ? Qt.rgba(1.0, 1.0, 1.0, 0.18) : style.pillBg
+                            color: appsHover.hovered ? style.hoverColor : style.pillBg
                             border.width: root.runningAppsList.length > 0 ? 1 : 0
-                            border.color: appsHover.hovered ? Qt.alpha(root.themePrimary, 0.65) : style.pillBorder
+                            border.color: appsHover.hovered ? Qt.alpha(root.themePrimary, 0.55) : style.pillBorder
                             visible: root.runningAppsList.length > 0
                             anchors.verticalCenter: parent.verticalCenter
                             antialiasing: true
@@ -1472,7 +1459,7 @@ print(json.dumps({
                                     anchors.verticalCenter: parent.verticalCenter
                                     rotation: appsHover.hovered ? 180 : 0
                                     style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
 
                                     Behavior on rotation {
                                         NumberAnimation {
@@ -1575,7 +1562,7 @@ print(json.dumps({
                                                 font.pixelSize: 12
                                                 color: root.themePrimary
                                                 style: Text.Raised
-                                                styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                                styleColor: Qt.rgba(0, 0, 0, 0.75)
                                             }
 
                                             MouseArea {
@@ -1605,7 +1592,7 @@ print(json.dumps({
                                 height: 30
                                 radius: netMouse.containsMouse ? 11 : 15
                                 color: netMouse.containsMouse
-                                       ? Qt.rgba(1.0, 1.0, 1.0, 0.18)
+                                       ? style.hoverColor
                                        : style.pillBg
                                 border.width: 1
                                 border.color: netMouse.containsMouse
@@ -1647,7 +1634,7 @@ print(json.dumps({
                                     font.pixelSize: 14
                                     font.family: root.iconFontFamily
                                     style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
                                 MouseArea {
                                     id: netMouse
@@ -1663,10 +1650,10 @@ print(json.dumps({
                                 height: 30
                                 radius: pwrBarMouse.containsMouse ? 11 : 15
                                 color: pwrBarMouse.containsMouse
-                                       ? Qt.rgba(0.93, 0.26, 0.26, 0.38)
+                                       ? Qt.rgba(0.93, 0.26, 0.26, 0.32)
                                        : style.pillBg
                                 border.width: 1
-                                border.color: pwrBarMouse.containsMouse ? "#ff6b6b" : style.pillBorder
+                                border.color: pwrBarMouse.containsMouse ? "#f87171" : style.pillBorder
                                 scale: pwrBarMouse.pressed ? 0.90 : (pwrBarMouse.containsMouse ? 1.05 : 1.0)
                                 anchors.verticalCenter: parent.verticalCenter
                                 antialiasing: true
@@ -1699,11 +1686,11 @@ print(json.dumps({
                                 Text {
                                     anchors.centerIn: parent
                                     text: "󰐥"
-                                    color: pwrBarMouse.containsMouse ? "#ff6b6b" : root.themePrimary
+                                    color: pwrBarMouse.containsMouse ? "#f87171" : root.themePrimary
                                     font.pixelSize: 14
                                     font.family: root.iconFontFamily
                                     style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
 
                                     Behavior on color {
                                         ColorAnimation {
