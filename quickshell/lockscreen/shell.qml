@@ -32,6 +32,13 @@ ShellRoot {
     property string greetingText: "Welcome Back"
     property real shakeOffset: 0
     property string wallpaperPath: ""
+    property string depthCutoutPath: ""
+
+    property bool depthEnabled: true
+    property string depthMode: "auto"
+    property real depthThreshold: 0.48
+    property string pythonBin: Quickshell.env("HOME") + "/.local/share/quickshell/depth-venv/bin/python3"
+    property string engineScript: Quickshell.env("HOME") + "/.config/hypr/scripts/depth_engine.py"
 
     property string hourText: "00"
     property string minuteText: "00"
@@ -113,6 +120,37 @@ ShellRoot {
     }
 
     FileView {
+        id: depthConfigFile
+        path: Quickshell.env("HOME") + "/.config/quickshell/json/depth_clock.json"
+        watchChanges: false
+        onLoaded: {
+            try {
+                let raw = text().trim()
+                if (!raw) return
+                let d = JSON.parse(raw)
+                let changed = false
+                if (d.depthEnabled !== undefined) {
+                    root.depthEnabled = Boolean(d.depthEnabled)
+                }
+                if ((d.depthMode === "auto" || d.depthMode === "depth" || d.depthMode === "subject") && d.depthMode !== root.depthMode) {
+                    root.depthMode = d.depthMode
+                    changed = true
+                }
+                if (d.depthThreshold !== undefined && !isNaN(d.depthThreshold)) {
+                    let parsedThresh = Math.max(0.08, Math.min(0.92, parseFloat(d.depthThreshold)))
+                    if (Math.abs(parsedThresh - root.depthThreshold) > 0.001) {
+                        root.depthThreshold = parsedThresh
+                        changed = true
+                    }
+                }
+                if (changed) {
+                    root.syncDepth()
+                }
+            } catch (e) {}
+        }
+    }
+
+    FileView {
         id: cachedWpFile
         path: Quickshell.env("HOME") + "/.cache/quickshell_last_wallpaper.txt"
         watchChanges: false
@@ -121,6 +159,20 @@ ShellRoot {
                 let cached = text().trim()
                 if (cached && cached.length > 0 && root.wallpaperPath === "") {
                     root.wallpaperPath = cached
+                }
+            } catch (e) {}
+        }
+    }
+
+    FileView {
+        id: cachedCutoutFile
+        path: Quickshell.env("HOME") + "/.cache/quickshell_last_depth_cutout.txt"
+        watchChanges: false
+        onLoaded: {
+            try {
+                let cached = text().trim()
+                if (cached && cached.length > 0 && root.depthCutoutPath === "") {
+                    root.depthCutoutPath = cached
                 }
             } catch (e) {}
         }
@@ -187,17 +239,60 @@ ShellRoot {
         }
     }
 
+    Process { id: saveLastPathsProcess }
+
+    function saveLastPaths(wp, cutout) {
+        let home = Quickshell.env("HOME")
+        let wpFile = home + "/.cache/quickshell_last_wallpaper.txt"
+        let cutFile = home + "/.cache/quickshell_last_depth_cutout.txt"
+        let cmd = "mkdir -p '" + home + "/.cache'"
+        if (wp !== "") {
+            cmd += " && printf '%s' '" + wp.replace(/'/g, "'\\''") + "' > '" + wpFile + "'"
+        }
+        if (cutout !== "") {
+            cmd += " && printf '%s' '" + cutout.replace(/'/g, "'\\''") + "' > '" + cutFile + "'"
+        }
+        saveLastPathsProcess.running = false
+        saveLastPathsProcess.command = ["bash", "-c", cmd]
+        saveLastPathsProcess.running = true
+    }
+
     Process {
-        id: fetchWpProcess
+        id: syncDepthProcess
         stdout: StdioCollector {
-            id: wpCollector
             onStreamFinished: {
-                let res = wpCollector.text.trim()
-                if (res && res.length > 0) {
-                    root.wallpaperPath = res
-                }
+                try {
+                    let res = JSON.parse(text.trim())
+                    if (res.wp && res.wp !== "") {
+                        root.wallpaperPath = res.wp
+                    }
+                    if (res.status === "ready" && res.cutout && res.cutout !== "") {
+                        root.depthCutoutPath = res.cutout
+                    } else if (res.status !== "ready") {
+                        root.depthCutoutPath = ""
+                    }
+                    if (res.wp || res.cutout) {
+                        root.saveLastPaths(res.wp || "", res.cutout || "")
+                    }
+                } catch (e) {}
             }
         }
+    }
+
+    function syncDepth() {
+        if (syncDepthProcess.running) return
+        let targetOut = root.activeScreenName !== "" ? root.activeScreenName : (Quickshell.screens.length > 0 && Quickshell.screens[0] ? Quickshell.screens[0].name : "")
+        let args = [
+            root.pythonBin,
+            root.engineScript,
+            "--mode", root.depthMode,
+            "--threshold", root.depthThreshold.toFixed(2)
+        ]
+        if (targetOut !== "") {
+            args.push("--output", targetOut)
+        }
+        syncDepthProcess.command = args
+        syncDepthProcess.running = true
     }
 
     Component.onCompleted: {
@@ -207,75 +302,13 @@ ShellRoot {
             root.activeScreenName = Quickshell.screens[0].name
         }
 
+        depthConfigFile.reload()
         cachedWpFile.reload()
+        cachedCutoutFile.reload()
         colorFile.reload()
         generalFile.reload()
         userInfoProcess.running = true
-
-        let pyScript = `
-import subprocess, os
-
-def get_wallpaper():
-    for cmd in ["awww query", "swww query"]:
-        try:
-            out = subprocess.check_output(cmd, shell=True, text=True)
-            cleaned_out = out.replace(":", " ")
-            for chunk in cleaned_out.split():
-                clean = chunk.strip("',\\" ")
-                if clean.startswith("/") and os.path.isfile(clean):
-                    return clean
-        except Exception:
-            pass
-
-    try:
-        out = subprocess.check_output("hyprctl hyprpaper listactive 2>/dev/null", shell=True, text=True)
-        for line in out.splitlines():
-            if "=" in line:
-                p = line.split("=")[1].strip()
-                if os.path.isfile(p): return p
-            elif "/" in line and os.path.isfile(line.strip()):
-                return line.strip()
-    except Exception:
-        pass
-
-    try:
-        wp_cfg = os.path.expanduser("~/.config/waypaper/config.ini")
-        if os.path.isfile(wp_cfg):
-            with open(wp_cfg, "r") as f:
-                for line in f:
-                    if line.startswith("wallpaper"):
-                        p = line.split("=")[1].strip().replace("~", os.path.expanduser("~"))
-                        if os.path.isfile(p): return p
-    except Exception:
-        pass
-
-    home = os.path.expanduser("~")
-    for p in [
-        os.path.join(home, ".cache", "current_wallpaper"),
-        os.path.join(home, ".config", "hypr", "wallpaper"),
-        os.path.join(home, "Pictures", "wallpaper.jpg"),
-        os.path.join(home, "Pictures", "wallpaper.png")
-    ]:
-        if os.path.exists(p):
-            real_p = os.path.realpath(p)
-            if os.path.isfile(real_p): return real_p
-
-    return ""
-
-wp = get_wallpaper()
-if wp:
-    try:
-        cache_file = os.path.expanduser("~/.cache/quickshell_last_wallpaper.txt")
-        os.makedirs(os.path.dirname(cache_file), exist_ok=True)
-        with open(cache_file, "w") as f:
-            f.write(wp)
-    except Exception:
-        pass
-
-print(wp)
-`
-        fetchWpProcess.command = ["python3", "-c", pyScript]
-        fetchWpProcess.running = true
+        root.syncDepth()
     }
 
     SequentialAnimation {
@@ -464,6 +497,7 @@ print(wp)
 
                 Item {
                     id: clockBlock
+                    z: 1
                     visible: lockSurface.isPrimary
                     width: clockColumn.implicitWidth
                     height: clockColumn.implicitHeight
@@ -563,8 +597,31 @@ print(wp)
                     }
                 }
 
+                Image {
+                    id: depthCutoutImage
+                    z: 2
+                    anchors.fill: parent
+                    sourceSize.width: lockSurface.width
+                    sourceSize.height: lockSurface.height
+                    source: root.depthCutoutPath !== "" ? (root.depthCutoutPath.startsWith("file://") ? root.depthCutoutPath : "file://" + root.depthCutoutPath) : ""
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    smooth: true
+                    cache: false
+                    opacity: (!root.authVisible && !root.unlocking && root.depthEnabled && status === Image.Ready) ? 1.0 : 0.0
+                    visible: lockSurface.isPrimary && opacity > 0.01
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: 300
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                }
+
                 Item {
                     id: authSection
+                    z: 3
                     visible: lockSurface.isPrimary
                     enabled: lockSurface.isPrimary && root.authVisible && !root.unlocking
                     width: 360
@@ -817,6 +874,7 @@ print(wp)
                 }
 
                 ColumnLayout {
+                    z: 3
                     visible: lockSurface.isPrimary
                     opacity: root.unlocking ? 0.0 : 1.0
                     anchors.bottom: parent.bottom

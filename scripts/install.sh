@@ -79,6 +79,7 @@ PACKAGES=(
     blueman
     ruby
     python3
+    python3.14
     python3-pip
     curl
     wget
@@ -135,6 +136,45 @@ if ! command -v awww >/dev/null 2>&1 && ! command -v swww >/dev/null 2>&1; then
     fi
     cd -
     rm -rf /tmp/awww
+fi
+
+echo ":: Setting up Quickshell AI Wallpaper Depth Environment..."
+DEPTH_VENV="$HOME/.local/share/quickshell/depth-venv"
+MODEL_DIR="$HOME/.local/share/quickshell/models"
+mkdir -p "$MODEL_DIR" "$HOME/.cache/quickshell/depth_masks" "$HOME/.config/quickshell/json"
+
+if command -v python3.14 >/dev/null 2>&1; then
+    DEPTH_PY="python3.14"
+else
+    DEPTH_PY="python3"
+fi
+
+if [ -d "$DEPTH_VENV" ] && ! "$DEPTH_VENV/bin/python" -c "import onnxruntime, numpy, PIL" >/dev/null 2>&1; then
+    rm -rf "$DEPTH_VENV"
+fi
+
+if [ ! -d "$DEPTH_VENV" ]; then
+    echo ":: Creating isolated Python environment for depth engine ($DEPTH_PY)..."
+    "$DEPTH_PY" -m venv "$DEPTH_VENV"
+fi
+
+"$DEPTH_VENV/bin/pip" install --upgrade pip
+"$DEPTH_VENV/bin/pip" install onnxruntime numpy pillow
+
+DEPTH_MODEL="$MODEL_DIR/depth_anything_v2_small.onnx"
+if [ ! -s "$DEPTH_MODEL" ]; then
+    echo ":: Downloading Depth Anything V2 Small ONNX model..."
+    curl -fL --progress-bar \
+        "https://huggingface.co/onnx-community/depth-anything-v2-small/resolve/main/onnx/model.onnx" \
+        -o "$DEPTH_MODEL.tmp" && mv "$DEPTH_MODEL.tmp" "$DEPTH_MODEL"
+fi
+
+SUBJECT_MODEL="$MODEL_DIR/birefnet_lite.onnx"
+if [ ! -s "$SUBJECT_MODEL" ]; then
+    echo ":: Downloading BiRefNet Lite ONNX model..."
+    curl -fL --progress-bar \
+        "https://github.com/danielgatis/rembg/releases/download/v0.0.0/BiRefNet-general-bb_swin_v1_tiny-epoch_232.onnx" \
+        -o "$SUBJECT_MODEL.tmp" && mv "$SUBJECT_MODEL.tmp" "$SUBJECT_MODEL"
 fi
 
 if [ ! -d "/usr/share/icons/WhiteSur" ] && [ ! -d "$HOME/.local/share/icons/WhiteSur" ]; then

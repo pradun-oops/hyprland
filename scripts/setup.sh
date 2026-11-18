@@ -15,6 +15,8 @@ fi
 
 mkdir -p "$HOME/.config"
 mkdir -p "$HOME/Pictures/Wallpapers"
+mkdir -p "$HOME/.cache/quickshell/depth_masks"
+mkdir -p "$HOME/.config/quickshell/json"
 
 echo ":: Deploying default wallpapers to ~/Pictures/Wallpapers..."
 if [[ -d "$REPO_DIR/assets/Wallpapers" ]]; then
@@ -60,6 +62,17 @@ if [[ "$REPO_DIR" != "$HOME/.config/hypr" ]]; then
     done
 else
     echo "   [i] Repository is already in ~/.config/hypr. Skipping copy."
+fi
+
+if [[ -d "$HOME/.config/hypr/scripts" ]]; then
+    chmod +x "$HOME/.config/hypr/scripts/"*.sh "$HOME/.config/hypr/scripts/"*.py 2>/dev/null || true
+fi
+
+DEPTH_VENV_PY="$HOME/.local/share/quickshell/depth-venv/bin/python3"
+DEPTH_SCRIPT="$HOME/.config/hypr/scripts/depth_engine.py"
+if [[ -x "$DEPTH_VENV_PY" && -f "$DEPTH_SCRIPT" ]]; then
+    echo ":: Pre-warming wallpaper depth mask cache..."
+    "$DEPTH_VENV_PY" "$DEPTH_SCRIPT" >/dev/null 2>&1 || true
 fi
 
 echo ":: Checking hardware for connected monitors..."
