@@ -32,27 +32,39 @@ ShellRoot {
     property string greetingText: "Welcome Back"
     property real shakeOffset: 0
     property string wallpaperPath: ""
-    property string depthCutoutPath: ""
 
-    property bool depthEnabled: true
-    property string depthMode: "auto"
-    property real depthThreshold: 0.48
-    property string pythonBin: Quickshell.env("HOME") + "/.local/share/quickshell/depth-venv/bin/python3"
-    property string engineScript: Quickshell.env("HOME") + "/.config/hypr/scripts/depth_engine.py"
-
+    property int clockFontSize: 300
     property string hourText: "00"
     property string minuteText: "00"
     property string ampmText: "AM"
     property string dateText: ""
+    property string weatherIcon: ""
+    property string weatherTemp: ""
+    property string weatherLat: "23.3441"
+    property string weatherLon: "85.3096"
 
-    property color themeBorder: "#a2d398"
-    property color themePrimary: "#a2d398"
+    property color themeBorder: "#ffb3af"
+    property color themePrimary: "#ffb3af"
     property color themeBackground: "#141416"
     property color themeText: "#ffffff"
     property color themeTextMuted: "#a1a1aa"
     property color themeOnPrimary: "#141416"
     property int themeRounding: 20
     property int themeBorderSize: 2
+
+    function mixColor(c1, c2, ratio, alphaVal) {
+        let col1 = Qt.color(c1)
+        let col2 = Qt.color(c2)
+        let r = col1.r * (1 - ratio) + col2.r * ratio
+        let g = col1.g * (1 - ratio) + col2.g * ratio
+        let b = col1.b * (1 - ratio) + col2.b * ratio
+        return Qt.rgba(r, g, b, alphaVal)
+    }
+
+    property color clockDigitColor: mixColor("#FFFFFF", themePrimary, 0.38, 1.0)
+    property color clockAccentColor: Qt.lighter(themePrimary, 1.08)
+    property color clockOutlineColor: Qt.rgba(0.03, 0.035, 0.05, 0.88)
+    property color clockShadowColor: Qt.rgba(0.02, 0.025, 0.04, 0.62)
 
     readonly property var activePlayer: {
         if (!Mpris || !Mpris.players) return null
@@ -113,41 +125,38 @@ ShellRoot {
             root.hourText = (h12 < 10 ? "0" : "") + h12
             root.minuteText = (m < 10 ? "0" : "") + m
             root.ampmText = h >= 12 ? "PM" : "AM"
-            root.dateText = Qt.formatDateTime(now, "dddd, MMMM d")
+
+            let days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+            let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+            root.dateText = days[now.getDay()] + ", " + months[now.getMonth()] + " " + now.getDate()
+
             let drift = 1000 - now.getMilliseconds()
             interval = drift > 40 ? drift : 1000
         }
     }
 
-    FileView {
-        id: depthConfigFile
-        path: Quickshell.env("HOME") + "/.config/quickshell/json/depth_clock.json"
-        watchChanges: false
-        onLoaded: {
-            try {
-                let raw = text().trim()
-                if (!raw) return
-                let d = JSON.parse(raw)
-                let changed = false
-                if (d.depthEnabled !== undefined) {
-                    root.depthEnabled = Boolean(d.depthEnabled)
-                }
-                if ((d.depthMode === "auto" || d.depthMode === "depth" || d.depthMode === "subject") && d.depthMode !== root.depthMode) {
-                    root.depthMode = d.depthMode
-                    changed = true
-                }
-                if (d.depthThreshold !== undefined && !isNaN(d.depthThreshold)) {
-                    let parsedThresh = Math.max(0.08, Math.min(0.92, parseFloat(d.depthThreshold)))
-                    if (Math.abs(parsedThresh - root.depthThreshold) > 0.001) {
-                        root.depthThreshold = parsedThresh
-                        changed = true
-                    }
-                }
-                if (changed) {
-                    root.syncDepth()
-                }
-            } catch (e) {}
+    function fetchWeather() {
+        var xhr = new XMLHttpRequest()
+        xhr.open("GET", `https://api.open-meteo.com/v1/forecast?latitude=${root.weatherLat}&longitude=${root.weatherLon}&current=temperature_2m,weather_code&timezone=auto`)
+        xhr.onreadystatechange = function() {
+            if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
+                try {
+                    var d = JSON.parse(xhr.responseText).current
+                    var temp = Math.round(d.temperature_2m)
+                    var code = d.weather_code
+                    var icon = "󰖙"
+                    if (code === 1 || code === 2) icon = "󰖕"
+                    else if (code === 3) icon = "󰖐"
+                    else if (code >= 45 && code <= 48) icon = "󰖑"
+                    else if (code >= 51 && code <= 67) icon = "󰖗"
+                    else if (code >= 71 && code <= 77) icon = "󰖘"
+                    else if (code >= 95 && code <= 99) icon = "󰙾"
+                    root.weatherIcon = icon
+                    root.weatherTemp = temp + "°"
+                } catch (e) {}
+            }
         }
+        xhr.send()
     }
 
     FileView {
@@ -165,20 +174,6 @@ ShellRoot {
     }
 
     FileView {
-        id: cachedCutoutFile
-        path: Quickshell.env("HOME") + "/.cache/quickshell_last_depth_cutout.txt"
-        watchChanges: false
-        onLoaded: {
-            try {
-                let cached = text().trim()
-                if (cached && cached.length > 0 && root.depthCutoutPath === "") {
-                    root.depthCutoutPath = cached
-                }
-            } catch (e) {}
-        }
-    }
-
-    FileView {
         id: colorFile
         path: Quickshell.env("HOME") + "/.config/hypr/configs/colors.lua"
         watchChanges: true
@@ -186,12 +181,16 @@ ShellRoot {
         onLoaded: {
             try {
                 let content = text()
-                let borderMatch = content.match(/active_border\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})"/)
+                let borderMatch = content.match(/active_border\s*=\s*"rgba?\(([a-fA-F0-9]{6})[a-fA-F0-9]{0,2}\)"/) ||
+                                  content.match(/active_border\s*=\s*"#([a-fA-F0-9]{6})[a-fA-F0-9]{0,2}"/) ||
+                                  content.match(/(?:primary|accent)\s*=\s*"rgba?\(([a-fA-F0-9]{6})[a-fA-F0-9]{0,2}\)"/) ||
+                                  content.match(/(?:primary|accent)\s*=\s*"#([a-fA-F0-9]{6})[a-fA-F0-9]{0,2}"/)
                 if (borderMatch && borderMatch[1]) {
                     root.themeBorder = "#" + borderMatch[1]
                     root.themePrimary = "#" + borderMatch[1]
                 }
-                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
+                let bgMatch = content.match(/background\s*=\s*"rgba?\(([a-fA-F0-9]{6})[a-fA-F0-9]{0,2}\)"/) ||
+                              content.match(/background\s*=\s*"#([a-fA-F0-9]{6})[a-fA-F0-9]{0,2}"/)
                 if (bgMatch && bgMatch[1]) {
                     root.themeBackground = "#" + bgMatch[1]
                 }
@@ -239,60 +238,24 @@ ShellRoot {
         }
     }
 
-    Process { id: saveLastPathsProcess }
-
-    function saveLastPaths(wp, cutout) {
-        let home = Quickshell.env("HOME")
-        let wpFile = home + "/.cache/quickshell_last_wallpaper.txt"
-        let cutFile = home + "/.cache/quickshell_last_depth_cutout.txt"
-        let cmd = "mkdir -p '" + home + "/.cache'"
-        if (wp !== "") {
-            cmd += " && printf '%s' '" + wp.replace(/'/g, "'\\''") + "' > '" + wpFile + "'"
-        }
-        if (cutout !== "") {
-            cmd += " && printf '%s' '" + cutout.replace(/'/g, "'\\''") + "' > '" + cutFile + "'"
-        }
-        saveLastPathsProcess.running = false
-        saveLastPathsProcess.command = ["bash", "-c", cmd]
-        saveLastPathsProcess.running = true
-    }
-
     Process {
-        id: syncDepthProcess
+        id: fetchWpProcess
+        command: [
+            "bash", "-c",
+            "WP=$(awww query 2>/dev/null | sed -n 's/.*image: //p' | head -n1); " +
+            "[ -z \"$WP\" ] && WP=$(swww query 2>/dev/null | sed -n 's/.*image: //p' | head -n1); " +
+            "[ -z \"$WP\" ] && WP=$(hyprctl hyprpaper listactive 2>/dev/null | awk -F'=' 'NF>1 {gsub(/^ +| +$/,\"\",$2); print $2; exit}'); " +
+            "[ -z \"$WP\" ] && [ -f \"$HOME/.config/waypaper/config.ini\" ] && WP=$(awk -F'=' '/^wallpaper/ {gsub(/^ +| +$/,\"\",$2); sub(/^~/, ENVIRON[\"HOME\"], $2); print $2; exit}' \"$HOME/.config/waypaper/config.ini\"); " +
+            "if [ -n \"$WP\" ] && [ -f \"$WP\" ]; then mkdir -p \"$HOME/.cache\"; printf '%s' \"$WP\" > \"$HOME/.cache/quickshell_last_wallpaper.txt\"; printf '%s\\n' \"$WP\"; fi"
+        ]
         stdout: StdioCollector {
             onStreamFinished: {
-                try {
-                    let res = JSON.parse(text.trim())
-                    if (res.wp && res.wp !== "") {
-                        root.wallpaperPath = res.wp
-                    }
-                    if (res.status === "ready" && res.cutout && res.cutout !== "") {
-                        root.depthCutoutPath = res.cutout
-                    } else if (res.status !== "ready") {
-                        root.depthCutoutPath = ""
-                    }
-                    if (res.wp || res.cutout) {
-                        root.saveLastPaths(res.wp || "", res.cutout || "")
-                    }
-                } catch (e) {}
+                let res = text.trim()
+                if (res && res.length > 0) {
+                    root.wallpaperPath = res
+                }
             }
         }
-    }
-
-    function syncDepth() {
-        if (syncDepthProcess.running) return
-        let targetOut = root.activeScreenName !== "" ? root.activeScreenName : (Quickshell.screens.length > 0 && Quickshell.screens[0] ? Quickshell.screens[0].name : "")
-        let args = [
-            root.pythonBin,
-            root.engineScript,
-            "--mode", root.depthMode,
-            "--threshold", root.depthThreshold.toFixed(2)
-        ]
-        if (targetOut !== "") {
-            args.push("--output", targetOut)
-        }
-        syncDepthProcess.command = args
-        syncDepthProcess.running = true
     }
 
     Component.onCompleted: {
@@ -302,13 +265,12 @@ ShellRoot {
             root.activeScreenName = Quickshell.screens[0].name
         }
 
-        depthConfigFile.reload()
         cachedWpFile.reload()
-        cachedCutoutFile.reload()
         colorFile.reload()
         generalFile.reload()
         userInfoProcess.running = true
-        root.syncDepth()
+        fetchWpProcess.running = true
+        root.fetchWeather()
     }
 
     SequentialAnimation {
@@ -502,7 +464,7 @@ ShellRoot {
                     width: clockColumn.implicitWidth
                     height: clockColumn.implicitHeight
                     anchors.horizontalCenter: parent.horizontalCenter
-                    y: root.authVisible ? Math.max(36, parent.height * 0.06) : Math.max(40, (parent.height - height) * 0.34)
+                    y: root.authVisible ? Math.max(32, parent.height * 0.045) : 100
                     scale: root.authVisible ? 0.36 : 1.0
                     opacity: root.unlocking ? 0.0 : 1.0
                     transformOrigin: Item.Top
@@ -529,99 +491,192 @@ ShellRoot {
                     ColumnLayout {
                         id: clockColumn
                         anchors.centerIn: parent
-                        spacing: -14
+                        spacing: -Math.round(root.clockFontSize * 0.11)
 
-                        Text {
+                        RowLayout {
                             Layout.alignment: Qt.AlignHCenter
-                            text: root.dateText
-                            color: Qt.alpha(root.themePrimary, 0.92)
-                            font.family: root.fontFamily
-                            font.pixelSize: 32
-                            font.weight: Font.Bold
-                            font.letterSpacing: 1.2
-                            style: Text.Outline
-                            styleColor: Qt.rgba(0, 0, 0, 0.38)
+                            spacing: 10
+
+                            Text {
+                                text: root.dateText
+                                color: "#FFFFFF"
+                                font.family: root.fontFamily
+                                font.pixelSize: Math.max(20, Math.round(root.clockFontSize * 0.11))
+                                font.weight: Font.Bold
+                                font.letterSpacing: 0.5
+                                style: Text.Outline
+                                styleColor: root.clockOutlineColor
+                            }
+
+                            Text {
+                                visible: root.weatherTemp !== ""
+                                text: "•"
+                                color: root.clockAccentColor
+                                font.family: root.fontFamily
+                                font.pixelSize: Math.max(20, Math.round(root.clockFontSize * 0.11))
+                                font.weight: Font.Black
+                                style: Text.Outline
+                                styleColor: root.clockOutlineColor
+                            }
+
+                            RowLayout {
+                                visible: root.weatherTemp !== ""
+                                spacing: 6
+
+                                Text {
+                                    text: root.weatherIcon
+                                    color: root.clockAccentColor
+                                    font.family: root.iconFontFamily
+                                    font.pixelSize: Math.max(20, Math.round(root.clockFontSize * 0.105))
+                                    style: Text.Outline
+                                    styleColor: root.clockOutlineColor
+                                }
+
+                                Text {
+                                    text: root.weatherTemp
+                                    color: "#FFFFFF"
+                                    font.family: root.fontFamily
+                                    font.pixelSize: Math.max(20, Math.round(root.clockFontSize * 0.11))
+                                    font.weight: Font.Bold
+                                    style: Text.Outline
+                                    styleColor: root.clockOutlineColor
+                                }
+                            }
                         }
 
                         RowLayout {
                             Layout.alignment: Qt.AlignHCenter
-                            spacing: 0
+                            spacing: 4
 
-                            Text {
-                                text: root.hourText
-                                color: Qt.alpha(root.themeText, 0.94)
-                                font.family: root.fontFamily
-                                font.pixelSize: 224
-                                font.weight: Font.Bold
-                                font.letterSpacing: -6
-                                style: Text.Outline
-                                styleColor: Qt.rgba(0, 0, 0, 0.32)
+                            Item {
+                                implicitWidth: hourText.implicitWidth
+                                implicitHeight: hourText.implicitHeight
+
+                                Text {
+                                    x: 0
+                                    y: 7
+                                    text: root.hourText
+                                    color: root.clockShadowColor
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.clockFontSize
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: -Math.round(root.clockFontSize * 0.025)
+                                }
+
+                                Text {
+                                    id: hourText
+                                    text: root.hourText
+                                    color: root.clockDigitColor
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.clockFontSize
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: -Math.round(root.clockFontSize * 0.025)
+                                    style: Text.Outline
+                                    styleColor: root.clockOutlineColor
+                                }
                             }
 
-                            Text {
-                                text: ":"
-                                color: Qt.alpha(root.themePrimary, 0.92)
-                                font.family: root.fontFamily
-                                font.pixelSize: 224
-                                font.weight: Font.Bold
-                                font.letterSpacing: -6
-                                style: Text.Outline
-                                styleColor: Qt.rgba(0, 0, 0, 0.32)
+                            Item {
+                                implicitWidth: colonText.implicitWidth
+                                implicitHeight: colonText.implicitHeight
+                                Layout.alignment: Qt.AlignVCenter
+                                Layout.bottomMargin: Math.round(root.clockFontSize * 0.08)
+
+                                Text {
+                                    x: 0
+                                    y: 7
+                                    text: ":"
+                                    color: root.clockShadowColor
+                                    opacity: colonText.opacity
+                                    font.family: root.fontFamily
+                                    font.pixelSize: Math.round(root.clockFontSize * 0.90)
+                                    font.weight: Font.Bold
+                                }
+
+                                Text {
+                                    id: colonText
+                                    text: ":"
+                                    color: root.clockAccentColor
+                                    font.family: root.fontFamily
+                                    font.pixelSize: Math.round(root.clockFontSize * 0.90)
+                                    font.weight: Font.Bold
+                                    style: Text.Outline
+                                    styleColor: root.clockOutlineColor
+
+                                    SequentialAnimation on opacity {
+                                        running: true
+                                        loops: Animation.Infinite
+                                        NumberAnimation { to: 0.65; duration: 1000; easing.type: Easing.InOutSine }
+                                        NumberAnimation { to: 1.0; duration: 1000; easing.type: Easing.InOutSine }
+                                    }
+                                }
                             }
 
-                            Text {
-                                text: root.minuteText
-                                color: Qt.alpha(root.themeText, 0.94)
-                                font.family: root.fontFamily
-                                font.pixelSize: 224
-                                font.weight: Font.Bold
-                                font.letterSpacing: -6
-                                style: Text.Outline
-                                styleColor: Qt.rgba(0, 0, 0, 0.32)
+                            Item {
+                                implicitWidth: minuteText.implicitWidth
+                                implicitHeight: minuteText.implicitHeight
+
+                                Text {
+                                    x: 0
+                                    y: 7
+                                    text: root.minuteText
+                                    color: root.clockShadowColor
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.clockFontSize
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: -Math.round(root.clockFontSize * 0.025)
+                                }
+
+                                Text {
+                                    id: minuteText
+                                    text: root.minuteText
+                                    color: root.clockDigitColor
+                                    font.family: root.fontFamily
+                                    font.pixelSize: root.clockFontSize
+                                    font.weight: Font.Bold
+                                    font.letterSpacing: -Math.round(root.clockFontSize * 0.025)
+                                    style: Text.Outline
+                                    styleColor: root.clockOutlineColor
+                                }
                             }
 
-                            Text {
+                            Item {
+                                implicitWidth: periodText.implicitWidth
+                                implicitHeight: periodText.implicitHeight
                                 Layout.alignment: Qt.AlignBottom
-                                Layout.bottomMargin: 44
-                                Layout.leftMargin: 14
-                                text: root.ampmText
-                                color: Qt.alpha(root.themePrimary, 0.92)
-                                font.family: root.fontFamily
-                                font.pixelSize: 34
-                                font.weight: Font.Bold
-                                font.letterSpacing: 1.6
-                                style: Text.Outline
-                                styleColor: Qt.rgba(0, 0, 0, 0.38)
+                                Layout.bottomMargin: Math.round(root.clockFontSize * 0.19)
+                                Layout.leftMargin: 6
+
+                                Text {
+                                    x: 0
+                                    y: 3
+                                    text: root.ampmText
+                                    color: root.clockShadowColor
+                                    font.family: root.fontFamily
+                                    font.pixelSize: Math.max(20, Math.round(root.clockFontSize * 0.12))
+                                    font.weight: Font.Black
+                                    font.letterSpacing: 1.4
+                                }
+
+                                Text {
+                                    id: periodText
+                                    text: root.ampmText
+                                    color: root.clockAccentColor
+                                    font.family: root.fontFamily
+                                    font.pixelSize: Math.max(20, Math.round(root.clockFontSize * 0.12))
+                                    font.weight: Font.Black
+                                    font.letterSpacing: 1.4
+                                    style: Text.Outline
+                                    styleColor: root.clockOutlineColor
+                                }
                             }
-                        }
-                    }
-                }
-
-                Image {
-                    id: depthCutoutImage
-                    z: 2
-                    anchors.fill: parent
-                    sourceSize.width: lockSurface.width
-                    sourceSize.height: lockSurface.height
-                    source: root.depthCutoutPath !== "" ? (root.depthCutoutPath.startsWith("file://") ? root.depthCutoutPath : "file://" + root.depthCutoutPath) : ""
-                    fillMode: Image.PreserveAspectCrop
-                    asynchronous: true
-                    smooth: true
-                    cache: false
-                    opacity: (!root.authVisible && !root.unlocking && root.depthEnabled && status === Image.Ready) ? 1.0 : 0.0
-                    visible: lockSurface.isPrimary && opacity > 0.01
-
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: 300
-                            easing.type: Easing.OutCubic
                         }
                     }
                 }
 
                 Item {
                     id: authSection
-                    z: 3
+                    z: 2
                     visible: lockSurface.isPrimary
                     enabled: lockSurface.isPrimary && root.authVisible && !root.unlocking
                     width: 360
@@ -874,7 +929,7 @@ ShellRoot {
                 }
 
                 ColumnLayout {
-                    z: 3
+                    z: 2
                     visible: lockSurface.isPrimary
                     opacity: root.unlocking ? 0.0 : 1.0
                     anchors.bottom: parent.bottom

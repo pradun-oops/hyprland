@@ -30,6 +30,7 @@ Scope {
     property string depthMode: "auto"
     property real depthThreshold: 0.48
     property bool primaryMonitorOnly: true
+    property bool controlsVisible: false
 
     property string pythonBin: Quickshell.env("HOME") + "/.local/share/quickshell/depth-venv/bin/python3"
     property string engineScript: Quickshell.env("HOME") + "/.config/hypr/scripts/depth_engine.py"
@@ -401,13 +402,24 @@ Scope {
                 right: true
             }
 
-            mask: Region {
+            mask: (resizeArea.isHoldingLeft || resizeArea.isResizing) ? fullScreenRegion : interactiveRegion
+            color: "transparent"
+
+            Region {
+                id: fullScreenRegion
+                x: 0
+                y: 0
+                width: clockWindow.width
+                height: clockWindow.height
+            }
+
+            Region {
+                id: interactiveRegion
                 item: clockContainer
                 Region {
-                    item: depthHoverToggle
+                    item: root.controlsVisible ? depthHoverToggle : null
                 }
             }
-            color: "transparent"
 
             Item {
                 id: clockContainer
@@ -476,12 +488,10 @@ Scope {
                     }
                 }
 
-                HoverHandler { id: clockHover }
-
                 MouseArea {
                     id: dragArea
                     anchors.fill: parent
-                    acceptedButtons: Qt.LeftButton
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
                     cursorShape: drag.active ? Qt.ClosedHandCursor : Qt.ArrowCursor
                     drag.target: clockContainer
                     drag.axis: Drag.XAndYAxis
@@ -489,9 +499,14 @@ Scope {
                     drag.maximumX: Math.max(0, clockWindow.width - clockContainer.width)
                     drag.minimumY: 0
                     drag.maximumY: Math.max(0, clockWindow.height - clockContainer.height)
-                    drag.threshold: 2
+                    drag.threshold: 3
 
-                    onReleased: {
+                    onDoubleClicked: {
+                        root.controlsVisible = !root.controlsVisible
+                    }
+
+                    onReleased: mouse => {
+                        if (mouse.button !== Qt.LeftButton) return
                         let maxX = Math.max(1, clockWindow.width - clockContainer.width)
                         let maxY = Math.max(1, clockWindow.height - clockContainer.height)
                         root.posXRatio = Math.max(0.0, Math.min(1.0, clockContainer.x / maxX))
@@ -514,11 +529,12 @@ Scope {
                     height: 84
                     z: 5
                     hoverEnabled: true
-                    acceptedButtons: Qt.LeftButton
-                    pressAndHoldInterval: 260
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    pressAndHoldInterval: 240
                     preventStealing: true
                     cursorShape: isResizing ? Qt.SizeFDiagCursor : (containsMouse ? Qt.PointingHandCursor : Qt.ArrowCursor)
 
+                    property bool isHoldingLeft: false
                     property bool isResizing: false
                     property bool committing: false
                     property real pressGlobalX: 0
@@ -528,18 +544,15 @@ Scope {
                     property real startWidth: 400
                     property real startHeight: 300
                     property int startFontSize: 312
-                    property real targetScale: 1.0
                     property real smoothScale: 1.0
 
-                    Behavior on smoothScale {
-                        enabled: root.animEnabled && resizeArea.isResizing
-                        NumberAnimation {
-                            duration: 45
-                            easing.type: Easing.OutQuad
-                        }
+                    onDoubleClicked: {
+                        root.controlsVisible = !root.controlsVisible
                     }
 
                     onPressed: mouse => {
+                        if (mouse.button !== Qt.LeftButton) return
+                        isHoldingLeft = true
                         let pt = mapToItem(clockWindow.contentItem, mouse.x, mouse.y)
                         pressGlobalX = pt.x
                         pressGlobalY = pt.y
@@ -548,13 +561,14 @@ Scope {
                         startWidth = Math.max(1, clockContainer.width)
                         startHeight = Math.max(1, clockContainer.height)
                         startFontSize = root.clockFontSize
-                        targetScale = 1.0
                         smoothScale = 1.0
                         isResizing = false
                     }
 
                     onPressAndHold: {
-                        isResizing = true
+                        if (isHoldingLeft) {
+                            isResizing = true
+                        }
                     }
 
                     onPositionChanged: mouse => {
@@ -570,16 +584,15 @@ Scope {
                         let maxScaleByW = (clockWindow.width - startX) / startWidth
                         let maxScaleByH = (clockWindow.height - startY) / startHeight
                         let maxScale = Math.max(minScale, Math.min(maxScaleByFont, maxScaleByW, maxScaleByH))
-                        targetScale = Math.max(minScale, Math.min(maxScale, rawScale))
-                        smoothScale = targetScale
+                        smoothScale = Math.max(minScale, Math.min(maxScale, rawScale))
                     }
 
                     function finishResize() {
+                        isHoldingLeft = false
                         if (!isResizing) return
-                        let finalFontSize = Math.max(120, Math.min(520, Math.round(startFontSize * targetScale)))
+                        let finalFontSize = Math.max(120, Math.min(520, Math.round(startFontSize * smoothScale)))
                         committing = true
                         isResizing = false
-                        targetScale = 1.0
                         smoothScale = 1.0
                         root.clockFontSize = finalFontSize
                         Qt.callLater(function() {
@@ -592,7 +605,12 @@ Scope {
                         })
                     }
 
-                    onReleased: finishResize()
+                    onReleased: mouse => {
+                        if (mouse.button === Qt.LeftButton) {
+                            finishResize()
+                        }
+                    }
+
                     onCanceled: finishResize()
 
                     Canvas {
@@ -602,11 +620,11 @@ Scope {
                         anchors.margins: 8
                         width: 26
                         height: 26
-                        opacity: (resizeArea.containsMouse || resizeArea.pressed || resizeArea.isResizing) ? 1.0 : 0.0
-                        scale: resizeArea.isResizing ? 1.2 : (resizeArea.pressed ? 1.08 : 1.0)
+                        opacity: (resizeArea.containsMouse || resizeArea.isHoldingLeft || resizeArea.isResizing) ? 1.0 : 0.0
+                        scale: resizeArea.isResizing ? 1.2 : (resizeArea.isHoldingLeft ? 1.08 : 1.0)
                         antialiasing: true
 
-                        property color arcColor: resizeArea.isResizing ? root.themePrimary : (resizeArea.pressed ? Qt.lighter(root.themePrimary, 1.15) : Qt.alpha(root.themePrimary, 0.78))
+                        property color arcColor: resizeArea.isResizing ? root.themePrimary : (resizeArea.isHoldingLeft ? Qt.lighter(root.themePrimary, 1.15) : Qt.alpha(root.themePrimary, 0.78))
                         onArcColorChanged: requestPaint()
                         onVisibleChanged: if (visible) requestPaint()
 
@@ -1025,9 +1043,7 @@ Scope {
                 border.color: (depthToggleMouse.containsMouse || modeBtnMouse.containsMouse || depthSliderMouse.containsMouse || depthSliderMouse.pressed)
                               ? root.themePrimary
                               : Qt.alpha(root.themePrimary, 0.45)
-                opacity: (clockHover.hovered || depthToggleMouse.containsMouse || modeBtnMouse.containsMouse || depthSliderMouse.containsMouse || depthSliderMouse.pressed)
-                         && !dragArea.drag.active && !resizeArea.isResizing && !resizeArea.pressed
-                         ? 1.0 : 0.0
+                opacity: (root.controlsVisible && !dragArea.drag.active && !resizeArea.isResizing && !resizeArea.isHoldingLeft) ? 1.0 : 0.0
                 visible: opacity > 0.01
                 antialiasing: true
 
