@@ -17,16 +17,16 @@ Scope {
     property color themeBorder: "#ffffff"
     property color themePrimary: "#ffffff"
     property color themeText: "#ffffff"
-    property color themeTextMuted: "#a1a1aa"
+    property color themeTextMuted: "#E4E4E7"
 
-    property int themeRounding: 18
+    property int themeRounding: 22
     property int themeBorderSize: 2
     property real themeBgAlpha: 0.25
     property bool animEnabled: true
     property int animDuration: 220
 
-    property color themeBackground: "#141416"
-    property color themeSurface: Qt.rgba(0.03, 0.03, 0.05, 0.58)
+    property color themeBackground: "#0d0e11"
+    property color themeSurface: Qt.rgba(0, 0, 0, 0.46)
 
     QtObject {
         id: animStyle
@@ -64,10 +64,6 @@ Scope {
                 if (match && match[1]) {
                     root.themeBorder = "#" + match[1]
                     root.themePrimary = "#" + match[1]
-                }
-                let bgMatch = content.match(/background\s*=\s*"rgb\(([a-fA-F0-9]{6})\)"/) || content.match(/background\s*=\s*"#([a-fA-F0-9]{6})"/)
-                if (bgMatch && bgMatch[1]) {
-                    root.themeBackground = "#" + bgMatch[1]
                 }
             } catch (e) {}
         }
@@ -279,7 +275,7 @@ with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
             anchors { top: true }
             margins { top: 52 }
 
-            implicitWidth: 392
+            implicitWidth: 416
             implicitHeight: popupList.contentHeight
             color: "transparent"
 
@@ -360,40 +356,32 @@ with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
                     height: card.height
 
                     property real lifeProgress: 1.0
+                    property bool isHovered: cardMouse.containsMouse || closeMouse.containsMouse
 
                     NumberAnimation on lifeProgress {
                         from: 1.0
                         to: 0.0
                         duration: 4200
                         running: true
-                        paused: cardMouse.containsMouse || closeMouse.containsMouse
+                        paused: delegateRoot.isHovered
                         onFinished: root.closePopup(localPopupModel, model.notifId)
                     }
 
                     Rectangle {
                         id: card
                         width: parent.width
-                        height: cardContent.implicitHeight + 26
+                        height: cardContent.implicitHeight + 38
                         radius: root.themeRounding
-                        color: (cardMouse.containsMouse || closeMouse.containsMouse)
-                               ? root.mixColor(root.themeBackground, root.themePrimary, 0.14, 0.76)
-                               : Qt.alpha(root.themeBackground, root.themeBgAlpha)
+                        color: Qt.alpha(root.themeBackground, root.themeBgAlpha)
                         border.width: root.themeBorderSize
-                        border.color: (cardMouse.containsMouse || closeMouse.containsMouse)
-                                      ? Qt.alpha(root.themePrimary, 0.68)
-                                      : Qt.alpha(root.themePrimary, 0.42)
+                        border.color: delegateRoot.isHovered
+                                      ? Qt.alpha(root.themePrimary, 0.75)
+                                      : Qt.alpha(root.themePrimary, 0.40)
                         antialiasing: true
                         clip: true
 
                         layer.enabled: root.animEnabled
                         layer.smooth: true
-
-                        Behavior on color {
-                            ColorAnimation {
-                                duration: animStyle.fadeDuration
-                                easing.type: animStyle.smoothEasing
-                            }
-                        }
 
                         Behavior on border.color {
                             ColorAnimation {
@@ -403,258 +391,295 @@ with open(path, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2)
                         }
 
                         Rectangle {
+                            id: innerSurface
                             anchors.fill: parent
-                            anchors.margins: root.themeBorderSize
-                            radius: Math.max(0, parent.radius - root.themeBorderSize)
+                            anchors.margins: 7
+                            radius: Math.max(10, root.themeRounding - 6)
+                            color: delegateRoot.isHovered
+                                   ? Qt.rgba(0, 0, 0, 0.56)
+                                   : root.themeSurface
+                            border.width: 1
+                            border.color: delegateRoot.isHovered
+                                          ? Qt.alpha(root.themePrimary, 0.35)
+                                          : Qt.rgba(255, 255, 255, 0.12)
                             antialiasing: true
-                            gradient: Gradient {
-                                GradientStop { position: 0.0; color: Qt.rgba(1.0, 1.0, 1.0, 0.10) }
-                                GradientStop { position: 0.45; color: Qt.rgba(1.0, 1.0, 1.0, 0.02) }
-                                GradientStop { position: 1.0; color: "transparent" }
-                            }
-                        }
+                            clip: true
 
-                        MouseArea {
-                            id: cardMouse
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            acceptedButtons: Qt.LeftButton | Qt.RightButton
-                            cursorShape: cardMouse.containsMouse ? Qt.PointingHandCursor : Qt.ArrowCursor
-                            onClicked: (mouse) => {
-                                if (mouse.button === Qt.RightButton) {
-                                    root.closePopup(localPopupModel, model.notifId)
+                            Behavior on color {
+                                ColorAnimation {
+                                    duration: animStyle.fadeDuration
+                                    easing.type: animStyle.smoothEasing
                                 }
                             }
-                        }
-
-                        RowLayout {
-                            id: cardContent
-                            anchors {
-                                left: parent.left
-                                right: parent.right
-                                top: parent.top
-                                leftMargin: 14
-                                rightMargin: 12
-                                topMargin: 12
+                            Behavior on border.color {
+                                ColorAnimation {
+                                    duration: animStyle.fadeDuration
+                                    easing.type: animStyle.smoothEasing
+                                }
                             }
-                            spacing: 12
 
-                            Rectangle {
-                                Layout.preferredWidth: 42
-                                Layout.preferredHeight: 42
-                                Layout.alignment: Qt.AlignTop
-                                radius: cardMouse.containsMouse ? 14 : 11
-                                color: Qt.alpha(root.themePrimary, cardMouse.containsMouse ? 0.24 : 0.16)
-                                border.width: 1
-                                border.color: Qt.alpha(root.themePrimary, cardMouse.containsMouse ? 0.55 : 0.38)
-                                antialiasing: true
-                                clip: true
-                                scale: cardMouse.containsMouse ? 1.05 : 1.0
-
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.scaleDuration : 0
-                                        easing.type: animStyle.smoothEasing
+                            MouseArea {
+                                id: cardMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                cursorShape: cardMouse.containsMouse ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                onClicked: (mouse) => {
+                                    if (mouse.button === Qt.RightButton) {
+                                        root.closePopup(localPopupModel, model.notifId)
                                     }
                                 }
-                                Behavior on radius {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.microDuration : 0
-                                        easing.type: animStyle.smoothEasing
-                                    }
-                                }
-                                Behavior on color {
-                                    ColorAnimation {
-                                        duration: animStyle.fadeDuration
-                                        easing.type: animStyle.smoothEasing
-                                    }
-                                }
-                                Behavior on border.color {
-                                    ColorAnimation {
-                                        duration: animStyle.fadeDuration
-                                        easing.type: animStyle.smoothEasing
-                                    }
-                                }
+                            }
 
-                                Image {
-                                    id: notifThumb
-                                    anchors.fill: parent
-                                    anchors.margins: 1
-                                    source: model.imagePath && model.imagePath !== ""
-                                            ? (model.imagePath.startsWith("file://") ? model.imagePath : "file://" + model.imagePath)
-                                            : ""
-                                    fillMode: Image.PreserveAspectCrop
-                                    smooth: true
-                                    visible: status === Image.Ready
-                                    opacity: visible ? 1.0 : 0.0
+                            RowLayout {
+                                id: cardContent
+                                anchors {
+                                    left: parent.left
+                                    right: parent.right
+                                    top: parent.top
+                                    leftMargin: 12
+                                    rightMargin: 12
+                                    topMargin: 11
+                                }
+                                spacing: 12
 
-                                    Behavior on opacity {
+                                Rectangle {
+                                    Layout.preferredWidth: 42
+                                    Layout.preferredHeight: 42
+                                    Layout.alignment: Qt.AlignTop
+                                    radius: delegateRoot.isHovered ? 13 : 11
+                                    color: Qt.alpha(root.themePrimary, delegateRoot.isHovered ? 0.24 : 0.16)
+                                    border.width: 1
+                                    border.color: Qt.alpha(root.themePrimary, delegateRoot.isHovered ? 0.60 : 0.35)
+                                    antialiasing: true
+                                    clip: true
+                                    scale: delegateRoot.isHovered ? 1.04 : 1.0
+
+                                    Behavior on scale {
                                         NumberAnimation {
-                                            duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                            duration: root.animEnabled ? animStyle.scaleDuration : 0
                                             easing.type: animStyle.smoothEasing
                                         }
                                     }
-                                }
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    visible: notifThumb.status !== Image.Ready
-                                    text: root.getNotificationIcon(model.appName, model.summary)
-                                    font.family: root.iconFontFamily
-                                    color: root.themePrimary
-                                    font.pixelSize: 18
-                                }
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
-                                spacing: 3
-
-                                RowLayout {
-                                    Layout.fillWidth: true
-                                    spacing: 6
-
-                                    Text {
-                                        text: model.appName.toUpperCase()
-                                        color: root.themePrimary
-                                        font.family: root.fontFamily
-                                        font.pixelSize: 10
-                                        font.weight: Font.Bold
-                                        font.letterSpacing: 0.8
-                                        elide: Text.ElideRight
-                                        Layout.maximumWidth: 180
-                                        style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                    Behavior on radius {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.microDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
                                     }
-
-                                    Text {
-                                        text: "•"
-                                        color: root.themeTextMuted
-                                        font.family: root.fontFamily
-                                        font.pixelSize: 10
-                                    }
-
-                                    Text {
-                                        text: "now"
-                                        color: root.themeTextMuted
-                                        font.family: root.fontFamily
-                                        font.pixelSize: 10
-                                        font.weight: Font.Medium
-                                        style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.65)
-                                    }
-
-                                    Item { Layout.fillWidth: true }
-                                }
-
-                                Text {
-                                    text: model.summary
-                                    color: root.themeText
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 13
-                                    font.weight: Font.Bold
-                                    Layout.fillWidth: true
-                                    wrapMode: Text.Wrap
-                                    elide: Text.ElideRight
-                                    maximumLineCount: 1
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
-                                }
-
-                                Text {
-                                    visible: model.body !== ""
-                                    text: model.body
-                                    color: root.themeTextMuted
-                                    font.family: root.fontFamily
-                                    font.pixelSize: 11
-                                    font.weight: Font.Medium
-                                    lineHeight: 1.15
-                                    Layout.fillWidth: true
-                                    wrapMode: Text.WrapAnywhere
-                                    elide: Text.ElideRight
-                                    maximumLineCount: 2
-                                    style: Text.Raised
-                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
-                                }
-                            }
-
-                            Rectangle {
-                                id: closeBtn
-                                Layout.preferredWidth: 26
-                                Layout.preferredHeight: 26
-                                Layout.alignment: Qt.AlignTop
-                                radius: closeMouse.containsMouse ? 9 : 8
-                                color: closeMouse.containsMouse
-                                       ? Qt.rgba(1.0, 1.0, 1.0, 0.16)
-                                       : Qt.rgba(0.02, 0.02, 0.03, 0.42)
-                                border.width: 1
-                                border.color: closeMouse.containsMouse
-                                              ? Qt.alpha(root.themePrimary, 0.55)
-                                              : Qt.rgba(1.0, 1.0, 1.0, 0.12)
-                                antialiasing: true
-                                scale: closeMouse.pressed ? 0.90 : (closeMouse.containsMouse ? 1.06 : 1.0)
-
-                                Behavior on scale {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.scaleDuration : 0
-                                        easing.type: animStyle.smoothEasing
-                                    }
-                                }
-                                Behavior on radius {
-                                    NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.microDuration : 0
-                                        easing.type: animStyle.smoothEasing
-                                    }
-                                }
-                                Behavior on color {
-                                    ColorAnimation {
-                                        duration: animStyle.fadeDuration
-                                        easing.type: animStyle.smoothEasing
-                                    }
-                                }
-                                Behavior on border.color {
-                                    ColorAnimation {
-                                        duration: animStyle.fadeDuration
-                                        easing.type: animStyle.smoothEasing
-                                    }
-                                }
-
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "󰅖"
-                                    font.family: root.iconFontFamily
-                                    color: closeMouse.containsMouse ? root.themePrimary : root.themeTextMuted
-                                    font.pixelSize: 12
-
                                     Behavior on color {
                                         ColorAnimation {
                                             duration: animStyle.fadeDuration
                                             easing.type: animStyle.smoothEasing
                                         }
                                     }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: animStyle.fadeDuration
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+
+                                    Image {
+                                        id: notifThumb
+                                        anchors.fill: parent
+                                        anchors.margins: 1
+                                        source: model.imagePath && model.imagePath !== ""
+                                                ? (model.imagePath.startsWith("file://") ? model.imagePath : "file://" + model.imagePath)
+                                                : ""
+                                        fillMode: Image.PreserveAspectCrop
+                                        smooth: true
+                                        visible: status === Image.Ready
+                                        opacity: visible ? 1.0 : 0.0
+
+                                        Behavior on opacity {
+                                            NumberAnimation {
+                                                duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                    }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        visible: notifThumb.status !== Image.Ready
+                                        text: root.getNotificationIcon(model.appName, model.summary)
+                                        font.family: root.iconFontFamily
+                                        color: root.themePrimary
+                                        font.pixelSize: 19
+                                    }
                                 }
 
-                                MouseArea {
-                                    id: closeMouse
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: root.closePopup(localPopupModel, model.notifId)
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                    spacing: 3
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 6
+
+                                        Rectangle {
+                                            Layout.preferredHeight: 16
+                                            Layout.preferredWidth: Math.min(appNameLabel.implicitWidth + 10, 160)
+                                            radius: 5
+                                            color: Qt.alpha(root.themePrimary, 0.18)
+                                            border.width: 1
+                                            border.color: Qt.alpha(root.themePrimary, 0.35)
+                                            antialiasing: true
+
+                                            Text {
+                                                id: appNameLabel
+                                                anchors.centerIn: parent
+                                                width: parent.width - 10
+                                                horizontalAlignment: Text.AlignHCenter
+                                                text: model.appName.toUpperCase()
+                                                color: root.themePrimary
+                                                font.family: root.fontFamily
+                                                font.pixelSize: 9
+                                                font.weight: Font.Bold
+                                                font.letterSpacing: 0.7
+                                                elide: Text.ElideRight
+                                            }
+                                        }
+
+                                        Text {
+                                            text: "•"
+                                            color: Qt.alpha(root.themeTextMuted, 0.7)
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 10
+                                        }
+
+                                        Text {
+                                            text: "Just now"
+                                            color: root.themeTextMuted
+                                            font.family: root.fontFamily
+                                            font.pixelSize: 10
+                                            font.weight: Font.DemiBold
+                                            style: Text.Raised
+                                            styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                        }
+
+                                        Item { Layout.fillWidth: true }
+                                    }
+
+                                    Text {
+                                        text: model.summary
+                                        color: root.themeText
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 14
+                                        font.weight: Font.Bold
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.Wrap
+                                        elide: Text.ElideRight
+                                        maximumLineCount: 1
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.90)
+                                    }
+
+                                    Text {
+                                        visible: model.body !== ""
+                                        text: model.body
+                                        color: root.themeTextMuted
+                                        font.family: root.fontFamily
+                                        font.pixelSize: 11
+                                        font.weight: Font.Medium
+                                        lineHeight: 1.2
+                                        Layout.fillWidth: true
+                                        wrapMode: Text.WrapAnywhere
+                                        elide: Text.ElideRight
+                                        maximumLineCount: 2
+                                        style: Text.Raised
+                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: closeBtn
+                                    Layout.preferredWidth: 28
+                                    Layout.preferredHeight: 28
+                                    Layout.alignment: Qt.AlignTop
+                                    radius: closeMouse.containsMouse ? 10 : 8
+                                    color: closeMouse.containsMouse
+                                           ? Qt.alpha(root.themePrimary, 0.25)
+                                           : Qt.rgba(0, 0, 0, 0.45)
+                                    border.width: 1
+                                    border.color: closeMouse.containsMouse
+                                                  ? root.themePrimary
+                                                  : Qt.rgba(255, 255, 255, 0.14)
+                                    antialiasing: true
+                                    scale: closeMouse.pressed ? 0.90 : (closeMouse.containsMouse ? 1.06 : 1.0)
+
+                                    Behavior on scale {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on radius {
+                                        NumberAnimation {
+                                            duration: root.animEnabled ? animStyle.microDuration : 0
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on color {
+                                        ColorAnimation {
+                                            duration: animStyle.fadeDuration
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+                                    Behavior on border.color {
+                                        ColorAnimation {
+                                            duration: animStyle.fadeDuration
+                                            easing.type: animStyle.smoothEasing
+                                        }
+                                    }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰅖"
+                                        font.family: root.iconFontFamily
+                                        color: closeMouse.containsMouse ? root.themePrimary : root.themeText
+                                        font.pixelSize: 13
+
+                                        Behavior on color {
+                                            ColorAnimation {
+                                                duration: animStyle.fadeDuration
+                                                easing.type: animStyle.smoothEasing
+                                            }
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        id: closeMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: root.closePopup(localPopupModel, model.notifId)
+                                    }
                                 }
                             }
-                        }
 
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.bottom: parent.bottom
-                            anchors.leftMargin: root.themeRounding * 0.6
-                            anchors.bottomMargin: root.themeBorderSize
-                            height: 2
-                            radius: 1
-                            width: Math.max(0, (parent.width - root.themeRounding * 1.2) * delegateRoot.lifeProgress)
-                            color: Qt.alpha(root.themePrimary, 0.55)
-                            antialiasing: true
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                anchors.leftMargin: 12
+                                anchors.rightMargin: 12
+                                anchors.bottomMargin: 5
+                                height: 3
+                                radius: 1.5
+                                color: Qt.rgba(255, 255, 255, 0.10)
+                                antialiasing: true
+
+                                Rectangle {
+                                    width: Math.max(0, parent.width * delegateRoot.lifeProgress)
+                                    height: parent.height
+                                    radius: parent.radius
+                                    color: root.themePrimary
+                                    antialiasing: true
+                                }
+                            }
                         }
                     }
                 }

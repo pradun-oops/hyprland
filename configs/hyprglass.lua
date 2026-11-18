@@ -8,7 +8,7 @@ if hl.plugin.hyprglass then
 
         refraction_strength  = 1.0,
         chromatic_aberration = 1.0,
-        fresnel_strength     = 2.0,
+        fresnel_strength     = 1.0,
         specular_strength    = 1.0,
         edge_thickness       = 0.01,
 

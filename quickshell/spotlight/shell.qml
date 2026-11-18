@@ -16,13 +16,11 @@ Scope {
     property bool animEnabled: true
     property int animDuration: 220
     property bool isClosing: false
-    property bool surfaceHidden: false
 
     QtObject {
         id: animStyle
         property int base: root.animDuration > 0 ? Math.min(root.animDuration, 260) : 220
         property int enterDuration: Math.round(base * 1.35)
-        property int exitDuration: Math.round(base * 0.85)
         property int animDuration: base
         property int morphDuration: Math.round(base * 1.25)
         property int fadeDuration: Math.round(base * 0.8)
@@ -30,33 +28,12 @@ Scope {
         property int scaleDuration: Math.round(base * 1.1)
         property var smoothEasing: Easing.OutQuint
         property var expoEasing: Easing.OutExpo
-        property var exitEasing: Easing.InCubic
     }
 
     function quitApp() {
         if (root.isClosing) return
         root.isClosing = true
-        if (!root.animEnabled) {
-            root.surfaceHidden = true
-            Qt.quit()
-            return
-        }
-        hideSurfaceTimer.start()
-        quitTimer.start()
-    }
-
-    Timer {
-        id: hideSurfaceTimer
-        interval: animStyle.exitDuration
-        repeat: false
-        onTriggered: root.surfaceHidden = true
-    }
-
-    Timer {
-        id: quitTimer
-        interval: animStyle.exitDuration + 50
-        repeat: false
-        onTriggered: Qt.quit()
+        Qt.quit()
     }
 
     Shortcut {
@@ -470,7 +447,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
             screen: modelData
 
             property bool isTargetMonitor: root.lockedMonitor !== "" && modelData.name === root.lockedMonitor
-            visible: isTargetMonitor && !root.surfaceHidden
+            visible: isTargetMonitor && !root.isClosing
 
             WlrLayershell.keyboardFocus: (isTargetMonitor && !root.isClosing) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
             WlrLayershell.namespace: "qs-spotlight"
@@ -555,14 +532,14 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                         Behavior on xScale {
                             NumberAnimation {
-                                duration: root.animEnabled ? (searchContainer.panelVisible ? animStyle.enterDuration : animStyle.exitDuration) : 0
-                                easing.type: searchContainer.panelVisible ? animStyle.expoEasing : animStyle.exitEasing
+                                duration: (root.animEnabled && !root.isClosing && searchContainer.panelVisible) ? animStyle.enterDuration : 0
+                                easing.type: animStyle.expoEasing
                             }
                         }
                         Behavior on yScale {
                             NumberAnimation {
-                                duration: root.animEnabled ? (searchContainer.panelVisible ? animStyle.enterDuration : animStyle.exitDuration) : 0
-                                easing.type: searchContainer.panelVisible ? animStyle.expoEasing : animStyle.exitEasing
+                                duration: (root.animEnabled && !root.isClosing && searchContainer.panelVisible) ? animStyle.enterDuration : 0
+                                easing.type: animStyle.expoEasing
                             }
                         }
                     },
@@ -570,8 +547,8 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                         y: searchContainer.panelVisible ? 0 : -14
                         Behavior on y {
                             NumberAnimation {
-                                duration: root.animEnabled ? (searchContainer.panelVisible ? animStyle.enterDuration : animStyle.exitDuration) : 0
-                                easing.type: searchContainer.panelVisible ? animStyle.expoEasing : animStyle.exitEasing
+                                duration: (root.animEnabled && !root.isClosing && searchContainer.panelVisible) ? animStyle.enterDuration : 0
+                                easing.type: animStyle.expoEasing
                             }
                         }
                     }
@@ -579,28 +556,28 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                 Behavior on height {
                     NumberAnimation {
-                        duration: root.animEnabled ? animStyle.morphDuration : 0
+                        duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
                         easing.type: animStyle.expoEasing
                     }
                 }
 
                 Behavior on opacity {
                     NumberAnimation {
-                        duration: root.animEnabled ? (searchContainer.panelVisible ? animStyle.fadeDuration : animStyle.exitDuration) : 0
-                        easing.type: searchContainer.panelVisible ? animStyle.smoothEasing : animStyle.exitEasing
+                        duration: (root.animEnabled && !root.isClosing && searchContainer.panelVisible) ? animStyle.fadeDuration : 0
+                        easing.type: animStyle.smoothEasing
                     }
                 }
 
                 Behavior on color {
                     ColorAnimation {
-                        duration: animStyle.fadeDuration
+                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                         easing.type: animStyle.smoothEasing
                     }
                 }
 
                 Behavior on border.color {
                     ColorAnimation {
-                        duration: animStyle.fadeDuration
+                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                         easing.type: animStyle.smoothEasing
                     }
                 }
@@ -635,7 +612,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                             Behavior on radius {
                                 NumberAnimation {
-                                    duration: root.animEnabled ? animStyle.microDuration : 0
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
                                     easing.type: animStyle.smoothEasing
                                 }
                             }
@@ -649,7 +626,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                                 Behavior on color {
                                     ColorAnimation {
-                                        duration: animStyle.fadeDuration
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                         easing.type: animStyle.smoothEasing
                                     }
                                 }
@@ -733,25 +710,25 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                             Behavior on opacity {
                                 NumberAnimation {
-                                    duration: root.animEnabled ? animStyle.microDuration : 0
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
                                     easing.type: animStyle.smoothEasing
                                 }
                             }
                             Behavior on scale {
                                 NumberAnimation {
-                                    duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
                                     easing.type: animStyle.smoothEasing
                                 }
                             }
                             Behavior on color {
                                 ColorAnimation {
-                                    duration: animStyle.microDuration
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
                                     easing.type: animStyle.smoothEasing
                                 }
                             }
                             Behavior on border.color {
                                 ColorAnimation {
-                                    duration: animStyle.microDuration
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
                                     easing.type: animStyle.smoothEasing
                                 }
                             }
@@ -801,7 +778,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                                 Behavior on x {
                                     NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.morphDuration : 0
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
                                         easing.type: animStyle.expoEasing
                                     }
                                 }
@@ -827,7 +804,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                                             Behavior on color {
                                                 ColorAnimation {
-                                                    duration: animStyle.fadeDuration
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                                     easing.type: animStyle.smoothEasing
                                                 }
                                             }
@@ -842,7 +819,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                                             Behavior on color {
                                                 ColorAnimation {
-                                                    duration: animStyle.fadeDuration
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                                     easing.type: animStyle.smoothEasing
                                                 }
                                             }
@@ -875,7 +852,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                                             Behavior on color {
                                                 ColorAnimation {
-                                                    duration: animStyle.fadeDuration
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                                     easing.type: animStyle.smoothEasing
                                                 }
                                             }
@@ -890,7 +867,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                                             Behavior on color {
                                                 ColorAnimation {
-                                                    duration: animStyle.fadeDuration
+                                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                                     easing.type: animStyle.smoothEasing
                                                 }
                                             }
@@ -922,19 +899,19 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                             Behavior on scale {
                                 NumberAnimation {
-                                    duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
                                     easing.type: animStyle.smoothEasing
                                 }
                             }
                             Behavior on color {
                                 ColorAnimation {
-                                    duration: animStyle.microDuration
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
                                     easing.type: animStyle.smoothEasing
                                 }
                             }
                             Behavior on border.color {
                                 ColorAnimation {
-                                    duration: animStyle.microDuration
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
                                     easing.type: animStyle.smoothEasing
                                 }
                             }
@@ -949,7 +926,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                                 Behavior on color {
                                     ColorAnimation {
-                                        duration: animStyle.microDuration
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
                                         easing.type: animStyle.smoothEasing
                                     }
                                 }
@@ -982,13 +959,13 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                         Behavior on opacity {
                             NumberAnimation {
-                                duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                 easing.type: animStyle.smoothEasing
                             }
                         }
                         Behavior on scale {
                             NumberAnimation {
-                                duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
                                 easing.type: animStyle.smoothEasing
                             }
                         }
@@ -1033,7 +1010,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                         Behavior on opacity {
                             NumberAnimation {
-                                duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                 easing.type: animStyle.smoothEasing
                             }
                         }
@@ -1044,14 +1021,14 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                                     property: "opacity"
                                     from: 0.0
                                     to: 1.0
-                                    duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                     easing.type: animStyle.smoothEasing
                                 }
                                 NumberAnimation {
                                     property: "scale"
                                     from: 0.96
                                     to: 1.0
-                                    duration: root.animEnabled ? animStyle.morphDuration : 0
+                                    duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
                                     easing.type: animStyle.expoEasing
                                 }
                             }
@@ -1061,7 +1038,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                             NumberAnimation {
                                 property: "opacity"
                                 to: 0.0
-                                duration: root.animEnabled ? animStyle.microDuration : 0
+                                duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
                                 easing.type: animStyle.smoothEasing
                             }
                         }
@@ -1069,7 +1046,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
                         displaced: Transition {
                             NumberAnimation {
                                 properties: "x,y"
-                                duration: root.animEnabled ? animStyle.morphDuration : 0
+                                duration: (root.animEnabled && !root.isClosing) ? animStyle.morphDuration : 0
                                 easing.type: animStyle.expoEasing
                             }
                         }
@@ -1090,7 +1067,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                                 Behavior on color {
                                     ColorAnimation {
-                                        duration: animStyle.microDuration
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.microDuration : 0
                                         easing.type: animStyle.smoothEasing
                                     }
                                 }
@@ -1139,19 +1116,19 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                                 Behavior on scale {
                                     NumberAnimation {
-                                        duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
                                         easing.type: animStyle.smoothEasing
                                     }
                                 }
                                 Behavior on color {
                                     ColorAnimation {
-                                        duration: animStyle.fadeDuration
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                         easing.type: animStyle.smoothEasing
                                     }
                                 }
                                 Behavior on border.color {
                                     ColorAnimation {
-                                        duration: animStyle.fadeDuration
+                                        duration: (root.animEnabled && !root.isClosing) ? animStyle.fadeDuration : 0
                                         easing.type: animStyle.smoothEasing
                                     }
                                 }
@@ -1182,7 +1159,7 @@ with open(os.path.expanduser('~/.config/quickshell/json/app_cache.json'), 'w', e
 
                                         Behavior on scale {
                                             NumberAnimation {
-                                                duration: root.animEnabled ? animStyle.scaleDuration : 0
+                                                duration: (root.animEnabled && !root.isClosing) ? animStyle.scaleDuration : 0
                                                 easing.type: animStyle.smoothEasing
                                             }
                                         }
