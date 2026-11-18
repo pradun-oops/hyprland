@@ -57,6 +57,30 @@ Scope {
     property int savedMarginTop: 420
     property int savedMarginLeft: 100
 
+    function resetMediaState() {
+        root.mediaStatus = "Stopped"
+        root.isPlaying = false
+        root.mediaTitle = "No media playing"
+        root.mediaArtist = "Unknown Artist"
+        root.mediaAlbum = ""
+        root.mediaArtUrl = ""
+        root.playerName = ""
+        root.trackPosition = 0
+        root.trackLength = 0
+    }
+
+    function restartMetadataWatcher() {
+        mediaMetadataProcess.running = false
+        if (root.activePlayerList.length > 0) {
+            if (root.playerName !== "" && root.activePlayerList.indexOf(root.playerName) !== -1) {
+                mediaMetadataProcess.command = ["playerctl", "-p", root.playerName, "metadata", "--format", "{{status}}\t{{playerName}}\t{{title}}\t{{artist}}\t{{album}}\t{{mpris:artUrl}}\t{{position}}\t{{mpris:length}}", "-F"]
+            } else {
+                mediaMetadataProcess.command = ["playerctl", "metadata", "--format", "{{status}}\t{{playerName}}\t{{title}}\t{{artist}}\t{{album}}\t{{mpris:artUrl}}\t{{position}}\t{{mpris:length}}", "-F"]
+            }
+            mediaMetadataProcess.running = true
+        }
+    }
+
     FileView {
         id: posConfigFile
         path: Quickshell.env("HOME") + "/.config/quickshell/json/player_pos.json"
@@ -77,10 +101,6 @@ Scope {
         }
     }
 
-    Process {
-        id: savePosProcess
-    }
-
     function savePosition(top, left) {
         let validTop = Math.max(0, Math.round(top))
         let validLeft = Math.max(0, Math.round(left))
@@ -93,11 +113,8 @@ Scope {
         let jsonTmp = jsonFile + ".tmp"
         let jsonStr = JSON.stringify({ marginTop: validTop, marginLeft: validLeft })
 
-        let cmd = "mkdir -p '" + jsonDir + "' && echo '" + jsonStr + "' > '" + jsonTmp + "' && mv '" + jsonTmp + "' '" + jsonFile + "'"
-
-        savePosProcess.running = false
-        savePosProcess.command = ["bash", "-c", cmd]
-        savePosProcess.running = true
+        let cmd = "mkdir -p '" + jsonDir + "' && printf '%s\\n' '" + jsonStr + "' > '" + jsonTmp + "' && mv '" + jsonTmp + "' '" + jsonFile + "'"
+        exec(cmd)
     }
 
     FileView {
@@ -159,11 +176,8 @@ Scope {
         refreshAudio()
     }
 
-    Process { id: execProcess }
     function exec(cmd) {
-        execProcess.running = false
-        execProcess.command = ["bash", "-c", cmd]
-        execProcess.running = true
+        Quickshell.execDetached(["bash", "-c", cmd])
     }
 
     function formatTime(seconds) {
@@ -174,7 +188,7 @@ Scope {
     }
 
     function getPlayerArg() {
-        return root.playerName !== "" ? (" -p " + root.playerName) : ""
+        return root.playerName !== "" ? (" -p '" + root.playerName + "'") : ""
     }
 
     function formatPlayerLabel() {
@@ -189,7 +203,8 @@ Scope {
         let nextIdx = (currIdx + 1) % root.activePlayerList.length
         let nextPlayer = root.activePlayerList[nextIdx]
         root.playerName = nextPlayer
-        exec("playerctl -p " + nextPlayer + " play 2>/dev/null && notify-send -a 'Media Switcher' 'Switched Player' '" + nextPlayer + "'")
+        root.restartMetadataWatcher()
+        exec("playerctl -p '" + nextPlayer + "' play 2>/dev/null && notify-send -a 'Media Switcher' 'Switched Player' '" + nextPlayer + "'")
     }
 
     function adjustVolume(delta) {
@@ -218,6 +233,11 @@ Scope {
         id: mediaMetadataProcess
         command: ["playerctl", "metadata", "--format", "{{status}}\t{{playerName}}\t{{title}}\t{{artist}}\t{{album}}\t{{mpris:artUrl}}\t{{position}}\t{{mpris:length}}", "-F"]
         running: true
+        onExited: {
+            if (!playerListProcess.running) {
+                playerListProcess.running = true
+            }
+        }
         stdout: SplitParser {
             splitMarker: "\n"
             onRead: data => {
@@ -225,14 +245,28 @@ Scope {
                 if (!line) return
                 let parts = line.split("\t")
                 if (parts.length >= 8) {
-                    root.mediaStatus = parts[0] || "Stopped"
-                    root.isPlaying = root.mediaStatus.toLowerCase() === "playing"
-                    root.playerName = parts[1] || ""
-                    root.mediaTitle = parts[2] || "No media playing"
-                    root.mediaArtist = parts[3] || "Unknown Artist"
-                    root.mediaAlbum = parts[4] || ""
+                    let status = (parts[0] || "").trim()
+                    let pName = (parts[1] || "").trim()
+                    let title = (parts[2] || "").trim()
 
-                    let art = parts[5] || ""
+                    if (status === "" || status.toLowerCase() === "stopped" || title === "") {
+                        if (root.activePlayerList.length <= 1) {
+                            root.resetMediaState()
+                        }
+                        if (!playerListProcess.running) {
+                            playerListProcess.running = true
+                        }
+                        return
+                    }
+
+                    root.mediaStatus = status
+                    root.isPlaying = status.toLowerCase() === "playing"
+                    root.playerName = pName
+                    root.mediaTitle = title
+                    root.mediaArtist = (parts[3] || "").trim() || "Unknown Artist"
+                    root.mediaAlbum = (parts[4] || "").trim()
+
+                    let art = (parts[5] || "").trim()
                     if (art.startsWith("file://") || art.startsWith("http://") || art.startsWith("https://")) {
                         root.mediaArtUrl = art
                     } else if (art.length > 0) {
@@ -243,6 +277,15 @@ Scope {
 
                     root.trackPosition = (parseFloat(parts[6]) || 0) / 1000000.0
                     root.trackLength = (parseFloat(parts[7]) || 0) / 1000000.0
+
+                    if (pName !== "" && root.activePlayerList.indexOf(pName) === -1) {
+                        let updated = root.activePlayerList.slice()
+                        updated.push(pName)
+                        root.activePlayerList = updated
+                        if (!playerListProcess.running) {
+                            playerListProcess.running = true
+                        }
+                    }
                 }
             }
         }
@@ -254,7 +297,7 @@ Scope {
         repeat: true
         onTriggered: {
             if (root.trackLength > 0 && root.trackPosition < root.trackLength) {
-                root.trackPosition += 1
+                root.trackPosition = Math.min(root.trackLength, root.trackPosition + 1)
             }
         }
     }
@@ -264,14 +307,31 @@ Scope {
         command: ["playerctl", "-l"]
         stdout: StdioCollector {
             onStreamFinished: {
-                let lines = text.trim().split("\n").filter(p => p.trim().length > 0)
+                let lines = text.trim().split("\n").map(p => p.trim()).filter(p => p.length > 0)
                 root.activePlayerList = lines
+
+                if (lines.length === 0) {
+                    if (root.mediaStatus !== "Stopped" || root.mediaTitle !== "No media playing") {
+                        root.resetMediaState()
+                    }
+                    if (mediaMetadataProcess.running) {
+                        mediaMetadataProcess.running = false
+                    }
+                    return
+                }
+
+                if (root.playerName !== "" && lines.indexOf(root.playerName) === -1) {
+                    root.playerName = lines[0]
+                    root.restartMetadataWatcher()
+                } else if (!mediaMetadataProcess.running) {
+                    root.restartMetadataWatcher()
+                }
             }
         }
     }
 
     Timer {
-        interval: 5000
+        interval: 1500
         running: true
         repeat: true
         triggeredOnStart: true
@@ -337,7 +397,7 @@ Scope {
             required property var modelData
             screen: modelData
 
-            property bool shouldShow: root.mediaStatus.toLowerCase() !== "stopped" && root.mediaTitle !== "No media playing" && modelData !== null
+            property bool shouldShow: root.activePlayerList.length > 0 && root.mediaStatus.toLowerCase() !== "stopped" && root.mediaTitle !== "" && root.mediaTitle !== "No media playing" && modelData !== null
             visible: shouldShow || widgetCard.opacity > 0.01
 
             WlrLayershell.layer: WlrLayer.Bottom
@@ -441,8 +501,10 @@ Scope {
                             let dx = mouse.x - startX
                             let dy = mouse.y - startY
                             if (Math.abs(dx) > 0 || Math.abs(dy) > 0) {
-                                root.savedMarginLeft = Math.max(0, root.savedMarginLeft + dx)
-                                root.savedMarginTop = Math.max(0, root.savedMarginTop + dy)
+                                let maxLeft = playerWindow.screen ? Math.max(0, playerWindow.screen.width - playerWindow.width) : 9999
+                                let maxTop = playerWindow.screen ? Math.max(0, playerWindow.screen.height - playerWindow.height) : 9999
+                                root.savedMarginLeft = Math.max(0, Math.min(maxLeft, root.savedMarginLeft + dx))
+                                root.savedMarginTop = Math.max(0, Math.min(maxTop, root.savedMarginTop + dy))
                             }
                         }
                     }
@@ -629,165 +691,129 @@ Scope {
                         }
                     }
 
-                    Rectangle {
+                    Item {
+                        id: innerContainer
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        radius: Math.max(10, root.themeRounding - 6)
-                        color: Qt.rgba(0, 0, 0, 0.42)
-                        border.width: 1
-                        border.color: Qt.rgba(255, 255, 255, 0.10)
-                        antialiasing: true
+
+                        property int cardRadius: Math.max(10, root.themeRounding - 6)
+
+                        Item {
+                            id: innerBgLayer
+                            anchors.fill: parent
+                            layer.enabled: true
+                            layer.effect: MultiEffect {
+                                maskEnabled: true
+                                maskSource: innerBgMask
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                color: Qt.rgba(0, 0, 0, 0.42)
+                            }
+
+                            Image {
+                                id: bgArtImg
+                                anchors.fill: parent
+                                source: root.mediaArtUrl
+                                fillMode: Image.PreserveAspectCrop
+                                asynchronous: true
+                                cache: false
+                                antialiasing: true
+                                opacity: (root.mediaArtUrl !== "" && status === Image.Ready) ? 1.0 : 0.0
+
+                                Behavior on opacity {
+                                    NumberAnimation {
+                                        duration: root.animEnabled ? animStyle.fadeDuration : 0
+                                        easing.type: animStyle.smoothEasing
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                anchors.fill: parent
+                                visible: bgArtImg.opacity > 0.01
+                                opacity: bgArtImg.opacity
+                                gradient: Gradient {
+                                    GradientStop { position: 0.0; color: Qt.rgba(0, 0, 0, 0.52) }
+                                    GradientStop { position: 0.55; color: Qt.rgba(0, 0, 0, 0.62) }
+                                    GradientStop { position: 1.0; color: Qt.rgba(0, 0, 0, 0.74) }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            id: innerBgMask
+                            anchors.fill: innerBgLayer
+                            radius: innerContainer.cardRadius
+                            color: "black"
+                            visible: false
+                            layer.enabled: true
+                        }
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: innerContainer.cardRadius
+                            color: "transparent"
+                            border.width: 1
+                            border.color: Qt.rgba(255, 255, 255, 0.12)
+                            antialiasing: true
+                        }
 
                         ColumnLayout {
                             anchors.fill: parent
-                            anchors.margins: 14
+                            anchors.margins: 16
                             spacing: 12
 
-                            RowLayout {
+                            ColumnLayout {
                                 Layout.fillWidth: true
-                                spacing: 14
+                                spacing: 3
 
-                                Item {
-                                    width: 56
-                                    height: 56
-
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        radius: width / 2
-                                        color: "#111216"
-                                        border.color: Qt.alpha(root.themePrimary, 0.55)
-                                        border.width: 1.5
-                                        antialiasing: true
-
-                                        Item {
-                                            id: cdRotator
-                                            anchors.fill: parent
-                                            anchors.margins: 2
-
-                                            RotationAnimation on rotation {
-                                                from: 0
-                                                to: 360
-                                                duration: 6000
-                                                loops: Animation.Infinite
-                                                running: root.isPlaying
-                                            }
-
-                                            Item {
-                                                id: artMaskWrapper
-                                                anchors.fill: parent
-                                                layer.enabled: true
-                                                layer.effect: MultiEffect {
-                                                    maskEnabled: true
-                                                    maskSource: cdMaskRect
-                                                }
-
-                                                Image {
-                                                    id: cdArtImg
-                                                    anchors.fill: parent
-                                                    source: root.mediaArtUrl
-                                                    fillMode: Image.PreserveAspectCrop
-                                                    asynchronous: true
-                                                    cache: true
-                                                    antialiasing: true
-                                                    visible: root.mediaArtUrl !== "" && status === Image.Ready
-                                                }
-
-                                                Rectangle {
-                                                    anchors.fill: parent
-                                                    color: Qt.alpha(root.themePrimary, 0.16)
-                                                    visible: root.mediaArtUrl === "" || cdArtImg.status !== Image.Ready
-
-                                                    Text {
-                                                        anchors.centerIn: parent
-                                                        text: "󰎈"
-                                                        font.family: root.iconFontFamily
-                                                        font.pixelSize: 22
-                                                        color: root.themePrimary
-                                                    }
-                                                }
-                                            }
-
-                                            Rectangle {
-                                                id: cdMaskRect
-                                                anchors.fill: artMaskWrapper
-                                                radius: width / 2
-                                                color: "black"
-                                                visible: false
-                                                layer.enabled: true
-                                            }
-
-                                            Rectangle {
-                                                anchors.centerIn: parent
-                                                width: parent.width * 0.64
-                                                height: width
-                                                radius: width / 2
-                                                color: "transparent"
-                                                border.color: Qt.rgba(1, 1, 1, 0.22)
-                                                border.width: 1
-                                                antialiasing: true
-                                            }
-
-                                            Rectangle {
-                                                anchors.centerIn: parent
-                                                width: 12
-                                                height: 12
-                                                radius: 6
-                                                color: "#0d0e11"
-                                                border.color: Qt.alpha(root.themePrimary, 0.85)
-                                                border.width: 1.5
-                                                antialiasing: true
-                                            }
-                                        }
-                                    }
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: root.mediaTitle
+                                    font.family: root.fontFamily
+                                    color: root.themeText
+                                    font.pixelSize: 17
+                                    font.weight: Font.Bold
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.85)
                                 }
 
-                                ColumnLayout {
+                                Text {
                                     Layout.fillWidth: true
-                                    spacing: 3
+                                    text: root.mediaArtist
+                                    font.family: root.fontFamily
+                                    color: root.themeTextMuted
+                                    font.pixelSize: 13
+                                    font.weight: Font.DemiBold
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
+                                }
 
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: root.mediaTitle
-                                        font.family: root.fontFamily
-                                        color: root.themeText
-                                        font.pixelSize: 17
-                                        font.weight: Font.Bold
-                                        elide: Text.ElideRight
-                                        maximumLineCount: 1
-                                        style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.85)
-                                    }
-
-                                    Text {
-                                        Layout.fillWidth: true
-                                        text: root.mediaArtist
-                                        font.family: root.fontFamily
-                                        color: root.themeTextMuted
-                                        font.pixelSize: 13
-                                        font.weight: Font.DemiBold
-                                        elide: Text.ElideRight
-                                        maximumLineCount: 1
-                                        style: Text.Raised
-                                        styleColor: Qt.rgba(0, 0, 0, 0.75)
-                                    }
-
-                                    Text {
-                                        Layout.fillWidth: true
-                                        visible: root.mediaAlbum !== ""
-                                        text: root.mediaAlbum
-                                        font.family: root.fontFamily
-                                        color: Qt.alpha(root.themeTextMuted, 0.72)
-                                        font.pixelSize: 11
-                                        font.weight: Font.Medium
-                                        elide: Text.ElideRight
-                                        maximumLineCount: 1
-                                    }
+                                Text {
+                                    Layout.fillWidth: true
+                                    visible: root.mediaAlbum !== ""
+                                    text: root.mediaAlbum
+                                    font.family: root.fontFamily
+                                    color: Qt.alpha(root.themeTextMuted, 0.78)
+                                    font.pixelSize: 11
+                                    font.weight: Font.Medium
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                    style: Text.Raised
+                                    styleColor: Qt.rgba(0, 0, 0, 0.75)
                                 }
                             }
 
                             Item {
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 24
+                                Layout.fillHeight: true
+                                Layout.minimumHeight: 24
 
                                 Row {
                                     anchors.centerIn: parent
@@ -844,7 +870,7 @@ Scope {
                                         width: parent.width
                                         height: seekMouse.containsMouse ? 7 : 5
                                         radius: height / 2
-                                        color: Qt.rgba(255, 255, 255, 0.14)
+                                        color: Qt.rgba(255, 255, 255, 0.18)
                                         antialiasing: true
 
                                         Behavior on height {
