@@ -35,10 +35,15 @@ Scope {
     property string pythonBin: Quickshell.env("HOME") + "/.local/share/quickshell/depth-venv/bin/python3"
     property string engineScript: Quickshell.env("HOME") + "/.config/hypr/scripts/depth_engine.py"
 
+    readonly property string targetOutputName: (root.primaryMonitorOnly && Quickshell.screens && Quickshell.screens.length > 0 && Quickshell.screens[0])
+                                               ? (Quickshell.screens[0].name || "")
+                                               : ""
+
     property string currentWallpaper: ""
     property string depthMaskSource: ""
     property string resolvedDepthMode: "depth"
     property string depthEngineStatus: "checking"
+    property double lastStateFileChangeMs: 0
 
     property string currentHour: "00"
     property string currentMinute: "00"
@@ -48,14 +53,6 @@ Scope {
     property string weatherTemp: ""
     property string weatherLat: "23.3441"
     property string weatherLon: "85.3096"
-
-    function getTargetOutputName() {
-        if (!root.primaryMonitorOnly) return ""
-        if (Quickshell.screens && Quickshell.screens.length > 0 && Quickshell.screens[0]) {
-            return Quickshell.screens[0].name || ""
-        }
-        return ""
-    }
 
     function mixColor(c1, c2, ratio, alphaVal) {
         let col1 = Qt.color(c1)
@@ -197,47 +194,72 @@ Scope {
         }
     }
 
-    Process {
-        id: wallpaperPollProcess
-        command: ["sh", "-c", "awww query 2>/dev/null || swww query 2>/dev/null"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                let lines = text.split("\n")
-                let targetOut = root.getTargetOutputName()
-                let fallbackWp = ""
-                let matchedWp = ""
-                for (let i = 0; i < lines.length; i++) {
-                    let line = lines[i].replace(/^:\s*/, "").trim()
-                    let idx = line.indexOf("image:")
-                    if (idx === -1) continue
-                    let colonIdx = line.indexOf(":")
-                    let outName = colonIdx !== -1 ? line.slice(0, colonIdx).trim() : ""
-                    let wpPath = line.slice(idx + 6).trim()
-                    if (wpPath !== "") {
-                        if (targetOut !== "" && outName === targetOut) {
-                            matchedWp = wpPath
-                            break
-                        }
-                        if (fallbackWp === "") fallbackWp = wpPath
-                    }
-                }
-                let activeWp = matchedWp !== "" ? matchedWp : fallbackWp
-                if (activeWp !== "" && activeWp !== root.currentWallpaper) {
-                    root.currentWallpaper = activeWp
-                    root.depthMaskSource = ""
-                    root.syncWallpaperDepth(false)
-                }
-            }
+    function applyDetectedWallpaper(wp) {
+        if (!wp || wp === "" || wp === root.currentWallpaper) return
+        root.lastStateFileChangeMs = Date.now()
+        root.currentWallpaper = wp
+        root.depthMaskSource = ""
+        wallpaperSyncDebounce.restart()
+    }
+
+    Timer {
+        id: stateFileReloadTimer
+        interval: 60
+        repeat: false
+        onTriggered: {
+            qsWallpaperPathFile.reload()
+            lastWallpaperFile.reload()
         }
     }
 
     Timer {
-        interval: 1500
-        running: true
-        repeat: true
+        id: wallpaperSyncDebounce
+        interval: 120
+        repeat: false
+        onTriggered: root.syncWallpaperDepth(false, root.currentWallpaper)
+    }
+
+    Timer {
+        id: externalSyncDebounce
+        interval: 650
+        repeat: false
         onTriggered: {
-            if (!wallpaperPollProcess.running) {
-                wallpaperPollProcess.running = true
+            if (Date.now() - root.lastStateFileChangeMs < 2000) return
+            root.syncWallpaperDepth(false, "")
+        }
+    }
+
+    FileView {
+        id: qsWallpaperPathFile
+        path: Quickshell.env("HOME") + "/.cache/qs_wallpaper_path"
+        watchChanges: true
+        onFileChanged: stateFileReloadTimer.restart()
+        onLoaded: {
+            try {
+                root.applyDetectedWallpaper(text().trim())
+            } catch (e) {}
+        }
+    }
+
+    FileView {
+        id: lastWallpaperFile
+        path: Quickshell.env("HOME") + "/.cache/quickshell_last_wallpaper.txt"
+        watchChanges: true
+        onFileChanged: stateFileReloadTimer.restart()
+        onLoaded: {
+            try {
+                root.applyDetectedWallpaper(text().trim())
+            } catch (e) {}
+        }
+    }
+
+    FileView {
+        id: awwwCacheFile
+        path: root.targetOutputName !== "" ? (Quickshell.env("HOME") + "/.cache/awww/" + root.targetOutputName) : ""
+        watchChanges: path !== ""
+        onFileChanged: {
+            if (Date.now() - root.lastStateFileChangeMs >= 2000) {
+                externalSyncDebounce.restart()
             }
         }
     }
@@ -246,12 +268,23 @@ Scope {
         id: wallpaperDepthProcess
         property bool pendingRun: false
         property bool pendingForce: false
+        property string pendingWp: ""
+        property string activeRequestWp: ""
 
         stdout: StdioCollector {
             onStreamFinished: {
                 try {
                     let res = JSON.parse(text.trim())
+                    if (wallpaperDepthProcess.pendingRun && wallpaperDepthProcess.pendingWp !== "" && res.wp !== wallpaperDepthProcess.pendingWp) {
+                        return
+                    }
+                    if (wallpaperDepthProcess.activeRequestWp !== "" && root.currentWallpaper !== "" && res.wp && res.wp !== root.currentWallpaper) {
+                        return
+                    }
                     if (res.wp && res.wp !== "") {
+                        if (root.currentWallpaper !== "" && res.wp !== root.currentWallpaper) {
+                            root.depthMaskSource = ""
+                        }
                         root.currentWallpaper = res.wp
                     }
                     root.depthEngineStatus = res.status || "none"
@@ -270,33 +303,41 @@ Scope {
         onExited: {
             if (pendingRun) {
                 let f = pendingForce
+                let w = pendingWp
                 pendingRun = false
                 pendingForce = false
-                root.syncWallpaperDepth(f)
+                pendingWp = ""
+                root.syncWallpaperDepth(f, w)
             }
         }
     }
 
-    function syncWallpaperDepth(force) {
+    function syncWallpaperDepth(force, wpOverride) {
         let isForce = Boolean(force)
+        let targetWp = (wpOverride !== undefined && wpOverride !== null) ? String(wpOverride).trim() : ""
         if (wallpaperDepthProcess.running) {
             wallpaperDepthProcess.pendingRun = true
             if (isForce) wallpaperDepthProcess.pendingForce = true
+            if (targetWp !== "") wallpaperDepthProcess.pendingWp = targetWp
             return
         }
-        let targetOut = root.getTargetOutputName()
+        let targetOut = root.targetOutputName
         let args = [
             root.pythonBin,
             root.engineScript,
             "--mode", root.depthMode,
             "--threshold", root.depthThreshold.toFixed(2)
         ]
+        if (targetWp !== "") {
+            args.push("--wp", targetWp)
+        }
         if (targetOut !== "") {
             args.push("--output", targetOut)
         }
         if (isForce) {
             args.push("--force")
         }
+        wallpaperDepthProcess.activeRequestWp = targetWp
         root.depthEngineStatus = "processing"
         wallpaperDepthProcess.command = args
         wallpaperDepthProcess.running = true
@@ -306,7 +347,7 @@ Scope {
         if (root.depthMode === "auto") root.depthMode = "depth"
         else if (root.depthMode === "depth") root.depthMode = "subject"
         else root.depthMode = "auto"
-        root.syncWallpaperDepth(false)
+        root.syncWallpaperDepth(false, root.currentWallpaper)
         root.saveClockConfig()
     }
 
@@ -315,7 +356,7 @@ Scope {
         interval: 85
         repeat: false
         onTriggered: {
-            root.syncWallpaperDepth(false)
+            root.syncWallpaperDepth(false, root.currentWallpaper)
             root.saveClockConfig()
         }
     }
@@ -337,6 +378,9 @@ Scope {
             let days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
             let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
             root.currentDateLine = days[now.getDay()] + ", " + months[now.getMonth()] + " " + now.getDate()
+
+            let drift = 1000 - now.getMilliseconds()
+            interval = drift > 40 ? drift : 1000
         }
     }
 
@@ -369,8 +413,10 @@ Scope {
         colorFile.reload()
         generalConfigFile.reload()
         animConfigFile.reload()
+        qsWallpaperPathFile.reload()
+        lastWallpaperFile.reload()
         root.fetchWeather()
-        wallpaperPollProcess.running = true
+        wallpaperSyncDebounce.restart()
     }
 
     Timer {
@@ -1209,7 +1255,7 @@ Scope {
                                 }
                                 onReleased: {
                                     depthSliceDebounce.stop()
-                                    root.syncWallpaperDepth(false)
+                                    root.syncWallpaperDepth(false, root.currentWallpaper)
                                     root.saveClockConfig()
                                 }
                             }

@@ -89,7 +89,7 @@ hl.bind("SUPER + H",              hl.dsp.focus({ direction = "l" }))
 hl.bind("SUPER + J",              hl.dsp.focus({ direction = "d" }))
 hl.bind("SUPER + K",              hl.dsp.focus({ direction = "u" }))
 hl.bind("SUPER + L",              hl.dsp.focus({ direction = "r" }))
-hl.bind("ALT + TAB",              hl.dsp.focus({ window = "next" }))
+hl.bind("ALT + tab",              hl.dsp.window.cycle_next())
 
 hl.bind("SUPER + SHIFT + H",      hl.dsp.window.move({ direction = "l" }))
 hl.bind("SUPER + SHIFT + J",      hl.dsp.window.move({ direction = "d" }))

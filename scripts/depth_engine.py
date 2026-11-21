@@ -30,13 +30,25 @@ def get_active_wallpaper(target_output=""):
                     continue
                 out_name = line.split(":", 1)[0].strip()
                 wp_path = line.split("image:", 1)[1].strip()
-                if os.path.exists(wp_path):
+                if os.path.isfile(wp_path):
                     if target_output and out_name == target_output:
                         return wp_path
                     if not fallback_wp:
                         fallback_wp = wp_path
             if fallback_wp:
                 return fallback_wp
+        except Exception:
+            pass
+    for cache_file in (
+        os.path.join(HOME, ".cache/qs_wallpaper_path"),
+        os.path.join(HOME, ".cache/quickshell_last_wallpaper.txt"),
+    ):
+        try:
+            if os.path.isfile(cache_file):
+                with open(cache_file, "r", encoding="utf-8") as cf:
+                    wp_path = cf.read().strip()
+                if wp_path and os.path.isfile(wp_path):
+                    return wp_path
         except Exception:
             pass
     return ""
@@ -132,13 +144,15 @@ def compose_cutout(rgb_img, depth_img, subj_img, mode, threshold, out_path):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--wp", default="")
     parser.add_argument("--output", default="")
     parser.add_argument("--mode", default="auto", choices=["auto", "depth", "subject"])
     parser.add_argument("--threshold", type=float, default=0.48)
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
-    wp = get_active_wallpaper(args.output)
+    wp_arg = args.wp.strip()
+    wp = wp_arg if (wp_arg and os.path.isfile(wp_arg)) else get_active_wallpaper(args.output)
     if not wp:
         print(json.dumps({"status": "no_wallpaper"}))
         return
